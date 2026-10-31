@@ -1,5 +1,10 @@
 package com.cryptosmc.app.ui
 
+import android.graphics.Paint
+import android.graphics.Typeface
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -83,6 +88,26 @@ fun MarketChart(
                 size.height - ((price - low) / (high - low)).toFloat() * size.height
             }
             val step = size.width / visible
+            val native = drawContext.canvas.nativeCanvas
+            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.LTGRAY
+                textSize = 10.dp.toPx()
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            }
+            val priceFormat = java.text.DecimalFormat("#,##0.00")
+            for (tick in 0..4) {
+                val value = high - (high - low) * tick / 4.0
+                val y = size.height * tick / 4f
+                native.drawText(priceFormat.format(value), size.width - 76.dp.toPx(), (y - 4.dp.toPx()).coerceAtLeast(10.dp.toPx()), labelPaint)
+            }
+            val timeFormat = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
+            val timePaint = Paint(labelPaint).apply { textSize = 9.dp.toPx() }
+            val timeIndices = listOf(0, slice.lastIndex / 3, slice.lastIndex * 2 / 3, slice.lastIndex)
+            timeIndices.distinct().forEach { index ->
+                val candle = slice[index]
+                val x = (index + 0.5f) * step
+                native.drawText(timeFormat.format(Date(candle.openTime)), x.coerceAtMost(size.width - 72.dp.toPx()), size.height - 3.dp.toPx(), timePaint)
+            }
             val bodyWidth = (step * 0.62f).coerceAtLeast(1.5f)
 
             for (i in 1..4) {
