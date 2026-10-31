@@ -18,13 +18,15 @@ import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.sentiment.SentimentRepository
+import com.cryptosmc.app.trading.VirtualTradingRepository
 
 @Composable
 fun AppRoot(
     providers: ProviderRepository,
     favorites: FavoritesRepository,
     market: MarketRepository,
-    sentiment: SentimentRepository
+    sentiment: SentimentRepository,
+    virtualTrading: VirtualTradingRepository
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf<String?>(null) }
@@ -64,9 +66,10 @@ fun AppRoot(
                     1 -> AnalysisScreen(
                         providers = providers,
                         market = market,
-                        sentimentRepository = sentiment
+                        sentimentRepository = sentiment,
+                        virtualRepository = virtualTrading
                     )
-                    2 -> SimulatorScreen(market)
+                    2 -> SimulatorScreen(market, virtualTrading)
                     else -> SettingsScreen(providers)
                 }
             }
