@@ -118,7 +118,7 @@ fun AnalysisScreen(
                     result = it
                     journal.add(pair, it.prediction, it.votes)
                     journalEntries = journal.load().filter { entry -> entry.symbol.equals(pair, ignoreCase = true) }.sortedByDescending { entry -> entry.createdAt }
-                    status = "Анализ завершён. Ответов AI: ${it.votes.size}. Снимок сохранён в журнале."
+                    status = "Анализ завершён: 3 бесплатных локальных агента + ${it.votes.size - 3} внешних моделей. Снимок сохранён."
                 }.onFailure {
                     status = "Локальный анализ готов, но AI-консенсус не получен: ${it.message ?: "ошибка"}"
                 }
@@ -133,7 +133,9 @@ fun AnalysisScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("Market Intelligence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("MARKET INTELLIGENCE", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("Рыночная разведка", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("3 бесплатных аналитических агента работают без API-ключей. Внешние AI-модели можно подключить дополнительно.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9AAAC0))
             Text("Аналитика рынка · 1H · Binance public data", style = MaterialTheme.typography.bodySmall)
         }
         item {
@@ -333,7 +335,9 @@ fun AnalysisScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("AI-консенсус", style = MaterialTheme.typography.titleMedium)
+                        Text("ИТОГОВЫЙ СЦЕНАРИЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+                        Text("Консенсус аналитических агентов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Бесплатные локальные агенты + подключённые внешние модели", fontSize = 11.sp, color = Color.LightGray)
                         Text(
                             directionLabel(p.direction),
                             color = directionColor(p.direction),
@@ -362,7 +366,7 @@ fun AnalysisScreen(
                     }
                 }
             }
-            item { Text("Ответы отдельных моделей", style = MaterialTheme.typography.titleMedium) }
+            item { Text("ОТЧЁТЫ АГЕНТОВ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp) }
             items(consensus.votes.size) { index ->
                 val vote = consensus.votes[index]
                 PredictionCard(vote)
@@ -382,7 +386,7 @@ private fun PredictionCard(p: AiPrediction) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row {
-                Text(p.providerId, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                Text(agentTitle(p.providerId), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                 Text(directionLabel(p.direction), color = directionColor(p.direction))
             }
             Text("Уверенность: ${"%.0f".format(Locale.US, p.confidence)}% · Вход ${fmt(p.entry)}")
@@ -390,6 +394,14 @@ private fun PredictionCard(p: AiPrediction) {
             if (p.reasoning.isNotBlank()) Text(p.reasoning, fontSize = 12.sp)
         }
     }
+}
+
+private fun agentTitle(id: String) = when (id) {
+    "local_structure" -> "01 · Агент структуры рынка"
+    "local_momentum" -> "02 · Агент импульса и динамики"
+    "local_sentiment" -> "03 · Агент настроения"
+    "consensus" -> "Центральный аналитический модуль"
+    else -> "Внешняя AI-модель · $id"
 }
 
 private fun directionLabel(direction: String) = when (direction) {
