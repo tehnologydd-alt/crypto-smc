@@ -220,6 +220,30 @@ fun AnalysisScreen(
                 }
             }
         }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Качество прогнозов", style = MaterialTheme.typography.titleMedium)
+                    Text("Статистика строится только по завершённым проверкам; нейтральные ответы исключены.", fontSize = 10.sp, color = Color.LightGray)
+                    listOf(1, 4, 24).forEach { horizon ->
+                        val consensusStats = journal.statistics(journalEntries, horizon)
+                        val totalConsensus = journal.consensusStatistics(journalEntries, horizon)
+                        Text("${horizon}ч · Консенсус: ${totalConsensus.correct}/${totalConsensus.total} (${if (totalConsensus.total > 0) "%.0f".format(Locale.US, totalConsensus.correct * 100.0 / totalConsensus.total) else "—"}%)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        if (consensusStats.isNotEmpty()) {
+                            consensusStats.forEach { stat ->
+                                Text(
+                                    "${stat.providerId}: ${stat.correct}/${stat.total} (${"%.0f".format(Locale.US, stat.correct * 100.0 / stat.total)}%) · среднее направленное изменение ${String.format(Locale.US, "%+.2f%%", stat.averageDirectionalMovePercent)}",
+                                    fontSize = 11.sp
+                                )
+                            }
+                        } else {
+                            Text("Пока нет достаточных проверок отдельных моделей.", fontSize = 11.sp, color = Color.LightGray)
+                        }
+                    }
+                    Text("Это историческая проверка направления по цене закрытия. Она не учитывает комиссии, проскальзывание и исполнение виртуальных уровней.", fontSize = 10.sp, color = Color.LightGray)
+                }
+            }
+        }
         if (consensus != null) {
             item {
                 val p = consensus.prediction
