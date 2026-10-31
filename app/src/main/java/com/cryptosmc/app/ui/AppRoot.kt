@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketRepository
@@ -33,7 +34,7 @@ fun AppRoot(
 ) {
     var tab by remember { mutableIntStateOf(1) }
     var selected by remember { mutableStateOf<String?>(null) }
-    val titles = listOf("Рынок", "Анализ", "Практика", "Агенты")
+    val titles = listOf("Рынок", "Анализ", "Практика", "Настройки")
     val icons = listOf("⌂", "⌁", "◈", "✳")
 
     Scaffold(
@@ -42,7 +43,7 @@ fun AppRoot(
             NavigationBar(
                 containerColor = Color(0xFF101827),
                 contentColor = Color(0xFFEAF0FA),
-                tonalElevation = androidx.compose.ui.unit.Dp(0f)
+                tonalElevation = 0.dp
             ) {
                 titles.forEachIndexed { index, title ->
                     NavigationBarItem(
