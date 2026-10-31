@@ -39,6 +39,10 @@ import com.cryptosmc.app.smc.Direction
 import com.cryptosmc.app.smc.SmcAnalysis
 import com.cryptosmc.app.smc.SmcEngine
 import com.cryptosmc.app.smc.ZoneKind
+import com.cryptosmc.app.volatility.LiquidityMap
+import com.cryptosmc.app.volatility.LiquiditySide
+import com.cryptosmc.app.volatility.VolatilityEngine
+import com.cryptosmc.app.volatility.VolatilityMetrics
 import java.util.Locale
 
 private val ChartUp = Color(0xFF2EBD85)
@@ -59,6 +63,8 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
     var status by remember { mutableStateOf("Загрузка...") }
     var tick by remember { mutableIntStateOf(0) }
     val smc = remember(candles) { SmcEngine.analyze(candles) }
+    val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
+    val liquidity = remember(book, futures) { VolatilityEngine.liquidityMap(book, futures?.openInterest) }
 
     LaunchedEffect(symbol, interval, tick) {
         status = "Загрузка..."
@@ -127,6 +133,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
         }
 
         SmcSummary(smc)
+        VolatilitySummary(volatility, liquidity)
         if (status.isNotEmpty()) {
             Text(status, style = MaterialTheme.typography.bodySmall)
         } else {
@@ -203,6 +210,42 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
                     )
                 } else {
                     Text("Загрузка...", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VolatilitySummary(metrics: VolatilityMetrics?, liquidity: LiquidityMap?) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Волатильность и ликвидность", style = MaterialTheme.typography.titleMedium)
+            if (metrics == null) {
+                Text("Недостаточно свечей для расчёта", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text(
+                    "ATR(14): ${formatPrice(metrics.atr)} (${String.format(Locale.US, "%.2f%%", metrics.atrPercent)})",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Реализованная волатильность: ${String.format(Locale.US, "%.2f%%", metrics.realizedVolatilityPercent)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            liquidity?.let { map ->
+                val strongest = map.clusters.firstOrNull()
+                val side = if (strongest?.side == LiquiditySide.BID) "Bid" else "Ask"
+                Text(
+                    "Кластеры стакана: ${map.clusters.size}, Bid/Ask: " +
+                        String.format(Locale.US, "%.2f / %.2f", map.bidQuantity, map.askQuantity),
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (strongest != null) {
+                    Text("Сильнейший уровень: $side ${formatPrice(strongest.price)}", style = MaterialTheme.typography.bodySmall)
+                }
+                map.openInterest?.let {
+                    Text("Open interest: ${String.format(Locale.US, "%.2f", it)}", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
