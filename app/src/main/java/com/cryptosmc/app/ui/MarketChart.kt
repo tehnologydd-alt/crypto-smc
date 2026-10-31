@@ -61,8 +61,10 @@ fun MarketChart(\n    candles: List<Candle>,\n    analysis: SmcAnalysis,\n    vi
             val slice = candles.subList(first, last + 1)
             if (slice.isEmpty()) return@Canvas
 
-            val minPrice = slice.minOf { it.low }
-            val maxPrice = slice.maxOf { it.high }
+            val visibleTrades = virtualTrades.filter { it.symbol.equals(symbol, true) }
+            val overlayPrices = visibleTrades.flatMap { listOfNotNull(it.entryPrice, it.stopLoss, it.takeProfit) }
+            val minPrice = min(slice.minOf { it.low }, overlayPrices.minOrNull() ?: slice.minOf { it.low })
+            val maxPrice = max(slice.maxOf { it.high }, overlayPrices.maxOrNull() ?: slice.maxOf { it.high })
             val padding = (maxPrice - minPrice).coerceAtLeast(0.0000001) * 0.08
             val low = minPrice - padding
             val high = maxPrice + padding
@@ -110,6 +112,18 @@ fun MarketChart(\n    candles: List<Candle>,\n    analysis: SmcAnalysis,\n    vi
                 level(trade.entryPrice, entryColor, 2.2f)
                 level(trade.stopLoss, Color(0xFFFF5252), 1.5f)
                 level(trade.takeProfit, Color(0xFF40C4FF), 1.5f)
+            }
+
+            visibleTrades.forEach { trade ->
+                val entryColor = if (trade.side == VirtualSide.BUY) Color(0xFF52D6A2) else Color(0xFFFF8494)
+                fun drawLevel(price: Double?, color: Color, stroke: Float) {
+                    if (price == null || price < low || price > high) return
+                    val y = priceY(price)
+                    drawLine(color, Offset(0f, y), Offset(size.width, y), stroke)
+                }
+                drawLevel(trade.entryPrice, entryColor, 2.2f)
+                drawLevel(trade.stopLoss, Color(0xFFFF5252), 1.5f)
+                drawLevel(trade.takeProfit, Color(0xFF40C4FF), 1.5f)
             }
 
             slice.forEachIndexed { index, candle ->
