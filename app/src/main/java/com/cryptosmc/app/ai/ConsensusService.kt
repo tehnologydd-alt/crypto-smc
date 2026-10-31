@@ -8,6 +8,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -43,7 +44,6 @@ class ConsensusService(private val providers: ProviderRepository) {
     ): Result<ConsensusResult> = runCatching {
         require(candles.isNotEmpty()) { "Нет свечей для анализа" }
 
-        // Send actual price history and levels, not only counts of detected objects.
         val packet = buildJsonObject {
             put("symbol", symbol)
             put("timeframe", "1h")
