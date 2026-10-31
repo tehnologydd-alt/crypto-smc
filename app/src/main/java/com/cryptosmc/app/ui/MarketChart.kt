@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import com.cryptosmc.app.ai.AiPrediction
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.smc.SmcAnalysis
 import com.cryptosmc.app.smc.ZoneKind
@@ -34,6 +35,7 @@ import kotlin.math.min
 fun MarketChart(
     candles: List<Candle>,
     analysis: SmcAnalysis,
+    prediction: AiPrediction? = null,
     virtualTrades: List<VirtualTrade> = emptyList(),
     symbol: String = "",
     modifier: Modifier = Modifier
@@ -69,7 +71,7 @@ fun MarketChart(
             val visibleTrades = virtualTrades.filter { it.symbol.equals(symbol, ignoreCase = true) }
             val overlayPrices = visibleTrades.flatMap {
                 listOfNotNull(it.entryPrice, it.stopLoss, it.takeProfit)
-            }
+            } + listOfNotNull(prediction?.entry, prediction?.stop, prediction?.take)
             val dataLow = slice.minOf { it.low }
             val dataHigh = slice.maxOf { it.high }
             val minPrice = min(dataLow, overlayPrices.minOrNull() ?: dataLow)
@@ -145,6 +147,18 @@ fun MarketChart(
                     Offset(x - bodyWidth / 2f, top),
                     androidx.compose.ui.geometry.Size(bodyWidth, (bottom - top).coerceAtLeast(1.5f))
                 )
+            }
+
+            prediction?.let { forecast ->
+                fun forecastLine(value: Double, color: Color, width: Float) {
+                    if (value !in low..high) return
+                    val y = priceY(value)
+                    drawLine(color, Offset(0f, y), Offset(size.width, y), width)
+                    drawCircle(color, radius = 4.5f, center = Offset(size.width - 7f, y))
+                }
+                forecastLine(forecast.entry, Color(0xFFB69CFF), 2.5f)
+                forecastLine(forecast.stop, Color(0xFFFF667A), 2f)
+                forecastLine(forecast.take, Color(0xFF54D6A4), 2f)
             }
         }
     }

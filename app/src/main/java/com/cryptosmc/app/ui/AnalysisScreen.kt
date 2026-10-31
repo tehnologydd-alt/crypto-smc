@@ -59,6 +59,7 @@ fun AnalysisScreen(
     var symbol by remember { mutableStateOf("BTCUSDT") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var result by remember { mutableStateOf<ConsensusResult?>(null) }
+    var moodSnapshot by remember { mutableStateOf<com.cryptosmc.app.sentiment.SentimentSnapshot?>(null) }
     var status by remember { mutableStateOf("Нажми «Обновить анализ» для загрузки данных") }
     var busy by remember { mutableStateOf(false) }
     var virtualTrades by remember { mutableStateOf<List<VirtualTrade>>(emptyList()) }
@@ -109,6 +110,7 @@ fun AnalysisScreen(
                 }
                 status = "Рассчитываю структуру, волатильность и сентимент..."
                 val mood = sentimentRepository.snapshot(pair).getOrNull()
+                moodSnapshot = mood
                 status = "Запрашиваю подключённые AI-модели..."
                 val consensus = ConsensusService(providers)
                     .predict(pair, data, SmcEngine.analyze(data), VolatilityEngine.metrics(data), mood)
@@ -162,13 +164,20 @@ fun AnalysisScreen(
         }
         if (candles.size >= 2) {
             item {
-                Text("График · перетаскивай для истории, щипок — масштаб", style = MaterialTheme.typography.titleSmall)
+                Text("График цены и уровней", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Как пользоваться: двигай график пальцем для истории, своди/разводи пальцы для масштаба.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
                 MarketChart(
                     candles = candles,
                     analysis = smc,
+                    prediction = result?.prediction,
                     virtualTrades = virtualTrades,
                     symbol = symbol.trim().uppercase()
                 )
+                if (result != null) {
+                    Text("Прогноз AI: вход — фиолетовый · Stop — красный · Take — зелёный", color = Color.LightGray, fontSize = 11.sp)
+                    val forecast = result!!.prediction
+                    Text("${directionLabel(forecast.direction)} · Entry ${fmt(forecast.entry)} · SL ${fmt(forecast.stop)} · TP ${fmt(forecast.take)}", color = directionColor(forecast.direction), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
                 if (virtualTrades.isNotEmpty()) {
                     Text(
                         "Виртуальные уровни: вход — зелёный/красный · SL — красный · TP — голубой",
@@ -180,6 +189,26 @@ fun AnalysisScreen(
                             "${trade.side} · вход ${fmt(trade.entryPrice)} · SL ${trade.stopLoss?.let(::fmt) ?: "—"} · TP ${trade.takeProfit?.let(::fmt) ?: "—"}",
                             fontSize = 12.sp
                         )
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF202D3B))) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Настроение рынка и соцсети", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val mood = moodSnapshot
+                    if (mood == null) {
+                        Text("Настроение ещё не загружено. Нажми «Обновить анализ» — приложение запросит Fear & Greed, Reddit и доступные новости.", color = Color.LightGray, fontSize = 12.sp)
+                    } else {
+                        Text("${mood.label} · ${"%.0f".format(Locale.US, mood.score)}/100", color = if (mood.score >= 55) Color(0xFF61D9A5) else if (mood.score <= 45) Color(0xFFFF8494) else Color(0xFFFFC66D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        mood.sources.forEach { source ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(source.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${"%.0f".format(Locale.US, source.score)}/100 · ${source.detail}", fontSize = 11.sp, color = Color.LightGray)
+                            }
+                        }
+                        Text("Оценка использует доступные публичные источники и простой анализ заголовков; это не полноценный анализ мнений пользователей.", fontSize = 10.sp, color = Color.LightGray)
                     }
                 }
             }
@@ -315,8 +344,18 @@ fun AnalysisScreen(
                         Text("Средняя расчётная точка входа: ${fmt(p.entry)}")
                         Text("Модельный Stop: ${fmt(p.stop)} · Take: ${fmt(p.take)}")
                         Text("Обоснование: ${p.reasoning}")
+                        Text("Что означает сценарий", fontWeight = FontWeight.Bold)
                         Text(
-                            "Это исследовательский вывод моделей, не торговая рекомендация. Проверь источники и риск.",
+                            when (p.direction) {
+                                "long" -> "Модель рассматривает сценарий роста. Следи за реакцией цены около Entry; достижение Stop отменяет сценарий."
+                                "short" -> "Модель рассматривает сценарий снижения. Следи за реакцией цены около Entry; достижение Stop отменяет сценарий."
+                                else -> "Модели не согласовали направление. Рекомендация системы: наблюдать и дождаться новых данных."
+                            },
+                            fontSize = 12.sp
+                        )
+                        Text("Entry ${fmt(p.entry)} · Stop ${fmt(p.stop)} · Take ${fmt(p.take)}", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Это исследовательский сценарий, а не торговая рекомендация. Уровни модельные, не исполняются автоматически.",
                             color = Color(0xFFFFC66D),
                             fontSize = 12.sp
                         )
