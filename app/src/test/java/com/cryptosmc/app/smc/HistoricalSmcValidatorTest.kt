@@ -37,6 +37,23 @@ class HistoricalSmcValidatorTest {
         val fourHour = HistoricalSmcValidator.statistics(outcomes, 4)
         assertEquals(1, fourHour.correct)
         assertEquals(1, fourHour.total)
+
+        val bosOnly = HistoricalSmcValidator.statistics(
+            outcomes, 1, MarketRegime.TREND_UP, StructureKind.BOS
+        )
+        assertEquals(1, bosOnly.correct)
+        assertEquals(1, bosOnly.total)
+
+        val chochOnly = HistoricalSmcValidator.statistics(
+            outcomes, 1, MarketRegime.RANGE, StructureKind.CHOCH
+        )
+        assertEquals(0, chochOnly.correct)
+        assertEquals(1, chochOnly.total)
+
+        val noChochInUptrend = HistoricalSmcValidator.statistics(
+            outcomes, 1, MarketRegime.TREND_UP, StructureKind.CHOCH
+        )
+        assertEquals(0, noChochInUptrend.total)
     }
 
     @Test
