@@ -57,7 +57,7 @@ object SmcEngine {
             return SmcAnalysis(emptyList(), emptyList(), emptyList(), emptyList(), null)
         }
         val swings = findSwings(candles, swingLookback)
-        val structure = findStructure(candles, swings)
+        val structure = findStructure(candles, swings, swingLookback)
         val zones = findFairValueGaps(candles) + findOrderBlocks(candles, structure)
         val liquidity = findEqualLevels(swings, candles)
         val range = swings.takeLast(2)
@@ -105,7 +105,7 @@ object SmcEngine {
 
             // A pivot is not knowable until the right-side lookback candles have closed.
             // Never attribute a structure break to candles before that confirmation point.
-            val confirmationIndex = prior.index + 2
+            val confirmationIndex = prior.index + lookback
             val scanStart = maxOf(prior.index + 1, confirmationIndex)
             val breakIndex = (scanStart..swing.index.coerceAtMost(candles.lastIndex))
                 .firstOrNull { index ->
