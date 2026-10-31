@@ -106,7 +106,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF172238)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29)),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -137,7 +137,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("Новая виртуальная позиция", color = Color.White, fontWeight = FontWeight.SemiBold)
@@ -180,7 +180,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Пополнение виртуального счёта", color = Color.White, fontWeight = FontWeight.SemiBold)
@@ -223,7 +223,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
 private fun VirtualTradeCard(trade: VirtualTrade, onClose: (() -> Unit)? = null) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
     ) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(

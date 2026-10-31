@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.trading.VirtualTradingRepository
+import com.cryptosmc.app.trading.VirtualSide
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.smc.SmcEngine
 import com.cryptosmc.app.smc.HistoricalSmcValidator
@@ -59,8 +62,12 @@ fun AnalysisScreen(
     var symbol by remember { mutableStateOf("BTCUSDT") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var result by remember { mutableStateOf<ConsensusResult?>(null) }
+    var moodSnapshot by remember { mutableStateOf<com.cryptosmc.app.sentiment.SentimentSnapshot?>(null) }
     var status by remember { mutableStateOf("Нажми «Обновить анализ» для загрузки данных") }
     var busy by remember { mutableStateOf(false) }
+    var showAcceptDialog by remember { mutableStateOf(false) }
+    var orderAmount by remember { mutableStateOf("100") }
+    var acceptMessage by remember { mutableStateOf<String?>(null) }
     var virtualTrades by remember { mutableStateOf<List<VirtualTrade>>(emptyList()) }
     var journalEntries by remember { mutableStateOf<List<JournalEntry>>(emptyList()) }
     val context = LocalContext.current
@@ -109,6 +116,7 @@ fun AnalysisScreen(
                 }
                 status = "Рассчитываю структуру, волатильность и сентимент..."
                 val mood = sentimentRepository.snapshot(pair).getOrNull()
+                moodSnapshot = mood
                 status = "Запрашиваю подключённые AI-модели..."
                 val consensus = ConsensusService(providers)
                     .predict(pair, data, SmcEngine.analyze(data), VolatilityEngine.metrics(data), mood)
@@ -116,7 +124,7 @@ fun AnalysisScreen(
                     result = it
                     journal.add(pair, it.prediction, it.votes)
                     journalEntries = journal.load().filter { entry -> entry.symbol.equals(pair, ignoreCase = true) }.sortedByDescending { entry -> entry.createdAt }
-                    status = "Анализ завершён. Ответов AI: ${it.votes.size}. Снимок сохранён в журнале."
+                    status = "Анализ завершён: 3 бесплатных локальных агента + ${it.votes.size - 3} внешних моделей. Снимок сохранён."
                 }.onFailure {
                     status = "Локальный анализ готов, но AI-консенсус не получен: ${it.message ?: "ошибка"}"
                 }
@@ -126,12 +134,69 @@ fun AnalysisScreen(
         }
     }
 
+    if (showAcceptDialog && result != null && candles.isNotEmpty()) {
+        val forecast = result!!.prediction
+        val currentPrice = candles.last().close
+        val isBuy = forecast.direction == "long"
+        val side = if (isBuy) VirtualSide.BUY else VirtualSide.SELL
+        val suggestedLimit = if (isBuy) forecast.entry < currentPrice else forecast.entry > currentPrice
+        AlertDialog(
+            onDismissRequest = { showAcceptDialog = false },
+            title = { Text("Принять виртуальный прогноз?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${if (isBuy) "BUY" else "SELL"} · ${symbol.uppercase()}")
+                    Text("Текущая цена: ${fmt(currentPrice)}")
+                    Text("Entry: ${fmt(forecast.entry)} · SL: ${fmt(forecast.stop)} · TP: ${fmt(forecast.take)}")
+                    Text("Предлагаемый тип: ${if (suggestedLimit) "LIMIT — ждать цены входа" else "MARKET — по текущей цене"}")
+                    OutlinedTextField(
+                        value = orderAmount,
+                        onValueChange = { orderAmount = it },
+                        label = { Text("Сумма виртуальной позиции, USDT") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    Text("Подтверждение создаст только виртуальную позицию в симуляторе.", fontSize = 11.sp, color = Color.LightGray)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val amount = orderAmount.replace(',', '.').toDoubleOrNull()
+                    if (amount == null || !amount.isFinite() || amount <= 0.0) {
+                        acceptMessage = "Укажи корректную сумму в USDT"
+                    } else if (suggestedLimit) {
+                        acceptMessage = "Для LIMIT-заявки нужно сначала добавить механизм ожидающих лимитных заявок. Позиция не открыта."
+                        showAcceptDialog = false
+                    } else {
+                        val quantity = amount / currentPrice
+                        val opened = virtualRepository.open(
+                            symbol = symbol.trim().uppercase(),
+                            side = side,
+                            entry = currentPrice,
+                            quantity = quantity,
+                            stopLoss = forecast.stop,
+                            takeProfit = forecast.take
+                        )
+                        virtualTrades = opened.openTrades.filter { it.symbol.equals(symbol, true) }
+                        acceptMessage = opened.message
+                        showAcceptDialog = false
+                    }
+                }) { Text("Подтвердить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAcceptDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("Market Intelligence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("MARKET INTELLIGENCE", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("Рыночная разведка", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("3 бесплатных аналитических агента работают без API-ключей. Внешние AI-модели можно подключить дополнительно.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9AAAC0))
             Text("Аналитика рынка · 1H · Binance public data", style = MaterialTheme.typography.bodySmall)
         }
         item {
@@ -162,13 +227,20 @@ fun AnalysisScreen(
         }
         if (candles.size >= 2) {
             item {
-                Text("График · перетаскивай для истории, щипок — масштаб", style = MaterialTheme.typography.titleSmall)
+                Text("График цены и уровней", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Как пользоваться: двигай график пальцем для истории, своди/разводи пальцы для масштаба.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
                 MarketChart(
                     candles = candles,
                     analysis = smc,
+                    prediction = result?.prediction,
                     virtualTrades = virtualTrades,
                     symbol = symbol.trim().uppercase()
                 )
+                if (result != null) {
+                    Text("Прогноз AI: вход — фиолетовый · Stop — красный · Take — зелёный", color = Color.LightGray, fontSize = 11.sp)
+                    val forecast = result!!.prediction
+                    Text("${directionLabel(forecast.direction)} · Entry ${fmt(forecast.entry)} · SL ${fmt(forecast.stop)} · TP ${fmt(forecast.take)}", color = directionColor(forecast.direction), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
                 if (virtualTrades.isNotEmpty()) {
                     Text(
                         "Виртуальные уровни: вход — зелёный/красный · SL — красный · TP — голубой",
@@ -180,6 +252,26 @@ fun AnalysisScreen(
                             "${trade.side} · вход ${fmt(trade.entryPrice)} · SL ${trade.stopLoss?.let(::fmt) ?: "—"} · TP ${trade.takeProfit?.let(::fmt) ?: "—"}",
                             fontSize = 12.sp
                         )
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF202D3B))) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Настроение рынка и соцсети", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val mood = moodSnapshot
+                    if (mood == null) {
+                        Text("Настроение ещё не загружено. Нажми «Обновить анализ» — приложение запросит Fear & Greed, Reddit и доступные новости.", color = Color.LightGray, fontSize = 12.sp)
+                    } else {
+                        Text("${mood.label} · ${"%.0f".format(Locale.US, mood.score)}/100", color = if (mood.score >= 55) Color(0xFF61D9A5) else if (mood.score <= 45) Color(0xFFFF8494) else Color(0xFFFFC66D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        mood.sources.forEach { source ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(source.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${"%.0f".format(Locale.US, source.score)}/100 · ${source.detail}", fontSize = 11.sp, color = Color.LightGray)
+                            }
+                        }
+                        Text("Оценка использует доступные публичные источники и простой анализ заголовков; это не полноценный анализ мнений пользователей.", fontSize = 10.sp, color = Color.LightGray)
                     }
                 }
             }
@@ -304,7 +396,9 @@ fun AnalysisScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("AI-консенсус", style = MaterialTheme.typography.titleMedium)
+                        Text("ИТОГОВЫЙ СЦЕНАРИЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+                        Text("Консенсус аналитических агентов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Бесплатные локальные агенты + подключённые внешние модели", fontSize = 11.sp, color = Color.LightGray)
                         Text(
                             directionLabel(p.direction),
                             color = directionColor(p.direction),
@@ -315,15 +409,29 @@ fun AnalysisScreen(
                         Text("Средняя расчётная точка входа: ${fmt(p.entry)}")
                         Text("Модельный Stop: ${fmt(p.stop)} · Take: ${fmt(p.take)}")
                         Text("Обоснование: ${p.reasoning}")
+                        Button(onClick = { showAcceptDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Принять прогноз · виртуальная сделка")
+                        }
+                        acceptMessage?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                        Text("Что означает сценарий", fontWeight = FontWeight.Bold)
                         Text(
-                            "Это исследовательский вывод моделей, не торговая рекомендация. Проверь источники и риск.",
+                            when (p.direction) {
+                                "long" -> "Модель рассматривает сценарий роста. Следи за реакцией цены около Entry; достижение Stop отменяет сценарий."
+                                "short" -> "Модель рассматривает сценарий снижения. Следи за реакцией цены около Entry; достижение Stop отменяет сценарий."
+                                else -> "Модели не согласовали направление. Рекомендация системы: наблюдать и дождаться новых данных."
+                            },
+                            fontSize = 12.sp
+                        )
+                        Text("Entry ${fmt(p.entry)} · Stop ${fmt(p.stop)} · Take ${fmt(p.take)}", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Это исследовательский сценарий, а не торговая рекомендация. Уровни модельные, не исполняются автоматически.",
                             color = Color(0xFFFFC66D),
                             fontSize = 12.sp
                         )
                     }
                 }
             }
-            item { Text("Ответы отдельных моделей", style = MaterialTheme.typography.titleMedium) }
+            item { Text("ОТЧЁТЫ АГЕНТОВ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp) }
             items(consensus.votes.size) { index ->
                 val vote = consensus.votes[index]
                 PredictionCard(vote)
@@ -343,7 +451,7 @@ private fun PredictionCard(p: AiPrediction) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row {
-                Text(p.providerId, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                Text(agentTitle(p.providerId), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                 Text(directionLabel(p.direction), color = directionColor(p.direction))
             }
             Text("Уверенность: ${"%.0f".format(Locale.US, p.confidence)}% · Вход ${fmt(p.entry)}")
@@ -351,6 +459,14 @@ private fun PredictionCard(p: AiPrediction) {
             if (p.reasoning.isNotBlank()) Text(p.reasoning, fontSize = 12.sp)
         }
     }
+}
+
+private fun agentTitle(id: String) = when (id) {
+    "local_structure" -> "01 · Агент структуры рынка"
+    "local_momentum" -> "02 · Агент импульса и динамики"
+    "local_sentiment" -> "03 · Агент настроения"
+    "consensus" -> "Центральный аналитический модуль"
+    else -> "Внешняя AI-модель · $id"
 }
 
 private fun directionLabel(direction: String) = when (direction) {
