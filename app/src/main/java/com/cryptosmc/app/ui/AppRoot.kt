@@ -1,8 +1,6 @@
 package com.cryptosmc.app.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
@@ -15,7 +13,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.ai.ProviderRepository
@@ -32,8 +29,9 @@ fun AppRoot(
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf<String?>(null) }
-    val titles = listOf("Избранное", "Анализ", "Настройки")
-    val icons = listOf("★", "◎", "⚙")
+
+    val titles = listOf("Избранное", "Анализ", "Симулятор", "Настройки")
+    val icons = listOf("★", "◎", "⇄", "⚙")
 
     Scaffold(
         bottomBar = {
@@ -53,13 +51,19 @@ fun AppRoot(
         }
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            val sel = selected
-            if (sel != null) {
-                AssetScreen(symbol = sel, market = market, sentiment = sentiment, onBack = { selected = null })
+            val symbol = selected
+            if (symbol != null) {
+                AssetScreen(
+                    symbol = symbol,
+                    market = market,
+                    sentiment = sentiment,
+                    onBack = { selected = null }
+                )
             } else {
                 when (tab) {
                     0 -> FavoritesScreen(favorites, onOpen = { selected = it })
-                    1 -> Placeholder("Анализ и прогноз", "Этапы 4-7")
+                    1 -> Placeholder("Анализ и прогноз", "следующая интеграция SMC + AI consensus")
+                    2 -> SimulatorScreen(market)
                     else -> SettingsScreen(providers)
                 }
             }
@@ -69,10 +73,9 @@ fun AppRoot(
 
 @Composable
 private fun Placeholder(title: String, stage: String) {
-    Column(
+    androidx.compose.foundation.layout.Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
     ) {
         Text(title)
         Text("Появится на этапе: $stage")
