@@ -26,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -35,15 +34,12 @@ import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.trading.VirtualSide
 import com.cryptosmc.app.trading.VirtualStatus
 import com.cryptosmc.app.trading.VirtualTrade
-import com.cryptosmc.app.trading.VirtualTradingRepository
 import com.cryptosmc.app.trading.VirtualTradingSnapshot
 import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
-fun SimulatorScreen(market: MarketRepository) {
-    val context = LocalContext.current
-    val repository = remember { VirtualTradingRepository(context) }
+fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingRepository) {
     var snapshot by remember { mutableStateOf(repository.snapshot()) }
     var candles by remember { mutableStateOf(emptyList<com.cryptosmc.app.market.Candle>()) }
     var symbol by remember { mutableStateOf("BTCUSDT") }
