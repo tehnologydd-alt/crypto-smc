@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +39,8 @@ import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.smc.SmcEngine
 import com.cryptosmc.app.volatility.VolatilityEngine
+import com.cryptosmc.app.trading.VirtualTrade
+import com.cryptosmc.app.trading.VirtualTradingRepository
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -52,6 +55,9 @@ fun AnalysisScreen(
     var result by remember { mutableStateOf<ConsensusResult?>(null) }
     var status by remember { mutableStateOf("Нажми «Обновить анализ» для загрузки данных") }
     var busy by remember { mutableStateOf(false) }
+    var virtualTrades by remember { mutableStateOf<List<VirtualTrade>>(emptyList()) }
+    val context = LocalContext.current
+    val virtualRepository = remember(context) { VirtualTradingRepository(context) }
     val scope = rememberCoroutineScope()
     val smc = remember(candles) { SmcEngine.analyze(candles) }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
@@ -74,6 +80,8 @@ fun AnalysisScreen(
                     return@launch
                 }
                 candles = data
+                virtualTrades = virtualRepository.snapshot().openTrades
+                    .filter { it.symbol.equals(pair, ignoreCase = true) }
                 if (data.size < 30) {
                     status = "Недостаточно свечей для анализа: ${data.size}"
                     return@launch
@@ -132,7 +140,25 @@ fun AnalysisScreen(
         if (candles.size >= 2) {
             item {
                 Text("График · перетаскивай для истории, щипок — масштаб", style = MaterialTheme.typography.titleSmall)
-                MarketChart(candles = candles, analysis = smc)
+                MarketChart(
+                    candles = candles,
+                    analysis = smc,
+                    virtualTrades = virtualTrades,
+                    symbol = symbol.trim().uppercase()
+                )
+                if (virtualTrades.isNotEmpty()) {
+                    Text(
+                        "Виртуальные уровни: вход — зелёный/красный · SL — красный · TP — голубой",
+                        color = Color.LightGray,
+                        fontSize = 11.sp
+                    )
+                    virtualTrades.forEach { trade ->
+                        Text(
+                            "${trade.side} · вход ${fmt(trade.entryPrice)} · SL ${trade.stopLoss?.let(::fmt) ?: "—"} · TP ${trade.takeProfit?.let(::fmt) ?: "—"}",
+                            fontSize = 12.sp
+                        )
+                    }
+                }
             }
         }
         item {
