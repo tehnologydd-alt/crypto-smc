@@ -59,6 +59,7 @@ fun AnalysisScreen(
     var symbol by remember { mutableStateOf("BTCUSDT") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var result by remember { mutableStateOf<ConsensusResult?>(null) }
+    var moodSnapshot by remember { mutableStateOf<com.cryptosmc.app.sentiment.SentimentSnapshot?>(null) }
     var status by remember { mutableStateOf("Нажми «Обновить анализ» для загрузки данных") }
     var busy by remember { mutableStateOf(false) }
     var virtualTrades by remember { mutableStateOf<List<VirtualTrade>>(emptyList()) }
@@ -109,6 +110,7 @@ fun AnalysisScreen(
                 }
                 status = "Рассчитываю структуру, волатильность и сентимент..."
                 val mood = sentimentRepository.snapshot(pair).getOrNull()
+                moodSnapshot = mood
                 status = "Запрашиваю подключённые AI-модели..."
                 val consensus = ConsensusService(providers)
                     .predict(pair, data, SmcEngine.analyze(data), VolatilityEngine.metrics(data), mood)
@@ -166,6 +168,7 @@ fun AnalysisScreen(
                 MarketChart(
                     candles = candles,
                     analysis = smc,
+                    prediction = result?.prediction,
                     virtualTrades = virtualTrades,
                     symbol = symbol.trim().uppercase()
                 )
@@ -180,6 +183,26 @@ fun AnalysisScreen(
                             "${trade.side} · вход ${fmt(trade.entryPrice)} · SL ${trade.stopLoss?.let(::fmt) ?: "—"} · TP ${trade.takeProfit?.let(::fmt) ?: "—"}",
                             fontSize = 12.sp
                         )
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF202D3B))) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Настроение рынка и соцсети", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val mood = moodSnapshot
+                    if (mood == null) {
+                        Text("Настроение ещё не загружено. Нажми «Обновить анализ» — приложение запросит Fear & Greed, Reddit и доступные новости.", color = Color.LightGray, fontSize = 12.sp)
+                    } else {
+                        Text("${mood.label} · ${"%.0f".format(Locale.US, mood.score)}/100", color = if (mood.score >= 55) Color(0xFF61D9A5) else if (mood.score <= 45) Color(0xFFFF8494) else Color(0xFFFFC66D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        mood.sources.forEach { source ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(source.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${"%.0f".format(Locale.US, source.score)}/100 · ${source.detail}", fontSize = 11.sp, color = Color.LightGray)
+                            }
+                        }
+                        Text("Оценка использует доступные публичные источники и простой анализ заголовков; это не полноценный анализ мнений пользователей.", fontSize = 10.sp, color = Color.LightGray)
                     }
                 }
             }
