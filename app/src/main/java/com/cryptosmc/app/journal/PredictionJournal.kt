@@ -35,6 +35,13 @@ data class JournalEntry(
     val evaluations: List<HorizonResult> = emptyList()
 )
 
+data class ProviderAccuracy(
+    val providerId: String,
+    val correct: Int,
+    val total: Int,
+    val averageDirectionalMovePercent: Double
+)
+
 @Serializable
 data class AiPredictionRecord(
     val direction: String,
@@ -90,8 +97,11 @@ class PredictionJournal(context: Context) {
             listOf(1, 4, 24).forEach { hours ->
                 if (evaluations.none { it.hours == hours }) {
                     val targetTime = item.createdAt + hours * HOUR_MS
+                    val now = System.currentTimeMillis()
                     val future = sorted.firstOrNull {
-                        it.openTime >= targetTime && it.openTime > item.createdAt
+                        it.openTime > item.createdAt &&
+                            it.openTime + HOUR_MS >= targetTime &&
+                            it.openTime + HOUR_MS <= now
                     }
                     if (future != null && future.close > 0.0 && item.prediction.entry > 0.0) {
                         val rawMove = (future.close - item.prediction.entry) /
@@ -121,6 +131,46 @@ class PredictionJournal(context: Context) {
         }
         save(updated)
         return updated
+    }
+
+
+    fun statistics(entries: List<JournalEntry>, hours: Int): List<ProviderAccuracy> {
+        val completed = entries.mapNotNull { entry ->
+            val check = entry.evaluations.firstOrNull { it.hours == hours } ?: return@mapNotNull null
+            if (entry.prediction.entry <= 0.0 || entry.prediction.direction == "neutral") return@mapNotNull null
+            entry to check
+        }
+        val providers = completed.flatMap { (entry, _) -> entry.votes.map { it.providerId } }.distinct()
+        return providers.map { provider ->
+            val outcomes = completed.mapNotNull { (entry, check) ->
+                val vote = entry.votes.firstOrNull { it.providerId == provider } ?: return@mapNotNull null
+                if (vote.direction == "neutral") return@mapNotNull null
+                val rawMove = (check.closePrice - entry.prediction.entry) / entry.prediction.entry
+                val directionalMove = if (vote.direction == "long") rawMove else -rawMove
+                directionalMove
+            }
+            ProviderAccuracy(
+                providerId = provider,
+                correct = outcomes.count { it > 0.0 },
+                total = outcomes.size,
+                averageDirectionalMovePercent = if (outcomes.isEmpty()) 0.0 else outcomes.average() * 100.0
+            )
+        }.filter { it.total > 0 }.sortedByDescending { it.correct.toDouble() / it.total }
+    }
+
+    fun consensusStatistics(entries: List<JournalEntry>, hours: Int): ProviderAccuracy {
+        val outcomes = entries.mapNotNull { entry ->
+            val check = entry.evaluations.firstOrNull { it.hours == hours } ?: return@mapNotNull null
+            if (entry.prediction.entry <= 0.0 || entry.prediction.direction == "neutral") return@mapNotNull null
+            val rawMove = (check.closePrice - entry.prediction.entry) / entry.prediction.entry
+            if (entry.prediction.direction == "long") rawMove else -rawMove
+        }
+        return ProviderAccuracy(
+            providerId = "Консенсус",
+            correct = outcomes.count { it > 0.0 },
+            total = outcomes.size,
+            averageDirectionalMovePercent = if (outcomes.isEmpty()) 0.0 else outcomes.average() * 100.0
+        )
     }
 
     private fun save(entries: List<JournalEntry>) {
