@@ -36,6 +36,7 @@ import com.cryptosmc.app.ai.ConsensusService
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.MarketRepository
+import com.cryptosmc.app.trading.VirtualTradingRepository
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.smc.SmcEngine
 import com.cryptosmc.app.smc.HistoricalSmcValidator
