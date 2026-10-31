@@ -129,6 +129,12 @@ fun AnalysisScreen(
                 }
             }
         }
+        if (candles.size >= 2) {
+            item {
+                Text("График · перетаскивай для истории, щипок — масштаб", style = MaterialTheme.typography.titleSmall)
+                MarketChart(candles = candles, analysis = smc)
+            }
+        }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
