@@ -35,6 +35,10 @@ import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.FuturesInfo
 import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.market.OrderBook
+import com.cryptosmc.app.smc.Direction
+import com.cryptosmc.app.smc.SmcAnalysis
+import com.cryptosmc.app.smc.SmcEngine
+import com.cryptosmc.app.smc.ZoneKind
 import java.util.Locale
 
 private val ChartUp = Color(0xFF2EBD85)
@@ -54,6 +58,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
     var futuresLoaded by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Загрузка...") }
     var tick by remember { mutableIntStateOf(0) }
+    val smc = remember(candles) { SmcEngine.analyze(candles) }
 
     LaunchedEffect(symbol, interval, tick) {
         status = "Загрузка..."
@@ -116,9 +121,12 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
         Card(Modifier.fillMaxWidth()) {
             CandleChart(
                 candles = candles,
+                analysis = smc,
                 modifier = Modifier.fillMaxWidth().height(260.dp).padding(8.dp)
             )
         }
+
+        SmcSummary(smc)
         if (status.isNotEmpty()) {
             Text(status, style = MaterialTheme.typography.bodySmall)
         } else {
@@ -202,7 +210,30 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
 }
 
 @Composable
-fun CandleChart(candles: List<Candle>, modifier: Modifier = Modifier) {
+private fun SmcSummary(analysis: SmcAnalysis) {
+    val structure = analysis.latestStructure
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("SMC-разметка", style = MaterialTheme.typography.titleMedium)
+            if (structure == null) {
+                Text("Недостаточно подтверждённых свингов для структуры", style = MaterialTheme.typography.bodySmall)
+            } else {
+                val direction = if (structure.direction == Direction.BULLISH) "бычий" else "медвежий"
+                Text("${structure.kind.name}: $direction", style = MaterialTheme.typography.bodySmall)
+            }
+            analysis.premiumDiscount?.let {
+                Text(if (it.currentIsPremium) "Цена в premium-зоне" else "Цена в discount-зоне", style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                "Свинг-события: ${analysis.structure.size}, FVG: ${analysis.zones.count { it.kind == ZoneKind.FAIR_VALUE_GAP }}, " +
+                    "OB: ${analysis.zones.count { it.kind == ZoneKind.ORDER_BLOCK }}, equal H/L: ${analysis.liquidity.size}",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: Modifier = Modifier) {
     val data = candles.takeLast(80)
     Canvas(modifier) {
         if (data.isEmpty()) return@Canvas
@@ -223,5 +254,17 @@ fun CandleChart(candles: List<Candle>, modifier: Modifier = Modifier) {
                 size = Size(w * 0.7f, maxOf(bottom - top, 1f))
             )
         }
+        analysis?.zones?.filter { it.kind == ZoneKind.FAIR_VALUE_GAP || it.kind == ZoneKind.ORDER_BLOCK }
+            ?.takeLast(8)
+            ?.forEach { zone ->
+                val left = (zone.startIndex - (candles.size - data.size)).coerceAtLeast(0)
+                val right = (zone.endIndex - (candles.size - data.size)).coerceAtMost(data.lastIndex)
+                if (left <= right) {
+                    val top = y(zone.high)
+                    val bottom = y(zone.low)
+                    val color = if (zone.direction == Direction.BULLISH) ChartUp else ChartDown
+                    drawRect(color.copy(alpha = 0.16f), Offset(left * w, top), Size((right - left + 1) * w, bottom - top))
+                }
+            }
     }
 }
