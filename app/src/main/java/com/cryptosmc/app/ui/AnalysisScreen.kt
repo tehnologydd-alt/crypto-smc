@@ -40,6 +40,8 @@ import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.smc.SmcEngine
 import com.cryptosmc.app.volatility.VolatilityEngine
 import com.cryptosmc.app.trading.VirtualTrade
+import com.cryptosmc.app.journal.PredictionJournal
+import com.cryptosmc.app.journal.JournalEntry
 import com.cryptosmc.app.trading.VirtualTradingRepository
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -56,13 +58,16 @@ fun AnalysisScreen(
     var status by remember { mutableStateOf("Нажми «Обновить анализ» для загрузки данных") }
     var busy by remember { mutableStateOf(false) }
     var virtualTrades by remember { mutableStateOf<List<VirtualTrade>>(emptyList()) }
+    var journalEntries by remember { mutableStateOf<List<JournalEntry>>(emptyList()) }
     val context = LocalContext.current
+    val journal = remember(context) { PredictionJournal(context) }
     val virtualRepository = remember(context) { VirtualTradingRepository(context) }
     val scope = rememberCoroutineScope()
     val smc = remember(candles) { SmcEngine.analyze(candles) }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
 
     LaunchedEffect(symbol) {
+        journalEntries = journal.load().filter { it.symbol.equals(symbol.trim(), ignoreCase = true) }.sortedByDescending { it.createdAt }
         virtualTrades = virtualRepository.snapshot().openTrades
             .filter { it.symbol.equals(symbol.trim(), ignoreCase = true) }
     }
@@ -85,6 +90,7 @@ fun AnalysisScreen(
                     return@launch
                 }
                 candles = data
+                journalEntries = journal.evaluate(pair, data).filter { it.symbol.equals(pair, ignoreCase = true) }.sortedByDescending { it.createdAt }
                 virtualTrades = virtualRepository.snapshot().openTrades
                     .filter { it.symbol.equals(pair, ignoreCase = true) }
                 if (data.size < 30) {
@@ -98,7 +104,9 @@ fun AnalysisScreen(
                     .predict(pair, data, SmcEngine.analyze(data), VolatilityEngine.metrics(data), mood)
                 consensus.onSuccess {
                     result = it
-                    status = "Анализ завершён. Ответов AI: ${it.votes.size}"
+                    journal.add(pair, it.prediction, it.votes)
+                    journalEntries = journal.load().filter { entry -> entry.symbol.equals(pair, ignoreCase = true) }.sortedByDescending { entry -> entry.createdAt }
+                    status = "Анализ завершён. Ответов AI: ${it.votes.size}. Снимок сохранён в журнале."
                 }.onFailure {
                     status = "Локальный анализ готов, но AI-консенсус не получен: ${it.message ?: "ошибка"}"
                 }
@@ -178,6 +186,40 @@ fun AnalysisScreen(
             }
         }
         val consensus = result
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Журнал прогнозов", style = MaterialTheme.typography.titleMedium)
+                    Text("Сохранено: ${journalEntries.size} · локально на устройстве", fontSize = 12.sp, color = Color.LightGray)
+                    if (journalEntries.isEmpty()) {
+                        Text("После первого AI-анализа снимок появится здесь.", fontSize = 12.sp)
+                    } else {
+                        journalEntries.take(5).forEach { entry ->
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("${entry.symbol} · ${directionLabel(entry.prediction.direction)} · ${java.text.SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(java.util.Date(entry.createdAt))}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Text("Уверенность моделей: ${"%.0f".format(Locale.US, entry.prediction.confidence)}% · Вход: ${fmt(entry.prediction.entry)}", fontSize = 11.sp)
+                                Text("Ответов моделей: ${entry.votes.size} · Проверки: ${entry.evaluations.size}/3", fontSize = 11.sp, color = Color.LightGray)
+                                entry.evaluations.forEach { check ->
+                                    val color = if (check.verdict == "направление совпало") Color(0xFF61D9A5) else Color(0xFFFF7185)
+                                    Text("${check.hours}ч: ${check.verdict} · ${String.format(Locale.US, "%+.2f%%", check.movePercent)}", color = color, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            if (candles.isNotEmpty()) {
+                                journalEntries = journal.evaluate(symbol.trim().uppercase(), candles)
+                                    .filter { it.symbol.equals(symbol.trim(), ignoreCase = true) }
+                                    .sortedByDescending { it.createdAt }
+                            }
+                        },
+                        enabled = candles.isNotEmpty()
+                    ) { Text("Проверить доступные горизонты") }
+                    Text("Оценка сравнивает цену закрытия будущей свечи через 1, 4 и 24 часа с ценой входа из снимка. Это статистика направления, не результат реальной сделки.", fontSize = 10.sp, color = Color.LightGray)
+                }
+            }
+        }
         if (consensus != null) {
             item {
                 val p = consensus.prediction
