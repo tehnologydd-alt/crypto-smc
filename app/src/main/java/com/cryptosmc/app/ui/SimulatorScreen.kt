@@ -105,6 +105,11 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                         fontSize = 27.sp,
                         fontWeight = FontWeight.Bold
                     )
+                    Text("Средства в открытых позициях: ${money(snapshot.reservedNotional)}", color = Color.White)
+                    val markedPrices = price?.let { mapOf(symbol to it) } ?: emptyMap()
+                    val unrealized = snapshot.unrealizedPnl(markedPrices)
+                    Text("Нереализованный P/L (оценка): ${money(unrealized)}", color = Color.White)
+                    Text("Общая оценка капитала: ${money(snapshot.equity(markedPrices))}", color = Color(0xFF61D9A5), fontWeight = FontWeight.SemiBold)
                     Text("Реализованный P/L: ${money(snapshot.realizedPnl)}", color = Color.White)
                     Text(
                         "Сделок: ${snapshot.closedTrades.size} · Плюс: ${snapshot.wins} · Минус: ${snapshot.losses}",
@@ -112,6 +117,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                         fontSize = 12.sp
                     )
                     Text("BTC/USDT · ${price?.let(::priceText) ?: "загрузка цены"}", color = Color.White)
+                    Text("Оценка капитала учитывает текущую цену и расчётную комиссию закрытия.", color = Color.LightGray, fontSize = 10.sp)
                     marketError?.let { Text(it, color = Color(0xFFFF7185), fontSize = 12.sp) }
                 }
             }
