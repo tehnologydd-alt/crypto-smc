@@ -8,6 +8,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -39,23 +42,76 @@ class ConsensusService(private val providers: ProviderRepository) {
         sentiment: SentimentSnapshot?
     ): Result<ConsensusResult> = runCatching {
         require(candles.isNotEmpty()) { "Нет свечей для анализа" }
-        val last = candles.last()
-        val packet = """
-            {
-              "symbol":"$symbol",
-              "timeframe":"1h",
-              "last":${last.close},
-              "structure_events":${smc.structure.size},
-              "latest_structure":"${smc.latestStructure?.kind?.name ?: "NONE"}",
-              "latest_structure_direction":"${smc.latestStructure?.direction?.name ?: "NONE"}",
-              "zones":${smc.zones.size},
-              "liquidity_levels":${smc.liquidity.size},
-              "atr":${volatility?.atr ?: 0.0},
-              "atr_percent":${volatility?.atrPercent ?: 0.0},
-              "sentiment_score":${sentiment?.score ?: 50.0},
-              "sentiment_label":"${sentiment?.label ?: "unavailable"}"
-            }
-        """.trimIndent()
+
+        // Send actual price history and levels, not only counts of detected objects.
+        val packet = buildJsonObject {
+            put("symbol", symbol)
+            put("timeframe", "1h")
+            put("last_price", candles.last().close)
+            put("candles", buildJsonArray {
+                candles.takeLast(80).forEach { c ->
+                    add(buildJsonObject {
+                        put("time", c.openTime)
+                        put("open", c.open)
+                        put("high", c.high)
+                        put("low", c.low)
+                        put("close", c.close)
+                        put("volume", c.volume)
+                    })
+                }
+            })
+            put("structure", buildJsonArray {
+                smc.structure.takeLast(16).forEach { e ->
+                    add(buildJsonObject {
+                        put("index", e.index)
+                        put("level", e.level)
+                        put("event", e.kind.name)
+                        put("direction", e.direction.name)
+                    })
+                }
+            })
+            put("zones", buildJsonArray {
+                smc.zones.takeLast(24).forEach { z ->
+                    add(buildJsonObject {
+                        put("kind", z.kind.name)
+                        put("low", z.low)
+                        put("high", z.high)
+                        put("direction", z.direction?.name ?: "NONE")
+                        put("start_index", z.startIndex)
+                        put("end_index", z.endIndex)
+                    })
+                }
+            })
+            put("liquidity_levels", buildJsonArray {
+                smc.liquidity.takeLast(16).forEach { level ->
+                    add(buildJsonObject {
+                        put("price", level.price)
+                        put("type", level.type.name)
+                        put("first_index", level.firstIndex)
+                        put("second_index", level.secondIndex)
+                    })
+                }
+            })
+            put("volatility", buildJsonObject {
+                put("atr", volatility?.atr ?: 0.0)
+                put("atr_percent", volatility?.atrPercent ?: 0.0)
+                put("realized_volatility_percent", volatility?.realizedVolatilityPercent ?: 0.0)
+                put("sample_size", volatility?.sampleSize ?: 0)
+            })
+            put("sentiment", buildJsonObject {
+                put("score", sentiment?.score ?: 50.0)
+                put("label", sentiment?.label ?: "unavailable")
+                put("sources", buildJsonArray {
+                    sentiment?.sources.orEmpty().forEach { source ->
+                        add(buildJsonObject {
+                            put("name", source.name)
+                            put("score", source.score)
+                            put("detail", source.detail)
+                        })
+                    }
+                })
+            })
+        }.toString()
 
         val enabled = providers.providers.value.filter {
             it.enabled && providers.hasKey(it.id) && it.baseUrl.isNotBlank() && it.model.isNotBlank()
