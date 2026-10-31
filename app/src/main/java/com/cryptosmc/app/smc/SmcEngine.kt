@@ -93,23 +93,33 @@ object SmcEngine {
     }
 
     private fun findStructure(candles: List<Candle>, swings: List<SwingPoint>): List<StructureEvent> {
-        val lastHigh = mutableMapOf<SwingType, SwingPoint>()
+        val lastSwing = mutableMapOf<SwingType, SwingPoint>()
+        val emittedBreaks = mutableSetOf<Pair<SwingType, Int>>()
         var trend: Direction? = null
-        return swings.mapNotNull { swing ->
-            val prior = lastHigh[swing.type]
-            lastHigh[swing.type] = swing
-            if (prior == null) return@mapNotNull null
-            val broken = if (swing.type == SwingType.HIGH) {
-                candles.drop(prior.index + 1).take(swing.index - prior.index).any { it.close > prior.price }
-            } else {
-                candles.drop(prior.index + 1).take(swing.index - prior.index).any { it.close < prior.price }
-            }
-            if (!broken) return@mapNotNull null
+        val events = mutableListOf<StructureEvent>()
+
+        for (swing in swings) {
+            val prior = lastSwing[swing.type]
+            lastSwing[swing.type] = swing
+            if (prior == null) continue
+
+            // A pivot is not knowable until the right-side lookback candles have closed.
+            // Never attribute a structure break to candles before that confirmation point.
+            val confirmationIndex = prior.index + 2
+            val scanStart = maxOf(prior.index + 1, confirmationIndex)
+            val breakIndex = (scanStart..swing.index.coerceAtMost(candles.lastIndex))
+                .firstOrNull { index ->
+                    val close = candles[index].close
+                    if (swing.type == SwingType.HIGH) close > prior.price else close < prior.price
+                } ?: continue
+
+            if (!emittedBreaks.add(swing.type to prior.index)) continue
             val direction = if (swing.type == SwingType.HIGH) Direction.BULLISH else Direction.BEARISH
             val kind = if (trend != null && trend != direction) StructureKind.CHOCH else StructureKind.BOS
             trend = direction
-            StructureEvent(swing.index, prior.price, kind, direction)
+            events += StructureEvent(breakIndex, prior.price, kind, direction)
         }
+        return events.sortedBy { it.index }
     }
 
     private fun findFairValueGaps(candles: List<Candle>): List<PriceZone> {
