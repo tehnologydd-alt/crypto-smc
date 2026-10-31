@@ -20,7 +20,7 @@ class PredictionJournal(context: Context) {
         val entry = JournalEntry(now, symbol, now, AiPredictionRecord(prediction.direction, prediction.entry, prediction.stop, prediction.take, prediction.confidence))
         save(load() + entry); return entry
     }
-    fun load(): List<JournalEntry> = runCatching { json.decodeFromString(prefs.getString(KEY, "[]") ?: "[]") }.getOrDefault(emptyList())
+    fun load(): List<JournalEntry> = runCatching { json.decodeFromString<List<JournalEntry>>(prefs.getString(KEY, "[]") ?: "[]") }.getOrDefault(emptyList())
     fun settle(id: Long, outcome: String, rMultiple: Double) = save(load().map { if (it.id == id) it.copy(outcome = outcome, rMultiple = rMultiple) else it })
     private fun save(entries: List<JournalEntry>) { prefs.edit().putString(KEY, json.encodeToString(entries.takeLast(500))).apply() }
     companion object { private const val KEY = "entries" }
