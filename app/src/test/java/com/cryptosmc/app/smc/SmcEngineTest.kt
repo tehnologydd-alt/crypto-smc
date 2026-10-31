@@ -27,7 +27,8 @@ class SmcEngineTest {
             candle(2, 12.5, 14.0, 12.0, 13.5),
             candle(3, 13.5, 14.0, 12.5, 13.0),
             candle(4, 13.0, 13.5, 12.0, 12.8),
-            candle(5, 12.8, 13.2, 11.8, 12.4)
+            candle(5, 12.8, 13.2, 11.8, 12.4),
+            candle(6, 12.4, 13.0, 12.0, 12.7)
         )
         val gaps = SmcEngine.analyze(candles).zones.filter { it.kind == ZoneKind.FAIR_VALUE_GAP }
         assertTrue(gaps.any { it.direction == Direction.BULLISH && it.low == 11.0 && it.high == 12.0 })
