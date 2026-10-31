@@ -129,7 +129,6 @@ class ConsensusService(private val providers: ProviderRepository) {
             }.awaitAll()
         }
 
-        val votes = mutableListOf<AiPrediction>()
         val failures = mutableListOf<String>()
         responses.forEach { (cfg, response) ->
             response.fold(
