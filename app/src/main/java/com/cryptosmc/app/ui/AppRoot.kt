@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -19,10 +20,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.FavoritesRepository
+import com.cryptosmc.app.market.MarketRepository
 
 @Composable
-fun AppRoot(providers: ProviderRepository, favorites: FavoritesRepository) {
+fun AppRoot(
+    providers: ProviderRepository,
+    favorites: FavoritesRepository,
+    market: MarketRepository
+) {
     var tab by remember { mutableIntStateOf(0) }
+    var selected by remember { mutableStateOf<String?>(null) }
     val titles = listOf("Избранное", "Анализ", "Настройки")
     val icons = listOf("★", "◎", "⚙")
 
@@ -32,7 +39,10 @@ fun AppRoot(providers: ProviderRepository, favorites: FavoritesRepository) {
                 titles.forEachIndexed { index, title ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index },
+                        onClick = {
+                            tab = index
+                            selected = null
+                        },
                         icon = { Text(icons[index]) },
                         label = { Text(title) }
                     )
@@ -41,10 +51,15 @@ fun AppRoot(providers: ProviderRepository, favorites: FavoritesRepository) {
         }
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            when (tab) {
-                0 -> FavoritesScreen(favorites)
-                1 -> Placeholder("Анализ и прогноз", "Этапы 4-7")
-                else -> SettingsScreen(providers)
+            val sel = selected
+            if (sel != null) {
+                AssetScreen(symbol = sel, market = market, onBack = { selected = null })
+            } else {
+                when (tab) {
+                    0 -> FavoritesScreen(favorites, onOpen = { selected = it })
+                    1 -> Placeholder("Анализ и прогноз", "Этапы 4-7")
+                    else -> SettingsScreen(providers)
+                }
             }
         }
     }

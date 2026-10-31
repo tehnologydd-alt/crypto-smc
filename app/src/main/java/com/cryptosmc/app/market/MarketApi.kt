@@ -6,6 +6,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit
 object MarketApi {
 
     private const val BASE = "https://data-api.binance.vision/api/v3"
+    private const val FAPI = "https://fapi.binance.com/fapi/v1"
 
     private val client = OkHttpClient.Builder()
         .callTimeout(20, TimeUnit.SECONDS)
@@ -50,6 +52,70 @@ object MarketApi {
             }
         }
     }
+
+    /** Свечи: interval = 15m, 1h, 4h, 1d и т.д. */
+    suspend fun klines(symbol: String, interval: String, limit: Int): Result<List<Candle>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = "$BASE/klines".toHttpUrl().newBuilder()
+                    .addQueryParameter("symbol", symbol)
+                    .addQueryParameter("interval", interval)
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                Json.parseToJsonElement(get(url)).jsonArray.map { row ->
+                    val a = row.jsonArray
+                    Candle(
+                        openTime = a[0].jsonPrimitive.content.toLong(),
+                        open = a[1].jsonPrimitive.content.toDouble(),
+                        high = a[2].jsonPrimitive.content.toDouble(),
+                        low = a[3].jsonPrimitive.content.toDouble(),
+                        close = a[4].jsonPrimitive.content.toDouble(),
+                        volume = a[5].jsonPrimitive.content.toDouble()
+                    )
+                }
+            }
+        }
+
+    /** Стакан заявок (спот). */
+    suspend fun orderBook(symbol: String, limit: Int = 100): Result<OrderBook> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = "$BASE/depth".toHttpUrl().newBuilder()
+                    .addQueryParameter("symbol", symbol)
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                val o = Json.parseToJsonElement(get(url)).jsonObject
+                fun levels(key: String): List<BookLevel> =
+                    o[key]!!.jsonArray.map { l ->
+                        val a = l.jsonArray
+                        BookLevel(
+                            a[0].jsonPrimitive.content.toDouble(),
+                            a[1].jsonPrimitive.content.toDouble()
+                        )
+                    }
+                OrderBook(levels("bids"), levels("asks"))
+            }
+        }
+
+    /** Funding, mark price и open interest по фьючерсам USDT-M. */
+    suspend fun futuresInfo(symbol: String): Result<FuturesInfo> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val premiumUrl = "$FAPI/premiumIndex".toHttpUrl().newBuilder()
+                    .addQueryParameter("symbol", symbol)
+                    .build()
+                val oiUrl = "$FAPI/openInterest".toHttpUrl().newBuilder()
+                    .addQueryParameter("symbol", symbol)
+                    .build()
+                val premium = Json.parseToJsonElement(get(premiumUrl)).jsonObject
+                val oi = Json.parseToJsonElement(get(oiUrl)).jsonObject
+                FuturesInfo(
+                    fundingRate = premium["lastFundingRate"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0,
+                    markPrice = premium["markPrice"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0,
+                    openInterest = oi["openInterest"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0
+                )
+            }
+        }
 
     private fun get(url: HttpUrl): String {
         val request = Request.Builder().url(url).build()

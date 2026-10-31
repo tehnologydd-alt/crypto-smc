@@ -59,7 +59,7 @@ fun formatPair(symbol: String): String =
     if (symbol.endsWith("USDT")) symbol.removeSuffix("USDT") + "/USDT" else symbol
 
 @Composable
-fun FavoritesScreen(repo: FavoritesRepository) {
+fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
     val symbols by repo.items.collectAsState()
     var tickers by remember { mutableStateOf<Map<String, Ticker>>(emptyMap()) }
     var errorText by remember { mutableStateOf<String?>(null) }
@@ -118,7 +118,7 @@ fun FavoritesScreen(repo: FavoritesRepository) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(symbols, key = { it }) { s ->
-                FavoriteRow(s, tickers[s], onRemove = { repo.remove(s) })
+                FavoriteRow(s, tickers[s], onClick = { onOpen(s) }, onRemove = { repo.remove(s) })
             }
         }
     }
@@ -129,8 +129,8 @@ fun FavoritesScreen(repo: FavoritesRepository) {
 }
 
 @Composable
-private fun FavoriteRow(symbol: String, ticker: Ticker?, onRemove: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+private fun FavoriteRow(symbol: String, ticker: Ticker?, onClick: () -> Unit, onRemove: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
