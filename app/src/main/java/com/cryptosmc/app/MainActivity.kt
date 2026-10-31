@@ -16,7 +16,8 @@ class MainActivity : ComponentActivity() {
                     providers = app.providers,
                     favorites = app.favorites,
                     market = app.market,
-                    sentiment = app.sentiment
+                    sentiment = app.sentiment,
+                    virtualTrading = app.virtualTrading
                 )
             }
         }

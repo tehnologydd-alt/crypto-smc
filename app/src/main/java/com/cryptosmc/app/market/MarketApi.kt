@@ -76,6 +76,19 @@ object MarketApi {
             }
         }
 
+    /** Последняя публичная цена спотового рынка. */
+    suspend fun latestPrice(symbol: String): Result<Double> = withContext(Dispatchers.IO) {
+        runCatching {
+            val url = "$BASE/ticker/price".toHttpUrl().newBuilder()
+                .addQueryParameter("symbol", symbol)
+                .build()
+            val price = Json.parseToJsonElement(get(url)).jsonObject["price"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                ?: error("В ответе Binance отсутствует цена")
+            require(price.isFinite() && price > 0.0) { "Некорректная рыночная цена" }
+            price
+        }
+    }
+
     /** Стакан заявок (спот). */
     suspend fun orderBook(symbol: String, limit: Int = 100): Result<OrderBook> =
         withContext(Dispatchers.IO) {
