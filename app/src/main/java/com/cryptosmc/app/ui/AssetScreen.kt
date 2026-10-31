@@ -233,6 +233,7 @@ private fun SmcSummary(analysis: SmcAnalysis) {
     }
 }
 
+@Composable
 fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: Modifier = Modifier) {
     val data = candles.takeLast(80)
     Canvas(modifier) {
