@@ -21,6 +21,8 @@ import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.smc.PriceZone
 import com.cryptosmc.app.smc.SmcAnalysis
 import com.cryptosmc.app.smc.ZoneKind
+import com.cryptosmc.app.trading.VirtualSide
+import com.cryptosmc.app.trading.VirtualTrade
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -31,7 +33,7 @@ import kotlin.math.min
  * Drag horizontally to browse history; pinch to zoom. All overlays are local SMC calculations.
  */
 @Composable
-fun MarketChart(candles: List<Candle>, analysis: SmcAnalysis, modifier: Modifier = Modifier) {
+fun MarketChart(\n    candles: List<Candle>,\n    analysis: SmcAnalysis,\n    virtualTrades: List<VirtualTrade> = emptyList(),\n    modifier: Modifier = Modifier\n) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var panBars by remember { mutableFloatStateOf(0f) }
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
@@ -95,6 +97,19 @@ fun MarketChart(candles: List<Candle>, analysis: SmcAnalysis, modifier: Modifier
                 if (zone.kind == ZoneKind.ORDER_BLOCK || zone.kind == ZoneKind.FAIR_VALUE_GAP) {
                     drawRect(tint.copy(alpha = 0.9f), Offset(left, top), androidx.compose.ui.geometry.Size((right-left).coerceAtLeast(1f), (bottom-top).coerceAtLeast(1f)), style = Stroke(1f))
                 }
+            }
+
+            // Virtual positions: entry, stop and target are always distinct from market candles.
+            visibleTrades.forEach { trade ->
+                val entryColor = if (trade.side == VirtualSide.BUY) Color(0xFF52D6A2) else Color(0xFFFF8494)
+                fun level(price: Double?, color: Color, stroke: Float) {
+                    if (price == null || price < low || price > high) return
+                    val y = priceY(price)
+                    drawLine(color, Offset(0f, y), Offset(size.width, y), stroke)
+                }
+                level(trade.entryPrice, entryColor, 2.2f)
+                level(trade.stopLoss, Color(0xFFFF5252), 1.5f)
+                level(trade.takeProfit, Color(0xFF40C4FF), 1.5f)
             }
 
             slice.forEachIndexed { index, candle ->
