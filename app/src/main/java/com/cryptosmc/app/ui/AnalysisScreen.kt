@@ -62,6 +62,11 @@ fun AnalysisScreen(
     val smc = remember(candles) { SmcEngine.analyze(candles) }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
 
+    LaunchedEffect(symbol) {
+        virtualTrades = virtualRepository.snapshot().openTrades
+            .filter { it.symbol.equals(symbol.trim(), ignoreCase = true) }
+    }
+
     fun runAnalysis() {
         if (busy) return
         val pair = symbol.trim().uppercase()
