@@ -116,9 +116,9 @@ class ConsensusService(private val providers: ProviderRepository) {
         val enabled = providers.providers.value.filter {
             it.enabled && providers.hasKey(it.id) && it.baseUrl.isNotBlank() && it.model.isNotBlank()
         }
-        if (enabled.isEmpty()) error("Нет включённых AI-провайдеров с API-ключами")
+        // Local agents always run for free; hosted models are optional add-ons.
 
-        val responses = coroutineScope {
+        val votes = LocalAgentEngine.analyze(candles, smc, volatility, sentiment).toMutableList()\n\n        val responses = coroutineScope {
             enabled.map { cfg ->
                 async {
                     cfg to OpenAiCompatClient.complete(
@@ -141,7 +141,7 @@ class ConsensusService(private val providers: ProviderRepository) {
                 onFailure = { failures += "${cfg.name}: ${it.message ?: "ошибка запроса"}" }
             )
         }
-        if (votes.isEmpty()) error("Нет валидных ответов AI")
+        if (votes.isEmpty()) error("Недостаточно данных даже для локальных аналитических агентов")
 
         val configById = enabled.associateBy { it.id }
         fun weight(vote: AiPrediction): Double =
