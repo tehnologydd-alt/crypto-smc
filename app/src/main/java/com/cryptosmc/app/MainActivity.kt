@@ -9,10 +9,10 @@ import com.cryptosmc.app.ui.CryptoTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val repo = (application as CryptoApp).providers
+        val app = application as CryptoApp
         setContent {
             CryptoTheme {
-                AppRoot(repo)
+                AppRoot(providers = app.providers, favorites = app.favorites)
             }
         }
     }
