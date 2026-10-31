@@ -17,6 +17,7 @@ data class SmcEventOutcome(
 data class SmcValidationStats(
     val horizonHours: Int,
     val regime: MarketRegime?,
+    val kind: StructureKind?,
     val correct: Int,
     val total: Int,
     val averageDirectionalMovePercent: Double
@@ -109,14 +110,18 @@ object HistoricalSmcValidator {
     fun statistics(
         outcomes: List<SmcEventOutcome>,
         horizonHours: Int,
-        regime: MarketRegime? = null
+        regime: MarketRegime? = null,
+        kind: StructureKind? = null
     ): SmcValidationStats {
         val selected = outcomes.filter {
-            it.horizonHours == horizonHours && (regime == null || it.regime == regime)
+            it.horizonHours == horizonHours &&
+                (regime == null || it.regime == regime) &&
+                (kind == null || it.event.kind == kind)
         }
         return SmcValidationStats(
             horizonHours = horizonHours,
             regime = regime,
+            kind = kind,
             correct = selected.count { it.correct },
             total = selected.size,
             averageDirectionalMovePercent = selected
