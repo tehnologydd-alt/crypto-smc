@@ -118,7 +118,9 @@ class ConsensusService(private val providers: ProviderRepository) {
         }
         // Local agents always run for free; hosted models are optional add-ons.
 
-        val votes = LocalAgentEngine.analyze(candles, smc, volatility, sentiment).toMutableList()\n\n        val responses = coroutineScope {
+        val votes = LocalAgentEngine.analyze(candles, smc, volatility, sentiment).toMutableList()
+
+        val responses = coroutineScope {
             enabled.map { cfg ->
                 async {
                     cfg to OpenAiCompatClient.complete(
