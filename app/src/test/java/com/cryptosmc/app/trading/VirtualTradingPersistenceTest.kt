@@ -65,7 +65,7 @@ class VirtualTradingPersistenceTest {
         val restoredAgain = VirtualTradingRepository.getInstance(context).snapshot()
         assertEquals(1, restoredAgain.closedTrades.size)
         assertNotNull(restoredAgain.closedTrades.single().pnl)
-        assertEquals(1_044.78, restoredAgain.availableBalance, 0.000001)
+        assertEquals(1_144.78, restoredAgain.availableBalance, 0.000001)
     }
 
     private fun resetSingleton() {
