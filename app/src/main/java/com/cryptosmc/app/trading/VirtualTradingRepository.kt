@@ -13,8 +13,15 @@ import java.util.UUID
  * Модель без плеча: при открытии резервируется номинал позиции.
  * Комиссия симуляции 0.1% при входе и выходе.
  */
-class VirtualTradingRepository(context: Context) {
+class VirtualTradingRepository private constructor(context: Context) {
     companion object {
+        @Volatile private var INSTANCE: VirtualTradingRepository? = null
+
+        fun getInstance(context: Context): VirtualTradingRepository =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: VirtualTradingRepository(context.applicationContext).also { INSTANCE = it }
+            }
+
         private const val PREFS = "virtual_trading_v1"
         private const val KEY_BALANCE = "balance"
         private const val KEY_TRADES = "trades"
@@ -23,6 +30,7 @@ class VirtualTradingRepository(context: Context) {
         private const val FEE_RATE = 0.001
     }
 
+    /* singleton ensures one in-memory account per app process */
     private val prefs = context.applicationContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -196,6 +204,6 @@ class VirtualTradingRepository(context: Context) {
             .putString(KEY_BALANCE, balance.toString())
             .putString(KEY_TRADES, json.encodeToString(trades))
             .putString(KEY_MESSAGE, message)
-            .apply()
+            .commit()
     }
 }
