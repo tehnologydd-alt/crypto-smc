@@ -33,11 +33,16 @@ class MarketRepository(private val context: Context) {
             return@withContext Result.success(cached.candles)
         }
         val fresh = MarketApi.klines(symbol, interval, limit)
-        val list = fresh.getOrNull()
-        if (list != null) {
+        val downloaded = fresh.getOrNull()
+        if (downloaded != null) {
+            // Exclude the still-forming candle: its OHLCV changes until interval close.
+            val duration = intervalMillis(interval)
+            val list = if (duration != null) {
+                downloaded.filter { it.openTime + duration <= now }
+            } else downloaded
             memory[key] = CacheEntry(now, list)
             writeDisk(key, list)
-            fresh
+            Result.success(list)
         } else {
             val stale = cached?.candles ?: readDisk(key)
             if (stale != null) Result.success(stale) else fresh
@@ -47,6 +52,19 @@ class MarketRepository(private val context: Context) {
     suspend fun orderBook(symbol: String): Result<OrderBook> = MarketApi.orderBook(symbol)
 
     suspend fun futuresInfo(symbol: String): Result<FuturesInfo> = MarketApi.futuresInfo(symbol)
+
+    private fun intervalMillis(interval: String): Long? {
+        val match = Regex("^(\\d+)([mhdw])$").matchEntire(interval) ?: return null
+        val amount = match.groupValues[1].toLongOrNull() ?: return null
+        val unit = when (match.groupValues[2]) {
+            "m" -> 60_000L
+            "h" -> 3_600_000L
+            "d" -> 86_400_000L
+            "w" -> 604_800_000L
+            else -> return null
+        }
+        return amount * unit
+    }
 
     private fun file(key: String) = File(context.cacheDir, "candles_$key.json")
 
