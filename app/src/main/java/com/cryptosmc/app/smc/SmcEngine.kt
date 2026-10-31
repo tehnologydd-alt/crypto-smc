@@ -92,7 +92,7 @@ object SmcEngine {
         }.sortedBy { it.index }
     }
 
-    private fun findStructure(candles: List<Candle>, swings: List<SwingPoint>): List<StructureEvent> {
+    private fun findStructure(candles: List<Candle>, swings: List<SwingPoint>, lookback: Int): List<StructureEvent> {
         val lastSwing = mutableMapOf<SwingType, SwingPoint>()
         val emittedBreaks = mutableSetOf<Pair<SwingType, Int>>()
         var trend: Direction? = null
