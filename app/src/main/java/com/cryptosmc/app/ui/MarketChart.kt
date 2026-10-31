@@ -49,7 +49,7 @@ fun MarketChart(
             .pointerInput(candles.size) {
                 detectTransformGestures { _, pan, gestureZoom, _ ->
                     zoom = (zoom * gestureZoom).coerceIn(1f, 8f)
-                    val visible = (candles.size / zoom).coerceAtLeast(8f)
+                    val visible = (candles.size / zoom).coerceIn(min(8f, candles.size.toFloat()), candles.size.toFloat())
                     panBars = (panBars + pan.x / size.width * visible)
                         .coerceIn(0f, max(0f, candles.size - visible))
                 }
@@ -58,7 +58,7 @@ fun MarketChart(
         Canvas(Modifier.matchParentSize()) {
             if (candles.size < 2) return@Canvas
 
-            val visible = (candles.size / zoom).coerceIn(8f, candles.size.toFloat())
+            val visible = (candles.size / zoom).coerceIn(min(8f, candles.size.toFloat()), candles.size.toFloat())
             val maxPan = max(0f, candles.size - visible)
             val safePan = panBars.coerceIn(0f, maxPan)
             val first = floor(maxPan - safePan).toInt().coerceIn(0, candles.lastIndex)
