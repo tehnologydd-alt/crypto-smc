@@ -81,14 +81,14 @@ object SmcEngine {
             val c = candles[i]
             val left = candles.subList(i - lookback, i)
             val right = candles.subList(i + 1, i + lookback + 1)
-            buildList {
-                if (left.all { c.high >= it.high } && right.all { c.high > it.high }) {
-                    add(SwingPoint(i, c.high, SwingType.HIGH))
+            listOfNotNull(
+                SwingPoint(i, c.high, SwingType.HIGH).takeIf {
+                    left.all { c.high >= it.high } && right.all { c.high > it.high }
+                },
+                SwingPoint(i, c.low, SwingType.LOW).takeIf {
+                    left.all { c.low <= it.low } && right.all { c.low < it.low }
                 }
-                if (left.all { c.low <= it.low } && right.all { c.low < it.low }) {
-                    add(SwingPoint(i, c.low, SwingType.LOW))
-                }
-            }
+            )
         }.sortedBy { it.index }
     }
 
