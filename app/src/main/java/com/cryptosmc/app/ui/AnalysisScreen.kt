@@ -43,7 +43,6 @@ import com.cryptosmc.app.volatility.VolatilityEngine
 import com.cryptosmc.app.trading.VirtualTrade
 import com.cryptosmc.app.journal.PredictionJournal
 import com.cryptosmc.app.journal.JournalEntry
-import com.cryptosmc.app.trading.VirtualTradingRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,7 +52,8 @@ import java.util.Locale
 fun AnalysisScreen(
     providers: ProviderRepository,
     market: MarketRepository,
-    sentimentRepository: SentimentRepository
+    sentimentRepository: SentimentRepository,
+    virtualRepository: VirtualTradingRepository
 ) {
     var symbol by remember { mutableStateOf("BTCUSDT") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
@@ -64,7 +64,6 @@ fun AnalysisScreen(
     var journalEntries by remember { mutableStateOf<List<JournalEntry>>(emptyList()) }
     val context = LocalContext.current
     val journal = remember(context) { PredictionJournal(context) }
-    val virtualRepository = remember(context) { VirtualTradingRepository(context) }
     val scope = rememberCoroutineScope()
     val smc = remember(candles) { SmcEngine.analyze(candles) }
     var smcValidation by remember { mutableStateOf(emptyList<com.cryptosmc.app.smc.SmcEventOutcome>()) }
@@ -99,6 +98,7 @@ fun AnalysisScreen(
                     return@launch
                 }
                 candles = data
+                virtualRepository.processCandles(data)
                 journalEntries = journal.evaluate(pair, data).filter { it.symbol.equals(pair, ignoreCase = true) }.sortedByDescending { it.createdAt }
                 virtualTrades = virtualRepository.snapshot().openTrades
                     .filter { it.symbol.equals(pair, ignoreCase = true) }
