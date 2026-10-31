@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cryptosmc.app.market.MarketRepository
+import com.cryptosmc.app.trading.VirtualTradingRepository
 import com.cryptosmc.app.trading.VirtualSide
 import com.cryptosmc.app.trading.VirtualStatus
 import com.cryptosmc.app.trading.VirtualTrade
