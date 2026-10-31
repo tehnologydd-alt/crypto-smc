@@ -65,6 +65,8 @@ class MarketRepository(private val context: Context) {
         }
     }
 
+    suspend fun latestPrice(symbol: String): Result<Double> = MarketApi.latestPrice(symbol)
+
     suspend fun orderBook(symbol: String): Result<OrderBook> = MarketApi.orderBook(symbol)
 
     suspend fun futuresInfo(symbol: String): Result<FuturesInfo> = MarketApi.futuresInfo(symbol)
