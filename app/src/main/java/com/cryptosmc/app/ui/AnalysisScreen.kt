@@ -44,7 +44,9 @@ import com.cryptosmc.app.trading.VirtualTrade
 import com.cryptosmc.app.journal.PredictionJournal
 import com.cryptosmc.app.journal.JournalEntry
 import com.cryptosmc.app.trading.VirtualTradingRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 @Composable
@@ -65,7 +67,12 @@ fun AnalysisScreen(
     val virtualRepository = remember(context) { VirtualTradingRepository(context) }
     val scope = rememberCoroutineScope()
     val smc = remember(candles) { SmcEngine.analyze(candles) }
-    val smcValidation = remember(candles) { HistoricalSmcValidator.validateHourly(candles) }
+    var smcValidation by remember { mutableStateOf(emptyList<com.cryptosmc.app.smc.SmcEventOutcome>()) }
+    LaunchedEffect(candles) {
+        smcValidation = withContext(Dispatchers.Default) {
+            HistoricalSmcValidator.validateHourly(candles)
+        }
+    }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
 
     LaunchedEffect(symbol) {
@@ -203,16 +210,22 @@ fun AnalysisScreen(
                             com.cryptosmc.app.smc.MarketRegime.TREND_DOWN,
                             com.cryptosmc.app.smc.MarketRegime.RANGE
                         ).forEach { regime ->
-                            val stats = HistoricalSmcValidator.statistics(smcValidation, horizon, regime)
-                            Text(
-                                "  ${when (regime) {
-                                    com.cryptosmc.app.smc.MarketRegime.TREND_UP -> "Рост"
-                                    com.cryptosmc.app.smc.MarketRegime.TREND_DOWN -> "Падение"
-                                    else -> "Боковик"
-                                }}: ${stats.correct}/${stats.total} · ${if (stats.total > 0) "%.0f".format(Locale.US, stats.correct * 100.0 / stats.total) else "—"}% · ${String.format(Locale.US, "%+.2f%%", stats.averageDirectionalMovePercent)}",
-                                fontSize = 10.sp,
-                                color = Color.LightGray
-                            )
+                            val regimeLabel = when (regime) {
+                                com.cryptosmc.app.smc.MarketRegime.TREND_UP -> "Рост"
+                                com.cryptosmc.app.smc.MarketRegime.TREND_DOWN -> "Падение"
+                                else -> "Боковик"
+                            }
+                            listOf(
+                                com.cryptosmc.app.smc.StructureKind.BOS,
+                                com.cryptosmc.app.smc.StructureKind.CHOCH
+                            ).forEach { kind ->
+                                val stats = HistoricalSmcValidator.statistics(smcValidation, horizon, regime, kind)
+                                Text(
+                                    "  $regimeLabel · $kind: ${stats.correct}/${stats.total} · ${if (stats.total > 0) "%.0f".format(Locale.US, stats.correct * 100.0 / stats.total) else "—"}% · ${String.format(Locale.US, "%+.2f%%", stats.averageDirectionalMovePercent)}",
+                                    fontSize = 10.sp,
+                                    color = Color.LightGray
+                                )
+                            }
                         }
                     }
                     Text(
