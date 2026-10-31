@@ -14,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketRepository
@@ -38,7 +37,7 @@ fun AppRoot(
             NavigationBar {
                 titles.forEachIndexed { index, title ->
                     NavigationBarItem(
-                        selected = tab == index,
+                        selected = tab == index && selected == null,
                         onClick = {
                             tab = index
                             selected = null
@@ -62,22 +61,15 @@ fun AppRoot(
             } else {
                 when (tab) {
                     0 -> FavoritesScreen(favorites, onOpen = { selected = it })
-                    1 -> Placeholder("Анализ и прогноз", "следующая интеграция SMC + AI consensus")
+                    1 -> AnalysisScreen(
+                        providers = providers,
+                        market = market,
+                        sentimentRepository = sentiment
+                    )
                     2 -> SimulatorScreen(market)
                     else -> SettingsScreen(providers)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun Placeholder(title: String, stage: String) {
-    androidx.compose.foundation.layout.Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
-    ) {
-        Text(title)
-        Text("Появится на этапе: $stage")
     }
 }
