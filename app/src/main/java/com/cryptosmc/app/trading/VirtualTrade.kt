@@ -39,6 +39,23 @@ data class VirtualTradingSnapshot(
     val realizedPnl: Double
         get() = closedTrades.sumOf { it.pnl ?: 0.0 }
 
+    val reservedNotional: Double
+        get() = openTrades.sumOf { it.entryPrice * it.quantity }
+
+    val initialAndDepositsBalance: Double
+        get() = availableBalance + reservedNotional - realizedPnl
+
+    fun unrealizedPnl(prices: Map<String, Double>): Double = openTrades.sumOf { trade ->
+        val mark = prices[trade.symbol] ?: return@sumOf 0.0
+        if (!mark.isFinite() || mark <= 0.0) return@sumOf 0.0
+        val direction = if (trade.side == VirtualSide.BUY) 1.0 else -1.0
+        (mark - trade.entryPrice) * trade.quantity * direction -
+            (mark * trade.quantity * 0.001)
+    }
+
+    fun equity(prices: Map<String, Double>): Double =
+        availableBalance + reservedNotional + unrealizedPnl(prices)
+
     val wins: Int
         get() = closedTrades.count { (it.pnl ?: 0.0) > 0.0 }
 
