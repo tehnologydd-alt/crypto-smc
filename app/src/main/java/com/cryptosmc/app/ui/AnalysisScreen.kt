@@ -38,6 +38,7 @@ import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.smc.SmcEngine
+import com.cryptosmc.app.smc.HistoricalSmcValidator
 import com.cryptosmc.app.volatility.VolatilityEngine
 import com.cryptosmc.app.trading.VirtualTrade
 import com.cryptosmc.app.journal.PredictionJournal
@@ -64,6 +65,7 @@ fun AnalysisScreen(
     val virtualRepository = remember(context) { VirtualTradingRepository(context) }
     val scope = rememberCoroutineScope()
     val smc = remember(candles) { SmcEngine.analyze(candles) }
+    val smcValidation = remember(candles) { HistoricalSmcValidator.validateHourly(candles) }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
 
     LaunchedEffect(symbol) {
@@ -182,6 +184,25 @@ fun AnalysisScreen(
                     Text("BOS/CHoCH: ${smc.structure.size} · FVG/OB/зоны: ${smc.zones.size} · Уровни ликвидности: ${smc.liquidity.size}")
                     Text("Последнее событие: ${smc.latestStructure?.let { "${it.kind} · ${it.direction}" } ?: "не определено"}")
                     Text("ATR: ${volatility?.atr?.let(::fmt) ?: "—"} (${volatility?.atrPercent?.let { "%.2f%%".format(Locale.US, it) } ?: "—"})")
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Историческая проверка SMC", style = MaterialTheme.typography.titleMedium)
+                    listOf(1, 4, 24).forEach { horizon ->
+                        val stats = HistoricalSmcValidator.statistics(smcValidation, horizon)
+                        Text(
+                            "${horizon}ч · BOS/CHoCH: ${stats.correct}/${stats.total} (${if (stats.total > 0) "%.0f".format(Locale.US, stats.correct * 100.0 / stats.total) else "—"}%) · среднее направленное изменение ${String.format(Locale.US, "%+.2f%%", stats.averageDirectionalMovePercent)}",
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text(
+                        "Сигнал учитывается только с того префикса истории, в котором событие впервые стало доступно. Проверка использует следующие закрытия 1H-свечей; это исследовательская статистика, не торговый результат.",
+                        fontSize = 10.sp,
+                        color = Color.LightGray
+                    )
                 }
             }
         }
