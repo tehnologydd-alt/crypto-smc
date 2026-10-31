@@ -192,14 +192,31 @@ fun AnalysisScreen(
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Историческая проверка SMC", style = MaterialTheme.typography.titleMedium)
                     listOf(1, 4, 24).forEach { horizon ->
-                        val stats = HistoricalSmcValidator.statistics(smcValidation, horizon)
+                        val totalStats = HistoricalSmcValidator.statistics(smcValidation, horizon)
                         Text(
-                            "${horizon}ч · BOS/CHoCH: ${stats.correct}/${stats.total} (${if (stats.total > 0) "%.0f".format(Locale.US, stats.correct * 100.0 / stats.total) else "—"}%) · среднее направленное изменение ${String.format(Locale.US, "%+.2f%%", stats.averageDirectionalMovePercent)}",
-                            fontSize = 11.sp
+                            "${horizon}ч · Все режимы: ${totalStats.correct}/${totalStats.total} (${if (totalStats.total > 0) "%.0f".format(Locale.US, totalStats.correct * 100.0 / totalStats.total) else "—"}%) · среднее ${String.format(Locale.US, "%+.2f%%", totalStats.averageDirectionalMovePercent)}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
+                        listOf(
+                            com.cryptosmc.app.smc.MarketRegime.TREND_UP,
+                            com.cryptosmc.app.smc.MarketRegime.TREND_DOWN,
+                            com.cryptosmc.app.smc.MarketRegime.RANGE
+                        ).forEach { regime ->
+                            val stats = HistoricalSmcValidator.statistics(smcValidation, horizon, regime)
+                            Text(
+                                "  ${when (regime) {
+                                    com.cryptosmc.app.smc.MarketRegime.TREND_UP -> "Рост"
+                                    com.cryptosmc.app.smc.MarketRegime.TREND_DOWN -> "Падение"
+                                    else -> "Боковик"
+                                }}: ${stats.correct}/${stats.total} · ${if (stats.total > 0) "%.0f".format(Locale.US, stats.correct * 100.0 / stats.total) else "—"}% · ${String.format(Locale.US, "%+.2f%%", stats.averageDirectionalMovePercent)}",
+                                fontSize = 10.sp,
+                                color = Color.LightGray
+                            )
+                        }
                     }
                     Text(
-                        "Сигнал учитывается только с того префикса истории, в котором событие впервые стало доступно. Проверка использует следующие закрытия 1H-свечей; это исследовательская статистика, не торговый результат.",
+                        "Режим определяется только по предыдущим 48 закрытым 1H-свечам: наклон и эффективность движения. Пороговая классификация предварительная. Событие учитывается с момента первого появления в доступной истории; будущие свечи используются только для оценки результата.",
                         fontSize = 10.sp,
                         color = Color.LightGray
                     )
