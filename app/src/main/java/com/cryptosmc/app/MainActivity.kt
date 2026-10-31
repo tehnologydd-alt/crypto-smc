@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
                 AppRoot(
                     providers = app.providers,
                     favorites = app.favorites,
-                    market = app.market
+                    market = app.market,
                     sentiment = app.sentiment
                 )
             }
