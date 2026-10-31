@@ -164,7 +164,8 @@ fun AnalysisScreen(
         }
         if (candles.size >= 2) {
             item {
-                Text("График · перетаскивай для истории, щипок — масштаб", style = MaterialTheme.typography.titleSmall)
+                Text("График цены и уровней", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Как пользоваться: двигай график пальцем для истории, своди/разводи пальцы для масштаба.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
                 MarketChart(
                     candles = candles,
                     analysis = smc,
@@ -172,6 +173,11 @@ fun AnalysisScreen(
                     virtualTrades = virtualTrades,
                     symbol = symbol.trim().uppercase()
                 )
+                if (result != null) {
+                    Text("Прогноз AI: вход — фиолетовый · Stop — красный · Take — зелёный", color = Color.LightGray, fontSize = 11.sp)
+                    val forecast = result!!.prediction
+                    Text("${directionLabel(forecast.direction)} · Entry ${fmt(forecast.entry)} · SL ${fmt(forecast.stop)} · TP ${fmt(forecast.take)}", color = directionColor(forecast.direction), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
                 if (virtualTrades.isNotEmpty()) {
                     Text(
                         "Виртуальные уровни: вход — зелёный/красный · SL — красный · TP — голубой",
@@ -338,8 +344,18 @@ fun AnalysisScreen(
                         Text("Средняя расчётная точка входа: ${fmt(p.entry)}")
                         Text("Модельный Stop: ${fmt(p.stop)} · Take: ${fmt(p.take)}")
                         Text("Обоснование: ${p.reasoning}")
+                        Text("Что означает сценарий", fontWeight = FontWeight.Bold)
                         Text(
-                            "Это исследовательский вывод моделей, не торговая рекомендация. Проверь источники и риск.",
+                            when (p.direction) {
+                                "long" -> "Модель рассматривает сценарий роста. Следи за реакцией цены около Entry; достижение Stop отменяет сценарий."
+                                "short" -> "Модель рассматривает сценарий снижения. Следи за реакцией цены около Entry; достижение Stop отменяет сценарий."
+                                else -> "Модели не согласовали направление. Рекомендация системы: наблюдать и дождаться новых данных."
+                            },
+                            fontSize = 12.sp
+                        )
+                        Text("Entry ${fmt(p.entry)} · Stop ${fmt(p.stop)} · Take ${fmt(p.take)}", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Это исследовательский сценарий, а не торговая рекомендация. Уровни модельные, не исполняются автоматически.",
                             color = Color(0xFFFFC66D),
                             fontSize = 12.sp
                         )
