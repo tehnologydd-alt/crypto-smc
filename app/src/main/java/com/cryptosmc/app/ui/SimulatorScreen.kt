@@ -42,12 +42,23 @@ import java.util.Locale
 fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingRepository) {
     var snapshot by remember { mutableStateOf(repository.snapshot()) }
     var candles by remember { mutableStateOf(emptyList<com.cryptosmc.app.market.Candle>()) }
+    var livePrice by remember { mutableStateOf<Double?>(null) }
     var symbol by remember { mutableStateOf("BTCUSDT") }
     var quantity by remember { mutableStateOf("0.001") }
     var sl by remember { mutableStateOf("") }
     var tp by remember { mutableStateOf("") }
     var deposit by remember { mutableStateOf("100") }
     var marketError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(symbol) {
+        while (true) {
+            market.latestPrice(symbol).onSuccess {
+                livePrice = it
+                snapshot = repository.processPrice(symbol, it)
+            }
+            delay(5_000)
+        }
+    }
 
     LaunchedEffect(symbol) {
         while (true) {
@@ -62,7 +73,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
         }
     }
 
-    val price = candles.lastOrNull()?.close
+    val price = livePrice ?: candles.lastOrNull()?.close
 
     fun open(side: VirtualSide) {
         val current = price
