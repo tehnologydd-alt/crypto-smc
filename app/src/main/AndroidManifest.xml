@@ -6,7 +6,7 @@
     <application
         android:name=".CryptoApp"
         android:allowBackup="false"
-        android:icon="@drawable/ic_launcher_legacy"
+        android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="Crypto SMC"
         android:theme="@android:style/Theme.Material.NoActionBar">
