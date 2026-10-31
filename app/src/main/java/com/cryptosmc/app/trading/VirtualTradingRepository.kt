@@ -133,6 +133,32 @@ class VirtualTradingRepository private constructor(context: Context) {
         return snapshot()
     }
 
+    /** Проверяет виртуальные SL/TP по последней доступной цене. */
+    @Synchronized
+    fun processPrice(symbol: String, price: Double, at: Long = System.currentTimeMillis()): VirtualTradingSnapshot {
+        if (!price.isFinite() || price <= 0.0) return snapshot()
+        val pair = symbol.trim().uppercase()
+        val matching = trades.filter { it.status == VirtualStatus.OPEN && it.symbol == pair }
+        matching.forEach { trade ->
+            val hitSl = trade.stopLoss?.let {
+                if (trade.side == VirtualSide.BUY) price <= it else price >= it
+            } ?: false
+            val hitTp = trade.takeProfit?.let {
+                if (trade.side == VirtualSide.BUY) price >= it else price <= it
+            } ?: false
+            if (hitSl || hitTp) {
+                val reason = when {
+                    hitSl && hitTp -> "Цена достигла SL и TP: выбран SL"
+                    hitSl -> "Stop Loss"
+                    else -> "Take Profit"
+                }
+                val level = if (hitSl) trade.stopLoss!! else trade.takeProfit!!
+                close(trade.id, level, reason, at)
+            }
+        }
+        return snapshot()
+    }
+
     /**
      * Проверяет свечи, открывшиеся после входа.
      * При касании SL и TP в одной OHLC-свече применяется консервативный SL.
