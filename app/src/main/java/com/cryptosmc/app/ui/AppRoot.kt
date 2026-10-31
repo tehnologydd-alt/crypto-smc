@@ -21,12 +21,14 @@ import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketRepository
+import com.cryptosmc.app.sentiment.SentimentRepository
 
 @Composable
 fun AppRoot(
     providers: ProviderRepository,
     favorites: FavoritesRepository,
-    market: MarketRepository
+    market: MarketRepository,
+    sentiment: SentimentRepository
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf<String?>(null) }
@@ -53,7 +55,7 @@ fun AppRoot(
         Box(Modifier.padding(padding).fillMaxSize()) {
             val sel = selected
             if (sel != null) {
-                AssetScreen(symbol = sel, market = market, onBack = { selected = null })
+                AssetScreen(symbol = sel, market = market, sentiment = sentiment, onBack = { selected = null })
             } else {
                 when (tab) {
                     0 -> FavoritesScreen(favorites, onOpen = { selected = it })

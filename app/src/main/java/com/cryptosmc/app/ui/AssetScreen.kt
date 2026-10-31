@@ -43,6 +43,8 @@ import com.cryptosmc.app.volatility.LiquidityMap
 import com.cryptosmc.app.volatility.LiquiditySide
 import com.cryptosmc.app.volatility.VolatilityEngine
 import com.cryptosmc.app.volatility.VolatilityMetrics
+import com.cryptosmc.app.sentiment.SentimentRepository
+import com.cryptosmc.app.sentiment.SentimentSnapshot
 import java.util.Locale
 
 private val ChartUp = Color(0xFF2EBD85)
@@ -51,7 +53,7 @@ private val ChartDown = Color(0xFFF6465D)
 private fun formatQty(q: Double): String = String.format(Locale.US, "%.4f", q)
 
 @Composable
-fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
+fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRepository, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
 
     val intervals = listOf("15m", "1h", "4h", "1d")
@@ -60,6 +62,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
     var book by remember { mutableStateOf<OrderBook?>(null) }
     var futures by remember { mutableStateOf<FuturesInfo?>(null) }
     var futuresLoaded by remember { mutableStateOf(false) }
+    var sentimentSnapshot by remember { mutableStateOf<SentimentSnapshot?>(null) }
     var status by remember { mutableStateOf("Загрузка...") }
     var tick by remember { mutableIntStateOf(0) }
     val smc = remember(candles) { SmcEngine.analyze(candles) }
@@ -82,6 +85,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
             .onSuccess { futures = it }
             .onFailure { futures = null }
         futuresLoaded = true
+        sentiment.snapshot(symbol).onSuccess { sentimentSnapshot = it }
     }
 
     Column(
@@ -134,6 +138,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
 
         SmcSummary(smc)
         VolatilitySummary(volatility, liquidity)
+        SentimentSummary(sentimentSnapshot)
         if (status.isNotEmpty()) {
             Text(status, style = MaterialTheme.typography.bodySmall)
         } else {
@@ -210,6 +215,23 @@ fun AssetScreen(symbol: String, market: MarketRepository, onBack: () -> Unit) {
                     )
                 } else {
                     Text("Загрузка...", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SentimentSummary(snapshot: SentimentSnapshot?) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Сентимент", style = MaterialTheme.typography.titleMedium)
+            if (snapshot == null) {
+                Text("Источники пока недоступны или загружаются", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text("Индекс: ${String.format(Locale.US, "%.0f/100", snapshot.score)} — ${snapshot.label}", style = MaterialTheme.typography.bodySmall)
+                snapshot.sources.forEach { source ->
+                    Text("${source.name}: ${String.format(Locale.US, "%.0f", source.score)} (${source.detail})", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
