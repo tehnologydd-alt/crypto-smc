@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.trading.VirtualTradingRepository
+import com.cryptosmc.app.trading.VirtualSide
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.smc.SmcEngine
 import com.cryptosmc.app.smc.HistoricalSmcValidator
@@ -62,6 +65,9 @@ fun AnalysisScreen(
     var moodSnapshot by remember { mutableStateOf<com.cryptosmc.app.sentiment.SentimentSnapshot?>(null) }
     var status by remember { mutableStateOf("Нажми «Обновить анализ» для загрузки данных") }
     var busy by remember { mutableStateOf(false) }
+    var showAcceptDialog by remember { mutableStateOf(false) }
+    var orderAmount by remember { mutableStateOf("100") }
+    var acceptMessage by remember { mutableStateOf<String?>(null) }
     var virtualTrades by remember { mutableStateOf<List<VirtualTrade>>(emptyList()) }
     var journalEntries by remember { mutableStateOf<List<JournalEntry>>(emptyList()) }
     val context = LocalContext.current
@@ -126,6 +132,61 @@ fun AnalysisScreen(
                 busy = false
             }
         }
+    }
+
+    if (showAcceptDialog && result != null && candles.isNotEmpty()) {
+        val forecast = result!!.prediction
+        val currentPrice = candles.last().close
+        val isBuy = forecast.direction == "long"
+        val side = if (isBuy) VirtualSide.BUY else VirtualSide.SELL
+        val suggestedLimit = if (isBuy) forecast.entry < currentPrice else forecast.entry > currentPrice
+        AlertDialog(
+            onDismissRequest = { showAcceptDialog = false },
+            title = { Text("Принять виртуальный прогноз?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${if (isBuy) "BUY" else "SELL"} · ${symbol.uppercase()}")
+                    Text("Текущая цена: ${fmt(currentPrice)}")
+                    Text("Entry: ${fmt(forecast.entry)} · SL: ${fmt(forecast.stop)} · TP: ${fmt(forecast.take)}")
+                    Text("Предлагаемый тип: ${if (suggestedLimit) "LIMIT — ждать цены входа" else "MARKET — по текущей цене"}")
+                    OutlinedTextField(
+                        value = orderAmount,
+                        onValueChange = { orderAmount = it },
+                        label = { Text("Сумма виртуальной позиции, USDT") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    Text("Подтверждение создаст только виртуальную позицию в симуляторе.", fontSize = 11.sp, color = Color.LightGray)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val amount = orderAmount.replace(',', '.').toDoubleOrNull()
+                    if (amount == null || !amount.isFinite() || amount <= 0.0) {
+                        acceptMessage = "Укажи корректную сумму в USDT"
+                    } else if (suggestedLimit) {
+                        acceptMessage = "Для LIMIT-заявки нужно сначала добавить механизм ожидающих лимитных заявок. Позиция не открыта."
+                        showAcceptDialog = false
+                    } else {
+                        val quantity = amount / currentPrice
+                        val opened = virtualRepository.open(
+                            symbol = symbol.trim().uppercase(),
+                            side = side,
+                            entry = currentPrice,
+                            quantity = quantity,
+                            stopLoss = forecast.stop,
+                            takeProfit = forecast.take
+                        )
+                        virtualTrades = opened.openTrades.filter { it.symbol.equals(symbol, true) }
+                        acceptMessage = opened.message
+                        showAcceptDialog = false
+                    }
+                }) { Text("Подтвердить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAcceptDialog = false }) { Text("Отмена") }
+            }
+        )
     }
 
     LazyColumn(
@@ -348,6 +409,10 @@ fun AnalysisScreen(
                         Text("Средняя расчётная точка входа: ${fmt(p.entry)}")
                         Text("Модельный Stop: ${fmt(p.stop)} · Take: ${fmt(p.take)}")
                         Text("Обоснование: ${p.reasoning}")
+                        Button(onClick = { showAcceptDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Принять прогноз · виртуальная сделка")
+                        }
+                        acceptMessage?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                         Text("Что означает сценарий", fontWeight = FontWeight.Bold)
                         Text(
                             when (p.direction) {
