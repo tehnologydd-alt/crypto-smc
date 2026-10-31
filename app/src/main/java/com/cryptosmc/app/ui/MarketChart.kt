@@ -53,8 +53,8 @@ fun MarketChart(candles: List<Candle>, analysis: SmcAnalysis, modifier: Modifier
             if (candles.size < 2) return@Canvas
             val visible = (candles.size / zoom).coerceIn(8f, candles.size.toFloat())
             val maxPan = max(0f, candles.size - visible)
-            panBars = panBars.coerceIn(0f, maxPan)
-            val first = floor(maxPan - panBars).toInt().coerceIn(0, candles.lastIndex)
+            val safePan = panBars.coerceIn(0f, maxPan)
+            val first = floor(maxPan - safePan).toInt().coerceIn(0, candles.lastIndex)
             val last = min(candles.lastIndex, ceil(first + visible).toInt())
             val slice = candles.subList(first, last + 1)
             if (slice.isEmpty()) return@Canvas
