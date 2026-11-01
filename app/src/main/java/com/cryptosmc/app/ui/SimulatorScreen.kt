@@ -98,8 +98,8 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
     ) {
         item {
             Text(
-                "Практика",
-                style = MaterialTheme.typography.headlineSmall,
+                "Виртуальная практика",
+                style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -110,7 +110,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                 shape = RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("ВИРТУАЛЬНЫЙ СЧЁТ · USDT", color = Color(0xFF9AAAC0), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("УЧЕБНЫЙ СЧЁТ · USDT", color = Color(0xFF9AAAC0), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text("Доступный баланс", color = Color.LightGray)
                     Text(
                         money(snapshot.availableBalance),
@@ -134,7 +134,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                         fontSize = 12.sp
                     )
                     Text("BTC/USDT · ${price?.let(::priceText) ?: "загрузка цены"}", color = Color.White)
-                    Text("Оценка капитала учитывает текущую цену и расчётную комиссию закрытия.", color = Color.LightGray, fontSize = 10.sp)
+                    Text("Оценка капитала учитывает текущую цену и расчётную комиссию закрытия.", color = Color.LightGray, fontSize = 12.sp)
                     marketError?.let { Text(it, color = Color(0xFFFF7185), fontSize = 12.sp) }
                 }
             }
@@ -145,7 +145,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("НОВАЯ ВИРТУАЛЬНАЯ ПОЗИЦИЯ", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.7.sp)
+                    Text("ОТКРЫТЬ УЧЕБНУЮ ПОЗИЦИЮ", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.5.sp)
                     OutlinedTextField(
                         value = quantity,
                         onValueChange = { quantity = it },
@@ -228,7 +228,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
 private fun AccountMetric(title: String, value: String, modifier: Modifier, tint: Color) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF111C2A)), shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = Color(0xFF9AAAC0), fontSize = 10.sp)
+            Text(title, color = Color(0xFF9AAAC0), fontSize = 12.sp)
             Text(value, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -254,7 +254,7 @@ private fun VirtualTradeCard(trade: VirtualTrade, onClose: (() -> Unit)? = null)
             if (trade.status == VirtualStatus.CLOSED) {
                 val pnl = trade.pnl ?: 0.0
                 Text("Результат: ${money(pnl)}", color = if (pnl >= 0) Color(0xFF61D9A5) else Color(0xFFFF7185))
-                Text(trade.closeReason ?: "Закрыта", color = Color.LightGray, fontSize = 11.sp)
+                Text(trade.closeReason ?: "Закрыта", color = Color.LightGray, fontSize = 12.sp)
             }
             if (onClose != null) {
                 OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
