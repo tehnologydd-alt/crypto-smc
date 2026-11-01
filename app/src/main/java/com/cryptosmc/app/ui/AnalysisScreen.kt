@@ -195,9 +195,9 @@ fun AnalysisScreen(
     ) {
         item {
             Text("MARKET INTELLIGENCE", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-            Text("Рыночная разведка", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Рыночная разведка", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("3 бесплатных аналитических агента работают без API-ключей. Внешние AI-модели можно подключить дополнительно.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9AAAC0))
-            Text("Аналитика рынка · 1H · Binance public data", style = MaterialTheme.typography.bodySmall)
+            Text("BINANCE PUBLIC DATA  ·  1H", style = MaterialTheme.typography.labelSmall, color = Color(0xFF55D6BE))
         }
         item {
             Card(
@@ -259,7 +259,7 @@ fun AnalysisScreen(
         item {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF202D3B))) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Настроение рынка и соцсети", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("НАСТРОЕНИЕ РЫНКА И СОЦСЕТИ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold)
                     val mood = moodSnapshot
                     if (mood == null) {
                         Text("Настроение ещё не загружено. Нажми «Обновить анализ» — приложение запросит Fear & Greed, Reddit и доступные новости.", color = Color.LightGray, fontSize = 12.sp)
@@ -277,9 +277,9 @@ fun AnalysisScreen(
             }
         }
         item {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)), shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("Рыночная структура", style = MaterialTheme.typography.titleMedium)
+                    Text("РЫНОЧНАЯ СТРУКТУРА", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold)
                     Text("Свечей: ${candles.size} · Цена: ${candles.lastOrNull()?.close?.let(::fmt) ?: "—"}")
                     Text("BOS/CHoCH: ${smc.structure.size} · FVG/OB/зоны: ${smc.zones.size} · Уровни ликвидности: ${smc.liquidity.size}")
                     Text("Последнее событие: ${smc.latestStructure?.let { "${it.kind} · ${it.direction}" } ?: "не определено"}")
@@ -290,7 +290,7 @@ fun AnalysisScreen(
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Историческая проверка SMC", style = MaterialTheme.typography.titleMedium)
+                    Text("ИСТОРИЧЕСКАЯ ПРОВЕРКА SMC", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold)
                     listOf(1, 4, 24).forEach { horizon ->
                         val totalStats = HistoricalSmcValidator.statistics(smcValidation, horizon)
                         Text(
