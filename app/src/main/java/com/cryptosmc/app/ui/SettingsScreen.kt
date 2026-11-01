@@ -60,12 +60,11 @@ fun SettingsScreen(repo: ProviderRepository) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text(
-                "Настройки",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(top = 16.dp)
-            )
+            Text("PERSONALIZATION & DATA", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 16.dp))
+            Text("Настройки", style = MaterialTheme.typography.headlineSmall)
+            Text("Источники данных, AI-провайдеры и параметры аналитики", color = Color(0xFF9AAAC0), style = MaterialTheme.typography.bodySmall)
         }
+        item { Text("ПОДКЛЮЧЕНИЯ И ИСТОЧНИКИ", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium) }
         items(providers, key = { it.id }) { p ->
             ProviderCard(
                 p = p,
@@ -107,6 +106,7 @@ fun SettingsScreen(repo: ProviderRepository) {
                 )
             }) { Text("+ Добавить провайдера") }
         }
+        item { Text("ПОВЕДЕНИЕ АНАЛИТИКА", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium) }
         item {
             PromptEditor(
                 current = prompt,
