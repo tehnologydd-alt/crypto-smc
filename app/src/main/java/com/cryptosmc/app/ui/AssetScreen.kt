@@ -400,7 +400,8 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
             Canvas(
                 Modifier.weight(1f).fillMaxSize().pointerInput(candles.size) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        val minCount = minOf(20, candles.size)\n                        val nextCount = (visibleCount / zoom).roundToInt().coerceIn(minCount, candles.size)
+                        val minCount = minOf(20, candles.size)
+                        val nextCount = (visibleCount / zoom).roundToInt().coerceIn(minCount, candles.size)
                         visibleCount = nextCount
                         if (size.width > 0f) {
                             val shift = (pan.x / size.width * visibleCount).roundToInt()
