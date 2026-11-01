@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketApi
 import com.cryptosmc.app.market.Ticker
@@ -87,8 +89,8 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Избранное",
-                style = MaterialTheme.typography.titleLarge,
+                "Рынок",
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f)
             )
             OutlinedButton(onClick = { refreshTick++ }) { Text("Обновить") }
@@ -130,7 +132,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
 
 @Composable
 private fun FavoriteRow(symbol: String, ticker: Ticker?, onClick: () -> Unit, onRemove: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)), shape = RoundedCornerShape(19.dp)) {
         Row(
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
