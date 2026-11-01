@@ -166,6 +166,26 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
             Text("Общая сводка недоступна: \$overviewError", style = MaterialTheme.typography.bodySmall, color = Color(0xFF91A0B5), modifier = Modifier.padding(top = 8.dp))
         }
 
+        if (marketOverview.isNotEmpty()) {
+            val liquid = marketOverview.filter { it.quoteVolume >= 5_000_000.0 }
+            val gainers = liquid.filter { it.changePct > 0.0 }.sortedByDescending { it.changePct }.take(5)
+            val losers = liquid.filter { it.changePct < 0.0 }.sortedBy { it.changePct }.take(5)
+            Card(Modifier.fillMaxWidth().padding(top = 10.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)), shape = RoundedCornerShape(17.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("ЛИДЕРЫ ДВИЖЕНИЯ · 24 Ч · ОБОРОТ ОТ 5 МЛН USDT", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Рост", color = Green, fontWeight = FontWeight.Bold)
+                            gainers.forEach { Text("${it.symbol.removeSuffix("USDT")}  ${String.format(Locale.US, "%+.1f%%", it.changePct)}", style = MaterialTheme.typography.labelSmall, color = Green, maxLines = 1) }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Снижение", color = Red, fontWeight = FontWeight.Bold)
+                            losers.forEach { Text("${it.symbol.removeSuffix("USDT")}  ${String.format(Locale.US, "%+.1f%%", it.changePct)}", style = MaterialTheme.typography.labelSmall, color = Red, maxLines = 1) }
+                        }
+                    }
+                }
+            }
+        }
         // Quick BTC/ETH overview plus a transparent breadth snapshot of the user's favorites.
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
