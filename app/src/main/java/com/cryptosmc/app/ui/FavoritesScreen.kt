@@ -78,7 +78,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
     LaunchedEffect(symbols, refreshTick) {
         while (true) {
             loading = true
-            MarketApi.tickers(symbols)
+            MarketApi.tickers((symbols + listOf("BTCUSDT", "ETHUSDT")).distinct())
                 .onSuccess { list ->
                     tickers = list.associateBy { it.symbol }
                     errorText = null
@@ -119,6 +119,45 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                 color = MaterialTheme.colorScheme.error
             )
         }
+        // Quick BTC/ETH overview plus a transparent breadth snapshot of the user's favorites.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MarketSnapshotCard("BTC", tickers["BTCUSDT"], Modifier.weight(1f))
+            MarketSnapshotCard("ETH", tickers["ETHUSDT"], Modifier.weight(1f))
+        }
+        val loadedFavorites = symbols.mapNotNull { tickers[it] }
+        if (loadedFavorites.isNotEmpty()) {
+            val positive = loadedFavorites.count { it.changePct > 0.0 }
+            val negative = loadedFavorites.count { it.changePct < 0.0 }
+            val mood = when {
+                positive > negative -> "Преобладает рост"
+                negative > positive -> "Преобладает снижение"
+                else -> "Смешанное движение"
+            }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Срез избранного", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+                        Text(mood, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text(
+                        "$positive ↑  ·  $negative ↓",
+                        color = if (positive >= negative) Green else Red,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+        }
+
         if (symbols.isEmpty()) {
             Text(
                 "Список пуст. Нажми «+ Актив», чтобы добавить пару.",
@@ -138,6 +177,33 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
 
     if (showAdd) {
         AddAssetDialog(repo = repo, onDismiss = { showAdd = false })
+    }
+}
+
+@Composable
+private fun MarketSnapshotCard(symbol: String, ticker: Ticker?, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)),
+        shape = RoundedCornerShape(17.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(symbol, style = MaterialTheme.typography.labelMedium, color = Color(0xFF91A0B5))
+            if (ticker == null) {
+                Text("Загрузка…", style = MaterialTheme.typography.titleMedium)
+            } else {
+                Text(formatPrice(ticker.price), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(
+                    String.format(Locale.US, "%+.2f%% за 24 ч", ticker.changePct),
+                    color = if (ticker.changePct >= 0) Green else Red,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
