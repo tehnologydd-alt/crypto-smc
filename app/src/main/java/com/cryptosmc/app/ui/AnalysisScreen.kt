@@ -189,7 +189,7 @@ fun AnalysisScreen(
         )
     }
 
-    if (showAcceptDialog && result != null && candles.isNotEmpty()) {
+    if (showAcceptDialog && result != null && candles.isNotEmpty() && (result!!.prediction.direction == "long" || result!!.prediction.direction == "short")) {
         val forecast = result!!.prediction
         val currentPrice = candles.last().close
         val isBuy = forecast.direction == "long"
@@ -342,6 +342,41 @@ fun AnalysisScreen(
                             "${trade.side} · вход ${fmt(trade.entryPrice)} · SL ${trade.stopLoss?.let(::fmt) ?: "—"} · TP ${trade.takeProfit?.let(::fmt) ?: "—"}",
                             fontSize = 12.sp
                         )
+                    }
+                }
+            }
+        }
+        if (result != null) {
+            item {
+                val p = result!!.prediction
+                val canAccept = p.direction == "long" || p.direction == "short"
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF172238)),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("КРАТКИЙ ВЫВОД АНАЛИЗА", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(directionLabel(p.direction), color = directionColor(p.direction), fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        Text("Уверенность моделей: ${"%.0f".format(Locale.US, p.confidence)}%", color = Color.White)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VoteMetric("BUY", result!!.votes.count { it.direction == "long" }, Modifier.weight(1f), Color(0xFF61D9A5))
+                            VoteMetric("SELL", result!!.votes.count { it.direction == "short" }, Modifier.weight(1f), Color(0xFFFF7185))
+                            VoteMetric("НЕЙТР.", result!!.votes.count { it.direction != "long" && it.direction != "short" }, Modifier.weight(1f), Color(0xFFFFC66D))
+                        }
+                        Text("Entry ${fmt(p.entry)}   ·   SL ${fmt(p.stop)}   ·   TP ${fmt(p.take)}", fontWeight = FontWeight.SemiBold)
+                        Button(
+                            onClick = { showAcceptDialog = true },
+                            enabled = canAccept,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (canAccept) "Принять сценарий в виртуальную практику" else "Нейтральный сценарий — только наблюдение")
+                        }
+                        Text(
+                            if (canAccept) "Действие создаёт только учебную виртуальную позицию." else "Агенты не выбрали направление. Система не предлагает открывать позицию.",
+                            color = Color(0xFFFFC66D), fontSize = 12.sp
+                        )
+                        acceptMessage?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                     }
                 }
             }
@@ -508,8 +543,8 @@ fun AnalysisScreen(
                         Text("Средняя расчётная точка входа: ${fmt(p.entry)}")
                         Text("Модельный Stop: ${fmt(p.stop)} · Take: ${fmt(p.take)}")
                         Text("Обоснование: ${p.reasoning}")
-                        Button(onClick = { showAcceptDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Принять прогноз · виртуальная сделка")
+                        Button(onClick = { showAcceptDialog = true }, enabled = p.direction == "long" || p.direction == "short", modifier = Modifier.fillMaxWidth()) {
+                            Text(if (p.direction == "long" || p.direction == "short") "Принять прогноз · виртуальная сделка" else "Нейтральный сценарий · без открытия позиции")
                         }
                         acceptMessage?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                         Text("Что означает сценарий", fontWeight = FontWeight.Bold)
