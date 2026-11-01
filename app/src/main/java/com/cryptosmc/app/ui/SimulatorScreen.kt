@@ -118,12 +118,16 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                         fontSize = 30.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text("Средства в открытых позициях: ${money(snapshot.reservedNotional)}", color = Color.White)
                     val markedPrices = price?.let { mapOf(symbol to it) } ?: emptyMap()
                     val unrealized = snapshot.unrealizedPnl(markedPrices)
-                    Text("Нереализованный P/L (оценка): ${money(unrealized)}", color = Color.White)
-                    Text("Общая оценка капитала: ${money(snapshot.equity(markedPrices))}", color = Color(0xFF61D9A5), fontWeight = FontWeight.SemiBold)
-                    Text("Реализованный P/L: ${money(snapshot.realizedPnl)}", color = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AccountMetric("Оценка капитала", money(snapshot.equity(markedPrices)), Modifier.weight(1f), Color(0xFF61D9A5))
+                        AccountMetric("Нереализованный P/L", money(unrealized), Modifier.weight(1f), if (unrealized >= 0) Color(0xFF61D9A5) else Color(0xFFFF7185))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AccountMetric("В позициях", money(snapshot.reservedNotional), Modifier.weight(1f), Color.White)
+                        AccountMetric("Реализованный P/L", money(snapshot.realizedPnl), Modifier.weight(1f), if (snapshot.realizedPnl >= 0) Color(0xFF61D9A5) else Color(0xFFFF7185))
+                    }
                     Text(
                         "Сделок: ${snapshot.closedTrades.size} · Плюс: ${snapshot.wins} · Минус: ${snapshot.losses}",
                         color = Color.LightGray,
@@ -220,6 +224,15 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
     }
 }
 
+@Composable
+private fun AccountMetric(title: String, value: String, modifier: Modifier, tint: Color) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF111C2A)), shape = RoundedCornerShape(14.dp)) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = Color(0xFF9AAAC0), fontSize = 10.sp)
+            Text(value, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
 @Composable
 private fun VirtualTradeCard(trade: VirtualTrade, onClose: (() -> Unit)? = null) {
     Card(
