@@ -521,7 +521,7 @@ fun AnalysisScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("ИТОГОВЫЙ СЦЕНАРИЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+                        Text("ПОДРОБНОСТИ СЦЕНАРИЯ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
                         Text("Консенсус аналитических агентов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Бесплатные локальные агенты + подключённые внешние модели", fontSize = 12.sp, color = Color.LightGray)
                         val bullishVotes = consensus.votes.count { it.direction == "long" }
@@ -543,10 +543,6 @@ fun AnalysisScreen(
                         Text("Средняя расчётная точка входа: ${fmt(p.entry)}")
                         Text("Модельный Stop: ${fmt(p.stop)} · Take: ${fmt(p.take)}")
                         Text("Обоснование: ${p.reasoning}")
-                        Button(onClick = { showAcceptDialog = true }, enabled = p.direction == "long" || p.direction == "short", modifier = Modifier.fillMaxWidth()) {
-                            Text(if (p.direction == "long" || p.direction == "short") "Принять прогноз · виртуальная сделка" else "Нейтральный сценарий · без открытия позиции")
-                        }
-                        acceptMessage?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                         Text("Что означает сценарий", fontWeight = FontWeight.Bold)
                         Text(
                             when (p.direction) {
