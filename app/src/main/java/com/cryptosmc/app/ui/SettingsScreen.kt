@@ -60,8 +60,8 @@ fun SettingsScreen(repo: ProviderRepository) {
     ) {
         item {
             Text(
-                "AI-провайдеры",
-                style = MaterialTheme.typography.titleLarge,
+                "Настройки",
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -146,11 +146,11 @@ private fun ProviderCard(
     onEdit: () -> Unit,
     onTest: () -> Unit
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = Color(0xFF182334)), shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(p.name, style = MaterialTheme.typography.titleMedium)
+                    Text(p.name, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                     Text(p.model, style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = p.enabled, onCheckedChange = onToggle)
