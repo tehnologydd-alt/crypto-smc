@@ -46,6 +46,11 @@ class MarketRepository(private val context: Context) {
 
     suspend fun orderBook(symbol: String): Result<OrderBook> = MarketApi.orderBook(symbol)
 
+    suspend fun latestPrice(symbol: String): Result<Double> =
+        MarketApi.tickers(listOf(symbol)).mapCatching {
+            it.firstOrNull()?.price ?: error("Цена недоступна для $symbol")
+        }
+
     suspend fun futuresInfo(symbol: String): Result<FuturesInfo> = MarketApi.futuresInfo(symbol)
 
     private fun file(key: String) = File(context.cacheDir, "candles_$key.json")
