@@ -149,7 +149,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("СПОТОВЫЙ РЫНОК · USDT", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5), fontWeight = FontWeight.SemiBold)
-                        Text("\${marketOverview.size} пар", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+                        Text("${marketOverview.size} пар", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BreadthMetric("Растут", advancing, Green, Modifier.weight(1f))
@@ -163,7 +163,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                 }
             }
         } else if (overviewError != null) {
-            Text("Общая сводка недоступна: \$overviewError", style = MaterialTheme.typography.bodySmall, color = Color(0xFF91A0B5), modifier = Modifier.padding(top = 8.dp))
+            Text("Общая сводка недоступна: $overviewError", style = MaterialTheme.typography.bodySmall, color = Color(0xFF91A0B5), modifier = Modifier.padding(top = 8.dp))
         }
 
         if (marketOverview.isNotEmpty()) {
