@@ -1,5 +1,6 @@
 package com.cryptosmc.app.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +67,8 @@ fun formatPair(symbol: String): String =
 fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
     val symbols by repo.items.collectAsState()
     var tickers by remember { mutableStateOf<Map<String, Ticker>>(emptyMap()) }
+    var sparkline by remember { mutableStateOf<Map<String, List<Double>>>(emptyMap()) }
+    var loading by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var updated by remember { mutableStateOf<String?>(null) }
     var refreshTick by remember { mutableIntStateOf(0) }
@@ -72,6 +77,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
     // Обновляем цены сразу и затем каждые 30 секунд, пока открыт экран.
     LaunchedEffect(symbols, refreshTick) {
         while (true) {
+            loading = true
             MarketApi.tickers(symbols)
                 .onSuccess { list ->
                     tickers = list.associateBy { it.symbol }
@@ -79,6 +85,10 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                     updated = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                 }
                 .onFailure { errorText = it.message ?: "Ошибка сети" }
+            symbols.take(12).forEach { pair ->
+                MarketApi.klines(pair, "1h", 24).onSuccess { candles -> sparkline = sparkline + (pair to candles.map { it.close }) }
+            }
+            loading = false
             delay(30_000)
         }
     }
@@ -120,7 +130,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(symbols, key = { it }) { s ->
-                FavoriteRow(s, tickers[s], onClick = { onOpen(s) }, onRemove = { repo.remove(s) })
+                FavoriteRow(s, tickers[s], sparkline[s].orEmpty(), onClick = { onOpen(s) }, onRemove = { repo.remove(s) })
             }
         }
     }
@@ -131,7 +141,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
 }
 
 @Composable
-private fun FavoriteRow(symbol: String, ticker: Ticker?, onClick: () -> Unit, onRemove: () -> Unit) {
+private fun FavoriteRow(symbol: String, ticker: Ticker?, history: List<Double>, onClick: () -> Unit, onRemove: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)), shape = RoundedCornerShape(19.dp)) {
         Row(
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
@@ -156,6 +166,24 @@ private fun FavoriteRow(symbol: String, ticker: Ticker?, onClick: () -> Unit, on
             }
             TextButton(onClick = onRemove) { Text("✕") }
         }
+    }
+}
+
+@Composable
+private fun MiniSparkline(values: List<Double>, change: Double, modifier: Modifier = Modifier) {
+    val tint = if (change >= 0) Green else Red
+    Canvas(modifier) {
+        if (values.size < 2) return@Canvas
+        val low = values.minOrNull() ?: return@Canvas
+        val high = values.maxOrNull() ?: return@Canvas
+        val range = (high - low).takeIf { it > 0.0 } ?: 1.0
+        val path = Path()
+        values.forEachIndexed { index, value ->
+            val x = size.width * index / values.lastIndex.toFloat()
+            val y = size.height - ((value - low) / range).toFloat() * size.height
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, tint.copy(alpha = 0.9f), style = Stroke(width = 2.dp.toPx()))
     }
 }
 
