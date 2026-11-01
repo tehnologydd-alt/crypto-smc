@@ -61,8 +61,8 @@ fun SettingsScreen(repo: ProviderRepository) {
     ) {
         item {
             Text("PERSONALIZATION & DATA", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 16.dp))
-            Text("Настройки", style = MaterialTheme.typography.headlineSmall)
-            Text("Источники данных, AI-провайдеры и параметры аналитики", color = Color(0xFF9AAAC0), style = MaterialTheme.typography.bodySmall)
+            Text("Настройки приложения", style = MaterialTheme.typography.headlineMedium)
+            Text("Управляй подключениями и настройками аналитики. Сначала включи источник, затем проверь соединение.", color = Color(0xFF9AAAC0), style = MaterialTheme.typography.bodySmall)
         }
         item { Text("ПОДКЛЮЧЕНИЯ И ИСТОЧНИКИ", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium) }
         items(providers, key = { it.id }) { p ->
@@ -152,7 +152,7 @@ private fun ProviderCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(p.name, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                    Text(p.model, style = MaterialTheme.typography.bodySmall)
+                    Text(p.model, style = MaterialTheme.typography.bodyMedium)
                 }
                 Switch(checked = p.enabled, onCheckedChange = onToggle)
             }
