@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +33,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cryptosmc.app.market.MarketRepository
+import com.cryptosmc.app.market.MarketApi
+import com.cryptosmc.app.market.Ticker
 import com.cryptosmc.app.trading.VirtualTradingRepository
 import com.cryptosmc.app.trading.VirtualSide
 import com.cryptosmc.app.trading.VirtualStatus
@@ -50,8 +54,14 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
     var tp by remember { mutableStateOf("") }
     var deposit by remember { mutableStateOf("100") }
     var marketError by remember { mutableStateOf<String?>(null) }
+    var showAssetPicker by remember { mutableStateOf(false) }
+    var assetQuery by remember { mutableStateOf("") }
+    var availableAssets by remember { mutableStateOf<List<Ticker>>(emptyList()) }
+    var assetsLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(symbol) {
+        livePrice = null
+        candles = emptyList()
         while (true) {
             market.latestPrice(symbol).onSuccess {
                 livePrice = it
@@ -133,7 +143,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                         color = Color.LightGray,
                         fontSize = 12.sp
                     )
-                    Text("BTC/USDT · ${price?.let(::priceText) ?: "загрузка цены"}", color = Color.White)
+                    Text("${symbol.removeSuffix("USDT")}/USDT · ${price?.let(::priceText) ?: "загрузка цены"}", color = Color.White)
                     Text("Оценка капитала учитывает текущую цену и расчётную комиссию закрытия.", color = Color.LightGray, fontSize = 12.sp)
                     marketError?.let { Text(it, color = Color(0xFFFF7185), fontSize = 12.sp) }
                 }
@@ -145,11 +155,15 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("ОТКРЫТЬ УЧЕБНУЮ ПОЗИЦИЮ", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.5.sp)
+                    Text("НОВАЯ УЧЕБНАЯ ПОЗИЦИЯ", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.5.sp)
+                    Text("Выбери актив и параметры виртуальной позиции. Реальные средства не используются.", color = Color.LightGray, fontSize = 12.sp)
+                    OutlinedButton(onClick = { showAssetPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Актив: ${symbol.removeSuffix("USDT")}/USDT · Изменить")
+                    }
                     OutlinedTextField(
                         value = quantity,
                         onValueChange = { quantity = it },
-                        label = { Text("Количество BTC") },
+                        label = { Text("Количество ${symbol.removeSuffix("USDT")}") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -171,12 +185,12 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                         modifier = Modifier.fillMaxWidth()
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { open(VirtualSide.BUY) }, modifier = Modifier.weight(1f)) { Text("BUY") }
+                        Button(onClick = { open(VirtualSide.BUY) }, modifier = Modifier.weight(1f)) { Text("Виртуальный BUY") }
                         Button(
                             onClick = { open(VirtualSide.SELL) },
                             modifier = Modifier.weight(1f),
                             colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFFB83E59))
-                        ) { Text("SELL") }
+                        ) { Text("Виртуальный SELL") }
                     }
                     Text(snapshot.message, color = Color.LightGray, fontSize = 12.sp)
                 }
@@ -222,6 +236,62 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
             VirtualTradeCard(it)
         }
     }
+
+    if (showAssetPicker) {
+        LaunchedEffect(showAssetPicker) {
+            if (availableAssets.isEmpty()) {
+                assetsLoading = true
+                MarketApi.allUsdtTickers().onSuccess { availableAssets = it }
+                    .onFailure { marketError = it.message ?: "Не удалось загрузить список активов" }
+                assetsLoading = false
+            }
+        }
+        val filteredAssets = availableAssets.filter {
+            it.symbol.contains(assetQuery.trim().uppercase()) ||
+                it.symbol.removeSuffix("USDT").contains(assetQuery.trim(), ignoreCase = true)
+        }.take(100)
+        AlertDialog(
+            onDismissRequest = { showAssetPicker = false },
+            title = { Text("Выбрать актив") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = assetQuery,
+                        onValueChange = { assetQuery = it },
+                        label = { Text("Поиск пары, например ETH") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (assetsLoading) {
+                        Text("Загружаем список Binance…", color = Color.LightGray)
+                    } else if (filteredAssets.isEmpty()) {
+                        Text("Ничего не найдено", color = Color.LightGray)
+                    } else {
+                        LazyColumn {
+                            items(filteredAssets, key = { it.symbol }) { ticker ->
+                                TextButton(
+                                    onClick = {
+                                        symbol = ticker.symbol
+                                        quantity = if (ticker.symbol == "BTCUSDT") "0.001" else "1"
+                                        assetQuery = ""
+                                        showAssetPicker = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("${ticker.symbol.removeSuffix("USDT")}/USDT")
+                                        Text(priceText(ticker.price), color = Color.LightGray)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAssetPicker = false }) { Text("Закрыть") } }
+        )
+    }
+
 }
 
 @Composable
