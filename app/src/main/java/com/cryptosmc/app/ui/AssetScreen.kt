@@ -50,6 +50,8 @@ import com.cryptosmc.app.volatility.VolatilityEngine
 import com.cryptosmc.app.volatility.VolatilityMetrics
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.sentiment.SentimentSnapshot
+import com.cryptosmc.app.trading.VirtualTrade
+import com.cryptosmc.app.trading.VirtualTradingRepository
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -59,7 +61,7 @@ private val ChartDown = Color(0xFFF6465D)
 private fun formatQty(q: Double): String = String.format(Locale.US, "%.4f", q)
 
 @Composable
-fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRepository, onBack: () -> Unit) {
+fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRepository, virtualTrading: VirtualTradingRepository, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
 
     val intervals = listOf("15m", "1h", "4h", "1d")
@@ -73,6 +75,9 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
     var status by remember { mutableStateOf("Загрузка...") }
     var tick by remember { mutableIntStateOf(0) }
     val smc = remember(candles) { SmcEngine.analyze(candles) }
+    val openVirtualTrades = remember(symbol, virtualTrading.snapshot().trades) {
+        virtualTrading.snapshot().openTrades.filter { it.symbol == symbol.uppercase() }
+    }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
     val liquidity = remember(book, futures) { VolatilityEngine.liquidityMap(book, futures?.openInterest) }
 
@@ -144,6 +149,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
             CandleChart(
                 candles = candles,
                 analysis = smc,
+                virtualTrades = openVirtualTrades,
                 modifier = Modifier.fillMaxWidth().height(260.dp).padding(8.dp)
             )
         }
@@ -348,7 +354,7 @@ private fun SmcSummary(analysis: SmcAnalysis) {
 }
 
 @Composable
-fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: Modifier = Modifier) {
+fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, virtualTrades: List<VirtualTrade> = emptyList(), modifier: Modifier = Modifier) {
     var visibleCount by remember(candles.size) { mutableIntStateOf(minOf(80, candles.size.coerceAtLeast(1))) }
     var panOffset by remember(candles.size) { mutableIntStateOf(0) }
 
@@ -360,8 +366,11 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
     val endIndex = (candles.size - panOffset).coerceIn(1, candles.size)
     val startIndex = (endIndex - visibleCount).coerceAtLeast(0)
     val data = candles.subList(startIndex, endIndex)
-    val maxPrice = data.maxOf { it.high }
-    val minPrice = data.minOf { it.low }
+    val tradeLevels = virtualTrades.flatMap { trade ->
+        listOfNotNull(trade.entryPrice, trade.stopLoss, trade.takeProfit)
+    }
+    val maxPrice = maxOf(data.maxOf { it.high }, tradeLevels.maxOrNull() ?: Double.NEGATIVE_INFINITY)
+    val minPrice = minOf(data.minOf { it.low }, tradeLevels.minOrNull() ?: Double.POSITIVE_INFINITY)
     val range = (maxPrice - minPrice).takeIf { it > 0.0 } ?: 1.0
     val priceLabels = (0..4).map { index -> maxPrice - range * index / 4.0 }
     val timeFormat = remember(data.first().openTime, data.last().openTime) {
@@ -437,6 +446,23 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
                         }
                     }
 
+                virtualTrades.forEach { trade ->
+                    val levels = listOfNotNull(
+                        trade.entryPrice to Color(0xFF8EA7FF),
+                        trade.stopLoss?.let { it to ChartDown },
+                        trade.takeProfit?.let { it to ChartUp }
+                    )
+                    levels.forEach { (price, color) ->
+                        val levelY = y(price)
+                        drawLine(
+                            color.copy(alpha = 0.9f),
+                            Offset(0f, levelY),
+                            Offset(plotWidth, levelY),
+                            strokeWidth = 1.5f
+                        )
+                    }
+                }
+
                 data.forEachIndexed { index, candle ->
                     val color = if (candle.close >= candle.open) ChartUp else ChartDown
                     val x = index * candleWidth + candleWidth / 2f
@@ -469,6 +495,15 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
                     timeFormat.format(java.util.Date(data[index].openTime)),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF91A0B5)
+                )
+            }
+        }
+        if (virtualTrades.isNotEmpty()) {
+            virtualTrades.forEach { trade ->
+                Text(
+                    "${trade.side} · вход ${formatPrice(trade.entryPrice)} · SL ${trade.stopLoss?.let(::formatPrice) ?: "—"} · TP ${trade.takeProfit?.let(::formatPrice) ?: "—"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFB8C5D9)
                 )
             }
         }
