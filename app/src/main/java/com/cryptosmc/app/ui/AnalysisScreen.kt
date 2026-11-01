@@ -202,7 +202,8 @@ fun AnalysisScreen(
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF172238))
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF182B3A)),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
@@ -399,6 +400,15 @@ fun AnalysisScreen(
                         Text("ИТОГОВЫЙ СЦЕНАРИЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
                         Text("Консенсус аналитических агентов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Бесплатные локальные агенты + подключённые внешние модели", fontSize = 11.sp, color = Color.LightGray)
+                        val bullishVotes = consensus.votes.count { it.direction == "long" }
+                        val bearishVotes = consensus.votes.count { it.direction == "short" }
+                        val neutralVotes = consensus.votes.size - bullishVotes - bearishVotes
+                        Text("СОГЛАСОВАННОСТЬ МОДЕЛЕЙ", color = Color(0xFF9AAAC0), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VoteMetric("BUY", bullishVotes, Modifier.weight(1f), Color(0xFF61D9A5))
+                            VoteMetric("SELL", bearishVotes, Modifier.weight(1f), Color(0xFFFF7185))
+                            VoteMetric("НЕЙТР.", neutralVotes, Modifier.weight(1f), Color(0xFFFFC66D))
+                        }
                         Text(
                             directionLabel(p.direction),
                             color = directionColor(p.direction),
@@ -442,6 +452,16 @@ fun AnalysisScreen(
                     Text(consensus.failures[index], color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VoteMetric(label: String, count: Int, modifier: Modifier, tint: Color) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF111C2A)), shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)) {
+        Column(Modifier.padding(vertical = 10.dp, horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(count.toString(), color = tint, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = Color(0xFF9AAAC0), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
