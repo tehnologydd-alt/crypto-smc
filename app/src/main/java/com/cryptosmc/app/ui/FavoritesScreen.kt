@@ -85,7 +85,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                     updated = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                 }
                 .onFailure { errorText = it.message ?: "Ошибка сети" }
-            symbols.take(12).forEach { pair ->
+            symbols.take(6).forEach { pair ->
                 MarketApi.klines(pair, "1h", 24).onSuccess { candles -> sparkline = sparkline + (pair to candles.map { it.close }) }
             }
             loading = false
@@ -108,8 +108,9 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
             Button(onClick = { showAdd = true }) { Text("+ Актив") }
         }
 
-        updated?.let {
-            Text("Обновлено $it", style = MaterialTheme.typography.bodySmall)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+            Text(updated?.let { "BINANCE · $it" } ?: "Ожидание данных Binance", style = MaterialTheme.typography.bodySmall, color = Color(0xFF91A0B5))
+            if (loading) Text("● ОБНОВЛЕНИЕ", style = MaterialTheme.typography.labelSmall, color = Color(0xFF55D6BE))
         }
         errorText?.let {
             Text(
@@ -153,7 +154,7 @@ private fun FavoriteRow(symbol: String, ticker: Ticker?, history: List<Double>, 
                 MiniSparkline(history, ticker?.changePct ?: 0.0, Modifier.fillMaxWidth().height(30.dp))
             }
             if (ticker == null) {
-                Text("...")
+                Text("Загрузка", color = Color(0xFF9AAAC0), style = MaterialTheme.typography.bodySmall)
             } else {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(formatPrice(ticker.price), fontWeight = FontWeight.Bold)
