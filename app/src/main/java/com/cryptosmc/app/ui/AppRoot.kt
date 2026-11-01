@@ -17,7 +17,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketRepository
@@ -35,26 +37,32 @@ fun AppRoot(
     var tab by remember { mutableIntStateOf(1) }
     var selected by remember { mutableStateOf<String?>(null) }
     val titles = listOf("Рынок", "Анализ", "Практика", "Настройки")
-    val icons = listOf("⌂", "⌁", "◈", "✳")
+    val icons = listOf("⌂", "ϟ", "◇", "⚙")
 
     Scaffold(
-        containerColor = Color(0xFF090E18),
+        containerColor = IntelligencePalette.background,
         bottomBar = {
             NavigationBar(
-                containerColor = Color(0xFF101827),
-                contentColor = Color(0xFFEAF0FA),
+                containerColor = Color(0xFF151F2E),
+                contentColor = IntelligencePalette.text,
                 tonalElevation = 0.dp
             ) {
                 titles.forEachIndexed { index, title ->
                     NavigationBarItem(
                         selected = tab == index && selected == null,
                         onClick = { tab = index; selected = null },
-                        icon = { Text(icons[index]) },
-                        label = { Text(title, maxLines = 1) },
+                        icon = {
+                            Text(
+                                icons[index],
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        },
+                        label = { Text(title, maxLines = 1, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF10152B),
-                            selectedTextColor = Color(0xFF9EADFF),
-                            indicatorColor = Color(0xFF9EADFF),
+                            selectedTextColor = IntelligencePalette.primary,
+                            indicatorColor = IntelligencePalette.primary,
                             unselectedIconColor = Color(0xFF8291A8),
                             unselectedTextColor = Color(0xFF8291A8)
                         )
@@ -63,7 +71,12 @@ fun AppRoot(
             }
         }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize().background(Color(0xFF090E18))) {
+        Box(
+            Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(IntelligencePalette.background)
+        ) {
             val symbol = selected
             if (symbol != null) {
                 AssetScreen(symbol = symbol, market = market, sentiment = sentiment, onBack = { selected = null })
