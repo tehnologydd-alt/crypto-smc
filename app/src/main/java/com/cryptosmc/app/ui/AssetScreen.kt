@@ -372,11 +372,35 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
     }
 
     Column(modifier) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf(40, 80, 120).forEach { count ->
+                val selected = visibleCount == minOf(count, candles.size)
+                if (selected) {
+                    Button(
+                        onClick = { visibleCount = minOf(count, candles.size); panOffset = 0 },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) { Text(count.toString()) }
+                } else {
+                    OutlinedButton(
+                        onClick = { visibleCount = minOf(count, candles.size); panOffset = 0 },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) { Text(count.toString()) }
+                }
+            }
+            OutlinedButton(
+                onClick = { panOffset = 0 },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+            ) { Text("К новым") }
+        }
         Row(Modifier.fillMaxWidth().height(210.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Canvas(
                 Modifier.weight(1f).fillMaxSize().pointerInput(candles.size) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        val nextCount = (visibleCount / zoom).roundToInt().coerceIn(20, candles.size.coerceAtLeast(20))
+                        val minCount = minOf(20, candles.size)\n                        val nextCount = (visibleCount / zoom).roundToInt().coerceIn(minCount, candles.size)
                         visibleCount = nextCount
                         if (size.width > 0f) {
                             val shift = (pan.x / size.width * visibleCount).roundToInt()
