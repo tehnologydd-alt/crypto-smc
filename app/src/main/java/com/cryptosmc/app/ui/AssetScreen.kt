@@ -11,9 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +51,7 @@ import com.cryptosmc.app.volatility.VolatilityMetrics
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.sentiment.SentimentSnapshot
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val ChartUp = Color(0xFF2EBD85)
 private val ChartDown = Color(0xFFF6465D)
@@ -347,28 +349,47 @@ private fun SmcSummary(analysis: SmcAnalysis) {
 
 @Composable
 fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: Modifier = Modifier) {
-    val data = candles.takeLast(80)
-    if (data.isEmpty()) {
+    var visibleCount by remember(candles.size) { mutableIntStateOf(minOf(80, candles.size.coerceAtLeast(1))) }
+    var panOffset by remember(candles.size) { mutableIntStateOf(0) }
+
+    if (candles.isEmpty()) {
         Box(modifier, contentAlignment = Alignment.Center) { Text("Нет данных для графика") }
         return
     }
+
+    val endIndex = (candles.size - panOffset).coerceIn(1, candles.size)
+    val startIndex = (endIndex - visibleCount).coerceAtLeast(0)
+    val data = candles.subList(startIndex, endIndex)
     val maxPrice = data.maxOf { it.high }
     val minPrice = data.minOf { it.low }
     val range = (maxPrice - minPrice).takeIf { it > 0.0 } ?: 1.0
     val priceLabels = (0..4).map { index -> maxPrice - range * index / 4.0 }
-    val timeFormat = remember(candles.firstOrNull()?.openTime, candles.lastOrNull()?.openTime) {
-        java.text.SimpleDateFormat(if (data.last().openTime - data.first().openTime > 86_400_000L) "dd.MM" else "HH:mm", Locale.US)
+    val timeFormat = remember(data.first().openTime, data.last().openTime) {
+        java.text.SimpleDateFormat(
+            if (data.last().openTime - data.first().openTime > 86_400_000L) "dd.MM" else "HH:mm",
+            Locale.US
+        )
     }
 
     Column(modifier) {
         Row(Modifier.fillMaxWidth().height(210.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Canvas(Modifier.weight(1f).fillMaxSize()) {
+            Canvas(
+                Modifier.weight(1f).fillMaxSize().pointerInput(candles.size) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val nextCount = (visibleCount / zoom).roundToInt().coerceIn(20, candles.size.coerceAtLeast(20))
+                        visibleCount = nextCount
+                        if (size.width > 0f) {
+                            val shift = (pan.x / size.width * visibleCount).roundToInt()
+                            panOffset = (panOffset + shift).coerceIn(0, (candles.size - visibleCount).coerceAtLeast(0))
+                        }
+                    }
+                }
+            ) {
                 val plotWidth = size.width
                 val plotHeight = size.height
                 val candleWidth = plotWidth / data.size
                 fun y(value: Double): Float = (plotHeight * (1.0 - (value - minPrice) / range)).toFloat()
 
-                // Горизонтальная ценовая сетка
                 for (step in 0..4) {
                     val gridY = plotHeight * step / 4f
                     drawLine(Color(0xFF29364A), Offset(0f, gridY), Offset(plotWidth, gridY), 1f)
@@ -376,12 +397,10 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
 
                 analysis?.zones
                     ?.filter { it.kind == ZoneKind.FAIR_VALUE_GAP || it.kind == ZoneKind.ORDER_BLOCK }
-                    ?.takeLast(8)
                     ?.forEach { zone ->
-                        val offset = candles.size - data.size
-                        val left = (zone.startIndex - offset).coerceAtLeast(0)
-                        val right = (zone.endIndex - offset).coerceAtMost(data.lastIndex)
-                        if (left <= right) {
+                        val left = (zone.startIndex - startIndex).coerceAtLeast(0)
+                        val right = (zone.endIndex - startIndex).coerceAtMost(data.lastIndex)
+                        if (left <= right && zone.endIndex >= startIndex && zone.startIndex < endIndex) {
                             val top = y(zone.high)
                             val bottom = y(zone.low)
                             val zoneColor = if (zone.direction == Direction.BULLISH) ChartUp else ChartDown
@@ -407,7 +426,7 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
                 }
             }
             Column(
-                Modifier.fillMaxSize().padding(vertical = 0.dp),
+                Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
@@ -428,5 +447,11 @@ fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: 
                 )
             }
         }
+        Text(
+            "Сведите или разведите два пальца — масштаб. Перетаскивайте график — прокрутка истории. Видно ${data.size} из ${candles.size} свечей.",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF91A0B5),
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }
