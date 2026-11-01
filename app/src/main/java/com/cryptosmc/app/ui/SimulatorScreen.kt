@@ -98,23 +98,24 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
     ) {
         item {
             Text(
-                "Виртуальный торговый счёт",
-                style = MaterialTheme.typography.titleLarge,
+                "Практика",
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29)),
-                shape = RoundedCornerShape(16.dp)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)),
+                shape = RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("ВИРТУАЛЬНЫЙ СЧЁТ · USDT", color = Color(0xFF9AAAC0), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     Text("Доступный баланс", color = Color.LightGray)
                     Text(
                         money(snapshot.availableBalance),
                         color = Color(0xFF61D9A5),
-                        fontSize = 27.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text("Средства в открытых позициях: ${money(snapshot.reservedNotional)}", color = Color.White)
@@ -140,7 +141,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("Новая виртуальная позиция", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("НОВАЯ ВИРТУАЛЬНАЯ ПОЗИЦИЯ", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.7.sp)
                     OutlinedTextField(
                         value = quantity,
                         onValueChange = { quantity = it },
@@ -183,7 +184,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF111A29))
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Пополнение виртуального счёта", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("ПОПОЛНЕНИЕ УЧЕБНОГО БАЛАНСА", color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = deposit,
                         onValueChange = { deposit = it },
