@@ -113,8 +113,8 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Рынок",
-                style = MaterialTheme.typography.headlineSmall,
+                "Обзор рынка",
+                style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.weight(1f)
             )
             OutlinedButton(onClick = { refreshTick++ }) { Text("Обновить") }
@@ -187,7 +187,7 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                             }
                         }
                     }
-                    Text("Нажми на актив, чтобы открыть график и анализ", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8291A8))
+                    Text("Выбери актив — откроется его график и подробный анализ", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF8291A8))
                 }
             }
         }
