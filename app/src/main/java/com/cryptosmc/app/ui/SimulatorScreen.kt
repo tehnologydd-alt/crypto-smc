@@ -272,7 +272,7 @@ fun SimulatorScreen(market: MarketRepository, repository: VirtualTradingReposito
                                 TextButton(
                                     onClick = {
                                         symbol = ticker.symbol
-                                        quantity = if (ticker.symbol == "BTCUSDT") "0.001" else "1"
+                                        quantity = if (ticker.symbol == "BTCUSDT") "0.001" else ""
                                         assetQuery = ""
                                         showAssetPicker = false
                                     },
