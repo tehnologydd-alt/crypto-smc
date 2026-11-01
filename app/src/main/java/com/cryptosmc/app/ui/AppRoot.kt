@@ -79,7 +79,7 @@ fun AppRoot(
         ) {
             val symbol = selected
             if (symbol != null) {
-                AssetScreen(symbol = symbol, market = market, sentiment = sentiment, onBack = { selected = null })
+                AssetScreen(symbol = symbol, market = market, sentiment = sentiment, virtualTrading = virtualTrading, onBack = { selected = null })
             } else {
                 when (tab) {
                     0 -> FavoritesScreen(favorites, onOpen = { selected = it })
