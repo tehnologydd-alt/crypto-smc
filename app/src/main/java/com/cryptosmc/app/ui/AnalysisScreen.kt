@@ -13,6 +13,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -222,13 +223,19 @@ fun AnalysisScreen(
                         enabled = !busy,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (busy) "Анализирую..." else "Обновить анализ") }
-                    Text(status, color = Color.LightGray, fontSize = 12.sp)
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(if (busy) "●" else if (result != null) "●" else "○", color = if (busy) Color(0xFFFFC66D) else if (result != null) Color(0xFF61D9A5) else Color(0xFF8291A8), fontSize = 12.sp)
+                        Text(status, color = Color(0xFFB8C7DF), fontSize = 12.sp)
+                    }
+                    if (busy) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Color(0xFF55D6BE), trackColor = Color(0xFF26364A))
+                    }
                 }
             }
         }
         if (candles.size >= 2) {
             item {
-                Text("График цены и уровней", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("ГРАФИК ЦЕНЫ И УРОВНЕЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold)
                 Text("Как пользоваться: двигай график пальцем для истории, своди/разводи пальцы для масштаба.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
                 MarketChart(
                     candles = candles,
@@ -258,7 +265,7 @@ fun AnalysisScreen(
             }
         }
         item {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF202D3B))) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("НАСТРОЕНИЕ РЫНКА И СОЦСЕТИ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold)
                     val mood = moodSnapshot
