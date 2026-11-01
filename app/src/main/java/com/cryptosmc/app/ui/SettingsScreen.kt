@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -59,12 +60,11 @@ fun SettingsScreen(repo: ProviderRepository) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text(
-                "AI-провайдеры",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(top = 16.dp)
-            )
+            Text("PERSONALIZATION & DATA", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 16.dp))
+            Text("Настройки приложения", style = MaterialTheme.typography.headlineMedium)
+            Text("Управляй подключениями и настройками аналитики. Сначала включи источник, затем проверь соединение.", color = Color(0xFF9AAAC0), style = MaterialTheme.typography.bodySmall)
         }
+        item { Text("ПОДКЛЮЧЕНИЯ И ИСТОЧНИКИ", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium) }
         items(providers, key = { it.id }) { p ->
             ProviderCard(
                 p = p,
@@ -106,6 +106,7 @@ fun SettingsScreen(repo: ProviderRepository) {
                 )
             }) { Text("+ Добавить провайдера") }
         }
+        item { Text("ПОВЕДЕНИЕ АНАЛИТИКА", color = Color(0xFF9EADFF), style = MaterialTheme.typography.labelMedium) }
         item {
             PromptEditor(
                 current = prompt,
@@ -146,12 +147,12 @@ private fun ProviderCard(
     onEdit: () -> Unit,
     onTest: () -> Unit
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = Color(0xFF182334)), shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(p.name, style = MaterialTheme.typography.titleMedium)
-                    Text(p.model, style = MaterialTheme.typography.bodySmall)
+                    Text(p.name, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                    Text(p.model, style = MaterialTheme.typography.bodyMedium)
                 }
                 Switch(checked = p.enabled, onCheckedChange = onToggle)
             }
