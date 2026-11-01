@@ -67,12 +67,26 @@ fun formatPair(symbol: String): String =
 fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
     val symbols by repo.items.collectAsState()
     var tickers by remember { mutableStateOf<Map<String, Ticker>>(emptyMap()) }
+    var marketOverview by remember { mutableStateOf<List<Ticker>>(emptyList()) }
+    var overviewError by remember { mutableStateOf<String?>(null) }
     var sparkline by remember { mutableStateOf<Map<String, List<Double>>>(emptyMap()) }
     var loading by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var updated by remember { mutableStateOf<String?>(null) }
     var refreshTick by remember { mutableIntStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshTick) {
+        while (true) {
+            MarketApi.allUsdtTickers()
+                .onSuccess {
+                    marketOverview = it
+                    overviewError = null
+                }
+                .onFailure { overviewError = it.message ?: "Не удалось загрузить сводку" }
+            delay(60_000)
+        }
+    }
 
     // Обновляем цены сразу и затем каждые 30 секунд, пока открыт экран.
     LaunchedEffect(symbols, refreshTick) {
@@ -119,6 +133,39 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                 color = MaterialTheme.colorScheme.error
             )
         }
+        if (marketOverview.isNotEmpty()) {
+            val advancing = marketOverview.count { it.changePct > 0.0 }
+            val declining = marketOverview.count { it.changePct < 0.0 }
+            val unchanged = marketOverview.size - advancing - declining
+            val totalQuoteVolume = marketOverview.sumOf { it.quoteVolume }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF182334)),
+                shape = RoundedCornerShape(17.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("СПОТОВЫЙ РЫНОК · USDT", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5), fontWeight = FontWeight.SemiBold)
+                        Text("\${marketOverview.size} пар", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BreadthMetric("Растут", advancing, Green, Modifier.weight(1f))
+                        BreadthMetric("Падают", declining, Red, Modifier.weight(1f))
+                        BreadthMetric("Без изм.", unchanged, Color(0xFF91A0B5), Modifier.weight(1f))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Оборот за 24 ч", style = MaterialTheme.typography.bodySmall, color = Color(0xFF91A0B5), modifier = Modifier.weight(1f))
+                        Text(formatCompactUsd(totalQuoteVolume), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else if (overviewError != null) {
+            Text("Общая сводка недоступна: \$overviewError", style = MaterialTheme.typography.bodySmall, color = Color(0xFF91A0B5), modifier = Modifier.padding(top = 8.dp))
+        }
+
         // Quick BTC/ETH overview plus a transparent breadth snapshot of the user's favorites.
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
@@ -177,6 +224,21 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
 
     if (showAdd) {
         AddAssetDialog(repo = repo, onDismiss = { showAdd = false })
+    }
+}
+
+private fun formatCompactUsd(value: Double): String = when {
+    value >= 1_000_000_000_000 -> String.format(Locale.US, "$%.2f трлн", value / 1_000_000_000_000)
+    value >= 1_000_000_000 -> String.format(Locale.US, "$%.2f млрд", value / 1_000_000_000)
+    value >= 1_000_000 -> String.format(Locale.US, "$%.1f млн", value / 1_000_000)
+    else -> String.format(Locale.US, "$%.0f", value)
+}
+
+@Composable
+private fun BreadthMetric(label: String, value: Int, tint: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(value.toString(), color = tint, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(label, color = Color(0xFF91A0B5), style = MaterialTheme.typography.labelSmall)
     }
 }
 
