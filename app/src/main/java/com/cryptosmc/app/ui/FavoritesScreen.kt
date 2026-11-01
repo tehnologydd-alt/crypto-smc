@@ -174,15 +174,20 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("ЛИДЕРЫ ДВИЖЕНИЯ · 24 Ч · ОБОРОТ ОТ 5 МЛН USDT", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text("Рост", color = Green, fontWeight = FontWeight.Bold)
-                            gainers.forEach { Text("${it.symbol.removeSuffix("USDT")}  ${String.format(Locale.US, "%+.1f%%", it.changePct)}", style = MaterialTheme.typography.labelSmall, color = Green, maxLines = 1) }
+                            gainers.forEach { ticker ->
+                                LeaderMovementRow(ticker, Green) { onOpen(ticker.symbol) }
+                            }
                         }
-                        Column(Modifier.weight(1f)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text("Снижение", color = Red, fontWeight = FontWeight.Bold)
-                            losers.forEach { Text("${it.symbol.removeSuffix("USDT")}  ${String.format(Locale.US, "%+.1f%%", it.changePct)}", style = MaterialTheme.typography.labelSmall, color = Red, maxLines = 1) }
+                            losers.forEach { ticker ->
+                                LeaderMovementRow(ticker, Red) { onOpen(ticker.symbol) }
+                            }
                         }
                     }
+                    Text("Нажми на актив, чтобы открыть график и анализ", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8291A8))
                 }
             }
         }
@@ -252,6 +257,39 @@ private fun formatCompactUsd(value: Double): String = when {
     value >= 1_000_000_000 -> String.format(Locale.US, "$%.2f млрд", value / 1_000_000_000)
     value >= 1_000_000 -> String.format(Locale.US, "$%.1f млн", value / 1_000_000)
     else -> String.format(Locale.US, "$%.0f", value)
+}
+
+@Composable
+private fun LeaderMovementRow(ticker: Ticker, tint: Color, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                ticker.symbol.removeSuffix("USDT"),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+            Text(
+                String.format(Locale.US, "%+.1f%%", ticker.changePct),
+                style = MaterialTheme.typography.labelSmall,
+                color = tint,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Text(
+            "Оборот: ${formatCompactUsd(ticker.quoteVolume)}",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF8291A8),
+            maxLines = 1
+        )
+    }
 }
 
 @Composable
