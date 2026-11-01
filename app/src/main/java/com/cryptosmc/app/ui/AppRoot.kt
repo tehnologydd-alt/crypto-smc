@@ -83,7 +83,7 @@ fun AppRoot(
             } else {
                 when (tab) {
                     0 -> FavoritesScreen(favorites, onOpen = { selected = it })
-                    1 -> AnalysisScreen(providers, market, sentiment, virtualTrading)
+                    1 -> AnalysisScreen(providers, market, sentiment, virtualTrading, favorites)
                     2 -> SimulatorScreen(market, virtualTrading)
                     else -> SettingsScreen(providers)
                 }
