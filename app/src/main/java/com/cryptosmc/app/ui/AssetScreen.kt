@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.FuturesInfo
 import com.cryptosmc.app.market.MarketRepository
+import com.cryptosmc.app.market.MarketApi
+import com.cryptosmc.app.market.Ticker
 import com.cryptosmc.app.market.OrderBook
 import com.cryptosmc.app.smc.Direction
 import com.cryptosmc.app.smc.SmcAnalysis
@@ -61,6 +63,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var book by remember { mutableStateOf<OrderBook?>(null) }
     var futures by remember { mutableStateOf<FuturesInfo?>(null) }
+    var spotTicker by remember { mutableStateOf<Ticker?>(null) }
     var futuresLoaded by remember { mutableStateOf(false) }
     var sentimentSnapshot by remember { mutableStateOf<SentimentSnapshot?>(null) }
     var status by remember { mutableStateOf("Загрузка...") }
@@ -80,6 +83,7 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
     }
 
     LaunchedEffect(symbol, tick) {
+        MarketApi.tickers(listOf(symbol)).onSuccess { spotTicker = it.firstOrNull() }
         market.orderBook(symbol).onSuccess { book = it }
         market.futuresInfo(symbol)
             .onSuccess { futures = it }
@@ -105,6 +109,10 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
                 }
             }
             OutlinedButton(onClick = { tick++ }) { Text("Обновить") }
+        }
+
+        spotTicker?.let { ticker ->
+            AssetMarketSnapshot(ticker)
         }
 
         Row(
@@ -219,6 +227,43 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
             }
         }
     }
+}
+
+@Composable
+private fun AssetMarketSnapshot(ticker: Ticker) {
+    val changeColor = if (ticker.changePct >= 0.0) ChartUp else ChartDown
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("РЫНОЧНАЯ СВОДКА · 24 Ч", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Изменение", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+                    Text(
+                        String.format(Locale.US, "%+.2f%%", ticker.changePct),
+                        color = changeColor,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Оборот", style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5))
+                    Text(
+                        compactAssetUsd(ticker.quoteVolume),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun compactAssetUsd(value: Double): String = when {
+    value >= 1_000_000_000 -> String.format(Locale.US, "$%.2f млрд", value / 1_000_000_000)
+    value >= 1_000_000 -> String.format(Locale.US, "$%.1f млн", value / 1_000_000)
+    value >= 1_000 -> String.format(Locale.US, "$%.1f тыс.", value / 1_000)
+    else -> String.format(Locale.US, "$%.0f", value)
 }
 
 @Composable
