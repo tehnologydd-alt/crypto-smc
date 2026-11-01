@@ -1,23 +1,22 @@
 package com.cryptosmc.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,50 +26,55 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.FuturesInfo
+import com.cryptosmc.app.market.MarketApi
 import com.cryptosmc.app.market.MarketRepository
 import com.cryptosmc.app.market.OrderBook
-import com.cryptosmc.app.smc.Direction
-import com.cryptosmc.app.smc.SmcAnalysis
-import com.cryptosmc.app.smc.SmcEngine
-import com.cryptosmc.app.smc.ZoneKind
-import com.cryptosmc.app.volatility.LiquidityMap
-import com.cryptosmc.app.volatility.LiquiditySide
-import com.cryptosmc.app.volatility.VolatilityEngine
-import com.cryptosmc.app.volatility.VolatilityMetrics
+import com.cryptosmc.app.market.Ticker
 import com.cryptosmc.app.sentiment.SentimentRepository
 import com.cryptosmc.app.sentiment.SentimentSnapshot
+import com.cryptosmc.app.smc.Direction
+import com.cryptosmc.app.smc.SmcEngine
+import com.cryptosmc.app.smc.ZoneKind
+import com.cryptosmc.app.trading.VirtualTradingRepository
+import com.cryptosmc.app.volatility.LiquiditySide
+import com.cryptosmc.app.volatility.VolatilityEngine
 import java.util.Locale
 
-private val ChartUp = Color(0xFF2EBD85)
-private val ChartDown = Color(0xFFF6465D)
-
-private fun formatQty(q: Double): String = String.format(Locale.US, "%.4f", q)
-
 @Composable
-fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRepository, onBack: () -> Unit) {
+fun AssetScreen(
+    symbol: String,
+    market: MarketRepository,
+    sentiment: SentimentRepository,
+    virtualTrading: VirtualTradingRepository,
+    onBack: () -> Unit,
+    onAnalyze: () -> Unit,
+    onTrade: () -> Unit
+) {
     BackHandler(onBack = onBack)
 
     val intervals = listOf("15m", "1h", "4h", "1d")
     var interval by remember { mutableStateOf("1h") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
+    var ticker by remember { mutableStateOf<Ticker?>(null) }
     var book by remember { mutableStateOf<OrderBook?>(null) }
     var futures by remember { mutableStateOf<FuturesInfo?>(null) }
     var futuresLoaded by remember { mutableStateOf(false) }
-    var sentimentSnapshot by remember { mutableStateOf<SentimentSnapshot?>(null) }
-    var status by remember { mutableStateOf("Загрузка...") }
+    var mood by remember { mutableStateOf<SentimentSnapshot?>(null) }
+    var status by remember { mutableStateOf("Загрузка…") }
     var tick by remember { mutableIntStateOf(0) }
+
     val smc = remember(candles) { SmcEngine.analyze(candles) }
     val volatility = remember(candles) { VolatilityEngine.metrics(candles) }
     val liquidity = remember(book, futures) { VolatilityEngine.liquidityMap(book, futures?.openInterest) }
+    val trades = remember(tick, symbol) {
+        virtualTrading.snapshot().openTrades.filter { it.symbol.equals(symbol, ignoreCase = true) }
+    }
 
     LaunchedEffect(symbol, interval, tick) {
-        status = "Загрузка..."
+        status = "Загрузка…"
         market.candles(symbol, interval, force = tick > 0)
             .onSuccess {
                 candles = it
@@ -80,104 +84,218 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
     }
 
     LaunchedEffect(symbol, tick) {
+        MarketApi.tickers(listOf(symbol)).onSuccess { ticker = it.firstOrNull() }
         market.orderBook(symbol).onSuccess { book = it }
         market.futuresInfo(symbol)
             .onSuccess { futures = it }
             .onFailure { futures = null }
         futuresLoaded = true
-        sentiment.snapshot(symbol).onSuccess { sentimentSnapshot = it }
+        sentiment.snapshot(symbol).onSuccess { mood = it }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("←") }
-            Column(Modifier.weight(1f)) {
-                Text(formatPair(symbol), style = MaterialTheme.typography.titleLarge)
-                val last = candles.lastOrNull()
-                if (last != null) {
-                    Text(formatPrice(last.close), style = MaterialTheme.typography.titleMedium)
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
                 }
-            }
-            OutlinedButton(onClick = { tick++ }) { Text("Обновить") }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            intervals.forEach { iv ->
-                if (iv == interval) {
-                    Button(
-                        onClick = { interval = iv },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(0.dp)
-                    ) { Text(iv) }
-                } else {
-                    OutlinedButton(
-                        onClick = { interval = iv },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(0.dp)
-                    ) { Text(iv) }
+                Text(
+                    formatPair(symbol),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { tick++ }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Обновить")
                 }
             }
         }
 
-        Card(Modifier.fillMaxWidth()) {
-            CandleChart(
-                candles = candles,
-                analysis = smc,
-                modifier = Modifier.fillMaxWidth().height(260.dp).padding(8.dp)
-            )
+        item {
+            val last = candles.lastOrNull()?.close ?: ticker?.price
+            val t = ticker
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    if (last != null) formatPrice(last) else "—",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                if (t != null) {
+                    Pill(formatPercent(t.changePct), if (t.changePct >= 0) BullColor else BearColor)
+                }
+            }
+            if (t != null) {
+                NoteText("Объём 24ч · " + formatCompact(t.quoteVolume) + " USDT")
+            }
         }
 
-        SmcSummary(smc)
-        VolatilitySummary(volatility, liquidity)
-        SentimentSummary(sentimentSnapshot)
-        if (status.isNotEmpty()) {
-            Text(status, style = MaterialTheme.typography.bodySmall)
-        } else {
-            Text(
-                "Свечей загружено: " + candles.size + ", на графике последние 80",
-                style = MaterialTheme.typography.bodySmall
-            )
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onAnalyze,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) { Text("AI-анализ") }
+                OutlinedButton(
+                    onClick = onTrade,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) { Text("Виртуальная сделка") }
+            }
         }
 
-        book?.let { b ->
-            val bidVol = b.bids.sumOf { it.qty }
-            val askVol = b.asks.sumOf { it.qty }
-            val share = if (bidVol + askVol > 0) bidVol / (bidVol + askVol) * 100 else 50.0
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text("Стакан (до 100 уровней)", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Покупатели: " + String.format(Locale.US, "%.1f%%", share) +
-                            ", продавцы: " + String.format(Locale.US, "%.1f%%", 100 - share),
-                        style = MaterialTheme.typography.bodySmall
+        item {
+            ChipRow(options = intervals, selected = interval, label = { it }, onSelect = { interval = it })
+        }
+
+        item {
+            AppCard {
+                if (candles.size >= 2) {
+                    MarketChart(
+                        candles = candles,
+                        analysis = smc,
+                        virtualTrades = trades,
+                        symbol = symbol
                     )
+                    ChartLegend()
+                    NoteText("Перетаскивай график, щипком меняй масштаб. Загружено свечей: ${candles.size}")
+                } else {
+                    NoteText(if (status.isNotEmpty()) status else "Нет данных для графика")
+                }
+                if (status.isNotEmpty() && candles.size >= 2) NoteText(status)
+            }
+        }
+
+        item {
+            TileRow {
+                StatTile(
+                    "ATR 14",
+                    volatility?.let { String.format(Locale.US, "%.2f%%", it.atrPercent) } ?: "—",
+                    Modifier.weight(1f)
+                )
+                val m = mood
+                StatTile(
+                    "Сентимент",
+                    if (m != null) String.format(Locale.US, "%.0f/100", m.score) else "—",
+                    Modifier.weight(1f),
+                    when {
+                        m == null -> androidx.compose.ui.graphics.Color.Unspecified
+                        m.score >= 55 -> BullColor
+                        m.score < 45 -> BearColor
+                        else -> WarnColor
+                    }
+                )
+                val f = futures
+                StatTile(
+                    "Funding",
+                    if (f != null) String.format(Locale.US, "%+.4f%%", f.fundingRate * 100) else "—",
+                    Modifier.weight(1f)
+                )
+            }
+        }
+
+        item {
+            val structure = smc.latestStructure
+            val summary = if (structure == null) {
+                "Недостаточно подтверждённых свингов"
+            } else {
+                structure.kind.name + " " + (if (structure.direction == Direction.BULLISH) "бычий" else "медвежий")
+            }
+            ExpandableCard("Структура SMC", summary, initiallyExpanded = true) {
+                smc.premiumDiscount?.let {
+                    KeyValueRow(
+                        "Положение цены",
+                        if (it.currentIsPremium) "premium" else "discount",
+                        if (it.currentIsPremium) BearColor else BullColor
+                    )
+                    KeyValueRow("Равновесие", formatPrice(it.equilibrium))
+                }
+                KeyValueRow("События BOS/CHoCH", smc.structure.size.toString())
+                KeyValueRow("FVG", smc.zones.count { it.kind == ZoneKind.FAIR_VALUE_GAP }.toString())
+                KeyValueRow("Ордер-блоки", smc.zones.count { it.kind == ZoneKind.ORDER_BLOCK }.toString())
+                KeyValueRow("Равные максимумы/минимумы", smc.liquidity.size.toString())
+                NoteText("Алгоритмическая эвристика, а не подтверждённая интерпретация институциональных ордеров.")
+            }
+        }
+
+        item {
+            val summary = volatility?.let {
+                "ATR " + String.format(Locale.US, "%.2f%%", it.atrPercent)
+            } ?: "Недостаточно свечей"
+            ExpandableCard("Волатильность и ликвидность", summary) {
+                if (volatility != null) {
+                    KeyValueRow("ATR(14)", formatPrice(volatility.atr))
+                    KeyValueRow(
+                        "Реализованная волатильность",
+                        String.format(Locale.US, "%.2f%%", volatility.realizedVolatilityPercent)
+                    )
+                }
+                liquidity?.let { map ->
+                    val strongest = map.clusters.firstOrNull()
+                    KeyValueRow("Кластеров стакана", map.clusters.size.toString())
+                    KeyValueRow(
+                        "Bid / Ask (объём)",
+                        String.format(Locale.US, "%.2f / %.2f", map.bidQuantity, map.askQuantity)
+                    )
+                    if (strongest != null) {
+                        val side = if (strongest.side == LiquiditySide.BID) "Bid" else "Ask"
+                        KeyValueRow("Сильнейший уровень", side + " " + formatPrice(strongest.price))
+                    }
+                    map.openInterest?.let {
+                        KeyValueRow("Open interest", String.format(Locale.US, "%.2f", it))
+                    }
+                }
+            }
+        }
+
+        item {
+            val m = mood
+            val summary = if (m != null) {
+                String.format(Locale.US, "%.0f/100", m.score) + " · " + m.label
+            } else "Источники загружаются"
+            ExpandableCard("Сентимент", summary) {
+                if (m == null) {
+                    NoteText("Источники пока недоступны или загружаются")
+                } else {
+                    m.sources.forEach {
+                        KeyValueRow(it.name, String.format(Locale.US, "%.0f", it.score) + " · " + it.detail)
+                    }
+                    m.errors.forEach { NoteText(it, WarnColor) }
+                }
+            }
+        }
+
+        val b = book
+        if (b != null) {
+            item {
+                val bidVol = b.bids.sumOf { it.qty }
+                val askVol = b.asks.sumOf { it.qty }
+                val share = if (bidVol + askVol > 0) bidVol / (bidVol + askVol) else 0.5
+                ExpandableCard(
+                    "Стакан",
+                    "Покупатели " + String.format(Locale.US, "%.0f%%", share * 100)
+                ) {
+                    SplitBar(share, BullColor, BearColor)
                     Row(Modifier.fillMaxWidth()) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Bid", color = ChartUp, style = MaterialTheme.typography.bodySmall)
+                        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                            Text("Bid", color = BullColor, style = MaterialTheme.typography.labelMedium)
                             b.bids.take(5).forEach {
                                 Text(
-                                    formatPrice(it.price) + "  " + formatQty(it.qty),
+                                    formatPrice(it.price) + "  " + String.format(Locale.US, "%.4f", it.qty),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
                         }
-                        Column(Modifier.weight(1f)) {
-                            Text("Ask", color = ChartDown, style = MaterialTheme.typography.bodySmall)
+                        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                            Text("Ask", color = BearColor, style = MaterialTheme.typography.labelMedium)
                             b.asks.take(5).forEach {
                                 Text(
-                                    formatPrice(it.price) + "  " + formatQty(it.qty),
+                                    formatPrice(it.price) + "  " + String.format(Locale.US, "%.4f", it.qty),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -187,150 +305,25 @@ fun AssetScreen(symbol: String, market: MarketRepository, sentiment: SentimentRe
             }
         }
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("Фьючерсы (Binance USDT-M)", style = MaterialTheme.typography.titleMedium)
-                val f = futures
+        item {
+            val f = futures
+            val summary = when {
+                f != null -> "Funding " + String.format(Locale.US, "%+.4f%%", f.fundingRate * 100)
+                futuresLoaded -> "Нет данных"
+                else -> "Загрузка…"
+            }
+            ExpandableCard("Фьючерсы (Binance USDT-M)", summary) {
                 if (f != null) {
-                    Text(
-                        "Funding: " + String.format(Locale.US, "%+.4f%%", f.fundingRate * 100),
-                        style = MaterialTheme.typography.bodySmall
+                    KeyValueRow("Funding", String.format(Locale.US, "%+.4f%%", f.fundingRate * 100))
+                    KeyValueRow(
+                        "Open interest",
+                        String.format(Locale.US, "%.2f", f.openInterest) + " " + baseAsset(symbol)
                     )
-                    Text(
-                        "Open interest: " + String.format(Locale.US, "%.2f", f.openInterest) +
-                            " " + symbol.removeSuffix("USDT"),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        "Mark price: " + formatPrice(f.markPrice),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    KeyValueRow("Mark price", formatPrice(f.markPrice))
                 } else if (futuresLoaded) {
-                    Text(
-                        "Нет данных: пары нет на фьючерсах или API недоступен из твоей сети.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                } else {
-                    Text("Загрузка...", style = MaterialTheme.typography.bodySmall)
+                    NoteText("Пары нет на фьючерсах или API недоступен из твоей сети.")
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SentimentSummary(snapshot: SentimentSnapshot?) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Сентимент", style = MaterialTheme.typography.titleMedium)
-            if (snapshot == null) {
-                Text("Источники пока недоступны или загружаются", style = MaterialTheme.typography.bodySmall)
-            } else {
-                Text("Индекс: ${String.format(Locale.US, "%.0f/100", snapshot.score)} — ${snapshot.label}", style = MaterialTheme.typography.bodySmall)
-                snapshot.sources.forEach { source ->
-                    Text("${source.name}: ${String.format(Locale.US, "%.0f", source.score)} (${source.detail})", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VolatilitySummary(metrics: VolatilityMetrics?, liquidity: LiquidityMap?) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Волатильность и ликвидность", style = MaterialTheme.typography.titleMedium)
-            if (metrics == null) {
-                Text("Недостаточно свечей для расчёта", style = MaterialTheme.typography.bodySmall)
-            } else {
-                Text(
-                    "ATR(14): ${formatPrice(metrics.atr)} (${String.format(Locale.US, "%.2f%%", metrics.atrPercent)})",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    "Реализованная волатильность: ${String.format(Locale.US, "%.2f%%", metrics.realizedVolatilityPercent)}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            liquidity?.let { map ->
-                val strongest = map.clusters.firstOrNull()
-                val side = if (strongest?.side == LiquiditySide.BID) "Bid" else "Ask"
-                Text(
-                    "Кластеры стакана: ${map.clusters.size}, Bid/Ask: " +
-                        String.format(Locale.US, "%.2f / %.2f", map.bidQuantity, map.askQuantity),
-                    style = MaterialTheme.typography.bodySmall
-                )
-                if (strongest != null) {
-                    Text("Сильнейший уровень: $side ${formatPrice(strongest.price)}", style = MaterialTheme.typography.bodySmall)
-                }
-                map.openInterest?.let {
-                    Text("Open interest: ${String.format(Locale.US, "%.2f", it)}", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SmcSummary(analysis: SmcAnalysis) {
-    val structure = analysis.latestStructure
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("SMC-разметка", style = MaterialTheme.typography.titleMedium)
-            if (structure == null) {
-                Text("Недостаточно подтверждённых свингов для структуры", style = MaterialTheme.typography.bodySmall)
-            } else {
-                val direction = if (structure.direction == Direction.BULLISH) "бычий" else "медвежий"
-                Text("${structure.kind.name}: $direction", style = MaterialTheme.typography.bodySmall)
-            }
-            analysis.premiumDiscount?.let {
-                Text(if (it.currentIsPremium) "Цена в premium-зоне" else "Цена в discount-зоне", style = MaterialTheme.typography.bodySmall)
-            }
-            Text(
-                "Свинг-события: ${analysis.structure.size}, FVG: ${analysis.zones.count { it.kind == ZoneKind.FAIR_VALUE_GAP }}, " +
-                    "OB: ${analysis.zones.count { it.kind == ZoneKind.ORDER_BLOCK }}, equal H/L: ${analysis.liquidity.size}",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-@Composable
-fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: Modifier = Modifier) {
-    val data = candles.takeLast(80)
-    Canvas(modifier) {
-        if (data.isEmpty()) return@Canvas
-        val max = data.maxOf { it.high }
-        val min = data.minOf { it.low }
-        val range = if (max - min > 0.0) max - min else 1.0
-        val w = size.width / data.size
-        fun y(v: Double): Float = (size.height * (1 - (v - min) / range)).toFloat()
-        data.forEachIndexed { i, c ->
-            val color = if (c.close >= c.open) ChartUp else ChartDown
-            val x = i * w + w / 2
-            drawLine(color, Offset(x, y(c.high)), Offset(x, y(c.low)), strokeWidth = 1.5f)
-            val top = y(maxOf(c.open, c.close))
-            val bottom = y(minOf(c.open, c.close))
-            drawRect(
-                color = color,
-                topLeft = Offset(i * w + w * 0.15f, top),
-                size = Size(w * 0.7f, maxOf(bottom - top, 1f))
-            )
-        }
-        analysis?.zones?.filter { it.kind == ZoneKind.FAIR_VALUE_GAP || it.kind == ZoneKind.ORDER_BLOCK }
-            ?.takeLast(8)
-            ?.forEach { zone ->
-                val left = (zone.startIndex - (candles.size - data.size)).coerceAtLeast(0)
-                val right = (zone.endIndex - (candles.size - data.size)).coerceAtMost(data.lastIndex)
-                if (left <= right) {
-                    val top = y(zone.high)
-                    val bottom = y(zone.low)
-                    val color = if (zone.direction == Direction.BULLISH) ChartUp else ChartDown
-                    drawRect(color.copy(alpha = 0.16f), Offset(left * w, top), Size((right - left + 1) * w, bottom - top))
-                }
-            }
     }
 }

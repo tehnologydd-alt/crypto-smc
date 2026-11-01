@@ -2,8 +2,8 @@ package com.cryptosmc.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,7 +15,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -29,19 +28,38 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.cryptosmc.app.CryptoApp
 import com.cryptosmc.app.ai.OpenAiCompatClient
 import com.cryptosmc.app.ai.ProviderConfig
 import com.cryptosmc.app.ai.ProviderRepository
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(repo: ProviderRepository) {
+fun SettingsScreen(app: CryptoApp) {
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    val titles = listOf("AI", "Данные", "Уведомления")
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            ScreenHeader("Настройки", "AI-провайдеры, источники данных, уведомления")
+            ChipRow(listOf(0, 1, 2), section, { titles[it] }, { section = it })
+        }
+        when (section) {
+            0 -> AiSettings(app.providers, Modifier.weight(1f))
+            1 -> DataSettings(app, Modifier.weight(1f))
+            else -> AlertSettings(app, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun AiSettings(repo: ProviderRepository, modifier: Modifier) {
     val providers by repo.providers.collectAsState()
     val prompt by repo.promptTemplate.collectAsState()
     var editing by remember { mutableStateOf<ProviderConfig?>(null) }
@@ -55,14 +73,15 @@ fun SettingsScreen(repo: ProviderRepository) {
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text(
-                "AI-провайдеры",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(top = 16.dp)
+            NoteText(
+                "Провайдеры работают через OpenAI-совместимый /chat/completions. " +
+                    "Ключи хранятся в зашифрованном хранилище устройства. Лимиты бесплатных тарифов " +
+                    "у провайдеров меняются, проверяй их сам."
             )
         }
         items(providers, key = { it.id }) { p ->
@@ -80,11 +99,9 @@ fun SettingsScreen(repo: ProviderRepository) {
                     if (key.isBlank()) {
                         testResults = testResults + (p.id to "Нет API-ключа")
                     } else {
-                        testResults = testResults + (p.id to "Проверка...")
+                        testResults = testResults + (p.id to "Проверка…")
                         scope.launch {
-                            val r = OpenAiCompatClient.complete(
-                                p, key, "Отвечай одним словом.", "Скажи: ok"
-                            )
+                            val r = OpenAiCompatClient.complete(p, key, "Отвечай одним словом.", "Скажи: ok")
                             val text = r.fold(
                                 onSuccess = { "OK: " + it.take(60) },
                                 onFailure = { "Ошибка: " + (it.message ?: "неизвестно").take(200) }
@@ -96,24 +113,29 @@ fun SettingsScreen(repo: ProviderRepository) {
             )
         }
         item {
-            Button(onClick = {
-                editingIsNew = true
-                editing = ProviderConfig(
-                    id = "custom-" + System.currentTimeMillis(),
-                    name = "",
-                    baseUrl = "https://",
-                    model = ""
-                )
-            }) { Text("+ Добавить провайдера") }
+            Button(
+                onClick = {
+                    editingIsNew = true
+                    editing = ProviderConfig(
+                        id = "custom-" + System.currentTimeMillis(),
+                        name = "",
+                        baseUrl = "https://",
+                        model = ""
+                    )
+                },
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) { Text("+ Добавить провайдера") }
         }
         item {
-            PromptEditor(
-                current = prompt,
-                onSave = { repo.setPrompt(it) },
-                onReset = { repo.resetPrompt() }
-            )
+            ExpandableCard("Шаблон промпта (system)", "Инструкция для всех моделей") {
+                PromptEditor(
+                    current = prompt,
+                    onSave = { repo.setPrompt(it) },
+                    onReset = { repo.resetPrompt() }
+                )
+            }
         }
-        item { Spacer(Modifier.height(24.dp)) }
     }
 
     editing?.let { cfg ->
@@ -146,26 +168,23 @@ private fun ProviderCard(
     onEdit: () -> Unit,
     onTest: () -> Unit
 ) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(p.name, style = MaterialTheme.typography.titleMedium)
-                    Text(p.model, style = MaterialTheme.typography.bodySmall)
-                }
-                Switch(checked = p.enabled, onCheckedChange = onToggle)
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(p.name, style = MaterialTheme.typography.titleMedium)
+                NoteText(p.model)
             }
-            Text(
-                if (hasKey) "Ключ: задан" else "Ключ: не задан",
-                style = MaterialTheme.typography.bodySmall
-            )
-            if (result != null) {
-                Text(result, style = MaterialTheme.typography.bodySmall)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onEdit) { Text("Изменить") }
-                OutlinedButton(onClick = onTest) { Text("Проверить") }
-            }
+            Switch(checked = p.enabled, onCheckedChange = onToggle)
+        }
+        when {
+            !p.enabled -> Pill("Выключен", MutedColor)
+            !hasKey -> Pill("Нет ключа", WarnColor)
+            else -> Pill("Готов к работе", BullColor)
+        }
+        if (result != null) NoteText(result)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onEdit, shape = MaterialTheme.shapes.medium) { Text("Изменить") }
+            OutlinedButton(onClick = onTest, shape = MaterialTheme.shapes.medium) { Text("Проверить") }
         }
     }
 }
@@ -190,6 +209,7 @@ private fun ProviderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = CardColor,
         title = { Text(if (isNew) "Новый провайдер" else "Провайдер") },
         text = {
             Column(
@@ -229,14 +249,14 @@ private fun ProviderDialog(
                 OutlinedTextField(
                     value = rpm,
                     onValueChange = { rpm = it },
-                    label = { Text("Запросов в минуту") },
+                    label = { Text("Запросов в минуту (пока не применяется)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 OutlinedTextField(
                     value = daily,
                     onValueChange = { daily = it },
-                    label = { Text("Запросов в сутки") },
+                    label = { Text("Запросов в сутки (пока не применяется)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
@@ -283,7 +303,6 @@ private fun PromptEditor(
 ) {
     var text by remember(current) { mutableStateOf(current) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Шаблон промпта (system)", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
@@ -291,8 +310,8 @@ private fun PromptEditor(
             minLines = 6
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onSave(text) }) { Text("Сохранить") }
-            OutlinedButton(onClick = onReset) { Text("Сбросить") }
+            Button(onClick = { onSave(text) }, shape = MaterialTheme.shapes.medium) { Text("Сохранить") }
+            OutlinedButton(onClick = onReset, shape = MaterialTheme.shapes.medium) { Text("Сбросить") }
         }
     }
 }

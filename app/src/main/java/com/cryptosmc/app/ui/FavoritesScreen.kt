@@ -3,6 +3,7 @@ package com.cryptosmc.app.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,14 +11,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,11 +32,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.market.MarketApi
@@ -42,21 +45,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val Green = Color(0xFF2EBD85)
-private val Red = Color(0xFFF6465D)
-
-fun formatPrice(p: Double): String {
-    val decimals = when {
-        p >= 1000 -> 2
-        p >= 1 -> 4
-        p >= 0.01 -> 6
-        else -> 8
-    }
-    return String.format(Locale.US, "%." + decimals + "f", p)
+private enum class SortMode(val label: String) {
+    CUSTOM("Мои"),
+    GAINERS("Рост"),
+    LOSERS("Падение"),
+    VOLUME("Объём")
 }
-
-fun formatPair(symbol: String): String =
-    if (symbol.endsWith("USDT")) symbol.removeSuffix("USDT") + "/USDT" else symbol
 
 @Composable
 fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
@@ -66,8 +60,10 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
     var updated by remember { mutableStateOf<String?>(null) }
     var refreshTick by remember { mutableIntStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
+    var sortIndex by rememberSaveable { mutableIntStateOf(0) }
+    val sort = SortMode.values()[sortIndex]
 
-    // Обновляем цены сразу и затем каждые 30 секунд, пока открыт экран.
+    // Цены сразу и затем каждые 30 секунд, пока открыт экран.
     LaunchedEffect(symbols, refreshTick) {
         while (true) {
             MarketApi.tickers(symbols)
@@ -81,45 +77,75 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Избранное",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f)
-            )
-            OutlinedButton(onClick = { refreshTick++ }) { Text("Обновить") }
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = { showAdd = true }) { Text("+ Актив") }
-        }
+    val sorted = when (sort) {
+        SortMode.CUSTOM -> symbols
+        SortMode.GAINERS -> symbols.sortedByDescending { tickers[it]?.changePct ?: -999.0 }
+        SortMode.LOSERS -> symbols.sortedBy { tickers[it]?.changePct ?: 999.0 }
+        SortMode.VOLUME -> symbols.sortedByDescending { tickers[it]?.quoteVolume ?: 0.0 }
+    }
 
-        updated?.let {
-            Text("Обновлено $it", style = MaterialTheme.typography.bodySmall)
-        }
-        errorText?.let {
-            Text(
-                "Ошибка: $it",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
-            )
-        }
-        if (symbols.isEmpty()) {
-            Text(
-                "Список пуст. Нажми «+ Актив», чтобы добавить пару.",
-                modifier = Modifier.padding(top = 16.dp)
-            )
-        }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(top = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(symbols, key = { it }) { s ->
-                FavoriteRow(s, tickers[s], onClick = { onOpen(s) }, onRemove = { repo.remove(s) })
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            ScreenHeader(
+                title = "Рынок",
+                subtitle = updated?.let { "Обновлено $it · каждые 30 с" } ?: "Загрузка…"
+            ) {
+                IconButton(onClick = { refreshTick++ }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Обновить")
+                }
+                IconButton(onClick = { showAdd = true }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Добавить пару")
+                }
             }
+        }
+
+        val loaded = symbols.mapNotNull { tickers[it] }
+        if (loaded.isNotEmpty()) {
+            item {
+                val up = loaded.count { it.changePct >= 0 }
+                val avg = loaded.map { it.changePct }.average()
+                AppCard {
+                    Text("Сводка по избранному", style = MaterialTheme.typography.titleSmall)
+                    TileRow {
+                        StatTile("Пар", symbols.size.toString(), Modifier.weight(1f))
+                        StatTile("Растут", up.toString(), Modifier.weight(1f), BullColor)
+                        StatTile("Падают", (loaded.size - up).toString(), Modifier.weight(1f), BearColor)
+                        StatTile(
+                            "Средн. 24ч",
+                            formatPercent(avg),
+                            Modifier.weight(1.3f),
+                            if (avg >= 0) BullColor else BearColor
+                        )
+                    }
+                }
+            }
+        }
+
+        errorText?.let {
+            item { NoteText("Ошибка сети: $it", BearColor) }
+        }
+
+        if (symbols.size > 1) {
+            item {
+                ChipRow(
+                    options = SortMode.values().toList(),
+                    selected = sort,
+                    label = { it.label },
+                    onSelect = { sortIndex = it.ordinal }
+                )
+            }
+        }
+
+        if (symbols.isEmpty()) {
+            item { EmptyState("Список пуст", "Нажми + вверху, чтобы добавить торговую пару") }
+        }
+
+        items(sorted, key = { it }) { s ->
+            FavoriteRow(s, tickers[s], onClick = { onOpen(s) }, onRemove = { repo.remove(s) })
         }
     }
 
@@ -130,29 +156,40 @@ fun FavoritesScreen(repo: FavoritesRepository, onOpen: (String) -> Unit) {
 
 @Composable
 private fun FavoriteRow(symbol: String, ticker: Ticker?, onClick: () -> Unit, onRemove: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    AppCard(onClick = onClick) {
         Row(
-            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                formatPair(symbol),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            if (ticker == null) {
-                Text("...")
-            } else {
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(formatPrice(ticker.price), fontWeight = FontWeight.Bold)
-                    Text(
-                        String.format(Locale.US, "%+.2f%%", ticker.changePct),
-                        color = if (ticker.changePct >= 0) Green else Red,
-                        style = MaterialTheme.typography.bodySmall
+            AssetAvatar(symbol)
+            Column(Modifier.weight(1f)) {
+                Text(formatPair(symbol), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (ticker != null) "Объём 24ч · " + formatCompact(ticker.quoteVolume) else "Загрузка…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MutedColor
+                )
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (ticker != null) formatPrice(ticker.price) else "—",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (ticker != null) {
+                    Pill(
+                        formatPercent(ticker.changePct),
+                        if (ticker.changePct >= 0) BullColor else BearColor
                     )
                 }
             }
-            TextButton(onClick = onRemove) { Text("✕") }
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Убрать из избранного",
+                    tint = MutedColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -177,19 +214,21 @@ private fun AddAssetDialog(repo: FavoritesRepository, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Добавить актив") },
+        containerColor = CardColor,
+        title = { Text("Добавить пару") },
         text = {
             Column {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Поиск (BTC, SOL...)") },
-                    singleLine = true
+                    label = { Text("Поиск: BTC, SOL…") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 when {
-                    loadError != null -> Text("Ошибка: $loadError")
-                    all == null -> Text("Загрузка...")
+                    loadError != null -> NoteText("Ошибка: $loadError", BearColor)
+                    all == null -> NoteText("Загрузка…")
                     else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
                         items(shown, key = { it.symbol }) { t ->
                             val added = t.symbol in current
@@ -198,10 +237,15 @@ private fun AddAssetDialog(repo: FavoritesRepository, onDismiss: () -> Unit) {
                                     .fillMaxWidth()
                                     .clickable(enabled = !added) { repo.add(t.symbol) }
                                     .padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Text(formatPair(t.symbol), modifier = Modifier.weight(1f))
-                                Text(if (added) "✓" else formatPrice(t.price))
+                                if (added) {
+                                    Pill("В списке", BullColor)
+                                } else {
+                                    Text(formatPrice(t.price), color = MutedColor)
+                                }
                             }
                         }
                     }

@@ -12,12 +12,7 @@ class MainActivity : ComponentActivity() {
         val app = application as CryptoApp
         setContent {
             CryptoTheme {
-                AppRoot(
-                    providers = app.providers,
-                    favorites = app.favorites,
-                    market = app.market,
-                    sentiment = app.sentiment
-                )
+                AppRoot(app)
             }
         }
     }

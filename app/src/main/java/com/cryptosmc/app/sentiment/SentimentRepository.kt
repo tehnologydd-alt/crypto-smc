@@ -1,8 +1,8 @@
 package com.cryptosmc.app.sentiment
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -18,26 +18,35 @@ data class SentimentSource(val name: String, val score: Double, val detail: Stri
 data class SentimentSnapshot(
     val score: Double,
     val label: String,
-    val sources: List<SentimentSource>
+    val sources: List<SentimentSource>,
+    val errors: List<String> = emptyList()
 )
 
-/** Optional sentiment sources are isolated: one unavailable API does not break the aggregate. */
-class SentimentRepository(private val cryptoPanicToken: String? = null) {
+/**
+ * Источники сентимента изолированы: недоступный API не ломает общий результат.
+ * Токен CryptoPanic берётся из зашифрованных настроек в момент запроса.
+ */
+class SentimentRepository(private val cryptoPanicToken: () -> String? = { null }) {
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
 
     suspend fun snapshot(symbol: String): Result<SentimentSnapshot> = withContext(Dispatchers.IO) {
         runCatching {
-            val results = coroutineScope {
-                listOf(
-                    async { runCatching { fearGreed() } },
-                    async { runCatching { reddit(symbol) } },
-                    async { runCatching { cryptoPanic(symbol) } }
-                ).awaitAll().mapNotNull { it.getOrNull() }
+            val named: List<Pair<String, Result<SentimentSource>>> = coroutineScope {
+                val jobs: List<Pair<String, Deferred<Result<SentimentSource>>>> = listOf(
+                    "Fear & Greed" to async { runCatching { fearGreed() } },
+                    "Reddit" to async { runCatching { reddit(symbol) } },
+                    "CryptoPanic" to async { runCatching { cryptoPanic(symbol) } }
+                )
+                jobs.map { (name, job) -> name to job.await() }
             }
-            if (results.isEmpty()) error("Нет доступных источников сентимента")
-            val score = results.map { it.score }.average().coerceIn(0.0, 100.0)
-            SentimentSnapshot(score, label(score), results)
+            val ok = named.mapNotNull { it.second.getOrNull() }
+            val errors = named.mapNotNull { (name, result) ->
+                result.exceptionOrNull()?.let { "$name: ${it.message ?: "ошибка"}" }
+            }
+            if (ok.isEmpty()) error("Нет доступных источников сентимента. " + errors.joinToString("; "))
+            val score = ok.map { it.score }.average().coerceIn(0.0, 100.0)
+            SentimentSnapshot(score, label(score), ok, errors)
         }
     }
 
@@ -51,7 +60,10 @@ class SentimentRepository(private val cryptoPanicToken: String? = null) {
     private fun reddit(symbol: String): SentimentSource {
         val asset = symbol.removeSuffix("USDT").lowercase()
         val root = json.parseToJsonElement(
-            get("https://www.reddit.com/r/CryptoCurrency+Bitcoin/hot.json?limit=20&raw_json=1")
+            get(
+                "https://www.reddit.com/r/CryptoCurrency+Bitcoin/hot.json?limit=25&raw_json=1",
+                userAgent = "android:com.cryptosmc.app:v0.3.0"
+            )
         ).jsonObject
         val posts = root["data"]!!.jsonObject["children"]!!.jsonArray
         val titles = posts.mapNotNull { it.jsonObject["data"]?.jsonObject?.get("title")?.jsonPrimitive?.content }
@@ -61,7 +73,8 @@ class SentimentRepository(private val cryptoPanicToken: String? = null) {
     }
 
     private fun cryptoPanic(symbol: String): SentimentSource {
-        val token = cryptoPanicToken ?: error("CryptoPanic token не задан")
+        val token = cryptoPanicToken()?.takeIf { it.isNotBlank() }
+            ?: error("токен не задан (Настройки → Данные)")
         val asset = symbol.removeSuffix("USDT")
         val root = json.parseToJsonElement(
             get("https://cryptopanic.com/api/v1/posts/?auth_token=$token&currencies=$asset&public=true")
@@ -83,8 +96,8 @@ class SentimentRepository(private val cryptoPanicToken: String? = null) {
         return (50.0 + (p - n) * 15.0).coerceIn(0.0, 100.0)
     }
 
-    private fun get(url: String): String {
-        val request = Request.Builder().url(url).header("User-Agent", "CryptoSMC/0.1").build()
+    private fun get(url: String, userAgent: String = "CryptoSMC/0.3"): String {
+        val request = Request.Builder().url(url).header("User-Agent", userAgent).build()
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) error("HTTP ${response.code}")
