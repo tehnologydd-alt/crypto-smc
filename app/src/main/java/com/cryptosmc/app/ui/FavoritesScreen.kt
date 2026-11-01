@@ -147,11 +147,11 @@ private fun FavoriteRow(symbol: String, ticker: Ticker?, history: List<Double>, 
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                formatPair(symbol),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(formatPair(symbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("BINANCE · SPOT", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8291A8))
+                MiniSparkline(history, ticker?.changePct ?: 0.0, Modifier.fillMaxWidth().height(30.dp))
+            }
             if (ticker == null) {
                 Text("...")
             } else {
