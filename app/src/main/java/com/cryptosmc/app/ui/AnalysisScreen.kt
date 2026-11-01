@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -39,6 +42,8 @@ import com.cryptosmc.app.ai.ConsensusService
 import com.cryptosmc.app.ai.ProviderRepository
 import com.cryptosmc.app.market.Candle
 import com.cryptosmc.app.market.MarketRepository
+import com.cryptosmc.app.market.MarketApi
+import com.cryptosmc.app.market.FavoritesRepository
 import com.cryptosmc.app.trading.VirtualTradingRepository
 import com.cryptosmc.app.trading.VirtualSide
 import com.cryptosmc.app.sentiment.SentimentRepository
@@ -58,9 +63,19 @@ fun AnalysisScreen(
     providers: ProviderRepository,
     market: MarketRepository,
     sentimentRepository: SentimentRepository,
-    virtualRepository: VirtualTradingRepository
+    virtualRepository: VirtualTradingRepository,
+    favoritesRepository: FavoritesRepository
 ) {
     var symbol by remember { mutableStateOf("BTCUSDT") }
+    var showAssetPicker by remember { mutableStateOf(false) }
+    var assetQuery by remember { mutableStateOf("") }
+    var availableAssets by remember { mutableStateOf<List<String>>(listOf("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT")) }
+    val favoriteSymbols by favoritesRepository.items.collectAsState()
+    LaunchedEffect(Unit) {
+        MarketApi.allUsdtTickers().onSuccess { tickers ->
+            availableAssets = tickers.map { it.symbol }.distinct().sorted()
+        }
+    }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var result by remember { mutableStateOf<ConsensusResult?>(null) }
     var moodSnapshot by remember { mutableStateOf<com.cryptosmc.app.sentiment.SentimentSnapshot?>(null) }
@@ -135,6 +150,44 @@ fun AnalysisScreen(
         }
     }
 
+    if (showAssetPicker) {
+        val filtered = availableAssets.filter { it.contains(assetQuery.trim().uppercase()) }.take(100)
+        AlertDialog(
+            onDismissRequest = { showAssetPicker = false; assetQuery = "" },
+            title = { Text("Выбрать криптоактив") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = assetQuery,
+                        onValueChange = { assetQuery = it },
+                        label = { Text("Поиск: BTC, ETH, SOL...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    LazyColumn {
+                        items(filtered) { pair ->
+                            TextButton(
+                                onClick = {
+                                    symbol = pair
+                                    result = null
+                                    candles = emptyList()
+                                    moodSnapshot = null
+                                    showAssetPicker = false
+                                    assetQuery = ""
+                                    runAnalysis()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(formatPair(pair), modifier = Modifier.fillMaxWidth(), fontSize = 16.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAssetPicker = false; assetQuery = "" }) { Text("Закрыть") } }
+        )
+    }
+
     if (showAcceptDialog && result != null && candles.isNotEmpty()) {
         val forecast = result!!.prediction
         val currentPrice = candles.last().close
@@ -157,7 +210,7 @@ fun AnalysisScreen(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
-                    Text("Подтверждение создаст только виртуальную позицию в симуляторе.", fontSize = 11.sp, color = Color.LightGray)
+                    Text("Подтверждение создаст только виртуальную позицию в симуляторе.", fontSize = 12.sp, color = Color.LightGray)
                 }
             },
             confirmButton = {
@@ -207,22 +260,31 @@ fun AnalysisScreen(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = symbol,
-                        onValueChange = { symbol = it.uppercase() },
-                        label = { Text("Торговая пара") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Characters,
-                            keyboardType = KeyboardType.Ascii
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("АКТИВ ДЛЯ АНАЛИЗА", color = Color(0xFF9AAAC0), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(formatPair(symbol), color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(onClick = { showAssetPicker = true }) { Text("Выбрать актив") }
+                    }
+                    if (favoriteSymbols.isNotEmpty()) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            favoriteSymbols.take(8).forEach { pair ->
+                                OutlinedButton(
+                                    onClick = { symbol = pair; result = null; runAnalysis() },
+                                    enabled = !busy
+                                ) { Text(formatPair(pair)) }
+                            }
+                        }
+                    }
                     Button(
                         onClick = { runAnalysis() },
                         enabled = !busy,
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (busy) "Анализирую..." else "Обновить анализ") }
+                    ) { Text(if (busy) "Анализирую..." else "▶  Запустить анализ") }
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(if (busy) "●" else if (result != null) "●" else "○", color = if (busy) Color(0xFFFFC66D) else if (result != null) Color(0xFF61D9A5) else Color(0xFF8291A8), fontSize = 12.sp)
                         Text(status, color = Color(0xFFB8C7DF), fontSize = 12.sp)
@@ -235,6 +297,25 @@ fun AnalysisScreen(
         }
         if (candles.size >= 2) {
             item {
+                val first = candles.first().close
+                val last = candles.last().close
+                val move = if (first > 0.0) (last - first) / first * 100.0 else 0.0
+                val up = move >= 0.0
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (up) Color(0xFF12382F) else Color(0xFF3A202B))) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("ТЕКУЩАЯ КАРТИНА · ${formatPair(symbol)}", color = Color(0xFFB8C7DF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(if (up) "↑" else "↓", color = if (up) Color(0xFF61D9A5) else Color(0xFFFF7185), fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                            Column {
+                                Text(fmt(last), color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                                Text(String.format(Locale.US, "%+.2f%% за период анализа", move), color = if (up) Color(0xFF61D9A5) else Color(0xFFFF7185), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Text("Направление цены за загруженный отрезок 1H. Это не прогноз.", color = Color(0xFFB8C7DF), fontSize = 12.sp)
+                    }
+                }
+            }
+            item {
                 Text("ГРАФИК ЦЕНЫ И УРОВНЕЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), fontWeight = FontWeight.Bold)
                 Text("Как пользоваться: двигай график пальцем для истории, своди/разводи пальцы для масштаба.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
                 MarketChart(
@@ -245,7 +326,7 @@ fun AnalysisScreen(
                     symbol = symbol.trim().uppercase()
                 )
                 if (result != null) {
-                    Text("Прогноз AI: вход — фиолетовый · Stop — красный · Take — зелёный", color = Color.LightGray, fontSize = 11.sp)
+                    Text("Прогноз AI: вход — фиолетовый · Stop — красный · Take — зелёный", color = Color.LightGray, fontSize = 12.sp)
                     val forecast = result!!.prediction
                     Text("${directionLabel(forecast.direction)} · Entry ${fmt(forecast.entry)} · SL ${fmt(forecast.stop)} · TP ${fmt(forecast.take)}", color = directionColor(forecast.direction), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
@@ -253,7 +334,7 @@ fun AnalysisScreen(
                     Text(
                         "Виртуальные уровни: вход — зелёный/красный · SL — красный · TP — голубой",
                         color = Color.LightGray,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                     virtualTrades.forEach { trade ->
                         Text(
@@ -276,10 +357,10 @@ fun AnalysisScreen(
                         mood.sources.forEach { source ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(source.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${"%.0f".format(Locale.US, source.score)}/100 · ${source.detail}", fontSize = 11.sp, color = Color.LightGray)
+                                Text("${"%.0f".format(Locale.US, source.score)}/100 · ${source.detail}", fontSize = 12.sp, color = Color.LightGray)
                             }
                         }
-                        Text("Оценка использует доступные публичные источники и простой анализ заголовков; это не полноценный анализ мнений пользователей.", fontSize = 10.sp, color = Color.LightGray)
+                        Text("Оценка использует доступные публичные источники и простой анализ заголовков; это не полноценный анализ мнений пользователей.", fontSize = 12.sp, color = Color.LightGray)
                     }
                 }
             }
@@ -303,7 +384,7 @@ fun AnalysisScreen(
                         val totalStats = HistoricalSmcValidator.statistics(smcValidation, horizon)
                         Text(
                             "${horizon}ч · Все режимы: ${totalStats.correct}/${totalStats.total} (${if (totalStats.total > 0) "%.0f".format(Locale.US, totalStats.correct * 100.0 / totalStats.total) else "—"}%) · среднее ${String.format(Locale.US, "%+.2f%%", totalStats.averageDirectionalMovePercent)}",
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         listOf(
@@ -323,7 +404,7 @@ fun AnalysisScreen(
                                 val stats = HistoricalSmcValidator.statistics(smcValidation, horizon, regime, kind)
                                 Text(
                                     "  $regimeLabel · $kind: ${stats.correct}/${stats.total} · ${if (stats.total > 0) "%.0f".format(Locale.US, stats.correct * 100.0 / stats.total) else "—"}% · ${String.format(Locale.US, "%+.2f%%", stats.averageDirectionalMovePercent)}",
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     color = Color.LightGray
                                 )
                             }
@@ -331,7 +412,7 @@ fun AnalysisScreen(
                     }
                     Text(
                         "Режим определяется только по предыдущим 48 закрытым 1H-свечам: наклон и эффективность движения. Пороговая классификация предварительная. Событие учитывается с момента первого появления в доступной истории; будущие свечи используются только для оценки результата.",
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         color = Color.LightGray
                     )
                 }
@@ -349,11 +430,11 @@ fun AnalysisScreen(
                         journalEntries.take(5).forEach { entry ->
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text("${entry.symbol} · ${directionLabel(entry.prediction.direction)} · ${java.text.SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(java.util.Date(entry.createdAt))}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                Text("Уверенность моделей: ${"%.0f".format(Locale.US, entry.prediction.confidence)}% · Вход: ${fmt(entry.prediction.entry)}", fontSize = 11.sp)
-                                Text("Ответов моделей: ${entry.votes.size} · Проверки: ${entry.evaluations.size}/3", fontSize = 11.sp, color = Color.LightGray)
+                                Text("Уверенность моделей: ${"%.0f".format(Locale.US, entry.prediction.confidence)}% · Вход: ${fmt(entry.prediction.entry)}", fontSize = 12.sp)
+                                Text("Ответов моделей: ${entry.votes.size} · Проверки: ${entry.evaluations.size}/3", fontSize = 12.sp, color = Color.LightGray)
                                 entry.evaluations.forEach { check ->
                                     val color = if (check.verdict == "направление совпало") Color(0xFF61D9A5) else Color(0xFFFF7185)
-                                    Text("${check.hours}ч: ${check.verdict} · ${String.format(Locale.US, "%+.2f%%", check.movePercent)}", color = color, fontSize = 11.sp)
+                                    Text("${check.hours}ч: ${check.verdict} · ${String.format(Locale.US, "%+.2f%%", check.movePercent)}", color = color, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -368,7 +449,7 @@ fun AnalysisScreen(
                         },
                         enabled = candles.isNotEmpty()
                     ) { Text("Проверить доступные горизонты") }
-                    Text("Оценка сравнивает цену закрытия будущей свечи через 1, 4 и 24 часа с ценой входа из снимка. Это статистика направления, не результат реальной сделки.", fontSize = 10.sp, color = Color.LightGray)
+                    Text("Оценка сравнивает цену закрытия будущей свечи через 1, 4 и 24 часа с ценой входа из снимка. Это статистика направления, не результат реальной сделки.", fontSize = 12.sp, color = Color.LightGray)
                 }
             }
         }
@@ -376,7 +457,7 @@ fun AnalysisScreen(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Качество прогнозов", style = MaterialTheme.typography.titleMedium)
-                    Text("Статистика строится только по завершённым проверкам; нейтральные ответы исключены.", fontSize = 10.sp, color = Color.LightGray)
+                    Text("Статистика строится только по завершённым проверкам; нейтральные ответы исключены.", fontSize = 12.sp, color = Color.LightGray)
                     listOf(1, 4, 24).forEach { horizon ->
                         val consensusStats = journal.statistics(journalEntries, horizon)
                         val totalConsensus = journal.consensusStatistics(journalEntries, horizon)
@@ -385,14 +466,14 @@ fun AnalysisScreen(
                             consensusStats.forEach { stat ->
                                 Text(
                                     "${stat.providerId}: ${stat.correct}/${stat.total} (${"%.0f".format(Locale.US, stat.correct * 100.0 / stat.total)}%) · среднее направленное изменение ${String.format(Locale.US, "%+.2f%%", stat.averageDirectionalMovePercent)}",
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         } else {
-                            Text("Пока нет достаточных проверок отдельных моделей.", fontSize = 11.sp, color = Color.LightGray)
+                            Text("Пока нет достаточных проверок отдельных моделей.", fontSize = 12.sp, color = Color.LightGray)
                         }
                     }
-                    Text("Это историческая проверка направления по цене закрытия. Она не учитывает комиссии, проскальзывание и исполнение виртуальных уровней.", fontSize = 10.sp, color = Color.LightGray)
+                    Text("Это историческая проверка направления по цене закрытия. Она не учитывает комиссии, проскальзывание и исполнение виртуальных уровней.", fontSize = 12.sp, color = Color.LightGray)
                 }
             }
         }
@@ -406,11 +487,11 @@ fun AnalysisScreen(
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("ИТОГОВЫЙ СЦЕНАРИЙ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF9EADFF), letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
                         Text("Консенсус аналитических агентов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Бесплатные локальные агенты + подключённые внешние модели", fontSize = 11.sp, color = Color.LightGray)
+                        Text("Бесплатные локальные агенты + подключённые внешние модели", fontSize = 12.sp, color = Color.LightGray)
                         val bullishVotes = consensus.votes.count { it.direction == "long" }
                         val bearishVotes = consensus.votes.count { it.direction == "short" }
                         val neutralVotes = consensus.votes.size - bullishVotes - bearishVotes
-                        Text("СОГЛАСОВАННОСТЬ МОДЕЛЕЙ", color = Color(0xFF9AAAC0), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                        Text("СОГЛАСОВАННОСТЬ МОДЕЛЕЙ", color = Color(0xFF9AAAC0), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             VoteMetric("BUY", bullishVotes, Modifier.weight(1f), Color(0xFF61D9A5))
                             VoteMetric("SELL", bearishVotes, Modifier.weight(1f), Color(0xFFFF7185))
@@ -468,7 +549,7 @@ private fun VoteMetric(label: String, count: Int, modifier: Modifier, tint: Colo
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF111C2A)), shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(vertical = 10.dp, horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(count.toString(), color = tint, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(label, color = Color(0xFF9AAAC0), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = Color(0xFF9AAAC0), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
