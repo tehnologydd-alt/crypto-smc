@@ -346,36 +346,85 @@ private fun SmcSummary(analysis: SmcAnalysis) {
 @Composable
 fun CandleChart(candles: List<Candle>, analysis: SmcAnalysis? = null, modifier: Modifier = Modifier) {
     val data = candles.takeLast(80)
-    Canvas(modifier) {
-        if (data.isEmpty()) return@Canvas
-        val max = data.maxOf { it.high }
-        val min = data.minOf { it.low }
-        val range = if (max - min > 0.0) max - min else 1.0
-        val w = size.width / data.size
-        fun y(v: Double): Float = (size.height * (1 - (v - min) / range)).toFloat()
-        data.forEachIndexed { i, c ->
-            val color = if (c.close >= c.open) ChartUp else ChartDown
-            val x = i * w + w / 2
-            drawLine(color, Offset(x, y(c.high)), Offset(x, y(c.low)), strokeWidth = 1.5f)
-            val top = y(maxOf(c.open, c.close))
-            val bottom = y(minOf(c.open, c.close))
-            drawRect(
-                color = color,
-                topLeft = Offset(i * w + w * 0.15f, top),
-                size = Size(w * 0.7f, maxOf(bottom - top, 1f))
-            )
-        }
-        analysis?.zones?.filter { it.kind == ZoneKind.FAIR_VALUE_GAP || it.kind == ZoneKind.ORDER_BLOCK }
-            ?.takeLast(8)
-            ?.forEach { zone ->
-                val left = (zone.startIndex - (candles.size - data.size)).coerceAtLeast(0)
-                val right = (zone.endIndex - (candles.size - data.size)).coerceAtMost(data.lastIndex)
-                if (left <= right) {
-                    val top = y(zone.high)
-                    val bottom = y(zone.low)
-                    val color = if (zone.direction == Direction.BULLISH) ChartUp else ChartDown
-                    drawRect(color.copy(alpha = 0.16f), Offset(left * w, top), Size((right - left + 1) * w, bottom - top))
+    if (data.isEmpty()) {
+        Box(modifier, contentAlignment = Alignment.Center) { Text("Нет данных для графика") }
+        return
+    }
+    val maxPrice = data.maxOf { it.high }
+    val minPrice = data.minOf { it.low }
+    val range = (maxPrice - minPrice).takeIf { it > 0.0 } ?: 1.0
+    val priceLabels = (0..4).map { index -> maxPrice - range * index / 4.0 }
+    val timeFormat = remember(candles.firstOrNull()?.openTime, candles.lastOrNull()?.openTime) {
+        java.text.SimpleDateFormat(if (data.last().openTime - data.first().openTime > 86_400_000L) "dd.MM" else "HH:mm", Locale.US)
+    }
+
+    Column(modifier) {
+        Row(Modifier.fillMaxWidth().height(210.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Canvas(Modifier.weight(1f).fillMaxSize()) {
+                val plotWidth = size.width
+                val plotHeight = size.height
+                val candleWidth = plotWidth / data.size
+                fun y(value: Double): Float = (plotHeight * (1.0 - (value - minPrice) / range)).toFloat()
+
+                // Горизонтальная ценовая сетка
+                for (step in 0..4) {
+                    val gridY = plotHeight * step / 4f
+                    drawLine(Color(0xFF29364A), Offset(0f, gridY), Offset(plotWidth, gridY), 1f)
+                }
+
+                analysis?.zones
+                    ?.filter { it.kind == ZoneKind.FAIR_VALUE_GAP || it.kind == ZoneKind.ORDER_BLOCK }
+                    ?.takeLast(8)
+                    ?.forEach { zone ->
+                        val offset = candles.size - data.size
+                        val left = (zone.startIndex - offset).coerceAtLeast(0)
+                        val right = (zone.endIndex - offset).coerceAtMost(data.lastIndex)
+                        if (left <= right) {
+                            val top = y(zone.high)
+                            val bottom = y(zone.low)
+                            val zoneColor = if (zone.direction == Direction.BULLISH) ChartUp else ChartDown
+                            drawRect(
+                                zoneColor.copy(alpha = 0.13f),
+                                Offset(left * candleWidth, minOf(top, bottom)),
+                                Size((right - left + 1) * candleWidth, kotlin.math.abs(bottom - top).coerceAtLeast(1f))
+                            )
+                        }
+                    }
+
+                data.forEachIndexed { index, candle ->
+                    val color = if (candle.close >= candle.open) ChartUp else ChartDown
+                    val x = index * candleWidth + candleWidth / 2f
+                    drawLine(color, Offset(x, y(candle.high)), Offset(x, y(candle.low)), strokeWidth = 1.5f)
+                    val top = y(maxOf(candle.open, candle.close))
+                    val bottom = y(minOf(candle.open, candle.close))
+                    drawRect(
+                        color,
+                        Offset(index * candleWidth + candleWidth * 0.15f, top),
+                        Size(candleWidth * 0.7f, (bottom - top).coerceAtLeast(1f))
+                    )
                 }
             }
+            Column(
+                Modifier.fillMaxSize().padding(vertical = 0.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End
+            ) {
+                priceLabels.forEach { price ->
+                    Text(formatPrice(price), style = MaterialTheme.typography.labelSmall, color = Color(0xFF91A0B5), maxLines = 1)
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 5.dp, end = 58.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            listOf(0, data.size / 2, data.lastIndex).distinct().forEach { index ->
+                Text(
+                    timeFormat.format(java.util.Date(data[index].openTime)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF91A0B5)
+                )
+            }
+        }
     }
 }
