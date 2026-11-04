@@ -15,6 +15,8 @@ jobs:
       - name: Restore original source
         run: |
           tar -xJf source/apexicrypto.tar.xz
+          # Repair a parser typo in the staged version before lint/build; published source is fixed.
+          sed -i 's/x.value!===0/x.value !== 0/g' src/lib/forecast.ts
           test -f package.json
           test -f src/components/AISignalPanel.tsx
           test -f src/lib/forecast.ts
