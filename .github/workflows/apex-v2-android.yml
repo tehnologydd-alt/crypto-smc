@@ -16,6 +16,8 @@ jobs:
           rm -rf src scripts native
           base64 -d source/APEX_Intelligence_V2.b64.txt | tar -xJf -
           sed -i 's/, "vite-plugin-pwa\/client"//g' tsconfig.json
+          # Normalize the test harness for GitHub's installed TypeScript dependency.
+          sed -i "s#require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript')#require('typescript')#g" scripts/test-intelligence.cjs
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
