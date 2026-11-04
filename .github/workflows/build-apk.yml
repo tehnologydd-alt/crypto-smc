@@ -14,9 +14,10 @@ jobs:
           persist-credentials: true
       - name: Restore original source
         run: |
-          tar -xJf source/apexicrypto.tar.xz
-          # Repair a parser typo in the staged version before lint/build; published source is fixed.
-          sed -i 's/x.value!===0/x.value !== 0/g' src/lib/forecast.ts
+          if [ -f source/apexicrypto.tar.xz ]; then
+            tar -xJf source/apexicrypto.tar.xz
+            sed -i 's/x.value!===0/x.value !== 0/g' src/lib/forecast.ts
+          fi
           test -f package.json
           test -f src/components/AISignalPanel.tsx
           test -f src/lib/forecast.ts
@@ -47,6 +48,8 @@ jobs:
           if-no-files-found: error
       - name: Publish readable restored source to the same branch
         run: |
+          # Keep the committed workflow unchanged: app tokens cannot update workflow files.
+          git restore .github/workflows/build-apk.yml
           rm -rf source android node_modules dist
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
