@@ -10,7 +10,8 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { AssetInfo, PriceSnapshot, WhaleRadarData, SentimentData, AISignalResponse } from './types/crypto';
 import { ShieldCheck, Layers, Radio, Sparkles, TrendingUp, Info } from 'lucide-react';
 import { getMarketSnapshot, getSentiment, getWhaleRadar } from './lib/market';
-import { forecast, optionalGeminiForecast } from './lib/forecast';
+import { forecast } from './lib/forecast';
+import { checkGeminiKey, optionalGeminiForecast } from './lib/gemini';
 
 const ASSETS: AssetInfo[] = [
   { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', name: 'Bitcoin', network: 'Bitcoin' },
@@ -48,6 +49,9 @@ export default function App() {
   const [signalError, setSignalError] = useState<string>('');
   // User-supplied optional key exists in volatile memory only; never saved or embedded.
   const [geminiKey, setGeminiKey] = useState<string>('');
+  const [geminiModel, setGeminiModel] = useState<string>('');
+  const [geminiStatus, setGeminiStatus] = useState<string>('');
+  const [isTestingGemini, setIsTestingGemini] = useState<boolean>(false);
   const [isGeneratingSignal, setIsGeneratingSignal] = useState<boolean>(false);
 
   // Toggle favorite and persist
@@ -100,6 +104,20 @@ export default function App() {
   useEffect(() => {void fetchMarketSnapshot(selectedSymbol);}, [fetchMarketSnapshot,selectedSymbol]);
   const handleSelectAsset=(symbol:string)=>{setSelectedSymbol(symbol);};
 
+  const handleCheckGeminiKey = async () => {
+    if (!geminiKey.trim()) {setGeminiStatus('Введите Gemini API-ключ.'); return;}
+    setIsTestingGemini(true);
+    setGeminiStatus('Проверка доступа к Gemini API…');
+    try {
+      const model = await checkGeminiKey(geminiKey);
+      setGeminiModel(model);
+      setGeminiStatus('Ключ принят. Доступна модель: ' + model);
+    } catch (e) {
+      setGeminiModel('');
+      setGeminiStatus('Проверка не пройдена: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {setIsTestingGemini(false);}
+  };
+
   const handleGenerateSignal = async () => {
     if(!snapshot) {setSignalError('Сначала загрузите котировки и свечи');return;}
     setIsGeneratingSignal(true);
@@ -107,7 +125,7 @@ export default function App() {
     try {
       const local=forecast(snapshot,whaleData,sentimentData);
       if(geminiKey.trim()){
-        try {setSignalData(await optionalGeminiForecast(geminiKey,snapshot,local));}
+        try {const {report,model}=await optionalGeminiForecast(geminiKey,snapshot,local,geminiModel||undefined);setSignalData(report);setGeminiModel(model);setGeminiStatus('Gemini подключён: '+model);}
         catch(e){setSignalData(local);setSignalError(`Gemini недоступен, показан локальный прогноз: ${e instanceof Error?e.message:String(e)}`);}
       }else setSignalData(local);
     }catch(err){setSignalError(err instanceof Error?err.message:'Не удалось рассчитать прогноз');}
@@ -140,8 +158,12 @@ export default function App() {
         <section className="mb-4 rounded-lg border border-slate-800 bg-[#0b101c] p-3 text-xs text-slate-400">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <span>Режим: <strong className="text-emerald-400">Локальные прогнозы без AI Studio</strong>. Gemini API необязателен и не нужен для запуска.</span>
-            <input aria-label="Необязательный Gemini API ключ" className="w-52 max-w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-slate-200" type="password" autoComplete="off" placeholder="Gemini API ключ (необязательно)" value={geminiKey} onChange={e=>setGeminiKey(e.target.value)} />
+            <div className="flex flex-wrap gap-2 items-center">
+              <input aria-label="Необязательный Gemini API ключ" className="w-56 max-w-full rounded bg-slate-900 border border-slate-700 px-2 py-2 text-slate-200" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="Gemini API ключ (необязательно)" value={geminiKey} onChange={e=>{setGeminiKey(e.target.value);setGeminiModel('');setGeminiStatus('');}} />
+              <button type="button" onClick={handleCheckGeminiKey} disabled={isTestingGemini||!geminiKey.trim()} className="rounded bg-indigo-700 disabled:opacity-50 px-3 py-2 text-white">{isTestingGemini?'Проверка…':'Проверить ключ'}</button>
+            </div>
           </div>
+          {geminiStatus && <p role="status" className="text-sky-300 mt-2">{geminiStatus}</p>}
           {loadError && <p role="alert" className="text-amber-300 mt-2">{loadError}</p>}
           {signalError && <p role="alert" className="text-amber-300 mt-2">{signalError}</p>}
         </section>

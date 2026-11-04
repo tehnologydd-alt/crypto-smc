@@ -1,5 +1,4 @@
 import type { AISignalResponse, PriceSnapshot, WhaleRadarData, SentimentData } from '../types/crypto';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const round=(x:number)=>Number(x.toFixed(x>=1000?2:x>=1?4:7));
 const clipped=(x:number,a:number,b:number)=>Math.min(b,Math.max(a,x));
@@ -59,31 +58,4 @@ export function forecast(snapshot:PriceSnapshot, whale:WhaleRadarData|null, sent
     signal:{direction,entryPrice:round(entry),entryZone:`${round(entry*0.998)}–${round(entry*1.002)} USDT`,stopLoss:round(stop),stopLossPercent:round(risk/entry*100),takeProfit1:round(tp1),takeProfit1Percent:round(Math.abs(tp1-entry)/entry*100),takeProfit2:round(tp2),takeProfit2Percent:round(Math.abs(tp2-entry)/entry*100),takeProfit3:round(tp3),takeProfit3Percent:round(Math.abs(tp3-entry)/entry*100),riskRewardRatio:'1:2.8',winProbability:direction==='WAIT'?0:strength,riskLevel:direction==='WAIT'?'Повышенный':'Умеренный',orderBlockTarget:fromOB?chosen!.label:'Нет подтверждённого OB рядом с ценой',validationRationale:direction==='WAIT'?'Агенты не согласны по направлению. Уровни показаны только как сценарий, не сигнал на вход.':`Локальный ${algoName}: ${factors.map(x=>`${x.label}: ${x.value>0?'↑':x.value<0?'↓':'—'}`).join('; ')}. Балл силы — эвристика, не измеренная вероятность выигрыша.`},
     agents:{smcAgent:{name:'SMC & Order Block Specialist',verdict:bullish?'Смещение структуры вверх':'Смещение структуры вниз',keyFindings:findingsSMC,score:round(scoreSMC)},whaleAgent:{name:'Whale Flow Detective',verdict:hasBook?'Анализ видимых заявок, не переводов кошельков':'Нет данных о заявках',keyFindings:findingsWhale,score:round(scoreWhale)},sentimentAgent:{name:'Social ML Sentiment Analyst',verdict:hasSocial?'Социальный источник доступен':'Данных соцсетей нет; учитывается только Fear & Greed как фон',keyFindings:findingsSentiment,score:round(scoreSentiment)},chiefArbiter:{name:'Chief Signal Architect',verdict:direction==='WAIT'?'WAIT: конфликт сигналов':`Сценарий ${direction}, совпадение технических признаков: ${agree} из 6 весов`,executionPlan:direction==='WAIT'?'Ожидать нового закрытия 1H свечи и обновить прогноз.':'Наблюдать за достижением ценовой зоны, сверять со свежим стаканом. TP1–TP3 и SL являются модельными уровнями, не распоряжением на сделку.',consensusConfidence:direction==='WAIT'?0:strength}},
   };
-}
-
-// Optional direct Gemini API: never needed for app startup or local forecasts.
-// API key is supplied for this request by the user and NEVER stored in the APK or localStorage.
-export async function optionalGeminiForecast(key:string, snapshot:PriceSnapshot, local:AISignalResponse):Promise<AISignalResponse> {
-  if(!key.trim()) return local;
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
-  const prompt=`Ты анализируешь BTC/альткоины на основе ТОЛЬКО фактических исходных данных. Не изобретай ETF, кошельки, X/Reddit. Текущий снимок: ${JSON.stringify({symbol:snapshot.symbol,exchanges:snapshot.exchanges,smc:snapshot.smc,candles:snapshot.klinesSummary?.candles.slice(-24)})}. Локальный расчёт: ${JSON.stringify(local)}. Верни JSON точно такого же формата как локальный расчёт, с signal и agents (smcAgent,whaleAgent,sentimentAgent,chiefArbiter). По возможности сохрани уровни входа, SL, TP и валидируй их; winProbability должен быть баллом уверенности 0..100, а НЕ предсказанной вероятностью успеха. Если данных недостаточно — WAIT. Только JSON.`;
-  const body={contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
-  let json:any;
-  if(Capacitor.isNativePlatform()){
-    const r=await CapacitorHttp.post({url,headers:{'Content-Type':'application/json','x-goog-api-key':key.trim()},data:body,connectTimeout:12000,readTimeout:30000});
-    if(r.status<200||r.status>=300) throw new Error(`Gemini HTTP ${r.status}`);
-    json=typeof r.data==='string'?JSON.parse(r.data):r.data;
-  } else {
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key.trim()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error(`Gemini HTTP ${r.status}`);
-    json=await r.json();
-  }
-  const text=json?.candidates?.[0]?.content?.parts?.map((x:any)=>x.text||'').join('')||'';
-  const model=JSON.parse(text) as AISignalResponse;
-  if(!model?.signal?.direction||!model?.agents?.chiefArbiter||!['LONG','SHORT','WAIT'].includes(model.signal.direction))throw new Error('Неожиданный формат прогноза Gemini');
-  const {entryPrice,stopLoss,takeProfit1,takeProfit2,takeProfit3}=model.signal;
-  if(![entryPrice,stopLoss,takeProfit1,takeProfit2,takeProfit3].every(x=>Number.isFinite(x)&&x>0))throw new Error('Неверные уровни цены от Gemini');
-  if(model.signal.direction==='LONG'&&!(stopLoss<entryPrice&&entryPrice<takeProfit1&&takeProfit1<takeProfit2&&takeProfit2<takeProfit3))throw new Error('Противоречивые уровни LONG от Gemini');
-  if(model.signal.direction==='SHORT'&&!(stopLoss>entryPrice&&entryPrice>takeProfit1&&takeProfit1>takeProfit2&&takeProfit2>takeProfit3))throw new Error('Противоречивые уровни SHORT от Gemini');
-  return model;
 }
