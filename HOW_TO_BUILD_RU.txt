@@ -1,0 +1,21 @@
+APEXICRYPTO ANDROID STANDALONE — СБОРКА APK
+
+ВАРИАНТ A. Через GitHub Actions (не нужен Android Studio на ПК):
+  1. Создайте пустой репозиторий GitHub для этого приложения.
+  2. Загрузите туда все файлы и папки из архива,
+     включая скрытую папку .github/workflows.
+  3. Откройте в репозитории Actions -> Android Debug APK.
+  4. Выберите Run workflow.
+  5. В успешном запуске скачайте ApexiCrypto-debug-apk.
+  6. Внутри артефакта находится app-debug.apk.
+
+ВАРИАНТ B. На ПК Windows:
+  1. Установите Node.js 22+ и Android Studio с SDK.
+  2. Распакуйте архив полностью.
+  3. Запустите build-android.bat.
+  4. В Android Studio: Build -> Build Bundle(s) / APK(s) -> Build APK(s).
+  5. Ищите APK: android/app/build/outputs/apk/debug/app-debug.apk
+
+ВАЖНО: проект НЕ запускает AI Studio и НЕ нуждается в API-ключе Gemini.
+Свежее отображение рынка требует интернета. Для on-chain китов и соцсетей
+понадобится отдельная интеграция источников — здесь данные не симулируются.
