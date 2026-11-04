@@ -1,6 +1,0 @@
-{
-  "name": "ApexiCrypto SMC & Whale Intelligence",
-  "description": "Платформа криптовалютного анализа: ордер-блоки (Smart Money SMC), отслеживание китов, ML-оценка настроений соцсетей, срез цен с Binance и Bybit, высоковероятные торговые сигналы от ИИ-агентов.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
