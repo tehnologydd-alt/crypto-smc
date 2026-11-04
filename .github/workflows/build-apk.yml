@@ -1,45 +1,55 @@
-name: ApexiCrypto Android Debug APK
+name: Restore and Build ApexiCrypto Android
 on:
   workflow_dispatch:
   push:
     branches: [apexicrypto-android]
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Restore original source
+        run: |
+          tar -xJf source/apexicrypto.tar.xz
+          test -f package.json
+          test -f src/components/AISignalPanel.tsx
+          test -f src/lib/forecast.ts
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
-      - name: Check Android SDK
-        run: |
-          test -d "$ANDROID_HOME"
-          echo "Android SDK directory: $ANDROID_HOME"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Check TypeScript
-        run: npm run lint
-      - name: Generate icons
-        run: node scripts/generate-icons.js
-      - name: Build web bundle
-        run: npm run build
-      - name: Generate Android project
+      - run: npm run lint
+      - run: npm run test
+      - run: node scripts/generate-icons.js
+      - run: npm run build
+      - run: npx cap add android
+      - run: npx cap sync android
+      - name: Assemble Android debug APK
         run: |
-          npx cap add android
-          npx cap sync android
-      - name: Assemble APK
-        working-directory: android
-        run: |
-          chmod +x ./gradlew
+          chmod +x android/gradlew
+          cd android
           ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: ApexiCrypto-debug-apk
+          name: ApexiCrypto-restored-original-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publish readable restored source to the same branch
+        run: |
+          rm -rf source android node_modules dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --staged --quiet; then
+            git commit -m "Publish restored original ApexiCrypto Android source"
+            git push origin HEAD:apexicrypto-android
+          fi

@@ -1,42 +1,5 @@
-# ApexiCrypto Android Standalone
+# ApexiCrypto original restored — standalone Android
 
-Обновлённый проект Android-приложения на React + Capacitor из архива Google AI Studio.
+This branch temporarily carries the complete restored source in `source/apexicrypto.tar.xz` for the first CI build. After a successful build, GitHub Actions publishes all source files into this **same branch** and removes the archive. `main` remains untouched.
 
-## Важные отличия от оригинала
-
-- **Независим от AI Studio / Gemini / Cloud Run.** Нет сервера Express, `/api`-эндпоинтов или `GEMINI_API_KEY`.
-- **Котировки:** прямые публичные API Binance и Bybit. В Android CapacitorHttp использует системную сеть, не зависящую от CORS WebView.
-- **SMC:** локальный алгоритм подтверждённых часовых свечей. Если данных недостаточно, уровни не выдумываются.
-- **«Радар китов» заменён на реальные крупные видимые заявки.** Исходные «переводы китов», ETF-потоки и организации были зашиты демонстрационными константами. Реальный мониторинг блокчейн-транзакций требует отдельных индексаторов/API и здесь НЕ реализован.
-- **Сентимент:** общерыночный Fear & Greed от alternative.me (если API доступен) + 24h движение биржи. Расчёт ML из X/Reddit/Telegram в исходнике был имитирован и убран.
-- **«ИИ-сигнал» заменён на прозрачный локальный консенсус 3 правил** (динамика 12 часовых свечей, изменение 24ч, дисбаланс видимых заявок). Без обещаний доходности или процентов успеха.
-- **Оффлайн:** оболочка в APK без сервера, избранное и последний успешный срез в локальном хранилище. **Новые** котировки без интернета получить нельзя: данные показываются как устаревшие.
-- Приложение только анализирует общедоступные данные; к реальному счёту не подключается.
-
-## APK на Windows
-
-Требуются Node.js 22+, Android Studio и Android SDK (обычная установка Android Studio). Запустите `build-android.bat` из корня распакованного проекта. Он установит зависимости, соберёт локальный фронтенд, создаст `android/`, перенесёт веб-ресурсы и откроет Android Studio.
-
-В Android Studio выполните **Build → Build Bundle(s) / APK(s) → Build APK(s)**. Путь к debug-APK после сборки: `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-## Альтернатива без локального Android Studio
-
-Проект находится в **отдельной ветке [`apexicrypto-android`](https://github.com/tehnologydd-alt/crypto-smc/tree/apexicrypto-android)**. Основная ветка `main` содержит другой проект, её не изменять. При изменениях этой ветки GitHub Actions автоматически собирает APK. Подтверждённая успешная сборка: [Actions run #41876184234](https://github.com/tehnologydd-alt/crypto-smc/actions/runs/41876184234). APK скачивается из артефакта `ApexiCrypto-debug-apk`. Workflow: `.github/workflows/build-apk.yml`.
-
-## Веб-разработка
-
-```bash
-npm install
-npm run dev
-npm run lint
-npm run build
-```
-
-## Технические ограничения
-
-- Нужен доступ к публичным API Binance/Bybit, который зависит от сети/региона. Веб-версия дополнительно может столкнуться с CORS, Android-версия использует native HTTP.
-- Данные стакана отражают только запрошенную глубину, а не «всех китов».
-- Нет приватных API-ключей и данных пользователя.
-- При сбоях источников UI не подменяет котировки вымышленными ценами.
-- Выпускайте подписанный release APK/AAB отдельно перед распространением; workflow генерирует тестовый debug APK.
-
+The app preserves the original forecasts, signal entry, SL, TP1–TP3, four agent summaries and UI without requiring AI Studio to launch. Local forecasts work without an AI key; optional user-supplied Gemini direct API is session-only. Fake hardcoded whale and social data are not presented as live.
