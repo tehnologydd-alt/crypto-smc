@@ -17,6 +17,7 @@ jobs:
           if [ -f .source/apexi.tar.xz.b64 ]; then
             base64 --decode .source/apexi.tar.xz.b64 | tar -xJf -
             rm -rf .source
+            git checkout -- .github/workflows/build-apk.yml
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A
