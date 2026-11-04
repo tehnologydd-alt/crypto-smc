@@ -21,7 +21,7 @@
 
 ## Альтернатива без локального Android Studio
 
-Загрузите содержимое проекта в свой репозиторий GitHub (ветка `main`), откройте **Actions → Android Debug APK → Run workflow**. После успешной сборки скачайте артефакт `ApexiCrypto-debug-apk` из запуска. Workflow находится в `.github/workflows/build-apk.yml`.
+Проект находится в **отдельной ветке [`apexicrypto-android`](https://github.com/tehnologydd-alt/crypto-smc/tree/apexicrypto-android)**. Основная ветка `main` содержит другой проект, её не изменять. При изменениях этой ветки GitHub Actions автоматически собирает APK. Подтверждённая успешная сборка: [Actions run #41876184234](https://github.com/tehnologydd-alt/crypto-smc/actions/runs/41876184234). APK скачивается из артефакта `ApexiCrypto-debug-apk`. Workflow: `.github/workflows/build-apk.yml`.
 
 ## Веб-разработка
 
