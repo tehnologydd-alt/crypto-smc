@@ -61,14 +61,23 @@ function chooseModel(models:any[]):string{
   const names=models.filter(m=>Array.isArray(m?.supportedGenerationMethods)&&m.supportedGenerationMethods.includes('generateContent'))
     .map(m=>String(m.name||'').replace(/^models\//,''))
     .filter(n=>/^gemini-/.test(n)&&/flash/.test(n));
-  const preferred=['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-3-flash','gemini-3.8-flash'];
-  return preferred.find(n=>names.includes(n))||names.find(n=>!/exp|preview/i.test(n))||names[0]||'';
+  // Gemini 2.5 may be listed by models.list but generateContent returns 404 for new users.
+  // Prefer actively supported Gemini 3 Flash variants and do not fall back to legacy 2.5.
+  const modern=names.filter(n=>/^gemini-3[.\-]/.test(n));
+  const preferred=['gemini-3.8-flash','gemini-3.7-flash','gemini-3.6-flash',
+    'gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3-flash'];
+  return preferred.find(n=>modern.includes(n))||modern.find(n=>!/exp|preview/i.test(n))||modern[0]||'';
 }
-/** Validate the key with ListModels; this call generates no text and uses no forecast tokens. */
+/** Validate actual text generation, not just models.list (which also lists restricted models). */
 export async function checkGeminiKey(key:string):Promise<string>{
   const data=await requestGemini('GET','models?pageSize=100',key);
   const name=chooseModel(Array.isArray(data.models)?data.models:[]);
-  if(!name)throw new Error('Ключ принят, но доступная Gemini Flash-модель для generateContent не обнаружена.');
+  if(!name)throw new Error('Ключ принят, но подходящая модель Gemini 3 Flash не найдена. Проверьте доступные модели Google.');
+  // Minimal real request catches model-level 404 before claiming the key is usable.
+  await requestGemini('POST','models/'+name+':generateContent',key,{
+    contents:[{parts:[{text:'Ответь одним словом: OK'}]}],
+    generationConfig:{maxOutputTokens:512},
+  });
   return name;
 }
 function parseAssessment(data:any):{direction:Direction;rationale:string;smc:string;whale:string;sentiment:string}{
@@ -98,7 +107,7 @@ export async function optionalGeminiForecast(key:string,snapshot:PriceSnapshot,l
     unavailableSources:['verified onchain transfers','ETF inflows','social media ML'],
   };
   const prompt='Проанализируй рыночные данные: это независимое мнение к локальному прогнозу. Отвечай по-русски. Только факты, без выдуманных новостей, ETF, ончейн и соцсетей. Не обещай прибыль. Дай JSON с полями direction (LONG/SHORT/WAIT), rationale, smc, whale, sentiment. Данные: '+JSON.stringify(facts);
-  const payload={contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2,maxOutputTokens:2048}};
+  const payload={contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',maxOutputTokens:8192}};
   const raw=await requestGemini('POST','models/'+model+':generateContent',key,payload);
   const result=parseAssessment(raw);
   const disagree=result.direction!==local.signal.direction;
