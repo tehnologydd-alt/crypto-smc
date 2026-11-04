@@ -1,5 +1,27 @@
-# ApexiCrypto original restored — standalone Android
+# ApexiCrypto — исходный интерфейс, автономный Android
 
-This branch temporarily carries the complete restored source in `source/apexicrypto.tar.xz` for the first CI build. After a successful build, GitHub Actions publishes all source files into this **same branch** and removes the archive. `main` remains untouched.
+Восстановлен исходный интерфейс ApexiCrypto из загруженного архива: вкладки бирж, SMC, радара, социальных настроений, полный сигнал с Entry/SL/TP1/TP2/TP3, 4 агентами, калькулятором позиции и webhook JSON.
 
-The app preserves the original forecasts, signal entry, SL, TP1–TP3, four agent summaries and UI without requiring AI Studio to launch. Local forecasts work without an AI key; optional user-supplied Gemini direct API is session-only. Fake hardcoded whale and social data are not presented as live.
+**Приложение не использует Google AI Studio как сервер:** нет Express `/api` и нет `server.url` в Capacitor. Для старта нужен только установленный APK. Интернет нужен для обновления котировок Binance/Bybit и Fear & Greed. При отсутствии интернета приложение может показать последнее сохранённое состояние с явным предупреждением.
+
+**Прогнозы доступны без ИИ-ключей:** локальный аналитический алгоритм рассчитывает LONG/SHORT/WAIT, цену входа, SL, TP1–TP3 и мнения четырёх ролей из реальных свечей, SMC и стакана. Это не статистически проверенная модель, её числовые баллы — НЕ вероятность сделки.
+
+**Gemini отдельно и необязательно:** можно ввести свой Gemini API key прямо в приложении, чтобы дополнить локальную оценку генеративной моделью. Ключ хранится **только в памяти текущей сессии**, не включён в APK и не записывается в файлы. При отказе API используется локальный прогноз. Google AI Studio не нужен ни для установки, ни для запуска. Тот, кому не нужен Gemini, ничего не вводит.
+
+**Границы данных:** оригинальные события BlackRock/ETF, якобы мониторинг ончейн кошельков, показатели CryptoBERT и X/Reddit/Telegram оказались демонстрационными константами. В восстановленном интерфейсе их не выдают за реальные: ончейн-данные помечены недоступными, реальные заявки стакана отображаются отдельно. Fear & Greed загружается из внешнего API. При отсутствии источника социальная аналитика сообщает, что данные недоступны. Это ограничение конкретных источников, не интерфейса или логики прогнозов.
+
+## Сборка
+
+```bash
+npm install
+npm run lint
+npm run test
+npm run build
+npx cap add android
+npx cap sync android
+cd android && ./gradlew assembleDebug
+```
+
+GitHub Actions — workflow `ApexiCrypto Original Android APK` в **отдельной ветке `apexicrypto-android`**. `main` содержит другой Kotlin-проект и остаётся нетронутой.
+
+Android разрешение INTERNET создаётся Capacitor. На Android прямые API вызовы используют `CapacitorHttp`; в браузере CORS может зависеть от внешних источников. Команда `npx cap add android` требует Android SDK и JDK.
