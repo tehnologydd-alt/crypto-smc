@@ -8,6 +8,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      APEX_KEYSTORE_B64: ${{ secrets.APEX_KEYSTORE_B64 }}
+      APEX_KEYSTORE_PASSWORD: ${{ secrets.APEX_KEYSTORE_PASSWORD }}
+      APEX_KEY_ALIAS: ${{ secrets.APEX_KEY_ALIAS }}
+      APEX_KEY_PASSWORD: ${{ secrets.APEX_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - name: Restore APEX V2 source
@@ -42,13 +47,20 @@ jobs:
           npx cap add android
           npx cap sync android
           node scripts/apply-android.js
-      - name: Assemble debug APK
+          node updates/configure-release.cjs
+      - name: Assemble APEX APK
         run: |
           chmod +x android/gradlew
-          cd android
-          ./gradlew assembleDebug
+          if [ -f .apex-signed-release ]; then
+            cd android && ./gradlew assembleRelease
+          else
+            echo "::warning::Release signing secrets are not configured; building non-updatable debug APK."
+            cd android && ./gradlew assembleDebug
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: APEX-Intelligence-V2-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: APEX-Intelligence-V2-APK
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
