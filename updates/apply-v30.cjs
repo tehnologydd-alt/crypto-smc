@@ -89,6 +89,9 @@ const lifecycle=[
 '        super.onPause();',
 '    }'
 ].join('\n')+'\n';
-if(main.includes(mainAnchor))main=main.replace(mainAnchor,lifecycle+mainAnchor);\nelse if(/\\}\s*$/.test(main))main=main.replace(/\\}\s*$/,lifecycle+'\n}\n');\nelse throw Error('MainActivity class brace missing');write(mainPath,main);
+if(main.includes(mainAnchor))main=main.replace(mainAnchor,lifecycle+mainAnchor);
+else if(main.trimEnd().endsWith('}')){const last=main.lastIndexOf('}');main=main.slice(0,last)+lifecycle+'}\n';}
+else throw Error('MainActivity class brace missing');
+write(mainPath,main);
 fs.appendFileSync('README.md','\n\n## APEX 3.0 Learning Engine (initial release)\n- Stores only new paper scenarios created after Learning was enabled, with immutable entry-time context if fresh.\n- Tracks TP1/TP2/TP3, stops, cancellations, expiry per timeframe. Old statistics are excluded from new evaluation.\n- Separate global notification on/off switch; disabling also clears previously delivered local alerts.\n- Android FLAG_KEEP_SCREEN_ON is optional and active only while APEX is on screen (battery impact).\n- Does not place real exchange orders and cannot claim proven prediction accuracy.\n');
 console.log('APEX 3.0 Learning + notification mute + Android keepScreenOn patch applied');
