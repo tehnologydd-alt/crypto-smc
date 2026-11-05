@@ -123,3 +123,6 @@ require('./apply-v37.cjs');
 
 // APEX 3.8: prospective UTC-week cohort stability (observational only).
 require('./apply-v38.cjs');
+
+// APEX 3.9: frozen observational Market Pulse hypothesis, prospective holdout.
+require('./apply-v39.cjs');
