@@ -114,3 +114,6 @@ require('./apply-v34.cjs');
 
 // APEX 3.5 Watchlist Market Pulse: no alteration of trade scenarios.
 require('./apply-v35.cjs');
+
+// APEX 3.6: snapshot watchlist pulse at scenario creation; no historical backfill.
+require('./apply-v36.cjs');

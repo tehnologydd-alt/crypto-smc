@@ -1,0 +1,17 @@
+   <section className="rounded-2xl border border-cyan-500/20 bg-[#111c29] p-4 space-y-3">
+     <button type="button" aria-expanded={contextExpanded} onClick={()=>setContextExpanded(x=>!x)} className="flex w-full min-h-[44px] items-center justify-between gap-3 text-left">
+       <span className="flex-1 space-y-1"><strong className="text-sm text-cyan-200">Market Pulse × Learning</strong>
+        <span className="block text-[11px] text-slate-400">Снимков при создании: {contextStats.captured} / {contextStats.total} · завершено: {contextStats.completed}</span>
+       </span><span aria-hidden="true" className="text-cyan-200 text-lg">{contextExpanded?'−':'+'}</span>
+     </button>
+     {contextExpanded&&<div className="space-y-3 border-t border-white/10 pt-3">
+       <p className="text-xs text-slate-400">Для новых прогнозов APEX запоминает направление Market Pulse при создании. Старые сигналы не заполняются текущими ценами задним числом.</p>
+       {contextStats.groups.map(g=><div key={g.kind} className="rounded-xl border border-white/10 bg-slate-900/25 p-3 space-y-1">
+         <div className="flex items-center justify-between gap-2"><strong className="text-xs text-slate-200">{g.title}</strong><span className="text-xs text-slate-400">{g.total}</span></div>
+         <p className="text-[11px] text-slate-400">TP3: <span className="text-teal-300">{g.tp3}</span> · SL: <span className="text-rose-300">{g.stop}</span> · В работе: {g.waiting+g.active}</p>
+         <p className="text-[11px] text-slate-400">{g.tp3Share===null?'Пока недостаточно завершённых наблюдений для доли TP3':('TP3 среди завершённых TP3/SL: '+g.tp3Share.toFixed(1)+'% · '+g.evaluated+' наблюдений')}</p>
+       </div>)}
+       <p className="text-[11px] text-amber-200/85">{contextStats.note}</p>
+       <p className="text-[10px] text-slate-500">Порог показа доли: минимум 20 завершённых TP3/SL в группе. Это описательная статистика виртуальных прогнозов, не расчёт доходности и не рекомендация к торговле.</p>
+     </div>}
+   </section>
