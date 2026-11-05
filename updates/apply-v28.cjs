@@ -23,8 +23,10 @@ change(' const [scenarios,setScenarios]=useState<Scenario[]>(safeScenarios);',` 
 change(" useEffect(()=>{try{localStorage.setItem('apex_v2_history',JSON.stringify(history));}catch{};},[history]);",` useEffect(()=>{try{localStorage.setItem('apex_v2_history',JSON.stringify(history));}catch{};},[history]);
  useEffect(()=>{try{localStorage.setItem(demoStoreKey,JSON.stringify(demoTickets));}catch{}},[demoTickets]);`);
 change('РЫНОЧНЫЙ РАДАР • 2.7','РЫНОЧНЫЙ РАДАР • 2.8');
-change('min-h-screen bg-[#080d17] text-slate-100 pb-16 selection:bg-teal-500/25','min-h-[100dvh] bg-[#080d17] text-slate-100 pb-[calc(104px+env(safe-area-inset-bottom,0px))] selection:bg-teal-500/25');
-change('<main className="max-w-3xl mx-auto px-4 pt-5 space-y-5">','<main id="apex-content" className="max-w-3xl mx-auto px-4 pt-5 pb-4 space-y-5">');
+change('min-h-screen bg-[#080d17] text-slate-100 pb-16 selection:bg-teal-500/25','h-[100dvh] min-h-0 flex flex-col overflow-hidden bg-[#080d17] text-slate-100 selection:bg-teal-500/25');
+change('<main className="max-w-3xl mx-auto px-4 pt-5 space-y-5">','<main id="apex-content" className="max-w-3xl w-full mx-auto px-4 pt-5 pb-10 flex-1 min-h-0 overflow-y-auto overscroll-y-contain space-y-5">');
+change('sticky top-0 z-20 border-b border-white/5','shrink-0 relative z-20 border-b border-white/5');
+change('fixed z-30 bottom-0 inset-x-0 bg-[#0d1422]/95','relative z-30 shrink-0 bg-[#0d1422]/95');
 change('pb-[max(env(safe-area-inset-bottom),4px)]','pb-1');
 change('gap-0.5 py-1.5 text-[11px]','justify-center gap-0.5 min-h-[54px] py-1 text-[11px]');
 change('onClick={()=>{setView(x.id);setSelectedDetail(null);}}',"onClick={()=>{setView(x.id);setSelectedDetail(null);window.scrollTo({top:0,behavior:'instant'});}}");
@@ -41,6 +43,6 @@ change('   {scenarios.length?<div className="space-y-3">',`   <section className
    </section>
    {scenarios.length?<div className="space-y-3">`);
 fs.writeFileSync(file,s);
-fs.appendFileSync('src/index.css','\n/* Last card scrolls fully above fixed navigation. */\nhtml { scroll-padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }\n#apex-content { scroll-margin-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }\n');
+fs.appendFileSync('src/index.css','\n/* The main area scrolls independently; tabs stay below it, never over the last card. */\n#apex-content { -webkit-overflow-scrolling: touch; }\n');
 fs.appendFileSync('README.md','\n\n## APEX 2.8\n- Compact bottom tabs; last card can scroll above the navigation.\n- Virtual demo journal stores Entry, SL, TP1-3; no actual orders.\n');
 console.log('APEX 2.8 patch applied');
