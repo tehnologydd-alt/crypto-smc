@@ -126,3 +126,6 @@ require('./apply-v38.cjs');
 
 // APEX 3.9: frozen observational Market Pulse hypothesis, prospective holdout.
 require('./apply-v39.cjs');
+
+// APEX 4.0: separate analytics from Signals into a fourth Statistics tab.
+require('./apply-v40.cjs');
