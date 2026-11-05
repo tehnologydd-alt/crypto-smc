@@ -15,6 +15,10 @@ jobs:
           test -f source/APEX_Intelligence_V2.b64.txt
           rm -rf src scripts native
           base64 -d source/APEX_Intelligence_V2.b64.txt | tar -xJf -
+          if [ -f source/APEX_Intelligence_2_3_overlay.b64.txt ]; then
+            base64 -d source/APEX_Intelligence_2_3_overlay.b64.txt | tar -xJf -
+            echo "Applied APEX 2.3 lifecycle and full catalog overlay"
+          fi
           sed -i 's/, "vite-plugin-pwa\/client"//g' tsconfig.json
           # Normalize the test harness for GitHub's installed TypeScript dependency.
           sed -i "s#require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript')#require('typescript')#g" scripts/test-intelligence.cjs
