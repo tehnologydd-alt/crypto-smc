@@ -120,3 +120,6 @@ require('./apply-v36.cjs');
 
 // APEX 3.7: conservative evidence quality on prospective research outcomes.
 require('./apply-v37.cjs');
+
+// APEX 3.8: prospective UTC-week cohort stability (observational only).
+require('./apply-v38.cjs');
