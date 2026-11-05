@@ -55,6 +55,25 @@ vault=rep(vault,mark,mark+'\n'+validation,'Vault optional context validation');
 write('src/radar/vault.ts',vault);
 fs.copyFileSync('updates/context-study.ts','src/radar/context-study.ts');
 fs.copyFileSync('updates/test-context-study.cjs','scripts/test-context-study.cjs');
+
+/* 3.0's original single-file test harness must resolve the newly imported module. */
+let learningTest=read('scripts/test-learning.cjs');
+const testAnchor="const m={exports:{}};vm.runInNewContext(output,{module:m,exports:m.exports,require,Date,Set,Map,Number,Math,JSON});";
+const testReplace=[
+ "const localRequire=(id)=>{",
+ " if(id==='./context-study'){",
+ "  const js=ts.transpileModule(fs.readFileSync('src/radar/context-study.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;",
+ "  const imported={exports:{}};",
+ "  vm.runInNewContext(js,{module:imported,exports:imported.exports,require,Date,Set,Map,Number,Math,JSON});",
+ "  return imported.exports;",
+ " }",
+ " return require(id);",
+ "};",
+ "const m={exports:{}};vm.runInNewContext(output,{module:m,exports:m.exports,require:localRequire,Date,Set,Map,Number,Math,JSON});"
+].join('\n');
+learningTest=rep(learningTest,testAnchor,testReplace,'3.0 test runner module resolution');
+write('scripts/test-learning.cjs',learningTest);
+
 const pkg=JSON.parse(read('package.json'));pkg.scripts.test+=' && node scripts/test-context-study.cjs';
 write('package.json',JSON.stringify(pkg,null,2)+'\n');
 fs.appendFileSync('README.md','\n\n## APEX 3.6 Market Pulse x Learning\n- Stores compact pulse context only for NEW paper scenarios reconciled within 10 seconds of creation; missing snapshots remain missing.\n- Historic records are never backfilled using current markets. Backup validation permits optional snapshots and preserves older JSON archives.\n- Shows descriptive TP3/SL outcomes grouped by alignment with the favorite-watchlist Pulse, not by the whole crypto market.\n- Does not modify signal rules, real trading, Guardian, notifications or release signing.\n');
