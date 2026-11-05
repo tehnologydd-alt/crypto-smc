@@ -25,7 +25,7 @@ app=requireChange(app,' const earlyRef=useRef(earlyAlerts);','','early reference
 app=requireChange(app,' const notifyRef=useRef(false);','','notify reference');
 app=app.replace(/^ useEffect\(\(\)=>\{earlyRef\.current=earlyAlerts;.*$/m," useEffect(()=>{try{localStorage.setItem('apex_v26_notification_prefs',JSON.stringify(stagePrefs));}catch{}},[stagePrefs]);");
 app=app.replace(/^ useEffect\(\(\)=>\{notifyRef\.current=alerts;.*$/m," useEffect(()=>{try{localStorage.setItem('apex_v2_alerts',String(alerts));}catch{}},[alerts]);");
-app=requireChange(app,"      try{localStorage.setItem('apex_lifecycle_alert_'+item.id+'_'+item.status+'_'+(item.tpReached||0),'1');}catch{}","      try{localStorage.setItem('apex_v26_stage_sent_'+item.id,item.status+':'+(item.tpReached||0));}catch{}",'background event dedupe');
+app=app.replace(/^      try\{localStorage\.setItem\(\`apex_lifecycle_alert_.*$/m,"      try{localStorage.setItem('apex_v26_stage_sent_'+item.id,item.status+':'+(item.tpReached||0));}catch{}");
 app=requireChange(app,"  void applyBackgroundUpdates();void nativeForegroundHeartbeat().catch(()=>{});",
 "  void applyBackgroundUpdates();void nativeForegroundHeartbeat().catch(()=>{});void checkOpenedScenario();",'initial tap');
 app=requireChange(app," const onResume=()=>{if(!document.hidden){void nativeForegroundHeartbeat().catch(()=>{});void applyBackgroundUpdates();}};",
