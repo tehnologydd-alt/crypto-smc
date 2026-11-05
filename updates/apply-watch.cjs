@@ -105,3 +105,6 @@ require('./apply-v31.cjs');
 
 // APEX 3.2 research archive/restore and local diagnostics.
 require('./apply-v32.cjs');
+
+// APEX 3.3: observe data quality without changing scenario rules.
+require('./apply-v33.cjs');

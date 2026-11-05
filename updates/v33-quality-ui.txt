@@ -1,0 +1,18 @@
+   <section className="rounded-2xl border border-cyan-500/20 bg-[#111b2a] p-4 space-y-3">
+     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-cyan-200">Контроль качества данных</h3><span className="text-[11px] text-slate-400">APEX 3.3</span></div>
+     <p className="text-xs text-slate-400">Свежесть живых котировок, закрытые свечи M5/H1/H4, пропуски, дубли и ошибки OHLC. Это состояние данных, а не вероятность успешного сигнала.</p>
+     {!candidates.length&&<p className="text-xs text-slate-400">Добавь монеты в избранное, чтобы видеть состояние источников.</p>}
+     {candidates.map(a=>{const q=qualityReports[a.symbol];return <div key={a.symbol} className="rounded-xl border border-white/10 bg-slate-950/20 p-3 space-y-2">
+       <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{pairName(a.symbol)}</strong>
+        <span className={'text-xs font-semibold '+(q.level==='ok'?'text-teal-300':q.level==='warning'?'text-amber-300':q.level==='loading'?'text-slate-400':'text-rose-300')}>{q.label}</span></div>
+       <p className="text-[11px] text-slate-400">Последний LIVE-тик: {ageLabel(q.tickAgeMs)} назад{q.tickFresh?' · свежий':' · не подтверждён'}</p>
+       <div className="grid grid-cols-3 gap-2">{FRAMES.map(f=>{const item=q.frames[f];return <div key={f} className="rounded-lg border border-white/10 p-2 text-center">
+         <strong className="text-xs">{f.toUpperCase()}</strong>
+         <p className={'text-[10px] mt-1 '+(item.status==='ok'?'text-teal-300':item.status==='gaps'?'text-amber-300':'text-rose-300')}>{item.status==='ok'?'Готово':item.status==='gaps'?'Пропуски':item.status==='missing'?'Мало свечей':item.status==='stale'?'Устарели':'Ошибка'}</p>
+         <p className="text-[10px] text-slate-500 mt-1">{item.closedCount} свечей</p>
+        </div>})}</div>
+       {q.notes.slice(0,3).map((reason,i)=><p className="text-[11px] text-slate-400" key={i}>• {reason}</p>)}
+     </div>})}
+     <button type="button" disabled={isReloading||!favorites.length} onClick={()=>void reload(favorites)} className="w-full rounded-lg border border-cyan-600/40 bg-cyan-500/10 text-cyan-200 py-2.5 text-xs font-semibold disabled:opacity-40">{isReloading?'Проверяем…':'Обновить свечи избранного'}</button>
+     <p className="text-[11px] text-slate-500">Проверка работает по загруженным данным телефона. Не меняет этапы прогнозов, не открывает ордера и не отправляет новых уведомлений.</p>
+   </section>
