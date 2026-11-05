@@ -94,4 +94,5 @@ if(fs.existsSync(bundle)){
 // APEX 2.8: allow full scroll of the last card and a virtual scenario journal.
 require('./apply-v28.cjs');
 
-// Guardian passport will be enabled after compatibility tests with the restored UI.
+// APEX 2.9 Passport & Guardian applied after current 2.8 patch.
+require('./apply-v29.cjs');
