@@ -102,3 +102,6 @@ require('./apply-v30.cjs');
 
 // APEX 3.1 prospective Research, after Learning 3.0.
 require('./apply-v31.cjs');
+
+// APEX 3.2 research archive/restore and local diagnostics.
+require('./apply-v32.cjs');
