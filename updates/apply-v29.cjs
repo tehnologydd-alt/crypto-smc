@@ -13,7 +13,7 @@ if(!actual)throw Error('APEX 2.9 group component declaration not found');
 const componentName=actual[1];
 app=app.replace(declaration,(_,name,props)=>'function '+name+'({group,now,onDemo,savedIds,asset}:{'+props+';asset?:AssetState}){');
 console.log('APEX 2.9 group:',componentName,'lead:',app.match(/const lead=[^\n]+/)?.[0]||'none');
-const leadLine=" const lead=group.scenarios[0];";
+const leadLine="const lead=group.scenarios[0];";
 replaceOnce(leadLine,leadLine+"\n const passport=evaluatePassport(lead,asset?{price:asset.price,lastTick:asset.lastTick,signals:asset.signals,volumeRatio:asset.volumeRatio}:null,now);",'Guardian evaluation');
 const start="<ScenarioCard scenario={lead} now={now} onDemo={onDemo}";
 const ui=fs.readFileSync('updates/v29-passport.txt','utf8');
