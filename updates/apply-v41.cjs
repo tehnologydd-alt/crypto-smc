@@ -87,8 +87,8 @@ const newFreeze=[
 app=rep(app,oldFreeze,newFreeze,'holdout frozen only for independent cohort');
 app=rep(app,'if(favorites.includes(asset.symbol)){',
 'if(isCoreSymbol(asset.symbol)||favorites.includes(asset.symbol)){','automatic paper scenarios from all fixed research symbols');
-app=rep(app,'if(emit){\n     for(const frame of FRAMES){',
-'if(emit&&favorites.includes(asset.symbol)){\n     for(const frame of FRAMES){',
+app=rep(app,'if(emit){',
+'if(emit&&favorites.includes(asset.symbol)){',
 'raw confirmation history stays personal');
 app=rep(app,'cache.current=Object.fromEntries(favorites.map(s=>[s,cache.current[s]||fresh(s)]));',
 'cache.current=Object.fromEntries(monitoredSymbols.map(s=>[s,cache.current[s]||fresh(s)]));',
