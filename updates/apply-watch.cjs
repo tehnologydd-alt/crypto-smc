@@ -108,3 +108,6 @@ require('./apply-v32.cjs');
 
 // APEX 3.3: observe data quality without changing scenario rules.
 require('./apply-v33.cjs');
+
+// APEX 3.4: collapsed health panel and descriptive error analysis.
+require('./apply-v34.cjs');
