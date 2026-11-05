@@ -19,14 +19,14 @@ const compact=[
 '   <section className="rounded-2xl border border-cyan-500/20 bg-[#111b2a] p-4">',
 '     <button type="button" aria-expanded={qualityExpanded} aria-label="Развернуть или свернуть контроль качества данных" onClick={()=>setQualityExpanded(x=>!x)} className="flex items-center justify-between gap-3 w-full text-left min-h-[44px]">',
 '       <span className="flex-1 space-y-1"><strong className="text-sm text-cyan-200">Контроль качества данных</strong>',
-'         <span className="block text-xs text-slate-400">Проблемных источников: {candidates.filter(a=>qualityReports[a.symbol].level===\\'bad\\'||qualityReports[a.symbol].level===\\'warning\\').length} из {candidates.length}</span>',
-'       </span><span className="text-cyan-200 text-lg" aria-hidden="true">{qualityExpanded?\\'−\\':\\'+\\'}</span>',
+'         <span className="block text-xs text-slate-400">Проблемных источников: {candidates.filter(a=>qualityReports[a.symbol].level==="bad"||qualityReports[a.symbol].level==="warning").length} из {candidates.length}</span>',
+'       </span><span className="text-cyan-200 text-lg" aria-hidden="true">{qualityExpanded?"−":"+"}</span>',
 '     </button>',
 '     {qualityExpanded&&<div className="space-y-3 pt-3 border-t border-white/10 mt-2">',
 details,
 '     </div>}',
 '   </section>'
-].join('\n').replace(/\\'/g,"'");
+].join('\n');
 replaceOnce(original,compact,'collapsible quality panel');
 const journal="   <section className=\"rounded-2xl border border-teal-500/20 bg-[#101a2a] p-3 space-y-2\">";
 replaceOnce(journal,read('updates/v34-postmortem-ui.txt')+'\n'+journal,'postmortem in signal history');
