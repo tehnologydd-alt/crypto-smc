@@ -1,0 +1,22 @@
+<div className="rounded-xl border border-emerald-500/20 bg-emerald-950/15 p-3 space-y-2">
+ <button type="button" aria-expanded={pulseHoldoutExpanded} onClick={()=>setPulseHoldoutExpanded(x=>!x)} className="flex w-full min-h-[44px] items-center justify-between gap-3 text-left">
+  <span><strong className="text-xs text-emerald-200">Проверка на будущих данных · 3.9</strong>
+   <span className="block text-[11px] text-slate-400">{pulseHoldoutStats.verdict==='not-frozen'?'Ожидаем устойчивую гипотезу':('Новых наблюдений: '+pulseHoldoutStats.futureTotal+' · проверено недель: '+pulseHoldoutStats.testedWeeks+'/3')}</span></span>
+  <span aria-hidden="true" className="text-emerald-200">{pulseHoldoutExpanded?'−':'+'}</span>
+ </button>
+ {pulseHoldoutExpanded&&<div className="space-y-2 border-t border-white/10 pt-2">
+  {pulseHoldoutStats.frozenAt===null?
+   <p className="text-xs text-slate-300">После трёх подходящих недель с повторяющимся результатом APEX один раз зафиксирует направление гипотезы и начнёт проверку только на новых прогнозах.</p>:
+   <>
+    <p className="text-xs text-slate-300">Гипотеза: <strong>{pulseHoldoutStats.expected==='with-pulse'?'По направлению Market Pulse':'Против направления Market Pulse'}</strong></p>
+    <p className="text-[11px] text-slate-400">Зафиксирована: {new Date(pulseHoldoutStats.frozenAt).toISOString().slice(0,16).replace('T',' ')} UTC. Проверка с {new Date(pulseHoldoutStats.nextFullWeek!).toISOString().slice(0,10)} UTC.</p>
+    <p className="text-xs text-emerald-200">{pulseHoldoutStats.verdict==='collecting'?'Собираем новые завершённые наблюдения.':pulseHoldoutStats.verdict==='repeated'?'Направление повторилось на первых трёх новых неделях. Это наблюдение, не доказательство будущей точности.':'Направление не повторилось во всех трёх новых неделях: гипотеза не подтверждена.'}</p>
+    {pulseHoldoutStats.weeks.map(w=><div key={w.start} className="rounded-lg bg-slate-900/30 border border-white/10 p-2 space-y-1">
+     <div className="flex items-center justify-between text-[11px] gap-2"><strong>{new Date(w.start).toISOString().slice(0,10)}</strong><span className="text-slate-400">{w.eligible?'Подходит':w.mature?'Мало данных':'Не завершена / выдержка'}</span></div>
+     <p className="text-[11px] text-slate-300">По Pulse: TP3 {w.withTP3}, SL {w.withSL} · Против: TP3 {w.againstTP3}, SL {w.againstSL}</p>
+     <p className="text-[10px] text-slate-500">Ожидают: {w.pending} · Остальные: {w.other}{w.deltaPct===null?'':' · Разница: '+w.deltaPct.toFixed(1)+' п.п.'}</p>
+    </div>)}
+   </>}
+  <p className="text-[10px] text-slate-500">{pulseHoldoutStats.note}</p>
+ </div>}
+</div>
