@@ -1,0 +1,17 @@
+name: APEX Layout Inspection (temporary)
+on:
+  push:
+    branches: [apex-intelligence-v2]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect restored APEX layout
+        run: |
+          base64 -d source/APEX_Intelligence_V2.b64.txt | tar -xJf -
+          if [ -f source/APEX_Intelligence_2_3_overlay.b64.txt ]; then base64 -d source/APEX_Intelligence_2_3_overlay.b64.txt | tar -xJf -; fi
+          node updates/apply-watch.cjs
+          nl -ba src/App.tsx | sed -n '390,730p'
