@@ -76,4 +76,7 @@ fs.copyFileSync('updates/test-watch.cjs','scripts/test-watch.cjs');
 let pkg=read('package.json');
 pkg=change(pkg,'node scripts/test-early.cjs"','node scripts/test-early.cjs && node scripts/test-watch.cjs"','tests');
 write('package.json',pkg);
+let config=JSON.parse(read('tsconfig.json'));
+config.exclude=[...new Set([...(config.exclude||[]),'updates'])];
+write('tsconfig.json',JSON.stringify(config,null,2)+'\n');
 console.log('APEX 2.5 stable WATCH overlay applied');
