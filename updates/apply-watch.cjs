@@ -99,3 +99,6 @@ require('./apply-v29.cjs');
 
 // APEX 3.0 Learning, global alert mute and screen awake, after Passport.
 require('./apply-v30.cjs');
+
+// APEX 3.1 prospective Research, after Learning 3.0.
+require('./apply-v31.cjs');
