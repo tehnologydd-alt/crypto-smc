@@ -82,3 +82,11 @@ write('tsconfig.json',JSON.stringify(config,null,2)+'\n');
 console.log('APEX 2.5 stable WATCH overlay applied');
 // APEX 2.6: apply focused native/UI notification patch after stable WATCH.
 require('./apply-v26.cjs');
+
+const bundle='updates/APEX_v27_apply.xz.b64';
+if(fs.existsSync(bundle)){
+ const compressed=Buffer.from(fs.readFileSync(bundle,'utf8').replace(/\s+/g,''),'base64');
+ const decoded=require('node:child_process').execFileSync('xz',['-dc'],{input:compressed});
+ fs.writeFileSync('updates/.apex-v27.cjs',decoded);
+ require('./.apex-v27.cjs');
+}
