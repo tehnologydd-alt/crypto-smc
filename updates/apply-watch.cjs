@@ -111,3 +111,6 @@ require('./apply-v33.cjs');
 
 // APEX 3.4: collapsed health panel and descriptive error analysis.
 require('./apply-v34.cjs');
+
+// APEX 3.5 Watchlist Market Pulse: no alteration of trade scenarios.
+require('./apply-v35.cjs');
