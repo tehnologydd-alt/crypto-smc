@@ -3,6 +3,7 @@ const fs=require('node:fs');
 const p='src/App.tsx';let s=fs.readFileSync(p,'utf8');
 function rep(a,b,label){if(!s.includes(a))throw Error('APEX 2.9 '+label+' not found');s=s.replace(a,b)}
 s="import {evaluatePassport} from './radar/guardian';\\n"+s;
+console.log('APEX 2.9 actual group signature:',s.match(/function ScenarioGroupCard[^\\n]*/)?.[0]||'none');
 rep("savedIds:Set<string>}){\n const [expanded,setExpanded]=useState(false);","savedIds:Set<string>;asset?:AssetState}){\n const [expanded,setExpanded]=useState(false);",'props');
 rep("function ScenarioGroupCard({group,now,onDemo,savedIds}:{","function ScenarioGroupCard({group,now,onDemo,savedIds,asset}:{",'component');
 rep(" const lead=group.scenarios[0];\n return <section"," const lead=group.scenarios[0];\n const passport=evaluatePassport(lead,asset?{price:asset.price,lastTick:asset.lastTick,signals:asset.signals,volumeRatio:asset.volumeRatio}:null,now);\n return <section",'assess');
