@@ -1,5 +1,5 @@
 /** Stable preliminary market observation; separate from confirmed signals and paper scenarios. */
-import {FRAME_DURATION,type Candle,type RadarSignal,type Timeframe} from '../src/radar/engine';
+import {FRAME_DURATION,type Candle,type RadarSignal,type Timeframe} from './engine';
 export type WatchMemory={signal:RadarSignal;firstSeenAt:number;lastSeenAt:number;quietSince:number|null;anchorHigh:number;anchorLow:number};
 export type WatchDecision={memory:WatchMemory|null;signal:RadarSignal|null;reason:string};
 export type WatchContext={now:number;frame:Timeframe;price:number;rangeHigh:number;rangeLow:number;lastClosed:Candle|null;liveFresh:boolean};
