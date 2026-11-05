@@ -78,13 +78,13 @@ const mainPath='native/android/app/src/main/java/com/apexintelligence/monitor/Ma
 let main=read(mainPath);const mainAnchor='    @Override protected void onNewIntent(Intent intent){';
 // MainActivity may not contain onNewIntent in every release; insert before the final class brace.
 const lifecycle=[
-'    @Override protected void onResume(){',
+'    @Override public void onResume(){',
 '        super.onResume();',
 '        if(getSharedPreferences(BackgroundMonitorPlugin.PREF,Context.MODE_PRIVATE).getBoolean("keepScreenOn",false))',
 '            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);',
 '        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);',
 '    }',
-'    @Override protected void onPause(){',
+'    @Override public void onPause(){',
 '        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);',
 '        super.onPause();',
 '    }'
