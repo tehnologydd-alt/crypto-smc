@@ -117,3 +117,6 @@ require('./apply-v35.cjs');
 
 // APEX 3.6: snapshot watchlist pulse at scenario creation; no historical backfill.
 require('./apply-v36.cjs');
+
+// APEX 3.7: conservative evidence quality on prospective research outcomes.
+require('./apply-v37.cjs');
