@@ -80,3 +80,5 @@ let config=JSON.parse(read('tsconfig.json'));
 config.exclude=[...new Set([...(config.exclude||[]),'updates'])];
 write('tsconfig.json',JSON.stringify(config,null,2)+'\n');
 console.log('APEX 2.5 stable WATCH overlay applied');
+// APEX 2.6: apply focused native/UI notification patch after stable WATCH.
+require('./apply-v26.cjs');
