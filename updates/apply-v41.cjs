@@ -96,8 +96,9 @@ app=rep(app,'cache.current=Object.fromEntries(favorites.map(s=>[s,cache.current[
 app=rep(app,"if(!favorites.length){setConnection('Добавьте активы в избранное');return;}",
 "if(!monitoredSymbols.length){setConnection('Нет доступных активов');return;}",
 'start invisible core even when favorites empty');
-app=rep(app,'   void reload(favorites);\n   feed.start(favorites);',
-'   void reload(monitoredSymbols);\n   feed.start(monitoredSymbols);','core loads and websocket');
+app=rep(app,'void reload(favorites);','void reload(monitoredSymbols);',
+'core data load');
+app=rep(app,'feed.start(favorites);','feed.start(monitoredSymbols);','core loads and websocket');
 app=rep(app,'void reload(favorites,false);},5*60_000)',
 'void reload(monitoredSymbols,false);},5*60_000)','core refresh interval');
 app=rep(app,'const openGroups=groupedOpen(scenarios);','const openGroups=groupedOpen(presentedScenarios);',
