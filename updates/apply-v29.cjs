@@ -6,8 +6,7 @@ function replaceOnce(before,after,label){
  if(!app.includes(before))throw Error('APEX 2.9 patch missing '+label);
  app=app.replace(before,after);
 }
-replaceOnce("import {exchangePrice} from './radar/prices';",
-  "import {exchangePrice} from './radar/prices';\nimport {evaluatePassport} from './radar/guardian';",'import');
+app="import {evaluatePassport} from './radar/guardian';\n"+app;
 const oldSig="function ScenarioGroupCard({group,now,onDemo,savedIds}:{group:ScenarioGroup;now:number;onDemo?:(s:Scenario)=>void;savedIds?:Set<string>}){";
 const altSig="function ScenarioGroupCard({group,now,onDemo,savedIds}:{group:ScenarioGroup;now:number;onDemo:(s:Scenario)=>void;savedIds:Set<string>}){";
 if(app.includes(oldSig)){
