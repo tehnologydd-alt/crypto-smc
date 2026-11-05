@@ -20,6 +20,6 @@ const only=[...Array(15)].map((_,i)=>mk(100+i,'STOP',opposed,true,0.4));
 const big=analyzePostmortem({version:1,startedAt:1000,records:only});
 assert.equal(big.factors.find(x=>x.key==='h4-conflict').sampleAdequate,true);
 assert.equal(big.factors.find(x=>x.key==='h4-conflict').stopShare,100);
-const empty=analyzePostmortem({version:1,startedAt:1000,records:[mk(0,'TARGET',same)]});
+const empty=analyzePostmortem({version:1,startedAt:1001,records:[mk(0,'TARGET',same)]});
 assert.equal(empty.completed,0);
 console.log('APEX 3.4 postmortem tests PASS: outcomes, TP1-then-stop, snapshots, small samples');
