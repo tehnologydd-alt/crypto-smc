@@ -20,7 +20,7 @@ const ui=fs.readFileSync('updates/v29-passport.txt','utf8');
 replaceOnce(start,ui+start,'Passport UI');
 if(!app.includes('<'+componentName+' group={g} now={now}'))throw Error('APEX 2.9 group use not found');
 app=app.replaceAll('<'+componentName+' group={g} now={now}/>', '<'+componentName+' group={g} now={now} asset={assets[g.symbol]}/>');
-app=app.replaceAll('savedIds={savedDemoIds}/>', 'savedIds={savedDemoIds} asset={assets[g.symbol]}/>');
+app=app.replaceAll('savedIds={savedDemoIds}/>', 'savedIds={savedDemoIds} asset={assets[g.scenarios[0].symbol]}/>');
 replaceOnce('РЫНОЧНЫЙ РАДАР • 2.8','РЫНОЧНЫЙ РАДАР • 2.9','version');
 fs.writeFileSync(file,app);
 fs.copyFileSync('updates/guardian.ts','src/radar/guardian.ts');
