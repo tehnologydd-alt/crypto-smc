@@ -7,7 +7,7 @@ const isObj=(x:unknown):x is Record<string,unknown>=>x!==null&&typeof x==='objec
 const finished=new Set(['TARGET','STOP','CANCELLED','EXPIRED']);
 const allStatuses=new Set(['PENDING','ACTIVE',...finished]);
 const safeString=(x:unknown)=>typeof x==='string'?x:'';
-const finite=(x:unknown)=>typeof x==='number'&&Number.isFinite(x);
+const finite=(x:unknown):x is number=>typeof x==='number'&&Number.isFinite(x);
 const MAX_SIZE=4_000_000,MAX_RECORDS=2000;
 function canonical(x:{kind:string;version:number;exportedAt:number;payload:unknown}):string{return JSON.stringify({kind:x.kind,version:x.version,exportedAt:x.exportedAt,payload:x.payload})}
 /** FNV-1a detects accidental file corruption, not deliberate tampering. */
@@ -18,7 +18,7 @@ function validRecord(r:unknown):r is LearningRecord{
  if(!['5m','1h','4h'].includes(safeString(r.frame))||!['LONG','SHORT'].includes(safeString(r.direction))||!allStatuses.has(safeString(r.status)))return false;
  if(!finite(r.createdAt)||!finite(r.entry)||!finite(r.stop)||r.entry<=0||r.stop<=0||r.entry===r.stop)return false;
  if(!Array.isArray(r.targets)||r.targets.length!==3||!r.targets.every(x=>finite(x)&&x>0))return false;
- if(!finite(r.lastCandleTime)||!Number.isInteger(r.tpReached)||r.tpReached<0||r.tpReached>3)return false;
+ if(!finite(r.lastCandleTime)||typeof r.tpReached!=='number'||!Number.isInteger(r.tpReached)||r.tpReached<0||r.tpReached>3)return false;
  if(r.closedAt!==undefined&&(!finite(r.closedAt)||r.closedAt<r.createdAt))return false;
  if(typeof r.contextCaptured!=='boolean'||!isObj(r.initialVotes))return false;
  for(const f of ['5m','1h','4h'])if(!['LONG','SHORT','UNKNOWN'].includes(safeString(r.initialVotes[f])))return false;
@@ -31,9 +31,9 @@ function validLedger(x:unknown):x is LearningLedger{
  return x.records.every(validRecord)&&new Set(x.records.map((r:LearningRecord)=>r.id)).size===x.records.length;
 }
 function validStudy(x:unknown):x is ResearchStudy{
- if(!isObj(x)||x.version!==1||!finite(x.trainedAt)||!finite(x.trainingCutoff)||!Number.isInteger(x.trainingCount)||x.trainingCount<60||!Array.isArray(x.rules)||x.rules.length>3)return false;
+ if(!isObj(x)||x.version!==1||!finite(x.trainedAt)||!finite(x.trainingCutoff)||typeof x.trainingCount!=='number'||!Number.isInteger(x.trainingCount)||x.trainingCount<60||!Array.isArray(x.rules)||x.rules.length>3)return false;
  const names=['h4-confirmed','h1-confirmed','opposing-frame','volume-surge','h4-scenario','long-direction'];
- return x.rules.every((r:unknown)=>isObj(r)&&names.includes(safeString(r.id))&&typeof r.label==='string'&&r.label.length<500&&finite(r.trainEffect)&&Math.abs(r.trainEffect)<=1&&Number.isInteger(r.trainWith)&&Number.isInteger(r.trainWithout)&&r.trainWith>0&&r.trainWithout>0&&['higher','lower'].includes(safeString(r.expected)));
+ return x.rules.every((r:unknown)=>isObj(r)&&names.includes(safeString(r.id))&&typeof r.label==='string'&&r.label.length<500&&finite(r.trainEffect)&&Math.abs(r.trainEffect)<=1&&typeof r.trainWith==='number'&&typeof r.trainWithout==='number'&&Number.isInteger(r.trainWith)&&Number.isInteger(r.trainWithout)&&r.trainWith>0&&r.trainWithout>0&&['higher','lower'].includes(safeString(r.expected)));
 }
 export function auditLearning(x:LearningLedger):VaultAudit{
  const ids=new Set<string>();let duplicateIds=0,invalid=0,missingSnapshot=0;
