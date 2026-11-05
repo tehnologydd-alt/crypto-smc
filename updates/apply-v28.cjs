@@ -6,12 +6,16 @@ change("type View='radar'|'history'|'settings';",`type View='radar'|'history'|'s
 type DemoTicket={scenarioId:string;symbol:string;frame:Timeframe;direction:'LONG'|'SHORT';createdAt:number;entry:number;stop:number;targets:[number,number,number]};
 const demoStoreKey='apex_v28_demo_journal';
 const loadDemoTickets=():DemoTicket[]=>{try{const data=JSON.parse(localStorage.getItem(demoStoreKey)||'[]');return Array.isArray(data)?data.filter(x=>x&&typeof x.scenarioId==='string'&&Number.isFinite(x.entry)&&Number.isFinite(x.stop)).slice(0,100):[];}catch{return [];}};`);
-change('function ScenarioCard({scenario,now}:{scenario:Scenario;now:number}){','function ScenarioCard({scenario,now,onDemo,isSaved}:{scenario:Scenario;now:number;onDemo:(s:Scenario)=>void;isSaved:boolean}){');
-change('<p className="mt-2 text-[10px] text-slate-500">* Исследовательский сценарий',`{(scenario.status==='PENDING'||scenario.status==='ACTIVE')&&<button type="button" disabled={isSaved} onClick={()=>onDemo(scenario)} className="mt-3 w-full rounded-xl border border-teal-500/40 bg-teal-500/10 py-2.5 text-sm font-medium text-teal-200 disabled:opacity-50">{isSaved?'✓ В демо-журнале':'Добавить в демо-журнал'}</button>}
+change('function ScenarioCard({scenario,now}:{scenario:Scenario;now:number}){','function ScenarioCard({scenario,now,onDemo,isSaved=false}:{scenario:Scenario;now:number;onDemo?:(s:Scenario)=>void;isSaved?:boolean}){');
+change('<p className="mt-2 text-[10px] text-slate-500">* Исследовательский сценарий',`{onDemo&&(scenario.status==='PENDING'||scenario.status==='ACTIVE')&&<button type="button" disabled={isSaved} onClick={()=>onDemo(scenario)} className="mt-3 w-full rounded-xl border border-teal-500/40 bg-teal-500/10 py-2.5 text-sm font-medium text-teal-200 disabled:opacity-50">{isSaved?'✓ В демо-журнале':'Добавить в демо-журнал'}</button>}
   <p className="mt-2 text-[10px] text-slate-500">* Исследовательский сценарий`);
-change('function ScenarioGroupCard({group,now}:{group:ScenarioGroup;now:number}){','function ScenarioGroupCard({group,now,onDemo,savedIds}:{group:ScenarioGroup;now:number;onDemo:(s:Scenario)=>void;savedIds:Set<string>}){');
-change('<ScenarioCard scenario={lead} now={now}/>','<ScenarioCard scenario={lead} now={now} onDemo={onDemo} isSaved={savedIds.has(lead.id)}/>');
-change('<ScenarioCard key={s.id} scenario={s} now={now}/>','<ScenarioCard key={s.id} scenario={s} now={now} onDemo={onDemo} isSaved={savedIds.has(s.id)}/>');
+if(s.includes('function ScenarioGroupCard({group,now}:{group:ScenarioGroup;now:number}){')){
+ change('function ScenarioGroupCard({group,now}:{group:ScenarioGroup;now:number}){','function ScenarioGroupCard({group,now,onDemo,savedIds}:{group:ScenarioGroup;now:number;onDemo?:(s:Scenario)=>void;savedIds?:Set<string>}){');
+}else{
+ change('function GroupCard({group,now}:{group:ReturnType<typeof groupedOpen>[number];now:number}){','function GroupCard({group,now,onDemo,savedIds}:{group:ReturnType<typeof groupedOpen>[number];now:number;onDemo?:(s:Scenario)=>void;savedIds?:Set<string>}){');
+}
+change('<ScenarioCard scenario={lead} now={now}/>','<ScenarioCard scenario={lead} now={now} onDemo={onDemo} isSaved={savedIds?.has(lead.id)??false}/>');
+change('<ScenarioCard key={s.id} scenario={s} now={now}/>','<ScenarioCard key={s.id} scenario={s} now={now} onDemo={onDemo} isSaved={savedIds?.has(s.id)??false}/>');
 change(' const [scenarios,setScenarios]=useState<Scenario[]>(safeScenarios);',` const [scenarios,setScenarios]=useState<Scenario[]>(safeScenarios);
  const [demoTickets,setDemoTickets]=useState<DemoTicket[]>(loadDemoTickets);
  const savedDemoIds=useMemo(()=>new Set(demoTickets.map(t=>t.scenarioId)),[demoTickets]);
@@ -24,7 +28,11 @@ change('<main className="max-w-3xl mx-auto px-4 pt-5 space-y-5">','<main id="ape
 change('pb-[max(env(safe-area-inset-bottom),4px)]','pb-1');
 change('gap-0.5 py-1.5 text-[11px]','justify-center gap-0.5 min-h-[54px] py-1 text-[11px]');
 change('onClick={()=>{setView(x.id);setSelectedDetail(null);}}',"onClick={()=>{setView(x.id);setSelectedDetail(null);window.scrollTo({top:0,behavior:'instant'});}}");
-change('<ScenarioGroupCard group={g} now={now}/>','<ScenarioGroupCard group={g} now={now} onDemo={saveDemoScenario} savedIds={savedDemoIds}/>');
+if(s.includes('<ScenarioGroupCard group={g} now={now}/>'))
+ s=s.replaceAll('<ScenarioGroupCard group={g} now={now}/>','<ScenarioGroupCard group={g} now={now} onDemo={saveDemoScenario} savedIds={savedDemoIds}/>');
+else if(s.includes('<GroupCard group={g} now={now}/>'))
+ s=s.replaceAll('<GroupCard group={g} now={now}/>','<GroupCard group={g} now={now} onDemo={saveDemoScenario} savedIds={savedDemoIds}/>');
+else throw Error('APEX 2.8 group cards missing');
 change('<ScenarioCard scenario={x} now={now}/>','<ScenarioCard scenario={x} now={now} onDemo={saveDemoScenario} isSaved={savedDemoIds.has(x.id)}/>');
 change('   {scenarios.length?<div className="space-y-3">',`   <section className="rounded-2xl border border-teal-500/20 bg-[#101a2a] p-3 space-y-2">
     <div className="flex justify-between items-center gap-2"><strong className="text-sm text-teal-200">Демо-журнал</strong><span className="text-xs text-slate-400">{demoTickets.length} записей</span></div>
