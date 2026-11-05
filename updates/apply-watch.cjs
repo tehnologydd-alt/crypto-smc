@@ -90,3 +90,6 @@ if(fs.existsSync(bundle)){
  fs.writeFileSync('updates/.apex-v27.cjs',decoded);
  require('./.apex-v27.cjs');
 }
+
+// APEX 2.8: allow full scroll of the last card and a virtual scenario journal.
+require('./apply-v28.cjs');
