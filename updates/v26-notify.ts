@@ -1,6 +1,7 @@
 import {Capacitor,registerPlugin} from '@capacitor/core';
 import {LocalNotifications} from '@capacitor/local-notifications';
 import type {Scenario} from './lifecycle';
+import type {RadarSignal} from './engine';
 import {scenarioNotificationId,scenarioStageText,shouldNotifyScenario,STAGE_KEYS,type StagePrefs} from './stages';
 
 export type NativeMonitorStatus={enabled:boolean;intervalMinutes:number;lastRunAt?:number;lastResult?:string};
@@ -59,4 +60,9 @@ export async function publishScenarioStage(s:Scenario,prefs:StagePrefs):Promise<
   new Notification(title,{body,tag:s.id});
  }else return false;
  localStorage.setItem(key,stage);return true;
+}
+
+export function retainAlert(signal:RadarSignal,items:RadarSignal[]):RadarSignal[]{
+ if(items.some(x=>x.id===signal.id))return items;
+ return [signal,...items].slice(0,120);
 }
