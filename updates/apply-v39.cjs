@@ -43,7 +43,7 @@ const validFn=[
 " if(!isObj(x)||x.version!==1||!finite(x.frozenAt)||!finite(x.trainingCutoff)||x.trainingCutoff>x.frozenAt||",
 "  !['with-pulse','against-pulse'].includes(safeString(x.expected))||!Array.isArray(x.trainingWeeks)||",
 "  x.trainingWeeks.length<3||x.trainingWeeks.length>8)return false;",
-" return x.trainingWeeks.every(w=>finite(w)&&Number.isInteger(w)&&w>=0&&w<x.frozenAt)&&",
+" return x.trainingWeeks.every(w=>finite(w)&&Number.isInteger(w)&&w>=0&&w<(x.frozenAt as number))&&",
 "  new Set(x.trainingWeeks).size===x.trainingWeeks.length;",
 "}",
 ""
