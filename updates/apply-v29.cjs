@@ -7,6 +7,7 @@ function replaceOnce(before,after,label){
  app=app.replace(before,after);
 }
 app="import {evaluatePassport} from './radar/guardian';\n"+app;
+console.log('APEX 2.9 group signatures:',app.match(/function (?:ScenarioGroupCard|GroupCard)[^\n]*/g));
 const oldSig="function ScenarioGroupCard({group,now,onDemo,savedIds}:{group:ScenarioGroup;now:number;onDemo?:(s:Scenario)=>void;savedIds?:Set<string>}){";
 const altSig="function ScenarioGroupCard({group,now,onDemo,savedIds}:{group:ScenarioGroup;now:number;onDemo:(s:Scenario)=>void;savedIds:Set<string>}){";
 if(app.includes(oldSig)){
