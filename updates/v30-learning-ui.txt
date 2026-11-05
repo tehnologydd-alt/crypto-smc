@@ -1,0 +1,13 @@
+   <section className="rounded-2xl border border-sky-500/20 bg-[#0d1c2a] p-4 space-y-3">
+     <div className="flex flex-wrap justify-between items-center gap-2"><strong className="text-sm text-sky-200">APEX Learning Engine · наблюдения</strong><span className="text-xs text-slate-400">{learningReport.total} новых сценариев</span></div>
+     <p className="text-[11px] text-slate-400">Учёт с {new Date(learning.startedAt).toLocaleString('ru-RU')}. Старые сигналы сохранены в истории, но исключены из новой выборки. Факторы на момент появления сценария не переписываются задним числом.</p>
+     <div className="grid grid-cols-3 gap-2">{FRAMES.map(f=>{const r=learningReport.frames[f];return <div key={f} className="rounded-xl border border-white/10 bg-slate-900/30 p-2 text-center space-y-1">
+        <b className="text-sm">{f.toUpperCase()}</b>
+        <p className="text-xs text-slate-300">{r.total} создано</p><p className="text-[11px] text-teal-300">TP3 {r.targets} · SL {r.stops}</p>
+        <p className="text-[11px] text-slate-400">{r.evaluated?('TP3 '+r.targetShare?.toFixed(1)+'% из '+r.evaluated):'Нет завершённых'}</p>
+        <p className="text-[10px] text-amber-200">{r.credible?'Предварительная выборка':'Мало данных'}</p>
+      </div>})}</div>
+     <p className="text-xs text-slate-300">Всего TP1: {learningReport.overall.tp1}, TP2: {learningReport.overall.tp2}. Отменены: {learningReport.overall.cancelled}, просрочены: {learningReport.overall.expired}. TP1 с последующим стопом учитывается как стоп.</p>
+     <p className="text-xs text-slate-400">При создании: без противоречий {learningReport.aligned.total}, с противоречиями {learningReport.conflicted.total}, без надёжного снимка {learningReport.unknown.total}. Это классы наблюдений, не вероятность прибыли.</p>
+     <p className="text-[11px] text-amber-200/80">Для предварительного сравнения нужны минимум 30 завершённых TP3/SL в категории. Даже большая выборка не гарантирует будущих результатов. Нет реальных ордеров, комиссий или проскальзывания.</p>
+   </section>

@@ -96,3 +96,6 @@ require('./apply-v28.cjs');
 
 // APEX 2.9 Passport & Guardian applied after current 2.8 patch.
 require('./apply-v29.cjs');
+
+// APEX 3.0 Learning, global alert mute and screen awake, after Passport.
+require('./apply-v30.cjs');
