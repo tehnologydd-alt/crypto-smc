@@ -132,3 +132,6 @@ require('./apply-v40.cjs');
 
 // APEX 4.1: independent fixed research universe with isolated forward cohorts.
 require('./apply-v41.cjs');
+
+// APEX 4.2: explicitly measure CORE observation coverage and gate incomplete snapshots.
+require('./apply-v42.cjs');
