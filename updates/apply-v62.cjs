@@ -97,12 +97,4 @@ fs.appendFileSync('src/index.css','\n'+read('updates/v62-theme.css'));
 fs.copyFileSync('updates/test-layout-v62.cjs','scripts/test-layout-v62.cjs');
 const pkg=JSON.parse(read('package.json'));pkg.scripts.test+=' && node scripts/test-layout-v62.cjs';write('package.json',JSON.stringify(pkg,null,2)+'\n');
 fs.appendFileSync('README.md','\n\n## APEX 6.2 Premium Dark UX\n- Multicolor, accessible Radar (cyan/teal) and Signals (violet/blue), semantic pending amber/active blue/finished emerald colors; no monochrome screen. Compact Market Pulse, one-line watch observations and favorite quality warnings only when not OK. Original chart and asset detail remain accessible.\n- Signal cards show recorded creation, activation and completion separately; an expired/cancelled scenario never falsely shows an activation. TP segments represent stored tpReached only. Research and virtual studies unchanged.\n- Settings on/off controls are accessible switches for notifications, screen-on, background WorkManager and eight stage notification preferences. Existing persistence and onClick handlers preserved.\n- Native scheduler, signal calculations, notification delivery, wallet API, learning and CORE archival protocols unchanged. Reduced motion and focus-visible controls supported.\n');
-const debugTest='scripts/test-layout-v60.cjs';
-let debug=read(debugTest);
-const assertion="assert.equal(parsed.parseDiagnostics.length,0,";
-if(!debug.includes(assertion))throw Error('No historical parse assertion');
-debug=debug.replace(assertion,
- 'for(const d of parsed.parseDiagnostics){const pos=d.start||0,loc=parsed.getLineAndCharacterOfPosition(pos);console.error("V62_PARSE_ERROR",loc.line+1,loc.character+1,JSON.stringify(s.slice(Math.max(0,pos-380),pos+380)));}\n'+assertion);
-write(debugTest,debug);
-
 console.log('APEX 6.2 visual redesign and switch actions applied');

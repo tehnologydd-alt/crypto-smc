@@ -7,4 +7,4 @@
 {entryRecorded&&(scenario.tpReached||0)>0&&<div className="mt-2 flex items-center justify-between gap-2">
  <span className="text-[11px] text-emerald-200">Отмечено TP{scenario.tpReached} из 3</span>
  <div className="flex w-32 gap-1">{[1,2,3].map(i=><span key={i} className={'h-1.5 flex-1 rounded-full '+((scenario.tpReached||0)>=i?'bg-emerald-400':'bg-slate-700')}/>)}</div>
-</div>
+</div>}
