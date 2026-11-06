@@ -124,7 +124,7 @@ export function advanceFuturesTicket(original:FutureTicket,bars:FutureBar[],now=
   // Candle opened before demo registration: intrabar entry timing is unknowable.
   if(b.time<o.createdAt)continue;
   if(o.state==='WAITING'){
-   if(b.time>=p.expiresAt){o=close(o,p.expiresAt,'Срок виртуального лимита истёк.','EXPIRED');break;}
+   if(at>p.expiresAt){o=close(o,p.expiresAt,'Срок виртуального лимита истёк; внутрисвечное касание на границе срока не считается подтверждённым.','EXPIRED');break;}
    if(b.low<=p.entry&&b.high>=p.entry){
     o=event({...o,state:'OPEN',activatedAt:at},at,'ENTRY','Касание виртуального LIMIT по завершённой фьючерсной свече; точное исполнение неизвестно.');
     if(stopHit(o,b)){o=close(o,at,'На свече входа затронута защита; консервативный выход.','STOP',o.protectiveStop);break;}
