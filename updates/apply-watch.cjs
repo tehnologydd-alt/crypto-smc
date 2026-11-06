@@ -183,3 +183,6 @@ require('./apply-v60.cjs');
 
 // APEX 6.1: separate Radar observations and staged virtual Signals without another pyramid.
 require('./apply-v61.cjs');
+
+// APEX 6.2: premium multicolor design, signal lifecycle and Settings on/off switches.
+require('./apply-v62.cjs');
