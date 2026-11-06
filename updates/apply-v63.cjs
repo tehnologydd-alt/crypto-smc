@@ -36,6 +36,7 @@ for(const f of fs.readdirSync('scripts').filter(f=>f.startsWith('test-')&&f.ends
  if(f==='test-layout-v40.cjs'||f==='test-layout-v60.cjs')contents=contents.replaceAll('grid grid-cols-4','grid grid-cols-5');
  if(f==='test-layout-v621.cjs')contents=contents.replaceAll('РЫНОЧНЫЙ РАДАР • 6.2.1','РЫНОЧНЫЙ РАДАР • 6.3');
  if(f==='test-layout-v62.cjs')contents=contents.replaceAll('РЫНОЧНЫЙ РАДАР • 6.2','РЫНОЧНЫЙ РАДАР • 6.3');
+ if(f==='test-layout-v62.cjs')contents=contents.replace("assert.equal((s.match(/<APEXSwitch /g)||[]).length,3,'three general settings switches');","assert.equal((s.match(/<APEXSwitch /g)||[]).length,4,'three Settings switches plus Assistant BE switch');");
  write(p,contents);
 }
 const pkg=JSON.parse(read('package.json'));
