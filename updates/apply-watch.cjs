@@ -189,3 +189,6 @@ require('./apply-v62.cjs');
 
 // APEX 6.2.1: stabilize Radar favorite cards during live price and data-quality updates.
 require('./apply-v621.cjs');
+
+// APEX 6.3: demo-only Assistant, journal, limited automatic virtual accompaniment.
+require('./apply-v63.cjs');
