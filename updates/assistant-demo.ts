@@ -6,6 +6,10 @@ export type AssistantMode='manual'|'auto';
 export type DemoStatus='WAITING'|'OPEN'|'CLOSED'|'EXPIRED'|'CANCELLED'|'NEEDS_REVIEW';
 export type DemoExit='TP3'|'STOP'|'BREAK_EVEN'|'REVERSAL'|'EXPIRED'|'CANCELLED'|'MANUAL'|'DATA_GAP';
 export type DemoEvent={at:number;type:string;price:number|null;note:string};
+export type DemoContext={
+ capturedAt:number;signalId:string;forecastReason:string;price:number|null;quoteAgeMs:number|null;
+ volumeRatio:number|null;votes:Record<Timeframe,{phase:'WATCH'|'CONFIRMED'|'NONE';direction:'LONG'|'SHORT'|null}>;
+};
 export type DemoOrder={
  id:string;scenarioId:string;symbol:string;frame:Timeframe;direction:'LONG'|'SHORT';
  kind:'LIMIT';marketSource:'binance-public';virtualAmount:number;
@@ -13,11 +17,11 @@ export type DemoOrder={
  tpShares:[number,number,number];tpReached:number;remainingShare:number;breakEven:boolean;
  grossPnl:number;status:DemoStatus;createdAt:number;expiresAt:number;lastCandleTime:number;
  lastTpCandleTime:number;activatedAt?:number;closedAt?:number;closedPrice?:number;
- exit?:DemoExit;note:string;events:DemoEvent[];origin:'manual'|'auto';
+ exit?:DemoExit;note:string;events:DemoEvent[];origin:'manual'|'auto';context:DemoContext;
 };
 export type AssistantBook={version:1;mode:AssistantMode;autoSince:number;orders:DemoOrder[]};
 export type AssistantMarket={price:number;lastTick:number;signals:Partial<Record<Timeframe,RadarSignal|null>>;
- candles?:Candle[];frames?:Partial<Record<Timeframe,Candle[]>>};
+ candles?:Candle[];frames?:Partial<Record<Timeframe,Candle[]>>;volumeRatio?:number};
 export const ASSISTANT_STORE='apex_v63_demo_assistant';
 export const TP_SPLIT:[number,number,number]=[0.4,0.3,0.3];
 const frameMs:Record<Timeframe,number>={'5m':300_000,'1h':3_600_000,'4h':14_400_000};
@@ -50,7 +54,20 @@ export function setAssistantMode(book:AssistantBook,mode:AssistantMode,now:numbe
  if(book.mode===mode)return book;
  return {...book,mode,autoSince:mode==='auto'?now:0};
 }
-export function makeDemoLimit(s:Scenario,now:number,amount=100,origin:'manual'|'auto'='manual'):DemoOrder|null{
+function captureContext(s:Scenario,m:AssistantMarket|undefined,now:number):DemoContext{
+ const votes={} as DemoContext['votes'];
+ for(const frame of ['5m','1h','4h'] as Timeframe[]){
+  const signal=m?.signals?.[frame];
+  votes[frame]={phase:signal?.phase==='CONFIRMED'||signal?.phase==='WATCH'?signal.phase:'NONE',
+   direction:signal&&(signal.direction==='LONG'||signal.direction==='SHORT')?signal.direction:null};
+ }
+ return {capturedAt:now,signalId:s.originalSignalId,forecastReason:s.reason,
+  price:fresh(m,now)?m!.price:null,
+  quoteAgeMs:m?.lastTick&&m.lastTick<=now?now-m.lastTick:null,
+  volumeRatio:Number.isFinite(m?.volumeRatio)?m!.volumeRatio!:null,votes};
+}
+export function makeDemoLimit(s:Scenario,now:number,amount=100,origin:'manual'|'auto'='manual',
+ m?:AssistantMarket):DemoOrder|null{
  if(s.status!=='PENDING'||!positive(s.entry)||!positive(s.stop)
     ||!Array.isArray(s.targets)||s.targets.length!==3||!s.targets.every(positive)
     ||!Number.isFinite(s.expiresAt)||now>=s.expiresAt||!positive(amount))return null;
@@ -61,13 +78,13 @@ export function makeDemoLimit(s:Scenario,now:number,amount=100,origin:'manual'|'
   entry:s.entry,initialStop:s.stop,effectiveStop:s.stop,targets:[...s.targets] as [number,number,number],
   tpShares:[...TP_SPLIT],tpReached:0,remainingShare:1,breakEven:false,grossPnl:0,
   status:'WAITING',createdAt:now,expiresAt:s.expiresAt,lastCandleTime:s.lastCandleTime,
-  lastTpCandleTime:0,origin,events:[{at:now,type:'CREATED',price:null,note:'Виртуальная LIMIT заявка создана из прогноза APEX.'}],
+  lastTpCandleTime:0,origin,context:captureContext(s,m,now),events:[{at:now,type:'CREATED',price:null,note:'Виртуальная LIMIT заявка создана из прогноза APEX.'}],
   note:'Ожидаем вход по лимитной цене. Истечение не относится к активной позиции.'};
 }
-export function addManualDemo(book:AssistantBook,s:Scenario,now:number,amount=100):AssistantBook{
+export function addManualDemo(book:AssistantBook,s:Scenario,now:number,amount=100,m?:AssistantMarket):AssistantBook{
  if(book.mode!=='manual'||book.orders.some(o=>o.scenarioId===s.id)
     ||book.orders.filter(o=>!terminal.has(o.status)).length>=3)return book;
- const order=makeDemoLimit(s,now,amount,'manual');
+ const order=makeDemoLimit(s,now,amount,'manual',m);
  return order?{...book,orders:[order,...book.orders].slice(0,250)}:book;
 }
 function finish(o:DemoOrder,status:DemoStatus,exit:DemoExit,at:number,price:number,note:string):DemoOrder{
@@ -179,7 +196,7 @@ export function reconcileAssistant(book:AssistantBook,scenarios:Scenario[],marke
    const m=markets[s.symbol],signal=m?.signals?.[s.frame||'5m'];
    if(!fresh(m,now)||signal?.phase!=='CONFIRMED'||signal.direction!==s.direction
      ||signal.id!==s.originalSignalId)continue;
-   const order=makeDemoLimit(s,now,100,'auto');
+   const order=makeDemoLimit(s,now,100,'auto',m);
    if(order){orders=[order,...orders];changed=true;}
   }
  }
