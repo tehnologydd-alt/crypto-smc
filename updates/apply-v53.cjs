@@ -54,7 +54,7 @@ const block=[
 "   const backup=importCoreMemory(file,Date.now());",
 "   const merged=mergeCoreMemory(coreMemory,backup,Date.now());",
 "   const added=merged.days.length-coreMemory.days.length+merged.h1.length-coreMemory.h1.length+merged.h4.length-coreMemory.h4.length+merged.reports.length-coreMemory.reports.length;",
-"   if(added===0){setCoreMemoryMessage('Все данные архива уже есть.');return;}",
+"   if(added===0&&!coreMemoryQuarantined){setCoreMemoryMessage('Все данные архива уже есть.');return;}",
 "   if(!window.confirm('Импортировать '+added+' новых записей в долгосрочный архив CORE? Рабочие сигналы и активные исследования не затрагиваются.')){setCoreMemoryMessage('Импорт отменён.');return;}",
 "   localStorage.setItem('apex_v53_core_memory',JSON.stringify(merged));",
 "   setCoreMemory(merged);setCoreMemoryQuarantined(false);setCoreMemoryMessage('Архив восстановлен: добавлено '+added+' записей.');",
