@@ -56,7 +56,7 @@ assert.equal(volume.binance.rows.find(r=>r.key==='low').later.n,1);
 assert.equal(volume.binance.rows.find(r=>r.key==='high').all.negative,1);
 assert.equal(volume.bybit.rows.find(r=>r.key==='unknown').all.n,1);
 assert.equal(volume.bybit.rows.find(r=>r.key==='high').later.n,1);
-assert.equal(volume.cutoverAt,laterAt-1000+7*DAY);
+assert.equal(volume.cutoverAt,laterAt-1000,'seven-day split is anchored to immutable protocol start');
 assert.equal(volume.binance.rows.find(r=>r.key==='low').all.avgGrossPct,2,'gross % is averaged by original notional (2/100,4/200)');
 assert.equal(volume.binance.rows.find(r=>r.key==='low').all.tp1,2);
 assert.equal(volume.binance.rows.find(r=>r.key==='high').all.status,'SMALL');
