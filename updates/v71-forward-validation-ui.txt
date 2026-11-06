@@ -1,0 +1,42 @@
+<details className="rounded-2xl border border-sky-400/20 bg-[#121e30] p-3.5">
+ <summary className="cursor-pointer text-sm font-semibold text-white">APEX 7.1 · Проверка гипотез на новых данных</summary>
+ <div className="space-y-3 pt-3">
+  <p className="text-[11px] leading-relaxed text-slate-300">После закрепления гипотезы APEX отдельно наблюдает только новые закрытые Futures DEMO-сценарии той же биржи. Исходная разница остаётся неизменной, прошлые ордера никогда не становятся новыми подтверждениями.</p>
+  {!studyProtocol?<p className="text-[11px] text-slate-400">Сначала нужен запущенный протокол независимой проверки Futures DEMO.</p>:
+   forwardValidation.hypotheses===0?<p className="rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-300">Пока нечего проверять: в разделе «Генератор гипотез» выше нужно сохранить хотя бы одну гипотезу. Пустая выборка — нормальный результат.</p>:
+   <>
+    <div className="grid grid-cols-3 gap-2">
+     <div className="rounded-lg bg-[#0a192b] p-2 text-center"><strong className="block text-lg text-white">{forwardValidation.hypotheses}</strong><span className="text-[10px] text-slate-400">Гипотез</span></div>
+     <div className="rounded-lg bg-[#0a192b] p-2 text-center"><strong className="block text-lg text-white">{forwardValidation.collecting}</strong><span className="text-[10px] text-slate-400">Накапливают</span></div>
+     <div className="rounded-lg bg-[#0a192b] p-2 text-center"><strong className="block text-lg text-white">{forwardValidation.ready}</strong><span className="text-[10px] text-slate-400">Описательных итогов</span></div>
+    </div>
+    <div className="space-y-2">{forwardValidation.items.map(item=>
+     <article key={item.id} className="rounded-xl border border-white/10 bg-[#0b182b] p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+       <strong className="text-xs text-white">{item.source==='binance'?'Binance':'Bybit'} · {item.focusLabel}</strong>
+       <span className={'rounded-lg border px-2 py-1 text-[10px] '+(item.verdict==='COLLECTING'?'border-amber-400/25 text-amber-200':item.verdict==='SAME_DIRECTION'?'border-sky-400/25 text-sky-200':item.verdict==='OPPOSITE_DIRECTION'?'border-rose-400/25 text-rose-200':'border-slate-500 text-slate-300')}>{item.verdict==='COLLECTING'?'Сбор данных':item.verdict==='SAME_DIRECTION'?'Сходное отличие':item.verdict==='OPPOSITE_DIRECTION'?'Противоречие':'Нет ясного отличия'}</span>
+      </div>
+      <p className="text-[11px] text-slate-400">Гипотеза закреплена {new Date(item.frozenAt).toLocaleString('ru-RU')} · прошло {item.daysSinceFreeze} полных дней.</p>
+      <div className="grid grid-cols-2 gap-2 text-[11px]">
+       <div className="rounded-lg bg-[#121f32] p-2">
+        <strong className="block text-slate-100">{item.focusLabel}</strong>
+        <span className="text-slate-300">{item.focus.n} наблюдений · {item.focus.days} дней</span>
+        <span className="block text-slate-400">Защитных выходов: {item.focus.stops}{item.focus.stopPct!==null?' ('+item.focus.stopPct.toFixed(1)+'%)':''}</span>
+       </div>
+       <div className="rounded-lg bg-[#121f32] p-2">
+        <strong className="block text-slate-100">Другие известные группы</strong>
+        <span className="text-slate-300">{item.comparison.n} наблюдений · {item.comparison.days} дней</span>
+        <span className="block text-slate-400">Защитных выходов: {item.comparison.stops}{item.comparison.stopPct!==null?' ('+item.comparison.stopPct.toFixed(1)+'%)':''}</span>
+       </div>
+      </div>
+      <p className="text-[11px] text-slate-300">Первоначальное отличие: <strong className="text-white">{item.baselineGapPP>0?'+':''}{item.baselineGapPP.toFixed(1)} п.п.</strong> · только новые данные: <strong className="text-white">{item.futureGapPP===null?'пока нет сравнения':(item.futureGapPP>0?'+':'')+item.futureGapPP.toFixed(1)+' п.п.'}</strong></p>
+      <p className="text-[11px] leading-relaxed text-slate-400">{item.verdict==='COLLECTING'?'Для описательного сравнения необходимо не меньше 10 закрытых сценариев каждой группы за минимум 3 разных дня. Ранние совпадения не считаются проверкой.':item.verdict==='SAME_DIRECTION'?'Новые наблюдения показали отличие в ту же сторону. Это лишь предварительное описательное совпадение, не подтверждение причины или стабильной закономерности.':item.verdict==='OPPOSITE_DIRECTION'?'Новые наблюдения противоречат первоначальному направлению различия. Гипотезу нельзя считать повторившейся.':'Новые наблюдения не показали различия не менее 10 процентных пунктов. Причин для подтверждения гипотезы нет.'}</p>
+      <details className="rounded-lg border border-white/10 p-2">
+       <summary className="cursor-pointer text-[11px] text-slate-300">Качество выборки и исключения</summary>
+       <p className="pt-2 text-[10px] leading-relaxed text-slate-400">До фиксации: {item.exclusions.beforeFreeze} · другая биржа: {item.exclusions.differentVenue} · ещё в работе: {item.exclusions.pending} · отменены/истекли: {item.exclusions.expired} · разрывы/нет контекста: {item.exclusions.missingOrGap} · неясное закрытие: {item.exclusions.uncertain} · неизвестен признак: {item.exclusions.missingFactor} · дубликаты: {item.exclusions.duplicate} · исход ещё в будущем: {item.exclusions.notYetClosed}.</p>
+      </details>
+     </article>)}</div>
+   </>}
+  <p className="text-[10px] leading-relaxed text-amber-100/85">Учебная временная проверка не доказывает прогнозную силу: исходы могут быть зависимыми, выборка ограничена, а реальные издержки и исполнение не воспроизведены. Никакого переобучения или реальных биржевых операций. При закрытом приложении непрерывное наблюдение не гарантируется.</p>
+ </div>
+</details>
