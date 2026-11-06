@@ -144,3 +144,6 @@ require('./apply-v44.cjs');
 
 // APEX 4.5: prospective, fixed-horizon CORE H1 state transitions.
 require('./apply-v45.cjs');
+
+// APEX 4.6: freeze one H1 state transition hypothesis and test only on future transitions.
+require('./apply-v46.cjs');
