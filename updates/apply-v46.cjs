@@ -29,7 +29,10 @@ const effects=[
 " useEffect(()=>{try{localStorage.setItem('apex_v46_holdout',JSON.stringify(hourHoldout));}catch{}},[hourHoldout]);"
 ].join('\n');
 /* Effects after the state declaration but before other useEffects from 4.4 are valid inside App. */
-app=rep(app,effectMarker,effectMarker+'\n'+effects,'automatic freeze and subsequent validation');
+app=rep(app,
+" const hourHoldoutStats=useMemo(()=>hourHoldoutReport(hourHoldout,transitionStats.evidence,transitionSince,now),[hourHoldout,transitionStats,transitionSince,now]);",
+" const hourHoldoutStats=useMemo(()=>hourHoldoutReport(hourHoldout,transitionStats.evidence,transitionSince,now),[hourHoldout,transitionStats,transitionSince,now]);\n"+effects,
+'automatic freeze and subsequent validation after evidence is initialized');
 app=rep(app,
 '<p className="text-[10px] text-slate-500">{transitionStats.note}</p>',
 read('updates/v46-holdout-ui.txt')+'\n  <p className="text-[10px] text-slate-500">{transitionStats.note}</p>',
