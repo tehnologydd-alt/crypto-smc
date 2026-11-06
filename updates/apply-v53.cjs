@@ -25,22 +25,22 @@ write(nativePath,native);
 let app=read('src/App.tsx');
 app=rep(app,
 "import {openResearchReviews,advanceResearchReviews,researchReviewOverview} from './radar/research-reports';",
-"import {openResearchReviews,advanceResearchReviews,researchReviewOverview} from './radar/research-reports';\nimport {openCoreMemory,appendCoreMemory,coreMemoryStats,exportCoreMemory,importCoreMemory,mergeCoreMemory} from './radar/core-memory';",
+"import {openResearchReviews,advanceResearchReviews,researchReviewOverview} from './radar/research-reports';\nimport {openCoreMemory,appendCoreMemory,coreMemoryStats,exportCoreMemory,importCoreMemory,mergeCoreMemory,validateCoreMemory} from './radar/core-memory';",
 'archive module imports');
 app=rep(app,
 " const [reviewReportsExpanded,setReviewReportsExpanded]=useState(false);",
-" const [reviewReportsExpanded,setReviewReportsExpanded]=useState(false);\n const [coreMemoryExpanded,setCoreMemoryExpanded]=useState(false);\n const [coreMemoryBusy,setCoreMemoryBusy]=useState(false);\n const [coreMemoryMessage,setCoreMemoryMessage]=useState('');\n const [coreMemory,setCoreMemory]=useState(()=>openCoreMemory(localStorage.getItem('apex_v53_core_memory'),Date.now()));",
+" const [reviewReportsExpanded,setReviewReportsExpanded]=useState(false);\n const [coreMemoryExpanded,setCoreMemoryExpanded]=useState(false);\n const [coreMemoryBusy,setCoreMemoryBusy]=useState(false);\n const [coreMemoryMessage,setCoreMemoryMessage]=useState('');\n const [coreMemory,setCoreMemory]=useState(()=>openCoreMemory(localStorage.getItem('apex_v53_core_memory'),Date.now()));\n const [coreMemoryQuarantined,setCoreMemoryQuarantined]=useState(()=>{const raw=localStorage.getItem('apex_v53_core_memory');if(raw===null)return false;try{return !validateCoreMemory(JSON.parse(raw),Date.now());}catch{return true;}});",
 'archival state');
 const marker=" const reviewReportStats=useMemo(()=>researchReviewOverview(researchReviews,researchQueue),[researchReviews,researchQueue]);";
 const block=[
 " const memoryStats=useMemo(()=>coreMemoryStats(coreMemory),[coreMemory]);",
 " const coreMemoryDay=Math.floor(now/86400000);",
 " useEffect(()=>{",
-"  try{const next=appendCoreMemory(coreMemory,{core:coreResearch,transitions:transitionStats.evidence,context:contextLedger,reviews:researchReviews},Date.now());",
+"  if(coreMemoryQuarantined)return;\n  try{const next=appendCoreMemory(coreMemory,{core:coreResearch,transitions:transitionStats.evidence,context:contextLedger,reviews:researchReviews},Date.now());",
 "   if(next!==coreMemory)setCoreMemory(next);",
 "  }catch(e){setCoreMemoryMessage('Архив сохранён без изменений: '+String(e));}",
-" },[coreResearch,contextLedger,researchReviews,coreMemoryDay,coreMemory]);",
-" useEffect(()=>{try{localStorage.setItem('apex_v53_core_memory',JSON.stringify(coreMemory));}catch(e){setCoreMemoryMessage('Ошибка записи долговременной памяти: '+String(e));}},[coreMemory]);",
+" },[coreResearch,contextLedger,researchReviews,coreMemoryDay,coreMemory,coreMemoryQuarantined]);",
+" useEffect(()=>{if(coreMemoryQuarantined){setCoreMemoryMessage('Локальный архив повреждён: автоматическая запись остановлена. Импортируйте исправную копию.');return;}try{localStorage.setItem('apex_v53_core_memory',JSON.stringify(coreMemory));}catch(e){setCoreMemoryMessage('Ошибка записи долговременной памяти: '+String(e));}},[coreMemory,coreMemoryQuarantined]);",
 " const exportCoreMemoryFile=async()=>{",
 "  if(coreMemoryBusy)return;setCoreMemoryBusy(true);setCoreMemoryMessage('');",
 "  try{const content=exportCoreMemory(coreMemory,Date.now());",
@@ -57,7 +57,7 @@ const block=[
 "   if(added===0){setCoreMemoryMessage('Все данные архива уже есть.');return;}",
 "   if(!window.confirm('Импортировать '+added+' новых записей в долгосрочный архив CORE? Рабочие сигналы и активные исследования не затрагиваются.')){setCoreMemoryMessage('Импорт отменён.');return;}",
 "   localStorage.setItem('apex_v53_core_memory',JSON.stringify(merged));",
-"   setCoreMemory(merged);setCoreMemoryMessage('Архив восстановлен: добавлено '+added+' записей.');",
+"   setCoreMemory(merged);setCoreMemoryQuarantined(false);setCoreMemoryMessage('Архив восстановлен: добавлено '+added+' записей.');",
 "  }catch(e){setCoreMemoryMessage('Импорт заблокирован: '+String(e));}finally{setCoreMemoryBusy(false);}",
 " };"
 ].join('\n');
