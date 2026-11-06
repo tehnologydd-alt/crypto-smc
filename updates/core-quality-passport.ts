@@ -34,7 +34,9 @@ export function coreQualityPassport(p:CoreQualityInputs,now=Date.now()):CoreQual
  const flags:string[]=[];
  const core=p?.core,trans=p?.transitions,hold=p?.holdout,drift=p?.drift,ctx=p?.context;
  const registeredAt=finite(trans?.registeredAt)?trans.registeredAt:0;
- const lastCandidates=[core?.latestFullAt,trans?.newestAt,hold?.latestToAt,drift?.lastObservedAt,ctx?.latestAt].filter((x):x is number=>finite(x)&&x>0&&x<=now);
+ // Research freshness must come from prospective H1 evidence, not raw CORE polling.
+ // A fresh raw market snapshot cannot repair a stalled or missing H1 study.
+ const lastCandidates=[trans?.newestAt,hold?.latestToAt,drift?.lastObservedAt,ctx?.latestAt].filter((x):x is number=>finite(x)&&x>0&&x<=now);
  const lastObservedAt=lastCandidates.length?Math.max(...lastCandidates):null;
  const valid=finite(now)&&now>0&&registeredAt>0&&registeredAt<=now&&!!core&&!!trans&&!!hold&&!!drift&&!!ctx;
  const captureLimited=valid&&core.checks>=10&&core.partial/core.checks>0.3;
