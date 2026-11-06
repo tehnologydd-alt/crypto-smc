@@ -16,3 +16,11 @@ for(const [title,needle,range] of [
 const last=s.lastIndexOf('</nav>');
 if(last>=0)log('NAV_FULL',s.slice(Math.max(0,last-6000),last+30),7000);
 const t=s.match(/useMemo\(\(\)=>[^;]*scenarios[^;]*;/g)||[];log('SCENARIOS_MEMOS',t.slice(0,12).join('\n'),4800);
+
+log('RADAR_FILES',fs.readdirSync('src/radar').join(', '),4000);
+const patterns=['interface Scenario','Scenario =','Scenario={','ScenarioStatus','PENDING','setScenarios(','setScenarios(prev','setScenarios(old','type Forecast','expiresAt','const can','const recompute','const LIVE','const LiveFeed','const scenarioStats','const timer=','setInterval('];
+for(const pat of patterns){
+ const hits=[];let start=0;
+ while((start=s.indexOf(pat,start))>=0&&hits.length<9){hits.push(start);start+=pat.length;}
+ for(let i=0;i<hits.length;i++)log('MATCH_'+pat.replace(/[^a-zA-Z0-9]/g,'_')+'_'+i,s.slice(Math.max(0,hits[i]-180),hits[i]+2400),2600);
+}
