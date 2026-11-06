@@ -34,7 +34,7 @@ type Progress={count:number;target:number;periods:number;periodTarget:number;
 const finite=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n);
 const safeAt=(n:unknown,start:number,now:number)=>finite(n)&&n>start&&n<=now;
 const distinctDays=(xs:{fromAt:number}[])=>new Set(xs.map(x=>new Date(x.fromAt).toISOString().slice(0,10))).size;
-const entryKey=(m:DirectorMission)=>m.id+':'+m.stage;
+const entryKey=(m:DirectorMission)=>'research-director-rules-v1:'+m.id+':'+m.stage;
 const allowedMission=(m:DirectorMission|undefined):m is DirectorMission=>
  !!m&&ALLOWED.includes(m.id)&&['collect','verify','investigate','observe'].includes(m.stage)&&
  typeof m.title==='string'&&m.title.length<=100&&typeof m.question==='string'&&m.question.length<=500&&

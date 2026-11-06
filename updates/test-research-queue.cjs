@@ -24,7 +24,7 @@ q=Q.advanceResearchQueue(q,decision('holdout'),withOld,T+86*H);
 const item=q.items.find(x=>x.id==='holdout');
 assert.equal(item.phase,'review','forward evidence across 3 days reaches review, not proof');
 assert(item.readyAt>T);
-assert.equal(item.count,38,'20 baseline and 20 later, all after registration counted with dedupe');
+assert.equal(item.count,33,'overlapping hourly observations counted once after registration');
 assert.equal(Q.researchQueueSummary(q,'holdout').ready,1);
 assert.equal(Q.advanceResearchQueue(q,decision('holdout'),withOld,T+86*H),q,'ready once and never duplicate');
 q=Q.advanceResearchQueue(q,decision('freshness',['holdout']),withOld,T+86*H);
