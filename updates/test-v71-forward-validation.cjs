@@ -110,7 +110,7 @@ assert.equal(V.evaluateFrozenHypotheses(P.startStudyProtocol(T),archive,harsh,no
 assert.equal(V.evaluateFrozenHypotheses(protocol,archive,harsh,discoveryAt-M).hypotheses,0,'no future freeze readings');
 const a=fs.readFileSync('src/App.tsx','utf8');
 for(const token of ['РЫНОЧНЫЙ РАДАР • 7.1','APEX 7.1 · Проверка гипотез на новых данных',
- 'evaluateFrozenHypotheses','forwardValidation','NO_CLEAR_DIFFERENCE','Сходное отличие',
+ 'evaluateFrozenHypotheses','forwardValidation','Нет ясного отличия','Сходное отличие',
  'Противоречие','До фиксации','apex_v70_hypothesis_archive','apex_v66_forward_protocol',
  'apex_v64_futures_demo','apex_v63_assistant_demo'])
  assert(a.includes(token),'missing independent research UI '+token);
