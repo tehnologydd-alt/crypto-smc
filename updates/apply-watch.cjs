@@ -162,3 +162,6 @@ require('./apply-v50.cjs');
 
 // APEX 5.1: prospective, evidence-gated research work queue.
 require('./apply-v51.cjs');
+
+// APEX 5.2: immutable Research Director review reports from forward-only task evidence.
+require('./apply-v52.cjs');

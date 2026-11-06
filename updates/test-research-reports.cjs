@@ -1,0 +1,60 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const js=ts.transpileModule(fs.readFileSync('src/radar/research-reports.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const m={exports:{}};vm.runInNewContext(js,{module:m,exports:m.exports,require,Date,Math,Set,Map,Array,Number,JSON});
+const R=m.exports,H=3600000,T=Date.UTC(2026,10,6,13),DAY=24*H;
+const qItem=(id='holdout')=>({id,title:'Проверить гипотезу на будущих данных',question:'Повторяется ли закономерность?',
+ acceptance:'Не менее 20 новых H1-переходов за 3 дня.',createdAt:T-5*DAY,phase:'review',
+ count:25,target:20,periods:4,periodTarget:3,measureLabel:'переходов / UTC-дней',lastEvidenceAt:T-1*H,readyAt:T-4*H});
+const input={queue:{version:1,registeredAt:T-6*DAY,items:[qItem()],events:[]},
+ quality:{state:'needs-review',studyAligned:true,flags:['Сравнение периодов требует проверки']},
+ holdout:{frozen:true,from:'up',expected:'up',frozenAt:T-6*DAY,futureEdges:27},
+ drift:{phase:'possible-decline'},context:{state:'context-dependent',qualified:2}};
+const empty={version:1,reports:[]};
+const result=R.advanceResearchReviews(empty,input,T);
+assert.equal(result.reports.length,1,'report only from complete review state');
+const rep=result.reports[0];
+assert.equal(rep.verdict,'review-required');
+assert.equal(rep.sampleCount,25);
+assert.equal(rep.observedPeriods,4);
+assert(rep.issues[0].includes('проверки'));
+assert(rep.nextQuestion.length>25);
+assert(rep.nextCheck.length>25);
+assert(rep.hypothesis.includes('H1: up'));
+assert.equal(R.advanceResearchReviews(result,input,T+H),result,'no silent rewriting');
+const recovered=R.openResearchReviews(JSON.stringify(result),T+H);
+assert.equal(recovered.reports.length,1);
+assert.equal(recovered.reports[0].key,rep.key);
+assert.equal(R.researchReviewOverview(recovered,input.queue).count,1);
+assert.equal(R.researchReviewOverview(empty,input.queue).pending,1);
+const missingSample={...input,queue:{...input.queue,items:[{...qItem(),count:19}]}};
+assert.equal(R.advanceResearchReviews(empty,missingSample,T),empty,'insufficient samples cannot create report');
+const missingDays={...input,queue:{...input.queue,items:[{...qItem(),periods:2}]}};
+assert.equal(R.advanceResearchReviews(empty,missingDays,T),empty,'short period cannot create report');
+const manual={...input,queue:{...input.queue,items:[{...qItem('integrity'),phase:'manual'}]}};
+assert.equal(R.advanceResearchReviews(empty,manual,T),empty,'integrity/manual tasks never auto-report');
+const stillWorking={...input,queue:{...input.queue,items:[{...qItem(),phase:'observing'}]}};
+assert.equal(R.advanceResearchReviews(empty,stillWorking,T),empty);
+const badTime={...input,queue:{...input.queue,items:[{...qItem(),lastEvidenceAt:T+H}]}};
+assert.equal(R.advanceResearchReviews(empty,badTime,T),empty,'no future data');
+const beforeTask={...input,queue:{...input.queue,items:[{...qItem(),lastEvidenceAt:T-10*DAY}]}};
+assert.equal(R.advanceResearchReviews(empty,beforeTask,T),empty,'no pre-registration evidence');
+const mismatch={...input,quality:{...input.quality,studyAligned:false}};
+assert.equal(R.advanceResearchReviews(empty,mismatch,T),empty,'mismatched hypothesis blocks H1 report');
+const rawQuality={...input,queue:{...input.queue,items:[{...qItem('raw-quality'),title:'Проверить данные CORE'}]}};
+assert.equal(R.advanceResearchReviews(empty,{...rawQuality,quality:{...input.quality,studyAligned:false}},T).reports.length,1,'source quality report still possible');
+const wrong=R.openResearchReviews(JSON.stringify({...result,reports:[{...rep,key:'forged'}]}),T);
+assert.equal(wrong.reports.length,0);
+const duplicated=R.openResearchReviews(JSON.stringify({...result,reports:[rep,rep]}),T);
+assert.equal(duplicated.reports.length,1);
+const next={...input,queue:{...input.queue,items:[qItem(),{...qItem('replication'),title:'Повторить проверку'}]}};
+assert.equal(R.advanceResearchReviews(result,next,T).reports.length,2);
+const captured=JSON.stringify(input);
+R.advanceResearchReviews(result,input,T+H);
+assert.equal(JSON.stringify(input),captured,'inputs never mutated');
+const ui=fs.readFileSync('src/App.tsx','utf8');
+assert(ui.includes("openResearchReviews(localStorage.getItem('apex_v52_review_reports')"));
+assert(ui.includes('advanceResearchReviews(prev,{queue:researchQueue'));
+assert(ui.includes('researchReviewOverview(researchReviews,researchQueue)'));
+assert(ui.includes('Отчёты Research Director · 5.2'));
+for(const f of ['src/radar/learning.ts','src/radar/notify.ts','src/radar/engine.ts'])assert(!fs.readFileSync(f,'utf8').includes('advanceResearchReviews'));
+console.log('APEX 5.2 immutable research review reports PASS: ready-only gates, prospective samples, no automatic proof, saved immutable snapshots, mismatch and manual integrity guards');
