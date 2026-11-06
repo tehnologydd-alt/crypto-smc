@@ -135,3 +135,6 @@ require('./apply-v41.cjs');
 
 // APEX 4.2: explicitly measure CORE observation coverage and gate incomplete snapshots.
 require('./apply-v42.cjs');
+
+// APEX 4.3: independent, opt-in native CORE observations via existing periodic WorkManager.
+require('./apply-v43.cjs');
