@@ -1,0 +1,82 @@
+ const futuresStats=useMemo(()=>futureSummary(futuresLedger),[futuresLedger]);
+ const futuresSelectedKey=futuresExchange+':'+futuresSymbol+':'+futuresFrame;
+ const futuresSetup=useMemo<FutureSetup>(()=>({
+  exchange:futuresExchange,leverage:futuresLeverage,marginMode:futuresMarginMode,
+  positionMode:futuresPositionMode,notionalUSDT:futuresNotional,
+  portions:assistantPortions==='40/30/30'?[40,30,30]:assistantPortions==='33/33/34'?[33,33,34]:[50,30,20],
+  breakeven:assistantBreakeven,
+ }),[futuresExchange,futuresLeverage,futuresMarginMode,futuresPositionMode,futuresNotional,assistantPortions,assistantBreakeven]);
+ const futuresObserveKeys=useMemo(()=>{
+  if(view!=='assistant'&&!futuresLedger.tickets.some(o=>o.state==='WAITING'||o.state==='OPEN'))return [];
+  const keys=[...(view==='assistant'?[futuresSelectedKey]:[]),...futuresLedger.tickets
+   .filter(o=>o.state==='WAITING'||o.state==='OPEN')
+   .map(o=>o.plan.source+':'+o.plan.symbol+':'+o.plan.frame)];
+  return [...new Set(keys)].slice(0,7).sort();
+ },[futuresSelectedKey,futuresLedger,view]);
+ const futuresObserveKey=futuresObserveKeys.join('|');
+ useEffect(()=>{
+  if(!futuresObserveKey)return;
+  let alive=true,busy=false;
+  const poll=async()=>{
+   if(document.hidden||busy)return;
+   busy=true;
+   try{
+    const keys=futuresObserveKey.split('|');
+    const result=await Promise.allSettled(keys.map(async key=>{
+     const [exchange,symbol,frame]=key.split(':');
+     const bars=await fetchFuturesClosedBars(exchange as AssistantExchange,symbol,frame as AssistantFrame,Date.now());
+     return {key,bars};
+    }));
+    if(!alive)return;
+    const completed=result.filter((x):x is PromiseFulfilledResult<{key:string;bars:FutureBar[]}>=>x.status==='fulfilled').map(x=>x.value);
+    if(completed.length)setFuturesBars(prev=>{
+     let changed=false;const next={...prev};
+     for(const item of completed){
+      const old=prev[item.key],latest=item.bars.at(-1);
+      if(!old||old.length!==item.bars.length||old.at(-1)?.time!==latest?.time){
+       next[item.key]=item.bars;changed=true;
+      }
+     }
+     return changed?next:prev;
+    });
+    const failed=result.find((x):x is PromiseRejectedResult=>x.status==='rejected');
+    setFuturesError(failed?'Фьючерсные данные: '+String(failed.reason):'');
+   }finally{busy=false;}
+  };
+  void poll();
+  const interval=setInterval(()=>{void poll();},75000);
+  const onVisible=()=>{if(!document.hidden)void poll();};
+  document.addEventListener('visibilitychange',onVisible);
+  return ()=>{alive=false;clearInterval(interval);document.removeEventListener('visibilitychange',onVisible);};
+ },[futuresObserveKey]);
+ const futuresStudyPlan=useMemo(()=>deriveFuturesStudyPlan(futuresExchange,futuresSymbol,futuresFrame,
+  futuresBars[futuresSelectedKey]||[],Date.now()),[futuresExchange,futuresSymbol,futuresFrame,futuresBars,futuresSelectedKey]);
+ const futuresExisting=Boolean(futuresStudyPlan&&futuresLedger.tickets.some(o=>o.id===futuresStudyPlan.id));
+ useEffect(()=>{try{
+  localStorage.setItem('apex_v64_futures_demo',JSON.stringify(futuresLedger));
+ }catch{setFuturesMessage('Не удалось сохранить журнал Futures DEMO.');}},[futuresLedger]);
+ useEffect(()=>{try{
+  localStorage.setItem('apex_v64_futures_source',futuresExchange);
+  localStorage.setItem('apex_v64_futures_symbol',futuresSymbol);
+  localStorage.setItem('apex_v64_futures_frame',futuresFrame);
+  localStorage.setItem('apex_v64_futures_mode',futuresMode);
+  localStorage.setItem('apex_v64_futures_leverage',String(futuresLeverage));
+  localStorage.setItem('apex_v64_futures_margin',futuresMarginMode);
+  localStorage.setItem('apex_v64_futures_position',futuresPositionMode);
+  localStorage.setItem('apex_v64_futures_notional',String(futuresNotional));
+ }catch{}},[futuresExchange,futuresSymbol,futuresFrame,futuresMode,futuresLeverage,futuresMarginMode,futuresPositionMode,futuresNotional]);
+ useEffect(()=>{
+  if(futuresMode!=='auto'||!futuresStudyPlan||futuresStudyPlan.expiresAt<=Date.now())return;
+  setFuturesLedger(prev=>enrollFutureTicket(prev,futuresStudyPlan,futuresSetup,'auto',Date.now()));
+ },[futuresMode,futuresStudyPlan,futuresSetup]);
+ useEffect(()=>{
+  if(!futuresLedger.tickets.some(o=>o.state==='WAITING'||o.state==='OPEN'))return;
+  setFuturesLedger(prev=>stepFuturesLedger(prev,futuresBars,Date.now()));
+ },[futuresBars,now]);
+ const addFuturesPlan=()=>{
+  if(!futuresStudyPlan)return;
+  try{
+   setFuturesLedger(prev=>enrollFutureTicket(prev,futuresStudyPlan,futuresSetup,'manual',Date.now()));
+   setFuturesMessage('Учебный фьючерсный LIMIT добавлен в DEMO.');
+  }catch(e){setFuturesMessage('Не удалось создать виртуальный план: '+String(e));}
+ };
