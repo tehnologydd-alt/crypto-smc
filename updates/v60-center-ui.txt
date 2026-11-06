@@ -1,0 +1,99 @@
+<div className="space-y-4">
+ <div className="sticky top-0 z-10 -mx-4 px-4 py-3 border-b border-white/10 bg-[#080d17]/95 backdrop-blur-xl space-y-3">
+  <div className="flex items-center justify-between gap-3">
+   <div><div className="flex items-center gap-2"><h1 className="text-xl font-bold tracking-tight text-slate-100">Центр APEX</h1><span className="rounded-md bg-teal-400/10 border border-teal-400/20 px-1.5 py-0.5 text-[10px] font-semibold text-teal-200">6.0</span></div>
+    <p className="mt-1 text-xs text-slate-400">Исследования, результаты и автономность — в одном месте</p></div>
+   <span className={'shrink-0 text-[10px] font-semibold '+(coreHealth.archiveProblem||coreHealth.level==='attention'?'text-amber-200':coreNative.enabled?'text-teal-300':'text-slate-500')}>{coreHealth.archiveProblem?'Проверь архив':coreNative.enabled?'CORE включён':'CORE выключен'}</span>
+  </div>
+  <div role="tablist" aria-label="Разделы центра" className="grid grid-cols-4 gap-1 rounded-xl bg-[#141f30] p-1">
+   {([{id:'overview',label:'Обзор'},{id:'director',label:'Директор'},{id:'data',label:'Сбор'},{id:'checks',label:'Проверки'}] as const).map(x=><button key={x.id} type="button" role="tab" aria-selected={researchSection===x.id}
+    onClick={()=>{setResearchSection(x.id);document.getElementById('apex-content')?.scrollTo({top:0,behavior:'auto'});}}
+    className={'min-h-[44px] rounded-lg px-1 py-2 text-[11px] font-semibold '+(researchSection===x.id?'bg-[#25434a] text-teal-100 shadow-sm':'text-slate-400 hover:text-slate-200')}>{x.label}</button>)}
+  </div>
+ </div>
+ {researchSection==='overview'&&<div className="space-y-4">
+  <section className="rounded-2xl border border-teal-400/20 bg-gradient-to-br from-[#17313a] to-[#101a2c] p-4 space-y-3">
+   <div className="flex justify-between items-center gap-2"><span className="text-[11px] font-semibold uppercase tracking-wide text-teal-300">Состояние исследований</span><span className="text-[11px] text-teal-200">{researchQualityStats.checksReady}/5 проверок</span></div>
+   <h2 className="text-lg font-bold text-white">{researchQualityStats.title}</h2>
+   <p className="text-xs leading-relaxed text-slate-300">{researchQualityStats.subtitle}</p>
+   {researchQualityStats.flags.length>0&&<div className="border-t border-white/10 pt-2 space-y-1">{researchQualityStats.flags.slice(0,2).map((x,i)=><p key={i} className="text-[11px] text-amber-200">• {x}</p>)}</div>}
+  </section>
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   {([{label:'Полных CORE',value:coreResearchStats.complete},{label:'H1 переходов',value:transitionStats.transitions},{label:'Задач директора',value:queueSummary.total},{label:'Отчётов',value:reviewReportStats.count}] as const).map(x=><div key={x.label} className="rounded-xl border border-white/10 bg-[#131e2c] p-3"><p className="text-[11px] text-slate-400">{x.label}</p><strong className="text-xl text-white">{x.value}</strong></div>)}
+  </div>
+  <section className="rounded-2xl bg-[#151b2c] border border-violet-400/20 p-4 space-y-3">
+   <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-300">Research Director · сейчас</span>
+   <h3 className="text-base font-semibold text-slate-100">{directorPlan.focus.title}</h3>
+   <p className="text-xs text-slate-300">{directorPlan.focus.why}</p>
+   <p className="text-xs text-slate-400">{directorPlan.focus.nextStep}</p>
+   <button type="button" onClick={()=>setResearchSection('director')} className="min-h-[44px] w-full rounded-xl bg-violet-400/10 border border-violet-400/25 px-4 py-2.5 text-sm font-semibold text-violet-200">Открыть директора</button>
+  </section>
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   <section className="rounded-2xl bg-[#111b2a] border border-white/10 p-4 space-y-2"><strong className="text-xs text-teal-200">Фоновый CORE</strong><p className="text-xs text-slate-300">{coreHealth.title}</p><p className="text-[11px] text-slate-400">{coreHealth.detail}</p><button type="button" onClick={()=>setResearchSection('data')} className="min-h-[44px] w-full rounded-lg border border-teal-400/25 text-teal-200 text-xs font-semibold">Проверить сбор</button></section>
+   <section className="rounded-2xl bg-[#111b2a] border border-white/10 p-4 space-y-2"><strong className="text-xs text-sky-200">Исследования H1/H4</strong><p className="text-xs text-slate-300">Проверка будущих выборок и стабильности</p><p className="text-[11px] text-slate-400">Все старые научные отчёты и методики доступны.</p><button type="button" onClick={()=>setResearchSection('checks')} className="min-h-[44px] w-full rounded-lg border border-sky-400/25 text-sky-200 text-xs font-semibold">Подробные проверки</button></section>
+  </div>
+  <p className="px-1 text-[11px] text-slate-500">Доли переходов описывают наблюдения и не доказывают точность прогнозов. Исходные журналы и правила исследований сохранены.</p>
+ </div>}
+ {researchSection==='director'&&<div className="space-y-4">
+  <section className="rounded-2xl bg-[#151b2c] border border-fuchsia-400/20 p-4 space-y-3">
+   <strong className="text-[11px] text-fuchsia-200">Research Director · 5.0</strong><h2 className="text-lg font-semibold text-white">{directorPlan.focus.title}</h2><p className="text-xs text-slate-300">{directorPlan.focus.why}</p>
+   <div className="rounded-xl bg-black/20 p-3 space-y-2">
+    <strong className="block text-[11px] text-fuchsia-200">Исследовательский вопрос</strong><p className="text-xs text-slate-200">{directorPlan.focus.question}</p>
+    <strong className="block text-[11px] text-fuchsia-200">Следующий шаг</strong><p className="text-xs text-slate-300">{directorPlan.focus.nextStep}</p>
+    <strong className="block text-[11px] text-fuchsia-200">Условие рассмотрения</strong><p className="text-xs text-slate-300">{directorPlan.focus.acceptance}</p>
+   </div><p className="text-[11px] text-slate-400">Альтернативы: {directorPlan.alternatives.length?directorPlan.alternatives.map(x=>x.title).join(' · '):'нет'}.</p>
+  </section>
+  <section className="rounded-2xl bg-[#111d28] border border-teal-400/20 p-4 space-y-3">
+   <div className="flex justify-between items-center gap-2"><strong className="text-sm text-teal-200">Коллектив исследований · 5.5</strong><span className="text-[11px] text-slate-300">{councilStats.state==='blocked'?'Блокировка':councilStats.state==='review'?'Есть замечания':councilStats.state==='collecting'?'Сбор данных':'Описание согласуется'}</span></div>
+   {councilStats.auditors.map(a=><div key={a.role} className="rounded-xl bg-black/20 p-3 space-y-1">
+    <div className="flex justify-between gap-2"><strong className="text-xs text-slate-200">{a.title}</strong><span className={'text-[10px] '+(a.state==='blocked'||a.state==='caution'?'text-amber-200':'text-teal-200')}>{a.state==='blocked'?'Блокировка':a.state==='caution'?'Перепроверить':a.state==='pending'?'Ожидание':'Наблюдается'}</span></div><p className="text-[11px] text-slate-400">{a.evidence}</p></div>)}
+   <p className="text-xs text-teal-200">{councilStats.decision}</p>
+   {councilStats.priorityGap&&<p className="text-[11px] text-amber-200">Приоритет директора требует проверки по замечаниям аудиторов.</p>}
+   <p className="text-[11px] text-slate-400">Следующий вопрос: {councilStats.nextQuestion}</p>
+  </section>
+  <section className="rounded-2xl bg-[#111b2a] border border-cyan-400/20 p-4 space-y-2">
+   <strong className="text-sm text-cyan-200">Повторение гипотезы · 5.4</strong>
+   <p className="text-xs text-slate-300">Групп завершено: {replicationStats.completed} · следующая: {replicationStats.workingCount} наблюдений за {replicationStats.workingDays} дн.</p>
+   {replicationStats.subject&&<p className="text-xs text-slate-300">Гипотеза {replicationStats.subject.from} → {replicationStats.subject.expected}. Контроль: {replicationStats.referencePct===null?'—':replicationStats.referencePct.toFixed(1)+'%'} · повтор: {replicationStats.latestPct===null?'—':replicationStats.latestPct.toFixed(1)+'%'}.</p>}
+   {replicationStats.differencePts!==null&&<p className="text-[11px] text-amber-200">Различие {replicationStats.differencePts.toFixed(1)} п.п.; это не доказательство.</p>}
+   {replicationBroken&&<p className="text-[11px] text-amber-200">Исследование 5.4 заблокировано до проверки журнала.</p>}
+  </section>
+  <section className="rounded-2xl bg-[#111b2a] border border-violet-400/20 p-4 space-y-3">
+   <div className="flex justify-between items-center gap-2"><strong className="text-sm text-violet-200">Очередь исследований · 5.1</strong><span className="text-xs text-slate-400">{queueSummary.total} задач</span></div>
+   <p className="text-xs text-slate-300">Готовы к рассмотрению: {queueSummary.ready} · ручная сверка: {queueSummary.manual}.</p>
+   {researchQueue.items.slice(0,10).map(t=><div key={t.id} className="flex items-start justify-between gap-3 rounded-lg bg-black/20 p-3"><span className="min-w-0"><strong className="block text-xs text-slate-200">{t.title}</strong><span className="block text-[11px] text-slate-400">{t.count}/{t.target} наблюдений · {t.periods}/{t.periodTarget} периодов</span></span><span className={'shrink-0 text-[10px] '+(t.phase==='manual'?'text-amber-200':t.phase==='review'?'text-teal-200':'text-slate-400')}>{t.phase==='manual'?'Сверить':t.phase==='review'?'Рассмотреть':t.phase==='observing'?'Изучается':'Очередь'}</span></div>)}
+   {researchQueue.items.length===0&&<p className="text-xs text-slate-400">Первые задачи появятся после обработки CORE.</p>}
+  </section>
+  <section className="rounded-2xl bg-[#111b2a] border border-sky-400/20 p-4 space-y-3">
+   <div className="flex justify-between items-center gap-2"><strong className="text-sm text-sky-200">Отчёты Research Director · 5.2</strong><span className="text-xs text-slate-400">{reviewReportStats.count}</span></div>
+   {researchReviews.reports.length===0?<p className="text-xs text-slate-400">Отчёты появятся после достижения порога будущих наблюдений.</p>:
+    researchReviews.reports.slice(-6).reverse().map(r=><div key={r.key} className="rounded-xl bg-black/20 p-3 space-y-2">
+     <button type="button" aria-expanded={selectedResearchReview===r.key} onClick={()=>setSelectedResearchReview(x=>x===r.key?null:r.key)} className="min-h-[44px] w-full flex items-center justify-between gap-2 text-left"><span><strong className="block text-xs text-slate-200">{r.title}</strong><span className="text-[11px] text-slate-400">{new Date(r.recordedAt).toLocaleDateString('ru-RU')}</span></span><span className="text-slate-400">{selectedResearchReview===r.key?'−':'+'}</span></button>
+     {selectedResearchReview===r.key&&<div className="border-t border-white/10 pt-2 space-y-2 text-xs text-slate-300"><p>Вопрос: {r.question}</p><p>{r.sampleCount}/{r.requiredCount} наблюдений · {r.observedPeriods}/{r.requiredPeriods} периодов</p>{r.hypothesis&&<p>Гипотеза: {r.hypothesis}</p>}{r.findings.map((v,i)=><p key={i}>• {v}</p>)}{r.issues.map((v,i)=><p key={'i'+i} className="text-amber-200">• {v}</p>)}<strong className="block text-sky-200">Ограничения</strong>{r.limitations.map((v,i)=><p key={i}>• {v}</p>)}<p className="text-sky-200">Следующий вопрос: {r.nextQuestion}</p><p>{r.nextCheck}</p></div>}
+    </div>)}
+  </section>
+  <section className="rounded-2xl bg-[#111b2a] border border-white/10 p-4 space-y-2">
+   <strong className="text-sm text-slate-200">История решений</strong>{directorHistory.events.slice(-4).reverse().map((e,i)=><p key={i} className="text-[11px] text-slate-400">{new Date(e.at).toLocaleDateString('ru-RU')} · {e.title}</p>)}{directorHistory.events.length===0&&<p className="text-xs text-slate-400">История пока формируется.</p>}
+  </section>
+  <p className="px-1 text-[11px] text-slate-500">Три аудитора используют общие CORE-данные; решения не изменяют прогнозы и не гарантируют их точность.</p>
+ </div>}
+ {researchSection==='data'&&<div className="space-y-4">
+  <p className="px-1 text-xs text-slate-400">Управление фоновыми исследованиями, Android-диагностика и сохранение архива — без вложенных страниц.</p>
+  __APEX_NATIVE_CORE__
+  <section className="rounded-2xl bg-[#111e24] border border-emerald-400/25 p-4 space-y-3">
+   <div className="flex justify-between gap-2 items-center"><strong className="text-sm text-emerald-200">Долговременная память · 5.3</strong><span className="text-[11px] text-slate-400">Локально</span></div>
+   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    {([{label:'Дней CORE',value:memoryStats.days},{label:'Переходов H1',value:memoryStats.transitions},{label:'Контекстов H4',value:memoryStats.contexts},{label:'Отчётов',value:memoryStats.reports}] as const).map(x=><div key={x.label} className="rounded-lg bg-black/20 p-2"><strong className="block text-base text-white">{x.value}</strong><span className="text-[11px] text-slate-400">{x.label}</span></div>)}
+   </div>
+   {coreMemoryQuarantined&&<p className="text-xs text-amber-200">Архив повреждён. Автоматическая перезапись заблокирована до восстановления.</p>}
+   {memoryStats.nearCapacity&&<p className="text-xs text-amber-200">Лимит архива достигнут. Старые записи не удаляются автоматически.</p>}
+   <p className="text-[11px] text-slate-400">Последний факт: {memoryStats.lastAt===null?'пока нет':new Date(memoryStats.lastAt).toLocaleString('ru-RU')}</p>
+   <div className="grid grid-cols-2 gap-2">
+    <button type="button" disabled={coreMemoryBusy} onClick={exportCoreMemoryFile} className="min-h-[44px] rounded-lg bg-emerald-400/15 border border-emerald-400/30 px-2 text-xs font-semibold text-emerald-200 disabled:opacity-40">Сохранить копию</button>
+    <button type="button" disabled={coreMemoryBusy} onClick={restoreCoreMemoryFile} className="min-h-[44px] rounded-lg bg-slate-700/35 border border-slate-500/25 px-2 text-xs font-semibold text-slate-200 disabled:opacity-40">Восстановить</button>
+   </div>
+   {coreMemoryMessage&&<p role="status" className="text-[11px] text-slate-300">{coreMemoryMessage}</p>}
+   <p className="text-[11px] text-slate-500">Импорт добавляет совместимые записи, не заменяя сигналы, активные гипотезы или виртуальные сделки.</p>
+  </section>
+ </div>}
+</div>
