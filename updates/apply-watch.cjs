@@ -216,3 +216,6 @@ require('./apply-v70.cjs');
 
 // APEX 7.1: post-freeze cohort evidence for unmodified DEMO hypotheses.
 require('./apply-v71.cjs');
+
+// APEX 7.2: strictly prospective paper-only experimental shadow variants.
+require('./apply-v72.cjs');
