@@ -34,8 +34,8 @@ export function assessFuturesMarketHealth(bars:FutureBar[],frame:AssistantFrame,
  for(let i=1;i<accepted.length;i++)if(accepted[i].time-accepted[i-1].time!==dur)gaps++;
  const has36Continuous=last36.length===36&&last36.every((b,i)=>i===0||b.time-last36[i-1].time===dur);
  let status:MarketHealthStatus='READY',reason='Данные свежие, последние 36 закрытых свечей непрерывны.';
- if(accepted.length<36){status='INCOMPLETE';reason='Недостаточно закрытых свечей для исходного исследования (нужно 36).';}
- else if(!has36Continuous){status='GAP';reason='В последних 36 закрытых свечах есть пропуски или разрывы.';}
+ if(!has36Continuous&&gaps>0){status='GAP';reason='В последних закрытых свечах есть пропуски или разрывы.';}
+ else if(accepted.length<36){status='INCOMPLETE';reason='Недостаточно закрытых свечей для исходного исследования (нужно 36).';}
  else if(ageMs>dur*1.5){status='STALE';reason='Последняя закрытая свеча устарела; сценарий не должен считаться свежим.';}
  else if(invalid){status='INCOMPLETE';reason='Получены некорректные данные: новые сценарии требуют перепроверки.';}
  return {status,closedBars:accepted.length,lastClosedAt,ageMs,gaps,invalid,has36Continuous,reason};
