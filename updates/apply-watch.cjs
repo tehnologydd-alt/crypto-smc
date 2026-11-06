@@ -204,3 +204,6 @@ require('./apply-v66.cjs');
 
 // APEX 6.7: independent study control center, cause-level exclusions and immutable checkpoints.
 require('./apply-v67.cjs');
+
+// APEX 6.8: public futures health and hypothetical educational cost sensitivity.
+require('./apply-v68.cjs');
