@@ -147,3 +147,6 @@ require('./apply-v45.cjs');
 
 // APEX 4.6: freeze one H1 state transition hypothesis and test only on future transitions.
 require('./apply-v46.cjs');
+
+// APEX 4.7: strictly prospective H1 drift monitoring against immutable early baseline.
+require('./apply-v47.cjs');
