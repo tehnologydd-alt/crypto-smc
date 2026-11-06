@@ -1,0 +1,95 @@
+{view==='assistant'&&<div className="space-y-4">
+ <header className="rounded-2xl border border-violet-400/25 bg-gradient-to-br from-[#262040] via-[#152842] to-[#103339] p-4 space-y-2">
+  <div className="flex items-center justify-between gap-2">
+   <h1 className="text-2xl font-bold text-white">APEX Futures</h1>
+   <span className="rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-bold text-emerald-200">DEMO</span>
+  </div>
+  <p className="text-xs leading-relaxed text-slate-300">Отдельная учебная модель бессрочных USDT-контрактов. Только публичные фьючерсные свечи Binance USD-M и Bybit Linear. Без торгового API, ключей и реальных позиций.</p>
+ </header>
+ <div className="grid grid-cols-3 gap-2">
+  <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3 text-center"><strong className="block text-lg text-amber-200">{futuresStats.waiting}</strong><span className="text-[10px] text-slate-300">Вирт. лимиты</span></div>
+  <div className="rounded-xl border border-sky-400/20 bg-sky-500/5 p-3 text-center"><strong className="block text-lg text-sky-200">{futuresStats.open}</strong><span className="text-[10px] text-slate-300">Демо-позиции</span></div>
+  <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-3 text-center"><strong className="block text-lg text-emerald-200">{futuresStats.ended}</strong><span className="text-[10px] text-slate-300">Завершено</span></div>
+ </div>
+ <section className="rounded-2xl border border-white/10 bg-[#141e30] p-3.5 space-y-3">
+  <h2 className="text-sm font-semibold text-white">Режимы виртуального ассистента</h2>
+  <div className="grid grid-cols-2 gap-2">
+   <button type="button" aria-pressed={futuresMode==='manual'} onClick={()=>setFuturesMode('manual')} className={'min-h-[44px] rounded-lg border text-xs font-semibold '+(futuresMode==='manual'?'border-violet-400/40 bg-violet-500/25 text-violet-100':'border-white/10 text-slate-400')}>Ручной выбор</button>
+   <button type="button" aria-pressed={futuresMode==='auto'} onClick={()=>setFuturesMode('auto')} className={'min-h-[44px] rounded-lg border text-xs font-semibold '+(futuresMode==='auto'?'border-violet-400/40 bg-violet-500/25 text-violet-100':'border-white/10 text-slate-400')}>Авто · только DEMO</button>
+  </div>
+  <div className="grid grid-cols-2 gap-2">
+   <button type="button" aria-pressed={futuresExchange==='binance'} onClick={()=>setFuturesExchange('binance')} className={'min-h-[44px] rounded-lg border text-xs font-semibold '+(futuresExchange==='binance'?'border-teal-400/40 bg-teal-500/15 text-teal-100':'border-white/10 text-slate-400')}>Binance USD-M</button>
+   <button type="button" aria-pressed={futuresExchange==='bybit'} onClick={()=>setFuturesExchange('bybit')} className={'min-h-[44px] rounded-lg border text-xs font-semibold '+(futuresExchange==='bybit'?'border-teal-400/40 bg-teal-500/15 text-teal-100':'border-white/10 text-slate-400')}>Bybit Linear</button>
+  </div>
+  <div className="grid grid-cols-2 gap-2">
+   <label className="text-[11px] text-slate-300">Контракт
+    <select aria-label="Фьючерсный контракт" value={futuresSymbol} onChange={e=>setFuturesSymbol(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+     {[...new Set(['BTCUSDT','ETHUSDT',...favorites.filter(s=>s.endsWith('USDT'))])].slice(0,70).map(s=><option key={s} value={s}>{s}</option>)}
+    </select>
+   </label>
+   <label className="text-[11px] text-slate-300">Таймфрейм
+    <select aria-label="Фьючерсный таймфрейм" value={futuresFrame} onChange={e=>setFuturesFrame(e.target.value as AssistantFrame)} className="mt-1 w-full rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+     <option value="5m">M5</option><option value="1h">H1</option><option value="4h">H4</option>
+    </select>
+   </label>
+  </div>
+  <div className="grid grid-cols-2 gap-2">
+   <label className="text-[11px] text-slate-300">Виртуальное плечо
+    <select value={futuresLeverage} onChange={e=>setFuturesLeverage(Number(e.target.value) as 1|2|3|5)} className="mt-1 w-full rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+     {[1,2,3,5].map(n=><option key={n} value={n}>{n}×</option>)}
+    </select>
+   </label>
+   <label className="text-[11px] text-slate-300">Виртуальный номинал
+    <select value={futuresNotional} onChange={e=>setFuturesNotional(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+     <option value={50}>50 USDT</option><option value={100}>100 USDT</option><option value={250}>250 USDT</option><option value={500}>500 USDT</option>
+    </select>
+   </label>
+  </div>
+  <div className="grid grid-cols-2 gap-2">
+   <label className="text-[11px] text-slate-300">Режим маржи
+    <select value={futuresMarginMode} onChange={e=>setFuturesMarginMode(e.target.value as FutureMarginMode)} className="mt-1 w-full rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+     <option value="ISOLATED">Isolated</option><option value="CROSS">Cross</option>
+    </select>
+   </label>
+   <label className="text-[11px] text-slate-300">Режим позиции
+    <select value={futuresPositionMode} onChange={e=>setFuturesPositionMode(e.target.value as FuturePositionMode)} className="mt-1 w-full rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+     <option value="ONE_WAY">One-Way</option><option value="HEDGE">Hedge</option>
+    </select>
+   </label>
+  </div>
+  <p className="rounded-lg bg-[#0a1625] p-2.5 text-[11px] text-slate-300">Учебная начальная маржа: <strong className="text-white">{virtualMarginUSDT(futuresSetup).toFixed(2)} USDT</strong> · виртуальный номинал {futuresNotional} USDT. В Cross доступный общий баланс неизвестен; настоящая ликвидация по mark price здесь не рассчитывается.</p>
+  <p className="text-[10px] leading-relaxed text-amber-200/90">Это не сведения об аккаунте биржи: настройки, шаг цены, лимиты контрактов, комиссии, funding, проскальзывание и maintenance margin требуют отдельной проверки. В DEMO они не синхронизируются и не меняют биржевой аккаунт.</p>
+ </section>
+ <section className="rounded-2xl border border-white/10 bg-[#141e30] p-3.5 space-y-2">
+  <div className="flex items-center justify-between"><h2 className="text-sm font-semibold text-white">Учебный фьючерсный сценарий</h2><span className="text-[10px] text-teal-200">Только закрытые свечи</span></div>
+  {!futuresStudyPlan?<p className="text-xs text-slate-400">Пока нет свежего сценария по фьючерсным свечам этой биржи: могут отсутствовать данные или не выполниться условия простой исследовательской модели.</p>:
+   <div className="space-y-2">
+    <div className="flex items-center justify-between"><strong className="text-sm text-white">{futuresStudyPlan.symbol} · {futuresStudyPlan.frame.toUpperCase()}</strong><span className={'text-sm font-semibold '+(futuresStudyPlan.direction==='LONG'?'text-emerald-300':'text-rose-300')}>{futuresStudyPlan.direction}</span></div>
+    <p className="text-xs text-slate-200">LIMIT {fmt(futuresStudyPlan.entry)} · защитный уровень {fmt(futuresStudyPlan.stop)}</p>
+    <div className="grid grid-cols-3 gap-1">{futuresStudyPlan.targets.map((t,i)=><p key={i} className="rounded-lg bg-[#0b1829] p-2 text-center text-[11px] text-slate-200">TP{i+1}<strong className="block">{fmt(t)}</strong></p>)}</div>
+    <p className="text-[11px] text-slate-400">{futuresStudyPlan.reason} Действителен до {new Date(futuresStudyPlan.expiresAt).toLocaleString('ru-RU')}.</p>
+    {futuresMode==='manual'&&<button type="button" disabled={futuresExisting||futuresStudyPlan.expiresAt<Date.now()} onClick={addFuturesPlan} className="min-h-[44px] w-full rounded-lg border border-violet-400/40 bg-violet-500/20 text-xs font-semibold text-violet-100 disabled:opacity-50">{futuresExisting?'Уже в журнале':'Добавить в Futures DEMO'}</button>}
+    {futuresMode==='auto'&&<p className="text-[11px] text-violet-200">Учебная модель регистрирует новые подходящие сценарии сама (до 6 одновременно). Это алгоритм, не ИИ с доказанной доходностью.</p>}
+   </div>}
+  {futuresError&&<p role="status" className="rounded-lg border border-amber-400/30 p-2 text-[11px] text-amber-200">{futuresError}. Никакие сделки без данных не предполагаются.</p>}
+  {futuresMessage&&<p role="status" className="text-[11px] text-violet-200">{futuresMessage}</p>}
+ </section>
+ <section className="space-y-2">
+  <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-white">Futures DEMO · журнал</h2><span className="text-xs text-slate-400">{futuresLedger.tickets.length} записей</span></div>
+  {futuresLedger.tickets.length===0?<p className="rounded-xl border border-dashed border-slate-600 p-4 text-xs text-slate-400">Пока нет виртуальных фьючерсных позиций. Журнал Spot 6.3 сохранён отдельно.</p>:
+   futuresLedger.tickets.slice(0,30).map(o=><article key={o.id} className="rounded-2xl border border-white/10 bg-gradient-to-r from-[#191f36] to-[#0f2735] p-3.5 space-y-2">
+    <div className="flex items-center justify-between gap-2">
+     <div><strong className="block text-sm text-white">{o.plan.symbol} · {o.plan.direction} · {o.plan.frame.toUpperCase()}</strong><span className="text-[10px] text-slate-400">{o.plan.source==='binance'?'Binance USD-M':'Bybit Linear'} · {o.setup.marginMode} · {o.setup.leverage}× · {o.setup.positionMode}</span></div>
+     <span className={'shrink-0 rounded-lg p-1.5 text-[11px] '+(o.state==='OPEN'?'text-sky-200 bg-sky-500/10':o.state==='WAITING'?'text-amber-200 bg-amber-500/10':'text-emerald-200 bg-emerald-500/10')}>{o.state==='WAITING'?'Ожидает':o.state==='OPEN'?'Демо открыт':o.state==='EXPIRED'?'Истёк':o.state==='CANCELLED'?'Отменён':'Закрыт'}</span>
+    </div>
+    <p className="text-[11px] text-slate-300">LIMIT {fmt(o.plan.entry)} · Защита {fmt(o.protectiveStop)} · Номинал {o.setup.notionalUSDT} USDT</p>
+    <div className="grid grid-cols-3 gap-1">{o.plan.targets.map((t,i)=><div key={i} className={'rounded-lg border p-2 text-center text-[11px] '+(o.tpReached>i?'border-emerald-500/30 bg-emerald-500/10 text-emerald-100':'border-white/10 text-slate-300')}><span>TP{i+1} · {o.setup.portions[i]}%</span><strong className="block">{fmt(t)} {o.tpReached>i?'✓':''}</strong></div>)}</div>
+    <p className="text-xs text-slate-300">Остаток {o.remainingPct}% · Условный валовый результат <strong className={o.grossUSDT>=0?'text-emerald-200':'text-rose-200'}>{o.grossUSDT.toFixed(3)} USDT</strong></p>
+    {o.quality==='GAP'&&<p className="text-xs text-amber-200">Пропуск рыночных свечей — исполнение приостановлено до восстановления непрерывной истории.</p>}
+    {['WAITING','OPEN'].includes(o.state)&&<button type="button" onClick={()=>setFuturesLedger(old=>stopFutureDemo(old,o.id,futuresBars,Date.now()))} className="min-h-[40px] w-full rounded-lg border border-rose-400/25 text-xs font-semibold text-rose-200">{o.state==='WAITING'?'Отменить учебный лимит':'Завершить по последней закрытой свече'}</button>}
+    <div className="border-t border-white/10 pt-2 space-y-1">{o.events.slice(-5).map((e,i)=><p key={i} className="text-[11px] text-slate-300"><span className="text-slate-500">{new Date(e.at).toLocaleString('ru-RU')} · </span>{e.detail}</p>)}</div>
+   </article>)}
+ </section>
+ <p className="text-[11px] leading-relaxed text-slate-500">Учебный расчёт отражает только валовое изменение цены без комиссий, funding, проскальзывания, частичных биржевых исполнений и ликвидации. Не предназначен для принятия реальных торговых решений. При остановке Android данные могут поступить позже.</p>
+ <button type="button" onClick={()=>setShowLegacySpotArchive(v=>!v)} className="min-h-[44px] w-full rounded-xl border border-slate-700 bg-[#101c2d] text-xs font-semibold text-slate-200">{showLegacySpotArchive?'Скрыть архив Spot 6.3':'Показать сохранённый архив Spot 6.3'}</button>
+</div>}
