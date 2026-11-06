@@ -10,11 +10,11 @@ app=rep(app,
 'audit import');
 app=rep(app,
 " const [driftLedger,setDriftLedger]=useState(()=>openDriftLedger(localStorage.getItem('apex_v47_drift'),Date.now()));",
-" const [driftLedger,setDriftLedger]=useState(()=>openDriftLedger(localStorage.getItem('apex_v47_drift'),Date.now()));\n const [contextExpanded,setContextExpanded]=useState(false);\n const [contextLedger,setContextLedger]=useState(()=>openContextAudit(localStorage.getItem('apex_v48_h4_context'),Date.now()));",
+" const [driftLedger,setDriftLedger]=useState(()=>openDriftLedger(localStorage.getItem('apex_v47_drift'),Date.now()));\n const [h4AuditExpanded,setH4AuditExpanded]=useState(false);\n const [contextLedger,setContextLedger]=useState(()=>openContextAudit(localStorage.getItem('apex_v48_h4_context'),Date.now()));",
 'new prospective registration and state');
 app=rep(app,
 " const driftStats=useMemo(()=>driftReport(driftLedger,now),[driftLedger,now]);",
-" const driftStats=useMemo(()=>driftReport(driftLedger,now),[driftLedger,now]);\n const contextStats=useMemo(()=>contextAuditReport(contextLedger),[contextLedger]);",
+" const driftStats=useMemo(()=>driftReport(driftLedger,now),[driftLedger,now]);\n const h4AuditStats=useMemo(()=>contextAuditReport(contextLedger),[contextLedger]);",
 'compact H4 report');
 const marker=" useEffect(()=>{try{localStorage.setItem('apex_v47_drift',JSON.stringify(driftLedger));}catch{}},[driftLedger]);";
 app=rep(app,marker,marker+"\n useEffect(()=>{setContextLedger(prev=>advanceContextAudit(prev,hourHoldout,coreResearch,transitionSince,Date.now()));},[hourHoldout,coreResearch,transitionSince]);\n useEffect(()=>{try{localStorage.setItem('apex_v48_h4_context',JSON.stringify(contextLedger));}catch{}},[contextLedger]);",

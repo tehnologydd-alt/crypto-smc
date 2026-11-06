@@ -1,30 +1,30 @@
 <div className="rounded-lg border border-indigo-400/15 bg-slate-950/30 p-2.5 space-y-1.5">
- <button type="button" aria-expanded={contextExpanded} onClick={()=>setContextExpanded(v=>!v)}
+ <button type="button" aria-expanded={h4AuditExpanded} onClick={()=>setH4AuditExpanded(v=>!v)}
   className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left">
   <span><strong className="text-xs text-indigo-200">Контекст H4 · 4.8</strong>
    <span className="block text-[10px] text-slate-400">
-    {contextStats.checked} проверенных переходов · {contextStats.qualified}/3 условий с достаточными данными
+    {h4AuditStats.checked} проверенных переходов · {h4AuditStats.qualified}/3 условий с достаточными данными
    </span>
   </span>
-  <span aria-hidden="true" className="text-slate-400">{contextExpanded?'−':'+'}</span>
+  <span aria-hidden="true" className="text-slate-400">{h4AuditExpanded?'−':'+'}</span>
  </button>
- {contextExpanded&&<div className="space-y-2 border-t border-white/10 pt-2">
+ {h4AuditExpanded&&<div className="space-y-2 border-t border-white/10 pt-2">
   <p className="text-[11px] text-slate-300">
-   {contextStats.state==='awaiting-hypothesis'?'Ожидаем фиксации гипотезы H1 из APEX 4.6.':
-    contextStats.state==='collecting'?'Идёт сбор первых подходящих будущих наблюдений.':
-    contextStats.state==='need-variety'?'Пока недостаточно разных условий с полной выборкой.':
-    contextStats.state==='context-dependent'?'Частота наблюдаемого перехода заметно отличается между условиями H4; нужна дополнительная проверка.':
+   {h4AuditStats.state==='awaiting-hypothesis'?'Ожидаем фиксации гипотезы H1 из APEX 4.6.':
+    h4AuditStats.state==='collecting'?'Идёт сбор первых подходящих будущих наблюдений.':
+    h4AuditStats.state==='need-variety'?'Пока недостаточно разных условий с полной выборкой.':
+    h4AuditStats.state==='context-dependent'?'Частота наблюдаемого перехода заметно отличается между условиями H4; нужна дополнительная проверка.':
     'Существенного различия между представленными условиями пока не выявлено. Это не доказывает универсальность.'}
   </p>
   <div className="space-y-1">
-   {contextStats.rows.map(r=><div key={r.h4} className="flex items-start justify-between gap-2 rounded-lg bg-slate-900/30 px-2.5 py-2">
+   {h4AuditStats.rows.map(r=><div key={r.h4} className="flex items-start justify-between gap-2 rounded-lg bg-slate-900/30 px-2.5 py-2">
     <div><strong className="text-[11px] text-slate-200">H4: {r.h4==='up'?'преобладание роста':r.h4==='down'?'преобладание снижения':'смешанный'}</strong>
      <p className="text-[10px] text-slate-500">{r.count} наблюдений · {r.days} дней · {r.status==='descriptive'?'описательно':'мало данных'}</p>
     </div>
     <strong className="shrink-0 text-xs text-indigo-200">{r.matchPct===null?'—':r.matchPct.toFixed(1)+'%'}</strong>
    </div>)}
   </div>
-  <p className="text-[11px] text-slate-400">Разница между подходящими условиями: {contextStats.differencePct===null?'пока недостаточно данных':contextStats.differencePct.toFixed(1)+' п.п.'}. Недостаточно контекста при сборе: {contextStats.missingContext}.</p>
-  <p className="text-[10px] text-slate-500">{contextStats.note}</p>
+  <p className="text-[11px] text-slate-400">Разница между подходящими условиями: {h4AuditStats.differencePct===null?'пока недостаточно данных':h4AuditStats.differencePct.toFixed(1)+' п.п.'}. Недостаточно контекста при сборе: {h4AuditStats.missingContext}.</p>
+  <p className="text-[10px] text-slate-500">{h4AuditStats.note}</p>
  </div>}
 </div>
