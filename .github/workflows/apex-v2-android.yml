@@ -25,6 +25,7 @@ jobs:
             echo "Applied APEX 2.3 lifecycle and full catalog overlay"
           fi
           if [ -f updates/apply-watch.cjs ]; then node updates/apply-watch.cjs; fi
+          node updates/inspect-v62.cjs
           sed -i 's/, "vite-plugin-pwa\/client"//g' tsconfig.json
           # Normalize the test harness for GitHub's installed TypeScript dependency.
           sed -i "s#require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript')#require('typescript')#g" scripts/test-intelligence.cjs
