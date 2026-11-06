@@ -192,3 +192,6 @@ require('./apply-v621.cjs');
 
 // APEX 6.3: demo-only Assistant, journal, limited automatic virtual accompaniment.
 require('./apply-v63.cjs');
+
+// APEX 6.4: public futures-only DEMO, independent from Spot archive.
+require('./apply-v64.cjs');
