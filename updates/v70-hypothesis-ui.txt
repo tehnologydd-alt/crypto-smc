@@ -1,0 +1,46 @@
+<details className="rounded-2xl border border-violet-400/25 bg-[#141e32] p-3.5">
+ <summary className="cursor-pointer text-sm font-semibold text-white">APEX 7.0 · Генератор гипотез DEMO</summary>
+ <div className="space-y-3 pt-3">
+  <p className="text-[11px] leading-relaxed text-slate-300">Исследовательский модуль ищет различия в частоте виртуальных защитных выходов при заранее выбранных условиях. Он не ищет «лучший параметр» и не меняет модель. Все выводы требуют проверки на будущих данных.</p>
+  {!studyProtocol?<p className="rounded-lg border border-amber-400/20 p-2.5 text-[11px] text-amber-100">Чтобы изучать новые закономерности, сначала начни независимую проверку Futures DEMO выше. История до её запуска исключена.</p>:
+  <>
+   <div className="grid grid-cols-3 gap-2">
+    <div className="rounded-lg bg-[#0b1729] p-2 text-center"><strong className="block text-lg text-white">{discoveryReport.eligibleClosed}</strong><span className="text-[10px] text-slate-400">Исходов</span></div>
+    <div className="rounded-lg bg-[#0b1729] p-2 text-center"><strong className="block text-lg text-white">{discoveryReport.candidates.length}</strong><span className="text-[10px] text-slate-400">Гипотез</span></div>
+    <div className="rounded-lg bg-[#0b1729] p-2 text-center"><strong className="block text-lg text-white">{frozenStudyHypotheses.length}</strong><span className="text-[10px] text-slate-400">Закреплено</span></div>
+   </div>
+   <p className="text-[11px] text-slate-400">APEX проверяет {discoveryReport.screened} заранее определённых сравнений: повышенный объём, сильное движение, LONG и M5 — отдельно для Binance и Bybit. Для каждой сравниваемой группы требуется хотя бы 5 наблюдений минимум за 2 разных дня. Порог отличия — 10 процентных пунктов.</p>
+   {discoveryReport.candidates.length===0?<p className="rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-300">Пока гипотез не предложено: наблюдений недостаточно или заданные критерии различий не выполнены. Это нормальный исследовательский результат, а не ошибка приложения.</p>:
+   <div className="space-y-2">{discoveryReport.candidates.map(candidate=>{
+    const already=frozenStudyHypotheses.some(h=>h.id===candidate.id);
+    return <article key={candidate.id} className="space-y-2 rounded-xl border border-violet-400/15 bg-[#0b182a] p-3">
+     <div className="flex items-center justify-between gap-2"><strong className="text-xs text-white">{candidate.source==='binance'?'Binance':'Bybit'} · {candidate.focusLabel}</strong><span className="text-[10px] text-violet-200">Предположение</span></div>
+     <p className="text-[11px] leading-relaxed text-slate-300">{candidate.description}</p>
+     <p className="text-[11px] text-slate-400">Группа: {candidate.contrast.focusN} · сравнение: {candidate.contrast.otherN} · защитные выходы: {candidate.contrast.focusStopPct.toFixed(1)}% против {candidate.contrast.otherStopPct.toFixed(1)}%. Отличие {candidate.contrast.differencePctPoints.toFixed(1)} п.п.</p>
+     <button type="button" disabled={already||frozenStudyHypotheses.length>=16} onClick={()=>{
+      if(!studyProtocol)return;
+      try{
+       const fresh=discoverHypotheses(studyProtocol,futuresLedger,Date.now()).candidates.find(h=>h.id===candidate.id);
+       if(!fresh){setFuturesMessage('Условия гипотезы изменились. Нужны новые подтверждённые наблюдения.');return;}
+       const next=freezeHypothesis(hypothesisArchive,studyProtocol,fresh,Date.now());
+       if(next===hypothesisArchive){setFuturesMessage('Гипотеза уже закреплена или архив заполнен.');return;}
+       localStorage.setItem('apex_v70_hypothesis_archive',JSON.stringify(next));
+       setHypothesisArchive(next);
+       setFuturesMessage('Исследовательская гипотеза закреплена. Новые наблюдения не допишутся в её исходную статистику.');
+      }catch(e){setFuturesMessage('Не удалось закрепить гипотезу: '+String(e));}
+     }} className="min-h-[40px] w-full rounded-lg border border-violet-400/30 bg-violet-500/15 text-[11px] font-semibold text-violet-100 disabled:opacity-40">{already?'Уже в архиве':'Зафиксировать для будущей проверки'}</button>
+    </article>;
+   })}</div>}
+   <div className="space-y-2 rounded-xl border border-white/10 bg-[#0b1728] p-3">
+    <div className="flex items-center justify-between gap-2"><strong className="text-xs text-white">Архив гипотез</strong><span className="text-[10px] text-slate-400">{frozenStudyHypotheses.length}/16</span></div>
+    {frozenStudyHypotheses.length===0?<p className="text-[11px] text-slate-400">Пока пусто. Когда появятся подходящие сравнения, можно закрепить гипотезу без изменения действующей модели.</p>:
+     frozenStudyHypotheses.slice(-6).reverse().map(h=><article key={h.id} className="rounded-lg border border-white/10 bg-[#121d2f] p-2.5 space-y-1">
+      <div className="flex items-center justify-between gap-2"><strong className="text-[11px] text-slate-100">{h.source==='binance'?'Binance':'Bybit'} · {h.focusLabel}</strong><span className="text-[10px] text-amber-200">Не подтверждена</span></div>
+      <p className="text-[10px] text-slate-400">Зафиксирована {new Date(h.frozenAt).toLocaleString('ru-RU')} · исходная выборка {h.contrast.focusN}+{h.contrast.otherN} · разница {h.contrast.differencePctPoints.toFixed(1)} п.п.</p>
+      <p className="text-[10px] text-slate-400">Будущая проверка сможет учитывать лишь наблюдения, созданные после фиксации. Уже записанные исходы никогда не станут её новым подтверждением.</p>
+     </article>)}
+   </div>
+  </>}
+  <p className="text-[10px] leading-relaxed text-amber-100/85">Это поиск исследовательских вопросов, а не прогноз, инвестиционная рекомендация или доказательство прибыльности. Сценарии зависят друг от друга, а выборка мала; никакого автоматического обучения или исполнения реальных ордеров.</p>
+ </div>
+</details>
