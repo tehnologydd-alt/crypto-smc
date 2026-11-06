@@ -213,3 +213,6 @@ require('./apply-v69.cjs');
 
 // APEX 7.0: research-only hypothesis discovery, freeze past evidence before future tests.
 require('./apply-v70.cjs');
+
+// APEX 7.1: post-freeze cohort evidence for unmodified DEMO hypotheses.
+require('./apply-v71.cjs');
