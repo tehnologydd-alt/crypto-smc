@@ -1,0 +1,78 @@
+{view==='assistant'&&<div className="space-y-4">
+ <header className="rounded-2xl border border-violet-400/25 bg-gradient-to-r from-[#261e43] via-[#182945] to-[#10353c] p-4 space-y-2">
+  <div className="flex items-center justify-between gap-2">
+   <h1 className="text-2xl font-bold text-white">Ассистент</h1>
+   <span className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-bold text-emerald-200">DEMO</span>
+  </div>
+  <p className="text-xs text-slate-300">Виртуальные лимитные планы, три частичных TP, безубыток и журнал событий. Без реальных ордеров, API-ключей и доступа к средствам.</p>
+ </header>
+ <div className="grid grid-cols-3 gap-2">
+  <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3 text-center"><strong className="block text-lg text-amber-200">{assistantStats.waiting}</strong><span className="text-[10px] text-slate-300">Лимиты</span></div>
+  <div className="rounded-xl border border-sky-400/20 bg-sky-500/5 p-3 text-center"><strong className="block text-lg text-sky-200">{assistantStats.open}</strong><span className="text-[10px] text-slate-300">Демо-позиции</span></div>
+  <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-3 text-center"><strong className="block text-lg text-emerald-200">{assistantStats.ended}</strong><span className="text-[10px] text-slate-300">Завершено</span></div>
+ </div>
+ <section className="rounded-2xl border border-white/10 bg-[#141e30] p-3.5 space-y-3">
+  <h2 className="text-base font-semibold text-white">Режим работы</h2>
+  <div role="group" aria-label="Режим ассистента" className="grid grid-cols-2 gap-1 rounded-xl bg-[#0c1628] p-1">
+   <button type="button" aria-pressed={assistantMode==='manual'} onClick={()=>setAssistantMode('manual')}
+    className={'min-h-[44px] rounded-lg text-xs font-semibold '+(assistantMode==='manual'?'bg-violet-600/40 text-violet-100':'text-slate-400')}>Ручной выбор</button>
+   <button type="button" aria-pressed={assistantMode==='auto'} onClick={()=>setAssistantMode('auto')}
+    className={'min-h-[44px] rounded-lg text-xs font-semibold '+(assistantMode==='auto'?'bg-violet-600/40 text-violet-100':'text-slate-400')}>Авто · демо</button>
+  </div>
+  <p className="text-[11px] text-slate-400">{assistantMode==='manual'?'Ты выбираешь виртуальный лимитный план; сопровождение затем выполняется автоматически.':'Правила автоматически регистрируют подходящие ожидающие прогнозы (до 6 одновременно). Это пока алгоритм, а не внешняя ИИ-модель.'}</p>
+  <div className="grid grid-cols-2 gap-2">
+   <button type="button" aria-pressed={assistantExchange==='binance'} onClick={()=>setAssistantExchange('binance')} className={'min-h-[44px] rounded-lg border px-2 text-xs font-semibold '+(assistantExchange==='binance'?'border-teal-400/40 bg-teal-400/15 text-teal-100':'border-white/10 text-slate-400')}>Binance Spot</button>
+   <button type="button" aria-pressed={assistantExchange==='bybit'} onClick={()=>setAssistantExchange('bybit')} className={'min-h-[44px] rounded-lg border px-2 text-xs font-semibold '+(assistantExchange==='bybit'?'border-teal-400/40 bg-teal-400/15 text-teal-100':'border-white/10 text-slate-400')}>Bybit Spot</button>
+  </div>
+  <p className="text-[11px] text-slate-400">Выбранная биржа определяет источник свечей для новых виртуальных планов. У уже созданных источник не меняется. Прогнозы строятся APEX; их перенос между биржами не означает одинакового исполнения.</p>
+  <div className="flex items-center justify-between gap-3">
+   <label htmlFor="apex-assistant-portions" className="min-w-0 text-xs text-slate-200">Доли TP1 / TP2 / TP3</label>
+   <select id="apex-assistant-portions" value={assistantPortions} onChange={e=>setAssistantPortions(e.target.value as '50/30/20'|'40/30/30'|'33/33/34')} className="rounded-lg border border-slate-600 bg-[#0a1323] p-2.5 text-xs text-white">
+    <option value="50/30/20">50 / 30 / 20%</option>
+    <option value="40/30/30">40 / 30 / 30%</option>
+    <option value="33/33/34">33 / 33 / 34%</option>
+   </select>
+  </div>
+  <div className="flex items-center justify-between gap-3">
+   <div><p className="text-xs font-semibold text-slate-200">Безубыток после TP1</p><p className="text-[10px] text-slate-400">Для оставшейся виртуальной доли, со следующей закрытой свечи</p></div>
+   <APEXSwitch enabled={assistantBreakeven} label="Виртуальный безубыток после TP1" onToggle={()=>setAssistantBreakeven(x=>!x)}/>
+  </div>
+  <p className="text-[10px] text-slate-500">Настройки относятся к новым демо-планам. Ранее зарегистрированные планы сохраняют свои параметры. Реальное исполнение и проскальзывание не моделируются.</p>
+ </section>
+ {assistantMode==='manual'&&<section className="space-y-2">
+  <div className="flex items-center justify-between gap-2"><h2 className="text-base font-semibold text-slate-100">Выбрать прогноз</h2><span className="text-xs text-slate-400">Лимитный вход</span></div>
+  {assistantCandidates.length===0?<p className="rounded-xl border border-dashed border-slate-600 p-4 text-xs text-slate-400">Сейчас нет подходящих ожидающих прогнозов из твоих активов. Можно посмотреть раздел «Сигналы».</p>:
+   assistantCandidates.slice(0,8).map(s=><div key={s.id} className="rounded-xl border border-white/10 bg-[#121e30] p-3 space-y-2">
+    <div className="flex items-center justify-between gap-2"><strong className="text-sm text-white">{pairName(s.symbol)} · {(s.frame||'5m').toUpperCase()}</strong><span className={'text-xs font-bold '+(s.direction==='LONG'?'text-emerald-300':'text-rose-300')}>{s.direction}</span></div>
+    <p className="text-xs text-slate-300">Лимит {fmt(s.entry)} · защитный уровень {fmt(s.stop)}</p>
+    <p className="text-[11px] text-slate-400">TP: {targetsOf(s).map((p,i)=>'TP'+(i+1)+' '+fmt(p)).join(' · ')}</p>
+    <p className="text-[11px] text-slate-500">Действителен до {new Date(s.expiresAt).toLocaleString('ru-RU')}</p>
+    <button type="button" onClick={()=>addAssistantScenario(s)} className="min-h-[44px] w-full rounded-lg border border-violet-400/30 bg-violet-500/15 text-xs font-semibold text-violet-100">Добавить виртуальный лимит · {assistantExchange==='binance'?'Binance':'Bybit'}</button>
+   </div>)}
+ </section>}
+ {assistantMessage&&<p role="status" className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-2.5 text-xs text-amber-200">{assistantMessage}</p>}
+ {bybitAssistantError&&assistantLedger.orders.some(o=>o.exchange==='bybit'&&(o.state==='OPEN'||o.state==='WAITING'))&&<p role="status" className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-2.5 text-xs text-amber-200">Bybit: {bybitAssistantError}. Новые виртуальные исполнения не учитываются без фактических завершённых свечей.</p>}
+ <section className="space-y-3">
+  <div className="flex items-center justify-between gap-2"><h2 className="text-base font-semibold text-slate-100">Демо-ордера и сопровождение</h2><span className="text-[11px] text-slate-400">{assistantLedger.orders.length} записей</span></div>
+  {assistantLedger.orders.length===0?<p className="rounded-xl border border-dashed border-slate-600 p-5 text-center text-xs text-slate-400">Здесь появятся виртуальные лимиты и история решений. В ручном режиме выбери прогноз; в автоматическом система зарегистрирует новые подходящие прогнозы.</p>:
+   assistantLedger.orders.slice(0,30).map(o=><div key={o.id} className="rounded-2xl border border-white/10 bg-gradient-to-r from-[#191f36] to-[#0f2735] p-3.5 space-y-2.5">
+    <div className="flex items-center justify-between gap-2">
+     <div className="min-w-0"><strong className="block text-sm text-white">{pairName(o.symbol)} · {o.frame.toUpperCase()} · {o.direction}</strong><span className="block text-[10px] text-slate-400">{o.exchange==='binance'?'Binance Spot':'Bybit Spot'} · {o.mode==='auto'?'Авто':'Ручной'} · LIMIT</span></div>
+     <span className={'shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold '+(o.state==='WAITING'?'bg-amber-400/10 text-amber-200':o.state==='OPEN'?'bg-sky-400/10 text-sky-200':o.state==='CLOSED'?'bg-emerald-400/10 text-emerald-200':'bg-slate-600/20 text-slate-300')}>
+      {o.state==='WAITING'?'Ожидает':o.state==='OPEN'?'Виртуально открыт':o.state==='EXPIRED'?'Срок истёк':o.state==='CANCELLED'?'Отменён':'Закрыт'}
+     </span>
+    </div>
+    <div className="grid grid-cols-2 gap-2 text-xs"><p className="text-slate-400">Лимит <strong className="block text-slate-100 tabular-nums">{fmt(o.entry)}</strong></p><p className="text-right text-slate-400">Защита <strong className="block text-slate-100 tabular-nums">{fmt(o.protectiveStop)}</strong></p></div>
+    <div className="grid grid-cols-3 gap-1.5">{o.targets.map((target,i)=><div key={i} className={'rounded-lg border p-2 text-center '+(o.tpReached>i?'border-emerald-500/25 bg-emerald-500/10':'border-white/10 bg-[#101c2d]')}>
+     <p className="text-[10px] text-slate-400">TP{i+1} · {o.portions[i]}%</p><strong className={'block text-[11px] tabular-nums '+(o.tpReached>i?'text-emerald-200':'text-slate-200')}>{fmt(target)} {o.tpReached>i?'✓':''}</strong>
+    </div>)}</div>
+    <p className="text-[11px] text-slate-400">Осталось {o.remainingPct}% виртуального объёма · {o.state==='WAITING'?'истекает '+new Date(o.expiresAt).toLocaleString('ru-RU'):o.breakevenAfterTp1?'БУ после TP1 включён':'БУ после TP1 выключен'}</p>
+    {(o.state==='WAITING'||o.state==='OPEN')&&<button type="button" onClick={()=>setAssistantLedger(prev=>closeVirtualOrder(prev,o.id,Date.now()))} className="min-h-[40px] w-full rounded-lg border border-rose-400/25 text-xs font-semibold text-rose-200">{o.state==='WAITING'?'Отменить виртуальный лимит':'Завершить демо-сопровождение'}</button>}
+    <div className="border-t border-white/10 pt-2 space-y-1.5">
+     <p className="text-[11px] font-semibold text-violet-200">Журнал ассистента</p>
+     {o.events.slice(-6).map((e,i)=><p key={i} className="text-[11px] text-slate-300"><span className="text-slate-500">{new Date(e.at).toLocaleString('ru-RU')} · </span>{e.detail}</p>)}
+    </div>
+   </div>)}
+ </section>
+ <p className="text-[11px] leading-relaxed text-slate-500">Ассистент обрабатывает только реально полученные закрытые свечи. Binance использует рыночный поток приложения; Bybit — открытый Spot API. При закрытом приложении или отсутствии данных события могут быть обнаружены позже; точное исполнение между свечами неизвестно. Binance-ориентированные прогнозы при выборе Bybit оцениваются по его отдельным котировкам. Все действия исключительно виртуальные.</p>
+</div>}
