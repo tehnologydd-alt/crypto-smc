@@ -174,3 +174,6 @@ require('./apply-v54.cjs');
 
 // APEX 5.5: three-rule research council arbitration without new UI nesting.
 require('./apply-v55.cjs');
+
+// APEX 5.6: native WorkManager reliability diagnostic and missing-job repair.
+require('./apply-v56.cjs');

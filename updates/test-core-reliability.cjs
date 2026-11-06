@@ -1,0 +1,45 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const src=fs.readFileSync('src/radar/core-reliability.ts','utf8');
+const js=ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const m={exports:{}};vm.runInNewContext(js,{module:m,exports:m.exports,require,Date,Number,Math,Set,Array,JSON});
+const H=m.exports,T=Date.UTC(2026,10,6,12),MIN=60000;
+const core={supported:true,enabled:true,lastRunAt:T-10*MIN,samples:[]};
+const native={supported:true,enabled:true,scheduled:true,workState:'ENQUEUED',repairQueued:false,
+ lastRepairAt:0,checkedAt:T-3*MIN,lastRunAt:T-10*MIN,bufferEntries:15,lastResult:'OK'};
+const research={latestAt:T-10*MIN,latestFullAt:T-10*MIN};
+const status=(n=native,c=core,extra={})=>H.coreReliabilitySummary(c,n,research,extra.memory===true,extra.replication===true,T);
+assert.equal(status().level,'scheduled');
+assert.equal(status({...native,lastRunAt:T-1*MIN,workState:'RUNNING'}).level,'scheduled');
+assert.equal(status({...native,workState:'BLOCKED'}).level,'scheduled');
+assert.equal(status({...native,workState:'REQUEUED',repairQueued:true,scheduled:true}).level,'recovering');
+assert.equal(status({...native,workState:'MISSING',scheduled:false}).level,'attention');
+assert.equal(status({...native,lastRunAt:T-50*MIN}).level,'delayed');
+assert.equal(status({...native,lastRunAt:T-4*60*MIN}).level,'delayed');
+assert.equal(status({...native,checkedAt:T-45*MIN}).level,'checking');
+assert.equal(status({...native,lastRunAt:0}, {...core,lastRunAt:0}).level,'scheduled');
+assert.equal(status(native,{...core,enabled:false}).level,'off');
+assert.equal(status(native,{...core,supported:false}).level,'unsupported');
+assert.equal(status(native,core,{memory:true}).archiveProblem,true);
+assert.equal(status(native,core,{replication:true}).archiveProblem,true);
+const from=H.normalizeNativeReliability({supported:true,enabled:true,scheduled:true,workState:'ENQUEUED',
+ checkedAt:T,bufferEntries:999,lastResult:'OK',lastRunAt:T});
+assert.equal(from.bufferEntries,96);
+assert.equal(H.normalizeNativeReliability({workState:'BOGUS'}).workState,'UNKNOWN');
+const app=fs.readFileSync('src/App.tsx','utf8');
+assert(app.includes('coreReliabilitySummary(coreNative'));
+assert(app.includes('refreshCoreReliability'));
+assert(app.includes('Автономность · 5.6'));
+assert(!app.includes('setCoreHealthExpanded'),'no more pyramid');
+const bridge=fs.readFileSync('src/radar/core-background.ts','utf8');
+assert(bridge.includes("coreReliability():Promise<unknown>"));
+assert(bridge.includes('export async function getCoreReliabilityStatus()'));
+const android=fs.readFileSync('native/android/app/src/main/java/com/apexintelligence/monitor/BackgroundMonitorPlugin.java','utf8');
+assert(android.includes('@PluginMethod public void coreReliability(PluginCall call)'));
+assert(android.includes('getWorkInfosForUniqueWork(JOB)'));
+assert(android.includes('if(coreEnabled&&!scheduled&&'));
+assert(android.includes('adjustSharedSchedule();'));
+assert(android.includes('coreScheduleRepairAt'));
+assert(!android.includes('new PeriodicWorkRequest.Builder(BackgroundScanWorker.class,5,TimeUnit.MINUTES)'));
+for(const path of ['src/radar/learning.ts','src/radar/notify.ts','src/radar/engine.ts'])
+ assert(!fs.readFileSync(path,'utf8').includes('coreReliabilityStatus('),'CORE diagnostic isolated from forecasts & alerts');
+console.log('APEX 5.6 autonomous reliability PASS: actual WorkManager status, opt-in repair guard, OS delays vs lost job, no extra scheduler, archive quarantine, no backfill');
