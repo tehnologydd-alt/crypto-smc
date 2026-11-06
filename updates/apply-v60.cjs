@@ -1,22 +1,29 @@
 /** APEX 6.0: flatten Center navigation, preserve all research ledgers and signals. */
-const fs=require('node:fs'),ts=require('typescript');
+const fs=require('node:fs');
 const read=p=>fs.readFileSync(p,'utf8'),write=(p,s)=>fs.writeFileSync(p,s);
 function rep(s,a,b,label){if(!s.includes(a))throw Error('APEX 6.0 missing '+label);return s.replace(a,b);}
 let app=read('src/App.tsx');
-const sf=ts.createSourceFile('App.tsx',app,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+/** Locate one exact JSX root by class, matching nested native tags without installed dependencies. */
 function locate(part,tag){
- const hits=[];
- const walk=node=>{
-  if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(sf)===tag){
-   const a=node.openingElement.attributes.properties.find(p=>ts.isJsxAttribute(p)&&p.name.text==='className');
-   const v=a&&ts.isJsxAttribute(a)?a.initializer:null;
-   if(v&&ts.isStringLiteral(v)&&v.text.includes(part))hits.push(app.slice(node.getStart(sf),node.getEnd()));
-  }
-  ts.forEachChild(node,walk);
- };
- walk(sf);
- if(hits.length!==1)throw Error('APEX 6.0 expected one '+tag+' '+part+', found '+hits.length);
- return hits[0];
+ const tagStart='<'+tag+' className="',beginnings=[];
+ let from=0;
+ while((from=app.indexOf(tagStart,from))>=0){
+  const close=app.indexOf('>',from);
+  if(close<0)break;
+  if(app.slice(from,close).includes(part))beginnings.push(from);
+  from+=tagStart.length;
+ }
+ if(beginnings.length!==1)throw Error('APEX 6.0 expected one '+tag+' '+part+', found '+beginnings.length);
+ const start=beginnings[0],regex=new RegExp('<\\/?'+tag+'(?=[\\s>])[^>]*>','g');
+ regex.lastIndex=start;
+ let depth=0,match;
+ while((match=regex.exec(app))){
+  if(match.index<start)continue;
+  if(match[0].startsWith('</'))depth--;
+  else if(!match[0].endsWith('/>'))depth++;
+  if(depth===0)return app.slice(start,regex.lastIndex);
+ }
+ throw Error('APEX 6.0 unbalanced JSX '+tag+' '+part);
 }
 const native=locate('border-indigo-500/20 bg-[#101827]','section');
 const director=locate('border-fuchsia-400/20 bg-[#19172a]','div');
