@@ -195,3 +195,6 @@ require('./apply-v63.cjs');
 
 // APEX 6.4: public futures-only DEMO, independent from Spot archive.
 require('./apply-v64.cjs');
+
+// APEX 6.5: two peer DEMO markets and separate decision evidence.
+require('./apply-v65.cjs');
