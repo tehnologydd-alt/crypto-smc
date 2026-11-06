@@ -210,3 +210,6 @@ require('./apply-v68.cjs');
 
 // APEX 6.9: read-only, predecision research on virtual futures outcomes.
 require('./apply-v69.cjs');
+
+// APEX 7.0: research-only hypothesis discovery, freeze past evidence before future tests.
+require('./apply-v70.cjs');
