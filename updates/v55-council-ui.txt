@@ -1,0 +1,27 @@
+<div className="rounded-lg border border-teal-400/20 bg-slate-950/30 p-2.5 space-y-2">
+ <div className="flex items-start justify-between gap-2">
+  <span className="min-w-0"><strong className="block text-xs text-teal-200">Коллектив исследований · 5.5</strong>
+   <span className="block text-[10px] text-slate-400">Три проверяющих алгоритма · решение директора</span>
+  </span>
+  <span className={'shrink-0 text-[10px] '+(councilStats.state==='blocked'||councilStats.state==='review'?'text-amber-200':'text-slate-400')}>
+   {councilStats.state==='blocked'?'Несовместимые данные':
+    councilStats.state==='review'?'Есть замечания':
+    councilStats.state==='collecting'?'Сбор доказательств':'Описание согласуется'}
+  </span>
+ </div>
+ <div className="space-y-1">
+  {councilStats.auditors.map(a=><div key={a.role} className="rounded-md bg-slate-900/40 px-2 py-1.5">
+   <div className="flex items-center justify-between gap-2">
+    <strong className="text-[11px] text-slate-200">{a.title}</strong>
+    <span className={'shrink-0 text-[10px] '+(a.state==='blocked'||a.state==='caution'?'text-amber-200':a.state==='descriptive'?'text-emerald-200':'text-slate-500')}>
+     {a.state==='blocked'?'Блокировка':a.state==='caution'?'Перепроверить':a.state==='pending'?'Данных мало':'Наблюдается'}
+    </span>
+   </div>
+   <p className="text-[10px] text-slate-400">{a.evidence}</p>
+  </div>)}
+ </div>
+ <p className="text-[11px] text-teal-200">Директор: {councilStats.decision}</p>
+ {councilStats.priorityGap&&<p className="text-[11px] text-amber-200">Внимание: текущий приоритет директора не совпадает с самым важным замечанием аудиторов. План автоматически не переписывается.</p>}
+ <p className="text-[11px] text-slate-300">Следующий вопрос: {councilStats.nextQuestion}</p>
+ <p className="text-[10px] text-slate-500">Это три отдельных алгоритма проверки общих CORE-данных, не три внешние ИИ-модели и не независимые эксперименты. Решение по большинству голосов не принимается. Отчёт не меняет сигналы, виртуальные сделки и исследования.</p>
+</div>

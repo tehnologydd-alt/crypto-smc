@@ -171,3 +171,6 @@ require('./apply-v53.cjs');
 
 // APEX 5.4: independent prospective H1 replication on disjoint UTC-day cohorts.
 require('./apply-v54.cjs');
+
+// APEX 5.5: three-rule research council arbitration without new UI nesting.
+require('./apply-v55.cjs');
