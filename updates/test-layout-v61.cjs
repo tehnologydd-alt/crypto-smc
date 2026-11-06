@@ -15,6 +15,7 @@ for(const a of ["signalArea==='current'","signalArea==='done'","signalArea==='de
 assert(!signals.includes('APEX Learning Engine'),'learning stays in Center');
 assert(app.includes("setSignalArea('current');setSignalStatusFilter('all');setHighlightScenario(id);"),'Android notification must reveal correct scenario section');
 assert(app.includes('compact=false')&&app.includes('detailsOpen'),'completed history uses collapsible cards');
+assert(app.includes("selected.status!=='PENDING'&&selected.status!=='ACTIVE')setSignalArea('done')"),'closed notification opens completed history');
 for(const a of ['apex_v2_favorites','apex_v28_demo_journal','apex_v30_learning','apex_v44_core_research','apex_v53_core_memory'])
  assert(app.includes(a),'all historic local store keys retained '+a);
 const parsed=ts.createSourceFile('App.tsx',app,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);

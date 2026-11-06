@@ -34,6 +34,12 @@ app=rep(app,
 "},[view,highlightScenario]);",
 "},[view,highlightScenario,signalArea,signalStatusFilter]);",
 'deep-link scroll after stage switch');
+
+app=rep(app,
+" const [scenarios,setScenarios]=useState<Scenario[]>(safeScenarios);",
+" const [scenarios,setScenarios]=useState<Scenario[]>(safeScenarios);\n useEffect(()=>{if(view!=='history'||!highlightScenario)return;const selected=scenarios.find(s=>s.id===highlightScenario);if(selected&&selected.status!=='PENDING'&&selected.status!=='ACTIVE')setSignalArea('done');},[view,highlightScenario,scenarios]);",
+'closed notification opens completed history');
+
 const cardStart=app.indexOf('function ScenarioCard('),cardEnd=app.indexOf('const exchangePrice=',cardStart);
 if(cardStart<0||cardEnd<=cardStart)throw Error('ScenarioCard function missing');
 let card=app.slice(cardStart,cardEnd);
