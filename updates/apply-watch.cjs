@@ -219,3 +219,6 @@ require('./apply-v71.cjs');
 
 // APEX 7.2: strictly prospective paper-only experimental shadow variants.
 require('./apply-v72.cjs');
+
+// APEX 7.3: deterministic on-device explanation grounded only in DEMO reports.
+require('./apply-v73.cjs');
