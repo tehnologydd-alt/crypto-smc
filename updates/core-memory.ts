@@ -10,7 +10,8 @@ import {openResearchReviews} from './research-reports';
 
 const HOUR=3_600_000,DAY=24*HOUR;
 const MAX_DAYS=730,MAX_H1=7000,MAX_H4=3500,MAX_REPORTS=128,MAX_FILE=3_600_000;
-const KIND='apex-core-memory-v1' as const;
+const KIND='apex-core-memory-v1' as const,VERSION=1 as const;
+const SEAL_DELAY=2*DAY; // give native's 96-run (~24h) buffer time to sync before sealing a day
 const regimes=['up','down','mixed'] as const;
 export type SavedH1={fromAt:number;toAt:number;from:'up'|'down'|'mixed';to:'up'|'down'|'mixed'};
 export type SavedH4={fromAt:number;toAt:number;to:'up'|'down'|'mixed';h4:'up'|'down'|'mixed';h4ClosedAt:number};
@@ -46,7 +47,7 @@ const validDay=(d:unknown,start:number,now:number):d is SavedDay=>{
  const x=d as Partial<SavedDay>;
  if(typeof x.day!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(x.day))return false;
  const at=midnight(x.day);
- return finite(at)&&isoDay(at)===x.day&&at>=nextUTC(start)&&at+DAY<=now&&
+ return finite(at)&&isoDay(at)===x.day&&at>=nextUTC(start)&&at+DAY+SEAL_DELAY<=now&&
   finite(x.firstAt)&&finite(x.lastAt)&&x.firstAt>=at&&x.lastAt<at+DAY&&
   x.lastAt>=x.firstAt&&Number.isInteger(x.checks)&&x.checks!>0&&
   Number.isInteger(x.complete)&&x.complete!>=0&&x.complete!<=x.checks!&&
@@ -74,8 +75,7 @@ function combine<T>(current:T[],incoming:T[],key:(x:T)=>string,limit:number,labe
 function safeReports(raw:unknown,now:number):raw is ResearchReview[]{
  if(!Array.isArray(raw)||raw.length>MAX_REPORTS)return false;
  // Existing 5.2 validator is the authoritative format, excluding invalid reports.
- const clean=openResearchReviews(JSON.stringify({version:1,reports:raw}),now).reports;
- return clean.length===raw.length&&raw.length<=MAX_REPORTS;
+ return raw.every(r=>openResearchReviews(JSON.stringify({version:1,reports:[r]}),now).reports.length===1);
 }
 /** Validate every stored element: invalid files are rejected whole, never partially loaded. */
 export function validateCoreMemory(raw:unknown,now=Date.now()):raw is CoreMemory{
@@ -114,7 +114,7 @@ function dailyFromCore(archive:CoreResearchArchive,start:number,now:number):Save
   if(!e||e.source!=='core-native-observations-v1'||!finite(e.runAt)||!finite(e.finishedAt)||
    e.finishedAt<e.runAt||e.finishedAt>now||e.runAt<=start)continue;
   const at=Math.floor(e.finishedAt/DAY)*DAY;
-  if(at<nextUTC(start)||at+DAY>now||e.runAt<at||e.runAt>=at+DAY)continue;
+  if(at<nextUTC(start)||at+DAY+SEAL_DELAY>now||e.runAt<at||e.runAt>=at+DAY)continue;
   const key=isoDay(at),group=groups.get(key)||[];
   group.push(e);groups.set(key,group);
  }
