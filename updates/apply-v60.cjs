@@ -61,6 +61,12 @@ write('src/App.tsx',app);
 let oldTest=read('scripts/test-layout-v40.cjs');
 oldTest=rep(oldTest,"label:'Статистика',icon:Activity","label:'Центр',icon:Activity",'v4.0 navigation compatibility test');
 write('scripts/test-layout-v40.cjs',oldTest);
+// Compatibility: retain all historical behavior tests, update only their literal tab-label expectation.
+for(const filename of fs.readdirSync('scripts')){
+ if(!/^test-.*\\.cjs$/.test(filename))continue;
+ const path='scripts/'+filename,body=read(path);
+ if(body.includes("label:'Статистика'"))write(path,body.replaceAll("label:'Статистика'","label:'Центр'"));
+}
 fs.copyFileSync('updates/test-layout-v60.cjs','scripts/test-layout-v60.cjs');
 const pkg=JSON.parse(read('package.json'));pkg.scripts.test+=' && node scripts/test-layout-v60.cjs';
 write('package.json',JSON.stringify(pkg,null,2)+'\n');
