@@ -138,3 +138,6 @@ require('./apply-v42.cjs');
 
 // APEX 4.3: independent, opt-in native CORE observations via existing periodic WorkManager.
 require('./apply-v43.cjs');
+
+// APEX 4.4: durable, separated native CORE observational archive.
+require('./apply-v44.cjs');
