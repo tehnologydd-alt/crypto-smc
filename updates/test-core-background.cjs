@@ -32,6 +32,6 @@ assert(nat.includes('coreStatus(PluginCall call)'));
 assert(nat.includes('runCoreNow(PluginCall call)'));
 const worker=fs.readFileSync('native/android/app/src/main/java/com/apexintelligence/monitor/BackgroundScanWorker.java','utf8');
 assert(worker.includes('persistCoreSample'));
-assert(worker.includes('personalEnabled&&favoriteSymbols.contains(symbol)'));
+assert(worker.includes('personalEnabled&&favoriteSymbols!=null&&favoriteSymbols.contains(symbol)'));
 assert(worker.includes('"binance-spot-klines-v1"'));
 console.log('APEX 4.3 native CORE bridge tests PASS: data provenance, incomplete rejection, independent schedule, no personal scan for research-only assets');
