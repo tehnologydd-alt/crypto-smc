@@ -24,3 +24,7 @@ for(const pat of patterns){
  while((start=s.indexOf(pat,start))>=0&&hits.length<9){hits.push(start);start+=pat.length;}
  for(let i=0;i<hits.length;i++)log('MATCH_'+pat.replace(/[^a-zA-Z0-9]/g,'_')+'_'+i,s.slice(Math.max(0,hits[i]-180),hits[i]+2400),2600);
 }
+
+for(const path of ['src/radar/lifecycle.ts','src/radar/candles.ts','src/radar/feed.ts','src/radar/guardian.ts']){
+ if(fs.existsSync(path))log('SOURCE_'+path.replace(/[^a-zA-Z0-9]/g,'_'),fs.readFileSync(path,'utf8'),29000);
+}
