@@ -23,6 +23,10 @@ const stale=P.coreQualityPassport({...ready,core:{...ready.core,latestFullAt:now
  transitions:{...ready.transitions,newestAt:now-4*DAY},holdout:{...ready.holdout,latestToAt:now-4*DAY},
  drift:{...ready.drift,lastObservedAt:now-4*DAY},context:{...ready.context,latestAt:now-4*DAY}},now);
 assert.equal(stale.state,'observations-stale');
+const pollingOnly=P.coreQualityPassport({...ready,transitions:{...ready.transitions,newestAt:now-4*DAY},
+ holdout:{...ready.holdout,latestToAt:now-4*DAY},drift:{...ready.drift,lastObservedAt:now-4*DAY},
+ context:{...ready.context,latestAt:now-4*DAY}},now);
+assert.equal(pollingOnly.state,'observations-stale','fresh raw CORE polling cannot mask stale prospective H1 evidence');
 assert.equal(P.coreQualityPassport({...ready,drift:{...ready.drift,phase:'possible-decline'}},now).state,'needs-review');
 assert.equal(P.coreQualityPassport({...ready,context:{...ready.context,state:'context-dependent',qualified:2}},now).state,'needs-review');
 assert.equal(P.coreQualityPassport({...ready,holdout:{...ready.holdout,differenceToTraining:-27}},now).state,'needs-review');
