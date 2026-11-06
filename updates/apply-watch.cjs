@@ -207,3 +207,6 @@ require('./apply-v67.cjs');
 
 // APEX 6.8: public futures health and hypothetical educational cost sensitivity.
 require('./apply-v68.cjs');
+
+// APEX 6.9: read-only, predecision research on virtual futures outcomes.
+require('./apply-v69.cjs');
