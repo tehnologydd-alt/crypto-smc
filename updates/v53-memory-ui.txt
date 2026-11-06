@@ -1,0 +1,20 @@
+<div className="rounded-lg border border-emerald-400/20 bg-slate-950/30 p-2.5 space-y-2">
+ <button type="button" aria-expanded={coreMemoryExpanded} onClick={()=>setCoreMemoryExpanded(v=>!v)} className="flex w-full min-h-[44px] items-center justify-between gap-2 text-left">
+  <span><strong className="block text-xs text-emerald-200">Долговременная память · 5.3</strong>
+   <span className="block text-[11px] text-slate-400">{memoryStats.days} дней · {memoryStats.transitions} переходов H1 · {memoryStats.reports} отчётов</span>
+  </span><span aria-hidden="true" className="text-slate-400">{coreMemoryExpanded?'−':'+'}</span>
+ </button>
+ {coreMemoryExpanded&&<div className="border-t border-white/10 pt-2 space-y-2">
+  <p className="text-[11px] text-slate-300">Сохранено: {memoryStats.days} завершённых UTC-дней CORE, {memoryStats.transitions} переходов H1, {memoryStats.contexts} зафиксированных контекстов H4, {memoryStats.reports} отчётов Research Director.</p>
+  <p className="text-[11px] text-slate-400">Первый факт: {memoryStats.firstAt===null?'пока нет':new Date(memoryStats.firstAt).toLocaleString('ru-RU')} · последний: {memoryStats.lastAt===null?'пока нет':new Date(memoryStats.lastAt).toLocaleString('ru-RU')}</p>
+  {memoryStats.nearCapacity&&<p className="text-[11px] text-amber-200">Локальный архив достиг лимита. Новые записи этого типа больше не будут добавляться без расширения хранилища. Сохраните резервную копию.</p>}
+  <div className="grid grid-cols-2 gap-2">
+   <button type="button" disabled={coreMemoryBusy} onClick={exportCoreMemoryFile}
+    className="min-h-[44px] rounded-lg bg-emerald-500/15 border border-emerald-400/30 px-2 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-50">Сохранить копию</button>
+   <button type="button" disabled={coreMemoryBusy} onClick={restoreCoreMemoryFile}
+    className="min-h-[44px] rounded-lg bg-slate-700/40 border border-slate-500/25 px-2 py-2 text-xs font-semibold text-slate-200 disabled:opacity-50">Импортировать копию</button>
+  </div>
+  {coreMemoryMessage&&<p role="status" className="text-[11px] text-slate-300">{coreMemoryMessage}</p>}
+  <p className="text-[10px] text-slate-500">Новые наблюдения сохраняются при синхронизации приложения с CORE. Архив не восстанавливает пропущенные часы и не создаёт прогнозы. Импорт объединяет только совпадающие по содержанию записи; конфликты отклоняются. Восстанавливается исторический архив, но не текущие сигналы, сделки и активные задачи.</p>
+ </div>}
+</div>

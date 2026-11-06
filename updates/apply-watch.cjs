@@ -165,3 +165,6 @@ require('./apply-v51.cjs');
 
 // APEX 5.2: immutable Research Director review reports from forward-only task evidence.
 require('./apply-v52.cjs');
+
+// APEX 5.3: append-only research history with validated local backup and merge.
+require('./apply-v53.cjs');
