@@ -153,3 +153,6 @@ require('./apply-v47.cjs');
 
 // APEX 4.8: compare prospective frozen H1 transitions across past H4 regimes only.
 require('./apply-v48.cjs');
+
+// APEX 4.9: read-only, provenance-aware CORE research quality passport.
+require('./apply-v49.cjs');
