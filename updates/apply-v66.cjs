@@ -19,10 +19,11 @@ app=rep(app,
  "Учебная начальная маржа: <strong className=\"text-white\">{virtualMarginUSDT(futuresSetup).toFixed(2)} USDT</strong> · виртуальный номинал {futuresNotional} USDT.",
  "Виртуальный номинал позиции: <strong className=\"text-white\">{futuresNotional} USDT</strong> · расчётная начальная маржа: <strong className=\"text-white\">{virtualMarginUSDT(futuresSetup).toFixed(2)} USDT</strong>. При изменении цены на 1% условный результат полной позиции — ±{(futuresNotional/100).toFixed(2)} USDT до издержек.",
  'clear nominal and margin');
-app=rep(app,
- " <section className=\"space-y-2\">\n  <div className=\"flex items-center justify-between gap-2\"><h2 className=\"text-base font-semibold text-white\">Futures DEMO · журнал</h2>",
- " "+read('updates/v66-forward-study-ui.txt')+"\n <section className=\"space-y-2\">\n  <div className=\"flex items-center justify-between gap-2\"><h2 className=\"text-base font-semibold text-white\">Futures DEMO · журнал</h2>",
- 'prospective panel');
+const targetJournal='Futures DEMO · журнал';
+const atJournal=app.indexOf(targetJournal);
+const sectionStart=atJournal>=0?app.lastIndexOf('<section className="space-y-2">',atJournal):-1;
+if(sectionStart<0||atJournal-sectionStart>300)throw Error('APEX 6.6 cannot locate futures journal section');
+app=app.slice(0,sectionStart)+read('updates/v66-forward-study-ui.txt')+'\n '+app.slice(sectionStart);
 app=rep(app,
  " · Номинал {o.setup.notionalUSDT} USDT</p>",
  " · Номинал позиции {o.setup.notionalUSDT} USDT · Расчётная маржа {(o.setup.notionalUSDT/o.setup.leverage).toFixed(2)} USDT</p>",
