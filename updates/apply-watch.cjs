@@ -201,3 +201,6 @@ require('./apply-v65.cjs');
 
 // APEX 6.6: explain virtual position nominal and freeze prospective DEMO cohorts.
 require('./apply-v66.cjs');
+
+// APEX 6.7: independent study control center, cause-level exclusions and immutable checkpoints.
+require('./apply-v67.cjs');
