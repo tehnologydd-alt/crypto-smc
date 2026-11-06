@@ -7,12 +7,12 @@ const rStart=app.indexOf("{view==='radar'&&!selectedDetail&&"),
  cStart=app.indexOf("{view==='statistics'&&",hStart);
 if(rStart<0||hStart<=rStart||cStart<=hStart)throw Error('APEX 6.1 route boundaries not found');
 const oldRadar=app.slice(rStart,hStart);
-const pulseAnchor='    <section className="rounded-2xl border border-teal-500/20 bg-gradient-to-br';
-const pStart=oldRadar.indexOf(pulseAnchor),pEnd=oldRadar.indexOf('    </section>',pStart);
+const pulseAnchor='<section className="rounded-2xl border border-teal-500/20 bg-gradient-to-br';
+const pStart=oldRadar.indexOf(pulseAnchor),pEnd=oldRadar.indexOf('</section>',pStart);
 if(pStart<0||pEnd<=pStart)throw Error('Pulse card not found in Radar');
-const pulse=oldRadar.slice(pStart,pEnd+'    </section>'.length);
-const fStart=oldRadar.indexOf('    <div className="space-y-2">',pEnd),
- situation=oldRadar.indexOf('    <div className="flex items-center justify-between"><h2 className="font-semibold text-lg">Ситуации сейчас',fStart);
+const pulse=oldRadar.slice(pStart,pEnd+'</section>'.length);
+const fStart=oldRadar.indexOf('<div className="space-y-2">',pEnd),
+ situation=oldRadar.indexOf('<div className="flex items-center justify-between"><h2 className="font-semibold text-lg">Ситуации сейчас',fStart);
 if(fStart<0||situation<=fStart)throw Error('Favorite-list boundary not found');
 let favoriteRows=oldRadar.slice(fStart,situation).trim();
 const duplicate=/\{FRAMES\.some\(f=>a\.signals\[f\]\)&&<div className="mt-3 flex justify-between items-center border-t border-white\/5 pt-2 text-xs">[\s\S]*?<\/div>\}/;
