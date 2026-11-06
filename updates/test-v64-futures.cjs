@@ -26,6 +26,11 @@ const entry=bar(36,plan.entry-.1,plan.entry+.1,plan.entry);
 const opened=F.advanceFuturesTicket(ledger.tickets[0],[entry],now+H);
 assert.equal(opened.state,'OPEN');
 assert.equal(opened.tpReached,0);
+
+const expiring=F.createFutureTicket({...plan,expiresAt:now+H/2},setting,'manual',now);
+const expiryBoundary=F.advanceFuturesTicket(expiring,[entry],now+H);
+assert.equal(expiryBoundary.state,'EXPIRED','boundary-crossing candle must not create an unconfirmed entry');
+
 const tp=F.advanceFuturesTicket(opened,[bar(37,plan.entry+.1,plan.targets[0]+.1,plan.targets[0])],now+2*H);
 assert.equal(tp.tpReached,1);assert.equal(tp.remainingPct,50);
 assert.equal(tp.protectiveStop,plan.entry,'BE from next candle');
