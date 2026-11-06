@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 function load(path){
  const source=fs.readFileSync(path,'utf8');
  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
- const m={exports:{}};vm.runInNewContext(compiled,{module:m,exports:m.exports,require,Date,Math,Number,JSON,Array,Set,Map});
+ const m={exports:{}};vm.runInNewContext(compiled,{module:m,exports:m.exports,require:name=>name==='./v69-outcome-audit'?load('src/radar/v69-outcome-audit.ts'):require(name),Date,Math,Number,JSON,Array,Set,Map});
  return m.exports;
 }
 const F=load('src/radar/v64-futures-assistant.ts'),
