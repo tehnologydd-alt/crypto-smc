@@ -93,7 +93,7 @@ assert(M.explainResearchQuestion('Что исследовать дальше?',e
 const a=fs.readFileSync('src/App.tsx','utf8');
 for(const token of ['РЫНОЧНЫЙ РАДАР • 7.3','APEX 7.3 · Интеллектуальный наставник',
  'explainResearchQuestion','MENTOR_SUGGESTIONS','mentorContext','askMentor','mentorHistory',
- 'Что исследовать дальше?','На каких данных основан ответ?',
+ 'Свой вопрос об исследованиях','На каких данных основан ответ?',
  'apex_v63_assistant_demo','apex_v64_futures_demo','apex_v66_forward_protocol',
  'apex_v70_hypothesis_archive','apex_v72_shadow_archive']){
  assert(a.includes(token),'APEX 7.3 UI missing '+token);
