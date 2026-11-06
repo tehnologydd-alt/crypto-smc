@@ -1,0 +1,76 @@
+ const assistantStats=useMemo(()=>assistantSummary(assistantLedger),[assistantLedger]);
+ const assistantPortionValues=useMemo<[number,number,number]>(()=>{
+  return assistantPortions==='40/30/30'?[40,30,30]:assistantPortions==='33/33/34'?[33,33,34]:[50,30,20];
+ },[assistantPortions]);
+ const assistantCandidates=useMemo(()=>presentedScenarios
+  .filter(s=>s.status==='PENDING'&&s.expiresAt>now&&s.createdAt<=now&&
+   !assistantLedger.orders.some(o=>o.id==='demo:'+assistantExchange+':'+s.id))
+  .sort((a,b)=>b.createdAt-a.createdAt),[presentedScenarios,assistantLedger,assistantExchange,now]);
+ const addAssistantScenario=(s:Scenario)=>{
+  try{setAssistantLedger(addDemoOrder(assistantLedger,s,assistantExchange,'manual',assistantPortionValues,assistantBreakeven,Date.now()));setAssistantMessage('Виртуальный лимит добавлен.');}
+  catch(e){setAssistantMessage('Демо-план не создан: '+String(e));}
+ };
+ useEffect(()=>{try{
+  localStorage.setItem('apex_v63_assistant_mode',assistantMode);
+  localStorage.setItem('apex_v63_assistant_exchange',assistantExchange);
+  localStorage.setItem('apex_v63_assistant_portions',assistantPortions);
+  localStorage.setItem('apex_v63_assistant_be',assistantBreakeven?'true':'false');
+ }catch{}},[assistantMode,assistantExchange,assistantPortions,assistantBreakeven]);
+ useEffect(()=>{try{localStorage.setItem('apex_v63_assistant_demo',JSON.stringify(assistantLedger));}
+  catch(e){setAssistantMessage('Не удалось сохранить демо-журнал: '+String(e));}},[assistantLedger]);
+ useEffect(()=>{if(assistantMode!=='auto')return;
+  setAssistantLedger(prev=>autoEnrollDemoOrders(prev,presentedScenarios,assistantExchange,assistantPortionValues,assistantBreakeven,Date.now()));
+ },[assistantMode,assistantExchange,assistantPortions,assistantBreakeven,presentedScenarios]);
+ const bybitAssistantTargets=useMemo(()=>[...new Set(assistantLedger.orders
+  .filter(o=>o.exchange==='bybit'&&(o.state==='WAITING'||o.state==='OPEN'))
+  .map(o=>o.symbol+':'+o.frame))].sort().slice(0,6),[assistantLedger]);
+ const bybitTargetKey=bybitAssistantTargets.join('|');
+ useEffect(()=>{
+  if(!bybitTargetKey)return;
+  let mounted=true,inFlight=false;
+  const check=async()=>{
+   if(document.hidden||inFlight)return;
+   inFlight=true;
+   try{
+    const targets=bybitTargetKey.split('|');
+    const result=await Promise.allSettled(targets.map(async value=>{
+     const separator=value.lastIndexOf(':');
+     const symbol=value.slice(0,separator),frame=value.slice(separator+1) as '5m'|'1h'|'4h';
+     const bars=await fetchBybitSpotClosedBars(symbol,frame,Date.now());
+     return {key:'bybit:'+value,bars};
+    }));
+    if(!mounted)return;
+    const complete=result.filter((x):x is PromiseFulfilledResult<{key:string;bars:DemoBar[]}>=>x.status==='fulfilled')
+     .map(x=>x.value);
+    if(complete.length)setBybitAssistantBars(old=>{
+     const next={...old};
+     for(const e of complete)next[e.key]=e.bars;
+     return next;
+    });
+    const failed=result.find((x):x is PromiseRejectedResult=>x.status==='rejected');
+    setBybitAssistantError(failed?String(failed.reason):'');
+   }finally{inFlight=false;}
+  };
+  void check();
+  const interval=setInterval(()=>{void check();},60000);
+  const resume=()=>{if(!document.hidden)void check();};
+  document.addEventListener('visibilitychange',resume);
+  return ()=>{mounted=false;clearInterval(interval);document.removeEventListener('visibilitychange',resume);};
+ },[bybitTargetKey]);
+ useEffect(()=>{
+  if(!assistantLedger.orders.some(o=>o.state==='WAITING'||o.state==='OPEN'))return;
+  const closedBars:Record<string,DemoBar[]>={...bybitAssistantBars};
+  const reversals:Record<string,ObservedReversal>={};
+  for(const o of assistantLedger.orders){
+   if(o.state!=='WAITING'&&o.state!=='OPEN')continue;
+   const asset=assets[o.symbol]||cache.current[o.symbol];
+   if(o.exchange==='binance'){
+    const raw=asset?.frames[o.frame]||(o.frame==='5m'?asset?.candles:undefined)||[];
+    closedBars['binance:'+o.symbol+':'+o.frame]=raw
+     .filter(c=>c.closed!==false).map(c=>({time:c.time,open:c.open,high:c.high,low:c.low,close:c.close,closed:true}));
+   }
+   const sig=asset?.signals[o.frame];
+   if(sig)reversals[o.symbol+':'+o.frame]={direction:sig.direction,phase:sig.phase,timestamp:sig.timestamp};
+  }
+  setAssistantLedger(prev=>updateAssistantLedger(prev,scenarios,closedBars,reversals,Date.now()));
+ },[assistantLedger,scenarios,assets,bybitAssistantBars,now]);
