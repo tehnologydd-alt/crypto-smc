@@ -11,11 +11,12 @@
    <div className="rounded-lg bg-slate-900/35 p-2"><strong className="text-base text-amber-200">{coreResearchStats.partial}</strong><p className="text-[10px] text-slate-400">Неполных</p></div>
   </div>
   <p className="text-xs text-slate-300">Последняя запись: {coreResearchStats.latestAt===null?'пока нет':new Date(coreResearchStats.latestAt).toLocaleString('ru-RU')}.</p>
+  <p className="text-[11px] text-slate-400">Последняя полная проверка: {coreResearchStats.latestFullAt===null?'пока нет':new Date(coreResearchStats.latestFullAt).toLocaleString('ru-RU')} · рыночная картина: {coreResearchStats.lastDirection==='mostly-up'?'большинство ↑':coreResearchStats.lastDirection==='mostly-down'?'большинство ↓':coreResearchStats.lastDirection==='mixed'?'смешанная':'недостаточно данных'}</p>
   <p className="text-[11px] text-slate-400">Дней с наблюдениями: {coreResearchStats.observedDays} · максимальный интервал между запусками: {coreResearchStats.maxGapMinutes===null?'—':coreResearchStats.maxGapMinutes+' мин'}. Показано не более 14 дней.</p>
   <p className="text-xs font-semibold text-violet-200">История по дням (UTC)</p>
   <div className="space-y-1">
    {coreResearchStats.days.map(d=><div key={d.day} className="grid grid-cols-[1fr_auto] gap-2 text-[11px] rounded-lg bg-slate-900/35 px-2 py-2">
-    <span className="text-slate-300">{d.day.slice(5)} · проверок {d.checks}</span>
+    <span className="text-slate-300">{d.day.slice(5)} · проверок {d.checks}{d.complete>0&&<span className="block text-[10px] text-slate-500">Рынок: ↑{d.up} ↓{d.down} ↔{d.mixed}</span>}</span>
     <span className={d.checks===0?'text-slate-500':d.complete===d.checks?'text-emerald-200':'text-amber-200'}>{d.complete}/{d.checks} полных</span>
    </div>)}
   </div>

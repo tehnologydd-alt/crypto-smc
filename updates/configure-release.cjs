@@ -11,7 +11,7 @@ if(!Number.isInteger(run)||run<1||run>1_000_000)throw Error('Invalid GitHub run 
 const code=100000+run;
 if(!/\bversionCode\s+\d+\b/.test(g)||!/\bversionName\s+["'][^"']+["']/.test(g))throw Error('Gradle version fields not found');
 g=g.replace(/\bversionCode\s+\d+\b/,`versionCode ${code}`)
-.replace(/\bversionName\s+["'][^"']+["']/,`versionName "4.3.${run}"`);
+.replace(/\bversionName\s+["'][^"']+["']/,`versionName "4.4.${run}"`);
 const keys=['APEX_KEYSTORE_B64','APEX_KEYSTORE_PASSWORD','APEX_KEY_ALIAS','APEX_KEY_PASSWORD'];
 const present=keys.filter(k=>Boolean(process.env[k]));
 if(present.length&&present.length!==4)throw Error('Set all four signing secrets, not a partial set');
