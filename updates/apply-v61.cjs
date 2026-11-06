@@ -45,7 +45,7 @@ card=rep(card,
 '  <div className="grid grid-cols-2 gap-3 mt-3 text-xs">',
 '  {compact&&<button type="button" aria-expanded={detailsOpen} onClick={()=>setDetailsOpen(v=>!v)} className="mt-3 min-h-[44px] w-full rounded-lg border border-white/10 bg-slate-900/35 px-3 text-left text-xs font-semibold text-sky-200">{detailsOpen?"Скрыть параметры":"Показать вход, цели и итог"}</button>}\n  {(!compact||detailsOpen)&&<>\n  <div className="grid grid-cols-2 gap-3 mt-3 text-xs">',
 'details only when opened for completed');
-card=rep(card,'  </section>;\n }','  </>}\n  </section>;\n }','close history details fragment');
+card=rep(card,'</section>;','</>}\n  </section>;','close history details fragment');
 const repeated='<p className="text-[11px] text-slate-400 mt-2">Виртуальное сопровождение: после TP1 можно рассматривать уменьшение риска, но приложение не изменяет никаких реальных ордеров.</p>';
 if(!card.includes(repeated))throw Error('repeated card caveat not found');
 card=card.replace(repeated,'');
