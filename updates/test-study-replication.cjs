@@ -10,7 +10,7 @@ const first=Array.from({length:20},(_,i)=>ev(4+i*4,'up')); // >3 calendar days, 
 const second=Array.from({length:20},(_,i)=>ev(4*24+4+i*4,'down'));
 const all=[...first,...second];
 const hold=outcomes=>({version:1,frozen:freeze,outcomes,watermark:outcomes.at(-1)?.toAt||freeze.frozenAt});
-const now=t+11*DAY;
+const now=t+8*DAY;
 const fresh=R.openReplicationStudy(null,t);
 assert.equal(fresh.registeredAt,t);
 assert.equal(R.replicationOverview(fresh,t).phase,'waiting-for-freeze');
@@ -59,6 +59,12 @@ assert.equal(R.advanceReplicationStudy(a,hold([...first,ev(90,'up')]),t+4*DAY).w
 const future=ev(24*12,'down');
 assert.equal(R.advanceReplicationStudy(b,hold([...all,future]),now),b,
  'future data cannot be scored');
+const boundaryCohort={
+ ...a,
+ cohorts:[{...a.cohorts[0],lastAt:t+4*DAY-H}],
+ watermark:t+4*DAY-H
+};
+assert.equal(R.validReplicationStudy(boundaryCohort,t+4*DAY),true,'end-of-day cohort remains valid');
 const similarSecond=second.map((x,i)=>({...x,to:i<18?'up':'down'}));
 const c=R.advanceReplicationStudy(a,hold([...first,...similarSecond]),now);
 assert.equal(R.replicationOverview(c,now).phase,'similar-observed');

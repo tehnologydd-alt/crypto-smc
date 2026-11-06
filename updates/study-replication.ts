@@ -57,17 +57,18 @@ export function validReplicationStudy(x:unknown,now=Date.now()):x is Replication
  let after=Math.max(s.registeredAt,f.frozenAt);
  for(let i=0;i<s.cohorts.length;i++){
   const c=s.cohorts[i];
-  if(!validCohort(c,after,now,i+1))return false;
+  if(!validCohort(c,i===0?after:after-1,now,i+1))return false;
   after=afterDay(c.lastAt);
  }
  if(s.cohorts.length===MAX_COHORTS&&s.working.length>0)return false;
  let previous=after;
  for(const t of s.working){
-  if(!validSample(t,after,now)||t.toAt<=previous)return false;
+  if(!validSample(t,s.cohorts.length?after-1:after,now)||t.toAt<=previous)return false;
   previous=t.toAt;
  }
  if(s.cohorts.length>0&&s.watermark<s.cohorts.at(-1)!.lastAt)return false;
- return s.watermark>=Math.max(f.frozenAt,previous===after?after>now?0:f.frozenAt:previous);
+ const lastObserved=s.working.at(-1)?.toAt??s.cohorts.at(-1)?.lastAt??Math.max(s.registeredAt,f.frozenAt);
+ return s.watermark>=Math.max(f.frozenAt,lastObserved);
 }
 export function openReplicationStudy(raw:string|null,now=Date.now()):ReplicationStudy{
  const fresh:ReplicationStudy={version:1,registeredAt:now,watermark:now,working:[],cohorts:[]};
