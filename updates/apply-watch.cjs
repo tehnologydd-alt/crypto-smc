@@ -186,3 +186,6 @@ require('./apply-v61.cjs');
 
 // APEX 6.2: premium multicolor design, signal lifecycle and Settings on/off switches.
 require('./apply-v62.cjs');
+
+// APEX 6.2.1: stabilize Radar favorite cards during live price and data-quality updates.
+require('./apply-v621.cjs');
