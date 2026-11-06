@@ -198,3 +198,6 @@ require('./apply-v64.cjs');
 
 // APEX 6.5: two peer DEMO markets and separate decision evidence.
 require('./apply-v65.cjs');
+
+// APEX 6.6: explain virtual position nominal and freeze prospective DEMO cohorts.
+require('./apply-v66.cjs');
