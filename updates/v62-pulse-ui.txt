@@ -1,0 +1,22 @@
+<section className="apex-aura-radar rounded-2xl p-3.5 space-y-3">
+ <div className="flex items-center justify-between gap-3">
+  <div className="min-w-0"><strong className="block text-sm text-cyan-100">Market Pulse · моё избранное</strong>
+   <span className="block text-[11px] text-slate-300 mt-1">{marketPulse.title} · данные {marketPulse.eligible}/{marketPulse.watched}</span>
+  </div>
+  <button type="button" aria-label={pulseExpanded?'Скрыть наблюдения Market Pulse':'Показать наблюдения Market Pulse'}
+   aria-expanded={pulseExpanded} onClick={()=>setPulseExpanded(v=>!v)} className="min-h-[44px] shrink-0 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 text-xs font-semibold text-cyan-200">{pulseExpanded?'Скрыть':'Детали'}</button>
+ </div>
+ <div className="grid grid-cols-3 gap-2">
+  <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/20 p-2.5 text-center"><strong className="block text-xl text-emerald-300">{marketPulse.bullish}</strong><span className="text-[10px] text-slate-300">Рост</span></div>
+  <div className="rounded-xl bg-rose-500/10 border border-rose-400/20 p-2.5 text-center"><strong className="block text-xl text-rose-300">{marketPulse.bearish}</strong><span className="text-[10px] text-slate-300">Снижение</span></div>
+  <div className="rounded-xl bg-amber-500/10 border border-amber-400/20 p-2.5 text-center"><strong className="block text-xl text-amber-300">{marketPulse.conflict}</strong><span className="text-[10px] text-slate-300">Разногласия</span></div>
+ </div>
+ {pulseExpanded&&<div className="space-y-2 border-t border-cyan-400/15 pt-3">
+  <p className="text-[11px] text-slate-400">Только избранные пары со свежими проверенными M5/H1/H4. Одно подтверждение не считается согласием рынка.</p>
+  <div className="flex justify-between gap-3 text-xs text-slate-300"><span>Частично: {marketPulse.partial}</span><span>Нет данных: {marketPulse.unavailable}</span><span>Тихо: {marketPulse.quiet}</span></div>
+  {marketPulse.assets.map(a=><button type="button" key={a.symbol} onClick={()=>openDetail(a.symbol)} className="flex w-full min-h-[44px] items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#0e2232] px-3 py-2 text-left">
+   <span className="min-w-0"><strong className="block text-xs text-slate-100">{pairName(a.symbol)}</strong><span className="block text-[10px] text-slate-400">{a.reason}</span></span>
+   <span className="shrink-0 text-[10px] text-cyan-200">{a.longVotes} ↑ / {a.shortVotes} ↓</span>
+  </button>)}
+ </div>}
+</section>
