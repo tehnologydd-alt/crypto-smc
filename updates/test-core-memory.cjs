@@ -42,7 +42,7 @@ assert.equal(merged.h1.length,3);
 assert.equal(merged.days.length,2);
 assert.equal(M.mergeCoreMemory(merged,read,now).h1.length,3,'idempotent merge');
 const overlapping=M.openCoreMemory(null,registered);
-const corrupt={...first,h1:first.h1.map((x,i)=>i===0?{...x,to:'up'}:x)};
+const corrupt={...first,h1:first.h1.map((x,i)=>i===1?{...x,to:'up'}:x)};
 assert(M.validateCoreMemory(corrupt,now));
 const altered=M.importCoreMemory(M.exportCoreMemory(corrupt,now),now);
 assert.throws(()=>M.mergeCoreMemory(first,altered,now),/Конфликт/);
