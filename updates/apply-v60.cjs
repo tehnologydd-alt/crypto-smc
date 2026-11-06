@@ -63,7 +63,7 @@ oldTest=rep(oldTest,"label:'Статистика',icon:Activity","label:'Цен�
 write('scripts/test-layout-v40.cjs',oldTest);
 // Compatibility: retain all historical behavior tests, update only their literal tab-label expectation.
 for(const filename of fs.readdirSync('scripts')){
- if(!/^test-.*\\.cjs$/.test(filename))continue;
+ if(!filename.startsWith('test-')||!filename.endsWith('.cjs'))continue;
  const path='scripts/'+filename,body=read(path);
  if(body.includes("label:'Статистика'"))write(path,body.replaceAll("label:'Статистика'","label:'Центр'"));
 }
