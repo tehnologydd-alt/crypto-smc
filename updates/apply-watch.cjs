@@ -177,3 +177,6 @@ require('./apply-v55.cjs');
 
 // APEX 5.6: native WorkManager reliability diagnostic and missing-job repair.
 require('./apply-v56.cjs');
+
+// Temporary APEX 6.0 structure audit (no UI mutations).
+require('./inspect-v60.cjs');
