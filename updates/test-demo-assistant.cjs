@@ -71,5 +71,6 @@ for(const path of ['src/radar/notify.ts','src/radar/engine.ts','src/radar/lifecy
  assert(!fs.readFileSync(path,'utf8').includes('demo-assistant'),'existing signal rules untouched');
 const market=fs.readFileSync('src/radar/demo-market-readonly.ts','utf8');
 assert(market.includes('/v5/market/kline'));
-assert(!/order\/create|\/api\/v3\/order|apiKey|apiSecret|placeOrder|wallet/i.test(market),'no actual exchange execution paths');
+const executableMarket=market.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+assert(!/order\/create|\/api\/v3\/order|apiKey|apiSecret|placeOrder|wallet/i.test(executableMarket),'no actual exchange execution paths');
 console.log('APEX 6.3 virtual assistant PASS: dual source DEMO, limit expiry, TP1/2/3, BE after TP1, conservative candle priority, reversal after TP, manual+auto, own persistence, no real trading');
