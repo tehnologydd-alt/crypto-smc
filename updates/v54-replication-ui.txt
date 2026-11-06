@@ -1,0 +1,25 @@
+<div className="rounded-lg border border-cyan-500/15 bg-slate-950/30 p-2.5 space-y-1.5">
+ <div className="flex items-start justify-between gap-2">
+  <span><strong className="block text-xs text-cyan-200">Повторение гипотезы · 5.4</strong>
+   <span className="block text-[10px] text-slate-400">Групп завершено: {replicationStats.completed} · следующая: {replicationStats.workingCount} наблюдений, {replicationStats.workingDays} дн.</span>
+  </span>
+  <span className={'shrink-0 text-[10px] '+(['difference-observed','hypothesis-mismatch','observations-stale','capacity-reached'].includes(replicationStats.phase)?'text-amber-200':'text-slate-400')}>
+   {replicationBroken?'Архив заблокирован':
+    replicationStats.phase==='waiting-for-freeze'?'Нужна гипотеза':
+    replicationStats.phase==='collecting-reference'?'Контрольный период':
+    replicationStats.phase==='collecting-repetition'?'Повторный период':
+    replicationStats.phase==='difference-observed'?'Есть расхождение':
+    replicationStats.phase==='similar-observed'?'Похожая частота':
+    replicationStats.phase==='observations-stale'?'Нет свежих данных':
+    replicationStats.phase==='hypothesis-mismatch'?'Гипотезы различаются':'Лимит групп'}
+  </span>
+ </div>
+ {replicationStats.subject&&<p className="text-[11px] text-slate-300">
+  Изучаем: {replicationStats.subject.from} → {replicationStats.subject.expected}. Контрольная частота: {replicationStats.referencePct===null?'—':replicationStats.referencePct.toFixed(1)+'%'} · новый период: {replicationStats.latestPct===null?'—':replicationStats.latestPct.toFixed(1)+'%'}.
+ </p>}
+ {replicationStats.differencePts!==null&&<p className="text-[11px] text-slate-400">
+  Разница: {replicationStats.differencePts>0?'+':''}{replicationStats.differencePts.toFixed(1)} п.п. · {replicationStats.phase==='difference-observed'?'нужна отдельная проверка причин':'описательное сравнение'}.
+ </p>}
+ {replicationBroken&&<p className="text-[11px] text-amber-200">Локальное исследование 5.4 повреждено: автоматическая запись остановлена, оригинальные данные сохранены для диагностики.</p>}
+ <p className="text-[10px] text-slate-500">Две и более последовательные группы по ≥20 наблюдений за ≥3 разных UTC-дня, без общих календарных дней и без изменения гипотезы. Это сравнение частот, не доказательство прогноза. Следующий уровень меню не добавлен.</p>
+</div>

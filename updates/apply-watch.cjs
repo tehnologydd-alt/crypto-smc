@@ -168,3 +168,6 @@ require('./apply-v52.cjs');
 
 // APEX 5.3: append-only research history with validated local backup and merge.
 require('./apply-v53.cjs');
+
+// APEX 5.4: independent prospective H1 replication on disjoint UTC-day cohorts.
+require('./apply-v54.cjs');
