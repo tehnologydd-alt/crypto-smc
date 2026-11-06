@@ -17,7 +17,7 @@ app=rep(app,
 'Assistant state');
 const anchor=" const candidates=useMemo(()=>favorites.map(s=>assets[s]).filter((a):a is AssetState=>Boolean(a)),[favorites,assets]);";
 app=rep(app,anchor,anchor+'\n'+read('updates/v63-assistant-hooks.txt'),'Assistant logic hooks');
-app=rep(app,"  {view==='statistics'&&","  "+read('updates/v63-assistant-ui.txt')+"\n  {view==='statistics'&&",'Assistant UI');
+app=rep(app,"{view==='statistics'&&",read('updates/v63-assistant-ui.txt')+"\n  {view==='statistics'&&",'Assistant UI');
 const navAt=app.indexOf('<nav className="relative z-30 shrink-0 bg-[#0d1422]/95');
 if(navAt<0)throw Error('APEX 6.3 nav missing');
 let nav=app.slice(navAt);
