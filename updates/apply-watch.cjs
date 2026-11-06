@@ -159,3 +159,6 @@ require('./apply-v49.cjs');
 
 // APEX 5.0: rule-based Director chooses next research question without modifying studies.
 require('./apply-v50.cjs');
+
+// APEX 5.1: prospective, evidence-gated research work queue.
+require('./apply-v51.cjs');
