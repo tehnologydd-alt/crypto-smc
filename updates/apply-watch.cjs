@@ -150,3 +150,6 @@ require('./apply-v46.cjs');
 
 // APEX 4.7: strictly prospective H1 drift monitoring against immutable early baseline.
 require('./apply-v47.cjs');
+
+// APEX 4.8: compare prospective frozen H1 transitions across past H4 regimes only.
+require('./apply-v48.cjs');
