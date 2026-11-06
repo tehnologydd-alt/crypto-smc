@@ -141,3 +141,6 @@ require('./apply-v43.cjs');
 
 // APEX 4.4: durable, separated native CORE observational archive.
 require('./apply-v44.cjs');
+
+// APEX 4.5: prospective, fixed-horizon CORE H1 state transitions.
+require('./apply-v45.cjs');
