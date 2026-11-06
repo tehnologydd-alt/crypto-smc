@@ -102,7 +102,7 @@ export function advanceDemo(o:DemoOrder,m:AssistantMarket|undefined,now:number):
  for(const c of candlesAfter(out,m)){
   const observedAt=c.time+frameMs[out.frame];
   if(c.time-out.lastCandleTime>2*frameMs[out.frame]){
-   return finish(out,'NEEDS_REVIEW','DATA_GAP',observedAt,c.close,
+   return append({...out,status:'NEEDS_REVIEW',exit:'DATA_GAP'},'DATA_GAP',observedAt,null,
     'Пропущены свечи. Демо приостановлено: нельзя достоверно восстановить последовательность исполнения.');
   }
   if(out.status==='WAITING'){
@@ -190,6 +190,6 @@ export function assistantSummary(book:AssistantBook){
  return {waiting:book.orders.filter(o=>o.status==='WAITING').length,
   open:book.orders.filter(o=>o.status==='OPEN').length,
   done:completed.length,review:completed.filter(o=>o.status==='NEEDS_REVIEW').length,
-  grossPnl:completed.reduce((sum,o)=>sum+o.grossPnl,0),
+  grossPnl:completed.filter(o=>o.status!=='NEEDS_REVIEW').reduce((sum,o)=>sum+o.grossPnl,0),
   tp1:book.orders.filter(o=>o.tpReached>=1).length};
 }
