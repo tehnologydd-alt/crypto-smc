@@ -16,6 +16,8 @@ export type FuturePlan={
  id:string;source:AssistantExchange;symbol:string;frame:AssistantFrame;direction:'LONG'|'SHORT';
  entry:number;stop:number;targets:[number,number,number];createdAt:number;expiresAt:number;
  observedBarAt:number;reason:string;model:'futures-study-v1';
+ study?:{modelVersion:'futures-study-v1';capturedAt:number;lastClosedAt:number;sampleBars:36;
+  continuous:true;range20:number;move8:number;volumeRatio20:number|null};
 };
 export type FutureEvent={at:number;type:string;detail:string};
 export type FutureTicket={
@@ -70,6 +72,8 @@ export function deriveFuturesStudyPlan(source:AssistantExchange,symbol:string,fr
  const avgRange=recent.slice(-20).reduce((sum,b)=>sum+(b.high-b.low),0)/20;
  if(!positive(avgRange))return null;
  const delta=last.close-recent[recent.length-9].close;
+ const baselineVolume=recent.slice(-20,-1).reduce((sum,b)=>sum+b.volume,0)/19;
+ const volumeRatio20=baselineVolume>0?last.volume/baselineVolume:null;
  if(Math.abs(delta)<avgRange*0.8)return null;
  const direction=delta>0?'LONG':'SHORT',side=sign(direction);
  const entry=last.close-side*avgRange*.45,risk=avgRange*1.6;
@@ -79,7 +83,8 @@ export function deriveFuturesStudyPlan(source:AssistantExchange,symbol:string,fr
  return {id:'futures:'+source+':'+symbol+':'+frame+':'+last.time+':'+direction,source,symbol,frame,
   direction,entry,stop,targets,createdAt:now,expiresAt:now+Math.min(24*3600000,Math.max(3600000,duration*12)),
   observedBarAt:last.time,reason:'Исследовательская модель: движение 8 свечей против среднего диапазона 20; не подтверждённый торговый сигнал.',
-  model:'futures-study-v1'};
+  model:'futures-study-v1',study:{modelVersion:'futures-study-v1',capturedAt:now,
+   lastClosedAt:last.time+duration,sampleBars:36,continuous:true,range20:avgRange,move8:delta,volumeRatio20}};
 }
 export function createFutureTicket(p:FuturePlan,s:FutureSetup,mode:AssistantMode,now=Date.now()):FutureTicket{
  if(!validFutureSetup(s)||s.exchange!==p.source||!['manual','auto'].includes(mode)||!positive(p.entry)||
