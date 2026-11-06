@@ -1,0 +1,52 @@
+{view==='history'&&<div className="space-y-4">
+ <header className="space-y-2">
+  <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">APEX · виртуальные сценарии</p>
+  <h1 className="text-2xl font-bold text-slate-100">Сигналы</h1>
+  <p className="text-xs text-slate-400">Ожидание → активация → завершение. Здесь фиксируются условные прогнозы, а не реальные сделки.</p>
+ </header>
+ <div className="grid grid-cols-3 gap-2">
+  <div className="rounded-xl border border-amber-400/15 bg-amber-500/5 p-2.5 text-center"><strong className="text-xl text-amber-200">{signalStats.pending}</strong><p className="text-[10px] text-slate-400">Ожидают</p></div>
+  <div className="rounded-xl border border-sky-400/15 bg-sky-500/5 p-2.5 text-center"><strong className="text-xl text-sky-200">{signalStats.active}</strong><p className="text-[10px] text-slate-400">Активные</p></div>
+  <div className="rounded-xl border border-emerald-400/15 bg-emerald-500/5 p-2.5 text-center"><strong className="text-xl text-slate-100">{presentedScenarios.filter(s=>s.status!=='PENDING'&&s.status!=='ACTIVE').length}</strong><p className="text-[10px] text-slate-400">Завершены</p></div>
+ </div>
+ <div role="tablist" aria-label="Разделы сигналов" className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-[#131e2b] p-1">
+  {([{id:'current',label:'Сейчас'},{id:'done',label:'История'},{id:'demo',label:'Демо'}] as const).map(x=><button type="button" role="tab" key={x.id} aria-selected={signalArea===x.id} onClick={()=>{setSignalArea(x.id);setHighlightScenario('');document.getElementById('apex-content')?.scrollTo({top:0,behavior:'auto'});}} className={'min-h-[44px] rounded-lg px-1 text-xs font-semibold '+(signalArea===x.id?'bg-[#253e51] text-sky-100':'text-slate-400')}>{x.label}</button>)}
+ </div>
+ {signalArea==='current'&&<div className="space-y-3">
+  <div className="flex items-center justify-between gap-2">
+   <h2 className="text-sm font-semibold text-slate-200">Сценарии в работе</h2>
+   <span className="text-[11px] text-slate-500">{signalStats.pending+signalStats.active} прогнозов</span>
+  </div>
+  <div role="group" aria-label="Фильтр стадии" className="flex gap-2">
+   {([{id:'all',label:'Все'},{id:'PENDING',label:'Ожидание'},{id:'ACTIVE',label:'Активны'}] as const).map(x=><button type="button" key={x.id} aria-pressed={signalStatusFilter===x.id} onClick={()=>setSignalStatusFilter(x.id)} className={'min-h-[38px] flex-1 rounded-lg border px-2 text-[11px] font-medium '+(signalStatusFilter===x.id?'border-sky-400/40 bg-sky-400/15 text-sky-100':'border-white/10 bg-slate-900/30 text-slate-400')}>{x.label}</button>)}
+  </div>
+  {openGroups.filter(g=>signalStatusFilter==='all'||g.scenarios.some(s=>s.status===signalStatusFilter)).length?
+   <div className="space-y-3">{openGroups.filter(g=>signalStatusFilter==='all'||g.scenarios.some(s=>s.status===signalStatusFilter)).map(g=>{
+    const shown=signalStatusFilter==='all'?g:{...g,scenarios:g.scenarios.filter(s=>s.status===signalStatusFilter)};
+    const targetId=shown.scenarios.some(s=>s.id===highlightScenario)?highlightScenario:shown.scenarios[0].id;
+    return <div key={g.key} id={'scenario-'+targetId} className={highlightScenario===targetId?'rounded-2xl ring-2 ring-teal-400':''}><GroupCard group={shown} now={now} onDemo={saveDemoScenario} savedIds={savedDemoIds} asset={assets[shown.scenarios[0].symbol]}/></div>;
+   })}</div>:
+   <div className="rounded-2xl border border-dashed border-slate-700 p-7 text-center text-sm text-slate-400">На этой стадии пока нет сценариев.<button type="button" onClick={()=>{setView('radar');setRadarArea('watch');}} className="mt-3 block w-full min-h-[44px] rounded-lg border border-teal-400/25 text-teal-200 text-xs font-semibold">Посмотреть наблюдения радара</button></div>}
+  <p className="text-[11px] text-slate-500">Ожидающие сценарии автоматически истекают по своим правилам. Уровни относятся к виртуальному анализу и не создают биржевых ордеров.</p>
+ </div>}
+ {signalArea==='done'&&<div className="space-y-3">
+  <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-slate-200">История прогнозов</h2><span className="text-xs text-slate-500">{presentedScenarios.filter(s=>s.status!=='PENDING'&&s.status!=='ACTIVE').length}</span></div>
+  <p className="text-[11px] text-slate-400">Завершённые, остановленные, отменённые и истёкшие сценарии. Нажми на карточку, чтобы увидеть вход, SL и три цели.</p>
+  {presentedScenarios.filter(s=>s.status!=='PENDING'&&s.status!=='ACTIVE').length?
+   <div className="space-y-2">{presentedScenarios.filter(s=>s.status!=='PENDING'&&s.status!=='ACTIVE').map(x=><div key={x.id} id={'scenario-'+x.id} className={highlightScenario===x.id?'rounded-2xl ring-2 ring-teal-400':''}><ScenarioCard scenario={x} now={now} compact={true} onDemo={saveDemoScenario} isSaved={savedDemoIds.has(x.id)}/></div>)}</div>:
+   <div className="rounded-2xl border border-dashed border-slate-700 p-7 text-center text-sm text-slate-400">Завершённых прогнозов пока нет.</div>}
+ </div>}
+ {signalArea==='demo'&&<div className="space-y-3">
+  <section className="rounded-2xl border border-teal-500/20 bg-[#101a2a] p-4 space-y-2">
+   <div className="flex justify-between items-center gap-2"><h2 className="text-base font-semibold text-teal-200">Демо-журнал</h2><span className="text-xs text-slate-400">{demoTickets.length} записей</span></div>
+   <p className="text-[11px] text-slate-400">Здесь сохранены выбранные виртуальные сценарии, их условные входы, SL и три TP. Записи не являются реальными ордерами и не влияют на статистику CORE.</p>
+  </section>
+  {demoTickets.length?<div className="space-y-2">{demoTickets.map(t=>{const live=scenarios.find(s=>s.id===t.scenarioId);return <div key={t.scenarioId} className="rounded-xl border border-white/10 bg-[#121d2a] p-3 space-y-2">
+   <div className="flex items-center justify-between gap-2"><strong className="text-sm text-slate-200">{pairName(t.symbol)} · {t.frame.toUpperCase()} · {t.direction}</strong><span className="shrink-0 text-[11px] text-slate-400">{live?STATUS[live.status]:'История'}</span></div>
+   <p className="text-[11px] text-slate-300">Вход {fmt(t.entry)} · SL {fmt(t.stop)}</p>
+   <p className="text-[11px] text-slate-400">Цели: {t.targets.map((x,i)=>'TP'+(i+1)+' '+fmt(x)).join(' · ')}</p>
+   {live&&<button type="button" onClick={()=>{setSignalArea(live.status==='PENDING'||live.status==='ACTIVE'?'current':'done');setSignalStatusFilter('all');setHighlightScenario(live.id);}} className="min-h-[38px] w-full rounded-lg border border-sky-400/20 text-xs font-semibold text-sky-200">Открыть сценарий</button>}
+  </div>;})}</div>:
+  <div className="rounded-2xl border border-dashed border-slate-700 p-7 text-center text-sm text-slate-400">Пока нет демо-записей. Сохрани понравившийся исследовательский сценарий из вкладки «Сейчас».</div>}
+ </div>}
+</div>}

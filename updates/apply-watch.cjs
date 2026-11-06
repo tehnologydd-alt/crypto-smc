@@ -180,3 +180,6 @@ require('./apply-v56.cjs');
 
 // APEX 6.0: reorganized Research Center with four peer sections.
 require('./apply-v60.cjs');
+
+// APEX 6.1: separate Radar observations and staged virtual Signals without another pyramid.
+require('./apply-v61.cjs');
