@@ -156,3 +156,6 @@ require('./apply-v48.cjs');
 
 // APEX 4.9: read-only, provenance-aware CORE research quality passport.
 require('./apply-v49.cjs');
+
+// APEX 5.0: rule-based Director chooses next research question without modifying studies.
+require('./apply-v50.cjs');
