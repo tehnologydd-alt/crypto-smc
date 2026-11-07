@@ -1,0 +1,19 @@
+{
+  "name": "apex9-research-android",
+  "version": "9.0.0-preview.1",
+  "private": true,
+  "type": "module",
+  "description": "APEX 9 research-only Android preview (no orders or demo accounts)",
+  "scripts": {
+    "build:web": "node scripts/prepare-web.mjs",
+    "check:web": "node scripts/prepare-web.mjs --check",
+    "test": "node --test ../updates/test-v90-evidence.mjs ../updates/test-v90-market-depth.mjs ../apex9-preview/test-research.mjs ../apex9-preview/test-context-sources.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.10",
+    "@capacitor/core": "7.6.10"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.10"
+  }
+}
