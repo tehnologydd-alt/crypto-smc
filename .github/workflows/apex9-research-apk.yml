@@ -1,0 +1,81 @@
+name: APEX 9 Research - Android APK
+
+on:
+  push:
+    branches: [apex-9-evolution]
+    paths:
+      - 'apex9-android/**'
+      - 'apex9-preview/**'
+      - 'updates/v90-*.mjs'
+      - 'updates/test-v90-*.mjs'
+      - '.github/workflows/apex9-research-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apex9-preview-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Assemble research preview APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: |
+          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Test source adapters and parsing
+        run: |
+          node --check apex9-preview/app.mjs
+          node --check apex9-preview/research.mjs
+          node --check apex9-preview/context-sources.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs
+
+      - name: Install Capacitor and stage web assets
+        working-directory: apex9-android
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:web
+          npx cap add android
+          npx cap sync android
+          node scripts/set-android-version.mjs
+
+      - name: Build Android debug APK
+        working-directory: apex9-android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Prepare APK and checksum
+        run: |
+          test -s apex9-android/android/app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p apex9-android/output
+          cp apex9-android/android/app/build/outputs/apk/debug/app-debug.apk apex9-android/output/APEX9-Research-Preview-debug.apk
+          (cd apex9-android/output && sha256sum APEX9-Research-Preview-debug.apk > SHA256SUMS.txt)
+          ls -lh apex9-android/output/APEX9-Research-Preview-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: APEX9-Research-Android-APK
+          path: |
+            apex9-android/output/APEX9-Research-Preview-debug.apk
+            apex9-android/output/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
