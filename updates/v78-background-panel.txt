@@ -1,0 +1,42 @@
+<details className="rounded-xl border border-indigo-400/20 bg-[#101d30] p-3">
+ <summary className="cursor-pointer text-sm font-semibold text-white">APEX 7.8 · Android фон и уведомления о перерывах</summary>
+ <div className="space-y-3 pt-3">
+  <p className="text-[11px] leading-relaxed text-slate-300">Проверяем <strong className="text-white">реальное состояние</strong> существующего Android-планировщика CORE отдельно от мониторинга Futures DEMO. Запланировано — не означает выполнено; CORE собирает собственные Spot-исследования, а не наши четыре фьючерсные пары.</p>
+  <div className="space-y-2">
+   <div className="rounded-xl border border-slate-600/35 bg-[#091728] p-3 space-y-1">
+    <strong className="block text-[11px] text-indigo-200">{backgroundTruth.coreTitle}</strong>
+    <p className="text-[11px] text-slate-300">{backgroundTruth.coreDetail}</p>
+    <p className="text-[10px] text-slate-500">Android WorkManager: {backgroundTruth.coreWorkState} · {backgroundTruth.coreLastRunAt===null?'фактических запусков ещё нет':'последний фактический запуск '+new Date(backgroundTruth.coreLastRunAt).toLocaleString('ru-RU')}</p>
+   </div>
+   <div className="rounded-xl border border-cyan-400/15 bg-[#091728] p-3 space-y-1">
+    <strong className="block text-[11px] text-cyan-200">{backgroundTruth.futuresTitle}</strong>
+    <p className="text-[11px] text-slate-300">{backgroundTruth.futuresDetail}</p>
+    <p className="text-[10px] text-slate-500">{monitorFeedRows.length} запрошенных потоков · успешных/свежих: {monitorCounts.fresh} · ошибка/задержка: {monitorCounts.errors+monitorCounts.delayed}</p>
+   </div>
+  </div>
+  <button type="button" disabled={!coreNative.supported||coreReliabilityBusy}
+   onClick={()=>void refreshCoreReliability()} className="min-h-[40px] w-full rounded-lg border border-indigo-400/30 bg-indigo-400/10 px-3 text-[11px] font-semibold text-indigo-100 disabled:opacity-40">
+   {coreReliabilityBusy?'Проверяем Android...':'Проверить реальное расписание Android CORE'}
+  </button>
+  {coreReliabilityMessage&&<p role="status" className="text-[11px] text-amber-200">{coreReliabilityMessage}</p>}
+  <div className="rounded-xl border border-white/10 bg-[#091728] p-3 space-y-2">
+   <div className="flex items-center justify-between gap-3">
+    <div className="min-w-0">
+     <strong className="text-xs text-white">Уведомления о перерывах DEMO</strong>
+     <p className="pt-1 text-[10px] leading-relaxed text-slate-400">Необязательные уведомления: после возвращения из перерыва более 10 минут, при длительных сбоях сети или разрывах свечей. Не чаще одного за 30 минут и трёх за сутки.</p>
+    </div>
+    <button type="button" role="switch" aria-checked={monitorNotices.enabled}
+     disabled={!alerts||!Capacitor.isNativePlatform()}
+     onClick={()=>void toggleMonitorNotices()}
+     className={'min-h-[40px] shrink-0 rounded-lg border px-3 text-[11px] font-semibold disabled:opacity-40 '+(monitorNotices.enabled?'border-emerald-400/35 bg-emerald-400/10 text-emerald-100':'border-slate-600 text-slate-300')}>
+     {monitorNotices.enabled?'ВКЛ':'ВЫКЛ'}
+    </button>
+   </div>
+   {!alerts&&<p className="text-[10px] text-amber-200">Общие уведомления отключены в Настройках. Включи их, чтобы разрешить уведомления о состоянии наблюдения.</p>}
+   {!Capacitor.isNativePlatform()&&<p className="text-[10px] text-amber-200">Системные уведомления этой функции доступны только в Android-приложении.</p>}
+   {monitorNoticeMessage&&<p role="status" className="text-[11px] text-amber-200">{monitorNoticeMessage}</p>}
+   <p className="text-[10px] leading-relaxed text-slate-500">Разрешение Android запрашивается только при включении. Уведомления формируются при работе приложения или при его возвращении на экран, а не во время остановленного WebView. Это сообщения о качестве данных, не торговые сигналы.</p>
+  </div>
+  <p className="text-[10px] leading-relaxed text-amber-100/85">Android WorkManager может задерживать периодический CORE-сбор из-за Doze и ограничений батареи. Эта версия НЕ включает отдельный постоянный фоновый Futures-сканер и не восстанавливает незафиксированные виртуальные сделки задним числом.</p>
+ </div>
+</details>
