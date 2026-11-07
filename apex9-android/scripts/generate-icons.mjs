@@ -7,7 +7,7 @@ import sharp from 'sharp';
 import {readFileSync,existsSync,mkdirSync,writeFileSync,copyFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-const project=resolve(fileURLToPath(new URL('..',import.meta.url)),'..');
+const project=fileURLToPath(new URL('../',import.meta.url));
 const res=join(project,'android/app/src/main/res');
 const manifest=join(project,'android/app/src/main/AndroidManifest.xml');
 const src=join(project,'assets/apex-icon.svg');
