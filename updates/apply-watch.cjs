@@ -255,3 +255,6 @@ require('./apply-v83.cjs');
 
 // APEX 8.4: swipeable compact per-exchange DEMO wallets with folded accounting details.
 require('./apply-v84.cjs');
+
+// APEX 8.5: public Binance/Bybit market-data API WebSockets only. No account authentication or real orders.
+require('./apply-v85.cjs');
