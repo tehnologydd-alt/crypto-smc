@@ -78,3 +78,11 @@ Repo: `tehnologydd-alt/crypto-smc`, branch `apex-9-evolution`.
 
 ## Release gates
 No 9.0 release unless: 8.6 source verified and tested, migration/export validated, no assistant/demo screens active, no order execution path, forecast journal intact, source provenance and data freshness visible, no fake confidence metric, and notifications tested on-device.
+
+## Implementation update — standalone prototype
+- Added `apex9-preview/` with mobile-first research-only web UI: overview, per-asset passport, truthful forecast migration placeholder and source diagnostics.
+- Added `apex9-preview/research.mjs`, which combines a public Binance Spot 24h ticker with Binance and Bybit public order-book snapshots; a live source can fail without fabricating fallback values.
+- Complete Binance Spot USDT symbol catalog is requested with manual fallback search; `TON` resolves to `TONUSDT`.
+- Source-aware research evidence is passed through `updates/v90-evidence.mjs`. So far only **market** and **visible spot liquidity** layers are wired; no probabilistic forecast or ML is claimed.
+- Added independent unit tests `apex9-preview/test-research.mjs`, source timestamp validation and the `APEX9-Research-Web-Preview` build artifact job.
+- Deterministic smoke verification on mocked API responses passed on 2026-11-07; CI and live browser/API access are not yet verified. This is **not** an Android 9.0 release.
