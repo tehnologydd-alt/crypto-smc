@@ -5,7 +5,6 @@ on:
     branches: [apex-9-evolution]
     paths:
       - 'source/APEX_Intelligence_V86.b64.txt'
-      - '.github/workflows/apex-9-android.yml'
 permissions:
   contents: read
 jobs:
