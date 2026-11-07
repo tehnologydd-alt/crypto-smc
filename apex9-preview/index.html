@@ -79,6 +79,11 @@
         <article class="metric card"><div class="metric-label">Качество контекста</div><div class="metric-value" id="context-status">—</div><div class="metric-sub">не вероятность прогноза</div></article>
       </div>
       <article class="card block">
+        <h3>Контекст за пределами бирж</h3>
+        <p id="external-summary" aria-live="polite">Глобальный крипторынок, сеть BTC и публикации СМИ ещё не проверены.</p>
+        <p class="footnote">Новости и сетевые показатели пока не влияют на оценку направления: их информативность для прогноза должна быть независимо проверена.</p>
+      </article>
+      <article class="card block">
         <h3>Что известно сейчас</h3>
         <p id="assessment-text">Ожидаются ответы рыночных источников.</p>
         <div class="rule"></div>
@@ -100,6 +105,16 @@
         <div id="depth-list" class="stack"><p class="muted">Снимки глубины ещё не получены.</p></div>
         <p class="footnote">Отображается лишь ограниченный публичный срез заявок. Это не полная карта ликвидности, не скрытые ордера и не карта ликвидаций.</p>
       </article>
+      <article class="card block">
+        <h3>Крипторынок в целом</h3>
+        <div id="global-context" class="stack"><p class="muted">Данные CoinGecko ещё не получены.</p></div>
+        <p class="footnote">Капитализация и доминирование BTC относятся ко всему крипторынку, а не к прогнозу выбранного актива.</p>
+      </article>
+      <article class="card block">
+        <h3>Активность сети Bitcoin</h3>
+        <div id="btc-chain-context" class="stack"><p class="muted">Сетевая статистика ещё не получена.</p></div>
+        <p class="footnote">Общий пул неподтверждённых транзакций не позволяет определить действия крупных держателей или покупки и продажи на биржах.</p>
+      </article>
     </section>
 
     <section class="view hidden" id="view-forecasts" aria-labelledby="forecasts-title">
@@ -119,13 +134,22 @@
         <div id="source-list" class="stack"><p class="muted">Статусы станут доступны после запроса.</p></div>
       </article>
       <article class="card block">
-        <h3>Следующие аналитические слои</h3>
-        <div class="data-row"><span>Ончейн и крупные кошельки</span><span class="planned">Не подключено</span></div>
-        <div class="data-row"><span>Новости и экономические события</span><span class="planned">Не подключено</span></div>
+        <h3>Внешние источники</h3>
+        <div id="context-source-list" class="stack"><p class="muted">Статусы появятся после запроса.</p></div>
+        <p class="footnote">CoinGecko: общая криптостатистика. mempool.space: только сеть Bitcoin. GDELT: найденные упоминания, не проверенный новостной тон и не доказанная причинность.</p>
+      </article>
+      <article class="card block">
+        <h3>Упоминания актива в новостях</h3>
+        <div id="news-articles" class="stack"><p class="muted">Публикации ещё не загружены.</p></div>
+        <p class="footnote">Совпадение с поисковым запросом не означает, что публикация достоверна или повлияет на рынок.</p>
+      </article>
+      <article class="card block">
+        <h3>Следующие исследовательские слои</h3>
+        <div class="data-row"><span>Отслеживание известных крупных кошельков</span><span class="planned">Не подключено</span></div>
         <div class="data-row"><span>Социальные настроения</span><span class="planned">Не подключено</span></div>
         <div class="data-row"><span>Деривативы и ликвидации</span><span class="planned">Не подключено</span></div>
-        <div class="data-row"><span>Связи активов и макроэкономика</span><span class="planned">Не подключено</span></div>
-        <p class="footnote">Неподключённые источники не участвуют в расчёте. Ограничения сети, CORS и региона отображаются как ошибки, а не скрываются.</p>
+        <div class="data-row"><span>Макроэкономические публикации</span><span class="planned">Не подключено</span></div>
+        <p class="footnote">Ограничения сети, CORS и региона отображаются как ошибки. Отсутствующие наблюдения никогда не заменяются вымышленными показателями.</p>
       </article>
     </section>
   </main>
