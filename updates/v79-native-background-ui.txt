@@ -1,0 +1,58 @@
+<details className="rounded-xl border border-emerald-400/25 bg-[#101d2d] p-3">
+ <summary className="cursor-pointer text-sm font-semibold text-white">APEX 7.9 · Фоновое исследование выбранных Futures-пар</summary>
+ <div className="space-y-3 pt-3">
+  <p className="text-[11px] leading-relaxed text-slate-300">Android WorkManager периодически проверяет <strong className="text-white">закрытые публичные свечи</strong> выбранных пар. Используются те же четыре актива и биржи из мульти-DEMO, но результаты сохраняются отдельно от виртуальных позиций.</p>
+  <div className="grid grid-cols-2 gap-2">
+   <div className="rounded-lg border border-white/10 bg-[#0a1729] p-2.5">
+    <span className="block text-[10px] text-slate-400">Нативная служба Android</span>
+    <strong className="block text-[12px] text-slate-100">{futuresNativeStatus.enabled?'Включена':'Выключена'}</strong>
+    <span className="block pt-0.5 text-[10px] text-slate-500">WorkManager: {futuresNativeStatus.workState}</span>
+   </div>
+   <div className="rounded-lg border border-white/10 bg-[#0a1729] p-2.5">
+    <span className="block text-[10px] text-slate-400">Параметры фоновой проверки</span>
+    <strong className="block text-[12px] text-slate-100">{futuresNativeStatus.symbols.length} пар · {futuresNativeStatus.venues==='both'?'обе биржи':futuresNativeStatus.venues==='binance'?'Binance':'Bybit'}</strong>
+    <span className="block pt-0.5 text-[10px] text-slate-500">Свечи {futuresNativeStatus.frame}</span>
+   </div>
+  </div>
+  <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3 space-y-1">
+   <strong className="block text-xs text-emerald-100">{futuresNativeSummary.title}</strong>
+   <p className="text-[11px] leading-relaxed text-slate-300">{futuresNativeSummary.detail}</p>
+   <p className="text-[10px] text-slate-500">{futuresNativeStatus.lastResult}</p>
+  </div>
+  {lastFuturesNative&&<div className="space-y-2">
+   <p className="text-[11px] font-semibold text-slate-200">Последний завершённый запуск · {new Date(lastFuturesNative.finishedAt).toLocaleString('ru-RU')}</p>
+   <div className="grid grid-cols-2 gap-2">
+    <div className="rounded-lg bg-[#0a182a] p-2 text-center"><strong className="text-lg text-emerald-200">{lastFuturesNative.ready}</strong><span className="block text-[10px] text-slate-400">Свечи проверены</span></div>
+    <div className="rounded-lg bg-[#0a182a] p-2 text-center"><strong className="text-lg text-amber-200">{lastFuturesNative.problems}</strong><span className="block text-[10px] text-slate-400">Проблемы данных</span></div>
+   </div>
+   <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg bg-[#091525] p-2">
+    {lastFuturesNative.checks.map(item=><div key={item.source+':'+item.symbol+':'+item.frame} className="flex items-start justify-between gap-2 border-b border-white/5 py-1.5 last:border-0">
+     <div><strong className="text-[11px] text-slate-200">{item.symbol}</strong>
+      <span className="block text-[10px] text-slate-500">{item.source==='binance'?'Binance':'Bybit'} · {item.frame} · {item.barCount} свечей</span></div>
+     <div className="text-right">
+      <span className={'text-[10px] '+(item.status==='READY'?'text-emerald-200':'text-amber-200')}>{item.status==='READY'?'Подтверждены':item.status==='GAP'?'Разрыв':item.status==='STALE'?'Устарели':item.status==='NO_DATA'?'Нет данных':'Ошибка API'}</span>
+      {item.lastClosedAt>0&&<span className="block text-[10px] text-slate-500">{new Date(item.lastClosedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>}
+     </div>
+    </div>)}
+   </div>
+  </div>}
+  <div className="grid grid-cols-2 gap-2">
+   <button type="button" disabled={futuresBackgroundBusy||!futuresNativeStatus.supported||(!futuresNativeStatus.enabled&&(futuresScope!=='multi'||selectedDemoFavorites.length===0))}
+    onClick={()=>void toggleNativeFuturesBackground()}
+    className={'min-h-[42px] rounded-lg border px-2 text-[11px] font-semibold disabled:opacity-40 '+(futuresNativeStatus.enabled?'border-rose-400/30 bg-rose-400/10 text-rose-200':'border-emerald-400/35 bg-emerald-400/10 text-emerald-100')}>
+    {futuresNativeStatus.enabled?'Выключить фон Futures':'Включить фон Futures'}
+   </button>
+   <button type="button" disabled={futuresBackgroundBusy||!futuresNativeStatus.enabled}
+    onClick={()=>void checkNativeFuturesNow()}
+    className="min-h-[42px] rounded-lg border border-sky-400/30 bg-sky-400/10 px-2 text-[11px] font-semibold text-sky-100 disabled:opacity-40">Проверить сейчас</button>
+  </div>
+  <button type="button" disabled={!futuresNativeStatus.supported||futuresBackgroundBusy}
+   onClick={()=>void refreshNativeFuturesBackground()}
+   className="min-h-[38px] w-full rounded-lg border border-slate-600/70 px-2 text-[11px] text-slate-300 disabled:opacity-40">Обновить фактический статус Android</button>
+  {futuresBackgroundMessage&&<p role="status" className="text-[11px] text-amber-200">{futuresBackgroundMessage}</p>}
+  {!futuresNativeStatus.supported&&<p className="text-[11px] text-slate-400">Этот сбор работает только в установленном Android-приложении.</p>}
+  {futuresScope!=='multi'&&!futuresNativeStatus.enabled&&<p className="text-[11px] text-amber-200">Для включения выбери «Мульти · избранные», отметь до четырёх пар и нужные биржи.</p>}
+  <p className="text-[10px] leading-relaxed text-slate-400">Настройки синхронизируются с выбранными парами, биржами и таймфреймом. Фон нельзя считать выполненным, пока не появился реальный завершённый запуск. Проверка «сейчас» ставит работу в очередь, но не гарантирует немедленного запуска.</p>
+  <p className="text-[10px] leading-relaxed text-amber-100/85">WorkManager зависит от Android Doze, энергосбережения и сети: интервалы не точные. Фоновые проверки только собирают публичные сведения о качестве Futures-данных. DEMO-сделки, прогнозы и контрольные точки не создаются в остановленном WebView.</p>
+ </div>
+</details>
