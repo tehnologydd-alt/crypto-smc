@@ -16,7 +16,7 @@ const error=(x)=>String(x?.message||x||'Network error').slice(0,160);
 const fail=(state,message)=>({state,error:message,data:null});
 const ok=(data)=>({state:'OK',error:null,data});
 const mapName=Object.freeze({
- BTC:'Bitcoin',ETH:'Ethereum',TON:'Toncoin',SOL:'Solana',XRP:'Ripple XRP',
+ BTC:'Bitcoin',ETH:'Ethereum',GRAM:'Gram',SOL:'Solana',XRP:'Ripple XRP',
  ADA:'Cardano',BNB:'Binance Coin',DOGE:'Dogecoin',AVAX:'Avalanche',DOT:'Polkadot',
  LINK:'Chainlink',TRX:'Tron',LTC:'Litecoin',BCH:'Bitcoin Cash',SHIB:'Shiba Inu'
 });
@@ -28,7 +28,8 @@ function getBase(symbol){
  return null;
 }
 export function canonicalContextAsset(symbol){
- const base=getBase(symbol);
+ const rawBase=getBase(symbol);
+ const base=rawBase==='TON'?'GRAM':rawBase;
  return base&&Object.hasOwn(mapName,base)?{base,name:mapName[base]}:null;
 }
 
