@@ -57,3 +57,29 @@ export function canRetireLegacySnapshots(storage:Reader,archive:CheckpointArchiv
  }
  return {safe:true,reason:'Новая история подтверждена; старые ключи можно удалить.',legacyCount:old.length,rollingCount:count};
 }
+
+/** Only create the initial rolling key if all present predecessor sections
+ * validate and match EXACTLY the in-memory last-64 migration result.
+ */
+export function canInitializeRolling(storage:Reader,archive:CheckpointArchive,
+ now=Date.now()):RollingMigrationGate{
+ let rawRolling:string|null,rawLegacy:string|null,rawContinuation:string|null;
+ try{
+  rawRolling=storage.getItem('apex_v76_rolling_checkpoints');
+  rawLegacy=storage.getItem('apex_v67_study_checkpoints');
+  rawContinuation=storage.getItem('apex_v75_checkpoint_continuation');
+ }catch{return {safe:false,reason:'Хранилище недоступно.',legacyCount:0,rollingCount:0};}
+ if(rawRolling!==null)
+  return {safe:false,reason:'Новый ключ уже существует: не перезаписывать без явного подтверждения.',legacyCount:0,rollingCount:archive.snapshots.length};
+ const a=expectedCount(rawLegacy,'snapshots'),b=expectedCount(rawContinuation,'segments');
+ if(a===null||b===null)
+  return {safe:false,reason:'Старый архив повреждён; новый пустой архив создавать нельзя.',legacyCount:0,rollingCount:archive.snapshots.length};
+ const legacy=restoreStudyCheckpoints(rawLegacy,now);
+ const continuation=restoreContinuation(rawContinuation,legacy,now);
+ const old=[...legacy.snapshots,...continuation.segments.flatMap(s=>s.snapshots)];
+ const expected=old.slice(-64);
+ if(legacy.snapshots.length!==a||continuation.segments.flatMap(s=>s.snapshots).length!==b||
+  JSON.stringify(expected)!==JSON.stringify(archive.snapshots))
+  return {safe:false,reason:'Перенос не совпал с исходными снимками; сохраняем старые ключи.',legacyCount:a+b,rollingCount:archive.snapshots.length};
+ return {safe:true,reason:'Первичная миграция проверена.',legacyCount:old.length,rollingCount:archive.snapshots.length};
+}
