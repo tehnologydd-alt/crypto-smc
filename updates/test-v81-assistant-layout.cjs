@@ -21,7 +21,7 @@ const ast=ts.createSourceFile('App.tsx',app,ts.ScriptTarget.Latest,true,ts.Scrip
 assert.equal(ast.parseDiagnostics.length,0,
  ast.parseDiagnostics.map(x=>ts.flattenDiagnosticMessageText(x.messageText,' ')).join('; '));
 assert.equal((app.match(/aria-label="Разделы ассистента"/g)||[]).length,1);
-assert.equal((app.match(/role="tab" aria-selected=/g)||[]).length,2);
+assert.equal((app.match(/role="tab" aria-selected=\{assistantSubtab===/g)||[]).length,2,'two Assistant subtabs, independent of other application tabs');
 assert.equal((app.match(/open className="rounded-xl border border-slate-600\/35/g)||[]).length,1,
  'only independent study opens initially; remaining research groups stay folded');
 // Ensure all the old research widgets still exist exactly once, but only in research.
