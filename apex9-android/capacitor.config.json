@@ -1,0 +1,14 @@
+{
+  "appId": "com.apexintelligence.research",
+  "appName": "APEX 9 Research",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
