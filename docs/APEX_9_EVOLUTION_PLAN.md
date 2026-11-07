@@ -86,3 +86,14 @@ No 9.0 release unless: 8.6 source verified and tested, migration/export validate
 - Source-aware research evidence is passed through `updates/v90-evidence.mjs`. So far only **market** and **visible spot liquidity** layers are wired; no probabilistic forecast or ML is claimed.
 - Added independent unit tests `apex9-preview/test-research.mjs`, source timestamp validation and the `APEX9-Research-Web-Preview` build artifact job.
 - Deterministic smoke verification on mocked API responses passed on 2026-11-07; CI and live browser/API access are not yet verified. This is **not** an Android 9.0 release.
+
+## Deep-research source integration — first iteration
+- New `apex9-preview/context-sources.mjs` collects three independent, **context-only** observations:
+  1. CoinGecko: global market cap, volume, BTC dominance, 24h aggregate change. Uses provider update timestamp and rejects stale/future snapshots.
+  2. mempool.space: total unconfirmed Bitcoin transactions / vsize / total fees; **only for BTC assets**, no inference about named wallets or trading intentions.
+  3. GDELT DOC: time-scoped article search for whitelisted unambiguous names; records HTTPS article URL and *GDELT observed* time, not original publisher time or verified causal effects.
+- Evidence fusion inputs remain market-price and visible-depth observations only. Extra adapters do not boost model confidence; evidence impact must first be validated on chronological history.
+- Each adapter explicitly reports `OK`, `EMPTY`, `UNSUPPORTED`, `RATE_LIMITED`, `OFFLINE` or `INVALID`; unavailable feeds never produce synthetic records.
+- The research-only UI shows BTC network status, global crypto aggregates, external source diagnostics and plain-text HTTPS news links. No assistant, wallet, demo balance or order controls were introduced.
+- Added unit coverage for no-key GET behavior, Bitcoin-only support, invalid timestamps, duplicate article filtering and missing-source handling.
+- The actual browser integrations and Android packaging still require runtime verification; no claim of a validated live forecast or Android 9 release.
