@@ -261,3 +261,6 @@ require('./apply-v85.cjs');
 
 // APEX 8.6: local-only anonymized account snapshot inspection; no private exchange trading accounts.
 require('./apply-v86.cjs');
+
+// APEX 8.7: public Testnet server clock checks + clearly labeled local order-state fixtures (no authenticated execution).
+require('./apply-v87.cjs');
