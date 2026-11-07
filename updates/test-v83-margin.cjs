@@ -27,7 +27,7 @@ const plan=(exchange,symbol='BTCUSDT',n=0)=>({id:'futures:'+exchange+':'+symbol+
  targets:[102,104,108],createdAt:T+2,expiresAt:T+86400000,
  observedBarAt:T-MS-n*MS,reason:'study',model:'futures-study-v1'});
 const barsFor=(exchange,symbol='BTCUSDT',close=98,at=T+6000)=>({
- [exchange+':'+symbol+':5m]:[{time:at-MS,open:100,high:Math.max(101,close),low:Math.min(97,close),close,volume:10,closed:true}]
+ [exchange+':'+symbol+':5m']:[{time:at-MS,open:100,high:Math.max(101,close),low:Math.min(97,close),close,volume:10,closed:true}]
 });
 let book=A.openDemoWallets(empty,T);
 const B='futures:binance',Y='futures:bybit';
