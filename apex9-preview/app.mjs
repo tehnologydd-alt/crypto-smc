@@ -109,7 +109,7 @@ async function loadCatalog(){
   if(result.state==='OK'){
    catalog=result.symbols;
    text('catalog-status','Каталог Binance Spot/USDT: '+fmt(catalog.length,0)+
-    ' доступных пар. Можно вводить сокращение, например TON.');
+    ' доступных пар. Можно вводить сокращение, например GRAM.');
    suggestions(el('asset-input').value);
   }else{
    text('catalog-status','Каталог недоступен ('+result.state+
@@ -252,7 +252,7 @@ function renderSnapshot(snapshot){
 async function investigate(value){
  const symbol=normalizeSymbol(value);
  if(!symbol){
-  setNotice('Введите корректный биржевой символ, например BTCUSDT или TON.',true);
+  setNotice('Введите корректный биржевой символ, например BTCUSDT или GRAM.',true);
   return;
  }
  if(controller)controller.abort();
