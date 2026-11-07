@@ -225,3 +225,6 @@ require('./apply-v73.cjs');
 
 // APEX 7.4: foreground multi-pair public futures DEMO and automatic immutable checkpoints.
 require('./apply-v74.cjs');
+
+// APEX 7.5: dynamic Radar favorite watch, append-only checkpoint continuation, educational DEMO P&L.
+require('./apply-v75.cjs');
