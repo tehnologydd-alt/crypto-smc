@@ -98,7 +98,7 @@ export function noteMonitorSuccess(old:MonitorJournal,key:string,bars:FutureBar[
  if(!valid.length)return noteMonitorFailure(old,key,'Нет завершённых свечей',at);
  const last=Math.max(...valid.map(b=>b.time+ms));
  const prior=old.feeds[key]||newFeed(key),gaps=gapsIn(valid,frame);
- let next=setFeed(old,{...prior,lastAttemptAt:at,lastSuccessAt:at,lastClosedAt:last,
+ let next=setFeed({...old,lastSeenAt:at},{...prior,lastAttemptAt:at,lastSuccessAt:at,lastClosedAt:last,
   error:null,consecutiveFailures:0,checkedBars:valid.length,observedGaps:gaps});
  if(prior.consecutiveFailures>0)next=event(next,'DATA_RECOVERED',key,'Публичный источник данных снова отвечает.',at);
  if(gaps>0&&gaps!==prior.observedGaps)
@@ -110,7 +110,7 @@ export function noteMonitorFailure(old:MonitorJournal,key:string,reason:unknown,
  const prior=old.feeds[key]||newFeed(key);
  // Do not persist untrusted API error payload verbatim beyond a short generic label.
  const error=String(reason).slice(0,180);
- let next=setFeed(old,{...prior,lastAttemptAt:at,lastErrorAt:at,error,
+ let next=setFeed({...old,lastSeenAt:at},{...prior,lastAttemptAt:at,lastErrorAt:at,error,
   consecutiveFailures:Math.min(1000000,prior.consecutiveFailures+1)});
  if(prior.consecutiveFailures===0||at-(prior.lastErrorAt||0)>=900000)
   next=event(next,'DATA_ERROR',key,'Не удалось получить публичные фьючерсные данные: '+error,at);
