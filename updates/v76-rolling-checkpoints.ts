@@ -9,7 +9,7 @@ import {MAX_CHECKPOINTS,restoreStudyCheckpoints,saveStudyCheckpoint,
 import type {ContinuationArchive} from './v75-checkpoint-continuation';
 export const ROLLING_MAX=MAX_CHECKPOINTS;
 const validArchive=(x:unknown,now:number):x is CheckpointArchive=>{
- if(!x||typeof x!=='object')return false;
+ if(!x||typeof x!=='object'||(x as CheckpointArchive).version!==1)return false;
  const rows=(x as CheckpointArchive).snapshots;
  return Array.isArray(rows)&&rows.length<=ROLLING_MAX&&
   restoreStudyCheckpoints(JSON.stringify(x),now).snapshots.length===rows.length;
