@@ -1,6 +1,6 @@
 # APEX 9.0 — Global Intelligence / Deep Market Research
 
-Status: **new product direction approved**, implementation in isolated `apex-9-evolution` branch. Source baseline: APEX 8.7.
+Status: **new product direction approved**, implementation in isolated `apex-9-evolution` branch. Source baseline: **APEX 8.6** (user-selected). Do not restore APEX 8.7 or replay missing legacy patches.
 
 ## Product vision
 APEX is an explainable, multi-source *research and forecasting* platform, **not** an assistant, brokerage terminal, demo portfolio, or order execution service.
@@ -59,15 +59,15 @@ Every source adapter supports status: OK, LATE, OFFLINE, RATE_LIMITED, UNSUPPORT
 ## Build baseline audit — 2026-11-07
 Repo: `tehnologydd-alt/crypto-smc`, branch `apex-9-evolution`.
 
-- Runtime `src` is reconstructed from `source/APEX_Intelligence_V2.b64.txt`, then 2.3 overlay and version patches.
-- Previous workflow only ran `updates/apply-watch.cjs` (2.5) and a diagnostic `updates/inspect-v63.cjs`, not 8.7.
-- New `updates/rebuild-v87.cjs` enumerates and applies staged version patches in numerical order and verifies the final 8.7 marker and files; CI invokes it only on `apex-9-evolution`.
-- **Blocker found:** authentic `updates/apply-v27.cjs` is missing although 2.8 requires version 2.7. The chain deliberately fails closed until the exact 2.7 overlay or verified source snapshot is recovered. Do not fabricate version 2.7 by changing a label.
-- Existing `updates/configure-release.cjs` sets Android `versionName` to 6.3.RUN even though 8.7 scripts exist. Hold 9.0 signed release until metadata and migration are audited.
-- CI for this branch is **not yet confirmed green**, and no APEX 9 APK is claimed to exist.
+- The legacy repository stores early source in `source/APEX_Intelligence_V2.b64.txt` and version-specific update scripts, but no authenticated *full* APEX 8.6 source snapshot has yet been located.
+- **New policy:** APEX 9.0 is forked directly from an approved **8.6 source snapshot**, not reconstructed from 2.x patches. The old 2.7 gap is no longer a task to restore.
+- `updates/require-v86-source.cjs` validates the extracted version marker and essential 8.6 source/tests, without accepting a partial 2.x source as 8.6. `apex-9-android.yml` builds only from `source/APEX_Intelligence_V86.b64.txt` when that file is provided; it currently does not exist.
+- `.github/workflows/apex-v2-android.yml` has been isolated back to the legacy branch; `apex-9-evolution` uses separate CI.
+- The existing `updates/configure-release.cjs` uses legacy versionName `6.3.RUN`. Experimental 9.0 workflow builds an **unsigned-for-release debug APK** and does not call this versioning script. A future signed 9.0 release requires an independent migration/signing plan.
+- The new standalone modules `updates/v90-evidence.mjs` and `updates/v90-market-depth.mjs` can be tested independently of the Android baseline; they are not yet wired into the app. No full APEX 9 APK is claimed to exist.
 
 ## Implementation stages
-0. Recover/verify 2.7 baseline, run complete 8.7 overlay chain, regressions and Android build.
+0. Obtain a trustworthy complete APEX 8.6 source snapshot and run existing tests + experimental Android build without replaying 2.7 or 8.7.
 1. Preserve a read-only snapshot/export of pre-migration user data and map all persistence keys.
 2. Build new research-only shell with source health, charts, and forecast timelines.
 3. Separate all assistant/demo code into inactive legacy modules; only remove after preserving records and testing migrations.
@@ -77,4 +77,4 @@ Repo: `tehnologydd-alt/crypto-smc`, branch `apex-9-evolution`.
 7. Android performance/notification, offline mode, accessibility and release validation.
 
 ## Release gates
-No 9.0 release unless: 8.7 build reproduced, migration/export validated, no assistant/demo screens active, no order execution path, forecast journal intact, source provenance and data freshness visible, no fake confidence metric, and notifications tested on-device.
+No 9.0 release unless: 8.6 source verified and tested, migration/export validated, no assistant/demo screens active, no order execution path, forecast journal intact, source provenance and data freshness visible, no fake confidence metric, and notifications tested on-device.
