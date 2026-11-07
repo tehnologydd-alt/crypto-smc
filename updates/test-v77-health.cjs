@@ -20,6 +20,8 @@ assert.equal(journal.feeds[k].lastSuccessAt,T);
 assert.equal(journal.feeds[k].lastClosedAt,T);
 assert.equal(journal.feeds[k].observedGaps,0);
 assert.equal(H.monitorRows(journal,[k],T)[0].status,'FRESH');
+assert.equal(H.hasFreshSourceEvidence(journal,k,T),true);
+assert.equal(H.hasFreshSourceEvidence(journal,k,T+2*M+1),false,'successful HTTP response cannot authorize setups from outdated candles');
 assert.equal(H.monitorRows(journal,[k],T+2*M+1)[0].status,'DELAYED',
  'stale candles are never presented as currently observed');
 assert.equal(H.monitorOverview(H.monitorRows(journal,[k,other],T)).noData,1);
@@ -27,6 +29,7 @@ const before=JSON.stringify(journal);
 journal=H.noteMonitorFailure(journal,k,'HTTP 429',T+1000);
 assert.equal(journal.feeds[k].consecutiveFailures,1);
 assert.equal(H.monitorRows(journal,[k],T+1000)[0].status,'ERROR');
+assert.equal(H.hasFreshSourceEvidence(journal,k,T+1000),false,'failed source cannot authorize new paper plan');
 assert(journal.events.some(e=>e.type==='DATA_ERROR'));
 journal=H.noteMonitorFailure(journal,k,'HTTP 429',T+2000);
 assert.equal(journal.feeds[k].consecutiveFailures,2);
@@ -84,7 +87,7 @@ for(const item of ['РЫНОЧНЫЙ РАДАР • 7.7',
  'APEX 7.7 · Качество наблюдения и перерывы','monitorJournal','noteMonitorSuccess',
  'noteMonitorFailure','noteMonitorVisibility','noteMonitorNetwork','restoreMonitorJournal',
  'monitorRows','monitorOverview','apex_v77_observation_health',
- 'futuresMultiPlans.filter','health.consecutiveFailures===0',
+ 'futuresMultiPlans.filter','hasFreshSourceEvidence',
  'futuresSelectedKey','Время','Качество наблюдения',
  'apex_v76_selected_favorites','apex_v76_demo_venues',
  'apex_v76_rolling_checkpoints','apex_v64_futures_demo','apex_v66_forward_protocol']){
