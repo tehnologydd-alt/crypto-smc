@@ -101,3 +101,7 @@ button:disabled{opacity:.55;cursor:wait}
  button{transition:background .16s ease,border-color .16s ease}
  .tab:hover{background:#203342}
 }
+
+.news-link{display:block;color:#b7e9fd;text-decoration:none;font-size:12px;font-weight:650;line-height:1.55;overflow-wrap:anywhere}
+.news-link:hover,.news-link:focus-visible{text-decoration:underline;color:#8ceadf}
+.source-state.neutral{color:#b7bfcf;background:#263146}
