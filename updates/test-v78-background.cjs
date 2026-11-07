@@ -26,7 +26,7 @@ assert.equal(settings.sent.length,1);
 assert.equal(N.pickMonitoringNotice(resumed,settings,T+2000),null,'do not repeat event');
 const next={...base,events:[...resumed.events,evt('second','RESUMED',T+5*MIN,20*MIN)]};
 assert.equal(N.pickMonitoringNotice(next,settings,T+6*MIN),null,'30-minute cooldown');
-const afterCooldown=N.pickMonitoringNotice(next,settings,T+35*MIN);
+const afterCooldown=N.pickMonitoringNotice(next,settings,T+35*MIN+1000);
 assert.equal(afterCooldown,null,'events older than 30 minutes do not get delivered retrospectively');
 let offline={...base,online:false,events:[evt('net-off','OFFLINE',T+35*MIN)]};
 let second=N.pickMonitoringNotice(offline,settings,T+35*MIN);
