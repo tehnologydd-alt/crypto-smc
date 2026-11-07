@@ -92,6 +92,7 @@ assert.equal(archive.snapshots.length,64);
 const continuation={version:1,segments:[C.saveStudyCheckpoint(C.EMPTY_CHECKPOINTS,protocol,report(65),T+65000)]};
 const migrated=R.restoreRollingArchive(null,archive,continuation,T+65000);
 assert.equal(migrated.snapshots.length,64,'migration retains only 64 newest checkpoints');
+assert.equal(R.restoreRollingArchive(JSON.stringify({version:999,snapshots:[]}),archive,continuation,T+65000).snapshots.length,64,'invalid new storage must not discard legacy checkpoints');
 assert.equal(migrated.snapshots[0].reviewable,2,'first of legacy 64 deliberately expired');
 assert.equal(migrated.snapshots.at(-1).reviewable,65);
 assert.equal(R.restoreRollingArchive(JSON.stringify(migrated),C.EMPTY_CHECKPOINTS,{version:1,segments:[]},T+65000).snapshots.length,64,
