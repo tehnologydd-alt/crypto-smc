@@ -101,7 +101,7 @@ assert.equal(autoOff.written,null);
 assert.equal(S.restoreContinuation(JSON.stringify(cont),legacy,T+65000).segments.length,0,'future snapshots rejected');
 assert.equal(S.combinedCheckpoints(legacy,cont,V.startStudyProtocol(T)).length,0,'protocol isolation');
 const app=fs.readFileSync('src/App.tsx','utf8');
-for(const word of ['РЫНОЧНЫЙ РАДАР • 7.5','Все избранные · DEMO','Избранные','DOGEUSDT',
+for(const word of ['РЫНОЧНЫЙ РАДАР • 7.5','Все избранные · DEMO','Избранные','favoriteFeed',
  'favoritesObserveKeys','deriveFavoritePlans','futuresFavoriteUniverse','favoriteRound',
  'apex_v75_checkpoint_continuation','combinedCheckpoints','autoAppendCheckpoint','appendCheckpoint',
  'Сохранить контрольную точку','Положительные и отрицательные результаты DEMO','demoProfitBreakdown',
