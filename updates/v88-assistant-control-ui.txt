@@ -1,16 +1,11 @@
 {view==='assistant'&&<nav role="tablist" aria-label="Разделы ассистента"
  className="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-[#0b1727]/95 p-1.5 shadow-lg backdrop-blur">
- {([
-  ['overview','Главное'],
-  ['positions','Позиции'],
-  ['research','Проверки']
- ] as const).map(([tab,label])=><button key={tab} type="button" role="tab"
-  aria-selected={assistantSubtab===tab}
-  onClick={()=>setAssistantSubtab(tab)}
-  className={'min-h-[46px] rounded-xl px-1 text-[12px] font-bold transition-colors '+(
-   assistantSubtab===tab?'bg-violet-500/25 text-white shadow-sm':'text-slate-400 hover:text-white')}>
-  {label}
- </button>)}
+ <button type="button" role="tab" aria-selected={assistantSubtab==='overview'} onClick={()=>setAssistantSubtab('overview')}
+  className={'min-h-[46px] rounded-xl px-1 text-[12px] font-bold transition-colors '+(assistantSubtab==='overview'?'bg-violet-500/25 text-white shadow-sm':'text-slate-400 hover:text-white')}>Главное</button>
+ <button type="button" role="tab" aria-selected={assistantSubtab==='positions'} onClick={()=>setAssistantSubtab('positions')}
+  className={'min-h-[46px] rounded-xl px-1 text-[12px] font-bold transition-colors '+(assistantSubtab==='positions'?'bg-violet-500/25 text-white shadow-sm':'text-slate-400 hover:text-white')}>Позиции</button>
+ <button type="button" role="tab" aria-selected={assistantSubtab==='research'} onClick={()=>setAssistantSubtab('research')}
+  className={'min-h-[46px] rounded-xl px-1 text-[12px] font-bold transition-colors '+(assistantSubtab==='research'?'bg-violet-500/25 text-white shadow-sm':'text-slate-400 hover:text-white')}>Проверки</button>
 </nav>}
 {view==='assistant'&&<section role="region" aria-label="Управление DEMO-ассистентом"
  className={'space-y-3 rounded-2xl border p-3.5 '+(
