@@ -1,5 +1,6 @@
 import {collectAsset,fetchSpotCatalog,normalizeSymbol} from './research.mjs';
 import {collectContext} from './context-sources.mjs';
+import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -34,6 +35,49 @@ function create(tag,cls,value){
  if(value!==undefined)n.textContent=String(value);
  return n;
 }
+const installedBuildPromise=(async()=>{
+ try{
+  const response=await fetch('./apex-build-info.json',{cache:'no-store'});
+  if(!response.ok)throw Error('No Android build information');
+  const result=await response.json();
+  if(result.appId!=='com.apexintelligence.research'||!Number.isSafeInteger(result.buildRun))
+   throw Error('Unknown app build');
+  text('installed-version',result.versionName+(result.signedRelease?' · подписанная':' · debug'));
+  text('update-status',result.signedRelease
+   ?'Подписанная сборка. Для проверки новых опубликованных версий нажмите кнопку ниже.'
+   :'Тестовая debug-подпись. Для перехода на стабильные обновления требуется первая установка подписанного выпуска.');
+  return result;
+ }catch{
+  text('installed-version','Веб-прототип');
+  text('update-status','Проверка обновлений APK доступна в установленной Android-версии.');
+  return null;
+ }
+})();
+async function checkForUpdates(){
+ const button=el('check-updates-button');
+ const link=el('update-release-link');
+ button.disabled=true;link.classList.add('hidden');
+ text('update-status','Проверяем официальный GitHub на наличие подписанных обновлений…');
+ try{
+  const installed=await installedBuildPromise;
+  const response=await fetch(RELEASE_API,{cache:'no-store',headers:{Accept:'application/vnd.github+json'}});
+  if(!response.ok)throw Error(response.status===403?'GitHub ограничил частоту запросов':'GitHub HTTP '+response.status);
+  const payload=await response.json();
+  const latest=latestSignedRelease(payload);
+  const result=updateStatus(installed,latest);
+  text('update-status',result.message);
+  if(latest&&(result.state==='UPDATE'||result.state==='REINSTALL_ONCE')){
+   link.href=latest.page;
+   link.classList.remove('hidden');
+  }
+ }catch(e){
+  text('update-status','Не удалось проверить обновления: '+String(e?.message||e));
+ }finally{
+  button.disabled=false;
+ }
+}
+el('check-updates-button').addEventListener('click',()=>void checkForUpdates());
+
 function sourceRow(title,status,sub){
  const row=create('div','source-line');
  const content=create('div');
