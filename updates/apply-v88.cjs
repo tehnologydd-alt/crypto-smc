@@ -149,6 +149,7 @@ for(const f of fs.readdirSync('scripts').filter(x=>x.startsWith('test-')&&x.ends
 // the redesigned home adds a third while retaining all prior view content.
 let legacy=read('scripts/test-v81-assistant-layout.cjs');
 legacy=rep(legacy,"'Позиции · DEMO','Исследования',","'Позиции','Проверки',",'v81 regression: clearer mobile navigation labels');
+legacy=rep(legacy,"'apex_v81_assistant_subtab'","'apex_v88_assistant_subtab'",'v81 regression: new navigation preference key');
 legacy=rep(legacy,
  "assert.equal((app.match(/role=\"tab\" aria-selected=\\{assistantSubtab===/g)||[]).length,2,'two Assistant subtabs, independent of other application tabs');",
  "assert.equal((app.match(/role=\"tab\" aria-selected=\\{assistantSubtab===/g)||[]).length,3,'three Assistant subtabs, independent of other application tabs');",
