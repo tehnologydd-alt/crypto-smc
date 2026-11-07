@@ -222,3 +222,6 @@ require('./apply-v72.cjs');
 
 // APEX 7.3: deterministic on-device explanation grounded only in DEMO reports.
 require('./apply-v73.cjs');
+
+// APEX 7.4: foreground multi-pair public futures DEMO and automatic immutable checkpoints.
+require('./apply-v74.cjs');
