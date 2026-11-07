@@ -11,9 +11,10 @@ function removeSection(app,heading,opening,name){
  if(pos<0)throw Error('APEX 8.1 missing '+name);
  const from=app.lastIndexOf(opening,pos);
  if(from<0||pos-from>500)throw Error('APEX 8.1 bad section '+name);
- const to=app.indexOf('\n </section>',pos);
- if(to<0)throw Error('APEX 8.1 missing section end '+name);
- const end=to+'\n </section>'.length;
+ const closers=['\n </section>','\n</section>'];
+ const candidates=closers.map(tag=>({at:app.indexOf(tag,pos),tag})).filter(c=>c.at>=0).sort((a,b)=>a.at-b.at);
+ if(!candidates.length)throw Error('APEX 8.1 missing section end '+name);
+ const end=candidates[0].at+candidates[0].tag.length;
  return {content:app.slice(from,end),app:app.slice(0,from)+app.slice(end)};
 }
 function extractCard(section,begin,end,name){
