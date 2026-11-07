@@ -38,8 +38,10 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
  const sum=bidNotional+askNotional;
  if(!positive(sum)||!Number.isFinite(sum))throw Error('invalid depth totals');
  const mid=(highestBid+lowestAsk)/2;
- const exchangeTimestamp=venue==='bybit'&&Number.isSafeInteger(data.ts)&&data.ts>0?data.ts:null;
+ const rawTs=venue==='bybit'?(payload.ts??data.ts):null;
+ const exchangeTimestamp=Number.isSafeInteger(rawTs)&&rawTs>0?rawTs:null;
  if(exchangeTimestamp!==null&&exchangeTimestamp>receivedAt+60000)throw Error('future exchange timestamp');
+ if(exchangeTimestamp!==null&&receivedAt-exchangeTimestamp>180000)throw Error('stale exchange snapshot');
  const updateId=venue==='binance'?data.lastUpdateId:data.u;
  return {
   venue,symbol,market:'SPOT',receivedAt,exchangeTimestamp,
@@ -71,6 +73,8 @@ export async function fetchPublicDepth(venue,symbol,{
    return {state:'RATE_LIMITED',venue,symbol,error:'source rate limited',data:null};
   if(!response.ok)return {state:'OFFLINE',venue,symbol,error:'HTTP '+response.status,data:null};
   const payload=await response.json();
+  if(venue==='bybit'&&payload?.retCode===10006)
+   return {state:'RATE_LIMITED',venue,symbol,error:'Bybit API rate limited',data:null};
   const receivedAt=now();
   return {state:'OK',venue,symbol,error:null,data:parseDepthSnapshot(venue,symbol,payload,receivedAt)};
  }catch(error){
