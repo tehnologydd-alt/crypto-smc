@@ -240,3 +240,6 @@ require('./apply-v78.cjs');
 
 // APEX 7.9: native opt-in Futures PUBLIC-data background sampling inside the SAME WorkManager job.
 require('./apply-v79.cjs');
+
+// APEX 8.0: final read-only release passport, validated checkpoints migration and regression tests.
+require('./apply-v80.cjs');
