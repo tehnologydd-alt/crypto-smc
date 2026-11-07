@@ -10,9 +10,15 @@ on:
       - 'updates/test-v90-*.mjs'
       - '.github/workflows/apex9-research-apk.yml'
   workflow_dispatch:
+    inputs:
+      publish_prerelease:
+        description: 'Publish an explicitly approved signed APK on GitHub Releases'
+        type: boolean
+        default: false
+        required: false
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: apex9-preview-apk-${{ github.ref }}
@@ -55,32 +61,67 @@ jobs:
 
       - name: Install Capacitor and stage web assets
         working-directory: apex9-android
+        env:
+          APEX_KEYSTORE_B64: ${{ secrets.APEX_KEYSTORE_B64 }}
+          APEX_KEYSTORE_PASSWORD: ${{ secrets.APEX_KEYSTORE_PASSWORD }}
+          APEX_KEY_ALIAS: ${{ secrets.APEX_KEY_ALIAS }}
+          APEX_KEY_PASSWORD: ${{ secrets.APEX_KEY_PASSWORD }}
         run: |
           npm install --no-audit --no-fund
           npm run build:web
           npx cap add android
-          npx cap sync android
           node scripts/set-android-version.mjs
+          npx cap sync android
+          npm run icons
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s android/app/src/main/res/drawable/ic_stat_apex.xml
 
-      - name: Build Android debug APK
+      - name: Build Android APK with stable release signing when available
         working-directory: apex9-android/android
+        env:
+          APEX_KEYSTORE_PASSWORD: ${{ secrets.APEX_KEYSTORE_PASSWORD }}
+          APEX_KEY_ALIAS: ${{ secrets.APEX_KEY_ALIAS }}
+          APEX_KEY_PASSWORD: ${{ secrets.APEX_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
+          if [ -f ../.apex-signed-release ]; then
+            ./gradlew :app:assembleRelease --no-daemon
+          else
+            echo "::warning::No stable signing key configured: debug preview cannot upgrade over previous builds."
+            ./gradlew :app:assembleDebug --no-daemon
+          fi
 
-      - name: Prepare APK and checksum
+      - name: Prepare versioned APK and checksum
         run: |
-          test -s apex9-android/android/app/build/outputs/apk/debug/app-debug.apk
           mkdir -p apex9-android/output
-          cp apex9-android/android/app/build/outputs/apk/debug/app-debug.apk apex9-android/output/APEX9-Research-Preview-debug.apk
-          (cd apex9-android/output && sha256sum APEX9-Research-Preview-debug.apk > SHA256SUMS.txt)
-          ls -lh apex9-android/output/APEX9-Research-Preview-debug.apk
+          if [ -f apex9-android/.apex-signed-release ]; then
+            test -s apex9-android/android/app/build/outputs/apk/release/app-release.apk
+            cp apex9-android/android/app/build/outputs/apk/release/app-release.apk apex9-android/output/APEX9-Research-Preview-signed.apk
+          else
+            test -s apex9-android/android/app/build/outputs/apk/debug/app-debug.apk
+            cp apex9-android/android/app/build/outputs/apk/debug/app-debug.apk apex9-android/output/APEX9-Research-Preview-debug.apk
+          fi
+          cp apex9-android/dist/apex-build-info.json apex9-android/output/apex-build-info.json
+          (cd apex9-android/output && sha256sum *.apk > SHA256SUMS.txt)
+          ls -lh apex9-android/output/*.apk
+
+      - name: Publish approved signed preview for in-app update checks
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_prerelease }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -f apex9-android/.apex-signed-release || { echo "::error::Publishing requires configured stable signing secrets"; exit 1; }
+          test -s apex9-android/output/APEX9-Research-Preview-signed.apk
+          gh release create "v9.0.${GITHUB_RUN_NUMBER}" \
+            apex9-android/output/APEX9-Research-Preview-signed.apk \
+            apex9-android/output/SHA256SUMS.txt \
+            --title "APEX 9 Research Preview 9.0.${GITHUB_RUN_NUMBER}" \
+            --notes "Research-only Android preview. Public market data; no orders, demo accounts or assistant." \
+            --prerelease --target "${GITHUB_SHA}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: APEX9-Research-Android-APK
-          path: |
-            apex9-android/output/APEX9-Research-Preview-debug.apk
-            apex9-android/output/SHA256SUMS.txt
+          path: apex9-android/output/*
           if-no-files-found: error
           retention-days: 30
