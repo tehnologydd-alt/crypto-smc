@@ -67,9 +67,15 @@ export function enrollChosenDemoPlans(old:FutureLedger,plans:FuturePlan[],
  let next=old;
  // Preserve the two independent venue ledgers within the existing Futures DEMO
  // archive. Each ticket records its actual public-market source.
- for(const source of ['binance','bybit'] as const){
-  const own=plans.filter(p=>p.source===source).slice(0,MAX_SELECTED_FAVORITES);
-  if(own.length)next=enrollMultiDemoPlans(next,own,{...setup,exchange:source},now);
+ // Fairly interleave pair/venue attempts. The existing six-active DEMO limit
+ // is global; when both sources are enabled, one should not take all slots first.
+ const ownSources=['binance','bybit'] as const;
+ const pools=ownSources.map(source=>plans.filter(p=>p.source===source).slice(0,MAX_SELECTED_FAVORITES));
+ for(let i=0;i<MAX_SELECTED_FAVORITES;i++){
+  for(let j=0;j<ownSources.length;j++){
+   const plan=pools[j][i];if(!plan)continue;
+   next=enrollMultiDemoPlans(next,[plan],{...setup,exchange:ownSources[j]},now);
+  }
  }
  return next;
 }
