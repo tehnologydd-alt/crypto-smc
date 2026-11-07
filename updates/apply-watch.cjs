@@ -234,3 +234,6 @@ require('./apply-v76.cjs');
 
 // APEX 7.7: honest per-venue candle health journal, WebView pause/resume and data freshness gate.
 require('./apply-v77.cjs');
+
+// APEX 7.8: native CORE scheduler truth and Android opt-in demo data-interruption notices.
+require('./apply-v78.cjs');
