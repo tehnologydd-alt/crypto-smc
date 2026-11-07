@@ -249,3 +249,6 @@ require('./apply-v81.cjs');
 
 // APEX 8.2: independent local-only DEMO cash accounts and folded Assistant mode controls.
 require('./apply-v82.cjs');
+
+// APEX 8.3: reserve DEMO per-venue virtual margin, mark floating from confirmed public candles, enforce capital admission.
+require('./apply-v83.cjs');
