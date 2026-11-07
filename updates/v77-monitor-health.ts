@@ -130,6 +130,19 @@ export function monitorRows(j:MonitorJournal,keys:readonly string[],now=Date.now
    failures:f?.consecutiveFailures||0,observedGaps:f?.observedGaps||0,ageMs:age,error:f?.error||null};
  });
 }
+/** A successful HTTP response alone is insufficient: the last CLOSED candle must
+ * also be recent on that exact exchange/symbol/frame. No new paper signal from
+ * a suspended/delisted or otherwise stale instrument.
+ */
+export function hasFreshSourceEvidence(j:MonitorJournal,key:string,now=Date.now()):boolean{
+ if(!j.online||j.pausedAt!==null||!keyOk(key)||!safeTime(now))return false;
+ const f=j.feeds[key];
+ if(!f?.lastSuccessAt||!f.lastClosedAt||f.consecutiveFailures>0)return false;
+ const frame=key.split(':')[2] as AssistantFrame;
+ const age=now-f.lastClosedAt;
+ return now-f.lastSuccessAt>=0&&now-f.lastSuccessAt<=150000&&
+  age>=0&&age<=Math.max(2*FUTURE_FRAME_MS[frame],600000);
+}
 export function monitorOverview(rows:MonitorRow[]){
  return {total:rows.length,fresh:rows.filter(r=>r.status==='FRESH').length,
   delayed:rows.filter(r=>r.status==='DELAYED').length,
