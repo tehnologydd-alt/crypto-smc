@@ -243,3 +243,6 @@ require('./apply-v79.cjs');
 
 // APEX 8.0: final read-only release passport, validated checkpoints migration and regression tests.
 require('./apply-v80.cjs');
+
+// APEX 8.1: streamlined Assistant with Positions and Research subtabs, separate venue histories.
+require('./apply-v81.cjs');
