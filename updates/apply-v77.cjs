@@ -14,7 +14,7 @@ fs.copyFileSync('updates/test-v77-health.cjs','scripts/test-v77-health.cjs');
 let app=read('src/App.tsx');
 app=rep(app,
  "import {restoreRollingArchive,rollingSnapshots,addRollingCheckpoint,autoRollingCheckpoint,type ROLLING_MAX} from './radar/v76-rolling-checkpoints';",
- "import {restoreRollingArchive,rollingSnapshots,addRollingCheckpoint,autoRollingCheckpoint,type ROLLING_MAX} from './radar/v76-rolling-checkpoints';\nimport {restoreMonitorJournal,startMonitorSession,noteMonitorVisibility,noteMonitorNetwork,noteMonitorSuccess,noteMonitorFailure,monitorRows,monitorOverview,type MonitorJournal} from './radar/v77-monitor-health';",
+ "import {restoreRollingArchive,rollingSnapshots,addRollingCheckpoint,autoRollingCheckpoint,type ROLLING_MAX} from './radar/v76-rolling-checkpoints';\nimport {restoreMonitorJournal,startMonitorSession,noteMonitorVisibility,noteMonitorNetwork,noteMonitorSuccess,noteMonitorFailure,monitorRows,monitorOverview,hasFreshSourceEvidence,type MonitorJournal} from './radar/v77-monitor-health';",
  'diagnostic-only import');
 app=rep(app,
  " const [futuresBars,setFuturesBars]=useState<Record<string,FutureBar[]>>({});",
@@ -90,15 +90,17 @@ const polling=[
  "  void poll();",
  "  const interval=setInterval(()=>{void poll();},75000);",
  "  const onVisible=()=>{if(!document.hidden)void poll();};",
+ "  const onOnline=()=>{if(!document.hidden)void poll();};",
+ "  window.addEventListener('online',onOnline);",
  "  document.addEventListener('visibilitychange',onVisible);",
- "  return ()=>{alive=false;clearInterval(interval);document.removeEventListener('visibilitychange',onVisible);};",
+ "  return ()=>{alive=false;clearInterval(interval);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);};",
  " },[futuresObserveKey]);"
 ].join('\n');
 app=regexRep(app,/ useEffect\(\(\)=>\{\n  if\(!futuresObserveKey\)return;[\s\S]*?\},\[futuresObserveKey\]\);/,polling,
  'replace Futures public poll with success/error records');
 app=rep(app,
  "  if(futuresMode!=='auto'||futuresScope!=='single'||!futuresStudyPlan||futuresStudyPlan.expiresAt<=Date.now())return;",
- "  if(futuresMode!=='auto'||futuresScope!=='single'||!futuresStudyPlan||futuresStudyPlan.expiresAt<=Date.now()||!monitorJournal.online||monitorJournal.pausedAt!==null)return;\n  const fresh=monitorJournal.feeds[futuresSelectedKey];\n  if(!fresh?.lastSuccessAt||Date.now()-fresh.lastSuccessAt>150000)return;",
+ "  if(futuresMode!=='auto'||futuresScope!=='single'||!futuresStudyPlan||futuresStudyPlan.expiresAt<=Date.now()||!monitorJournal.online||monitorJournal.pausedAt!==null)return;\n  if(!hasFreshSourceEvidence(monitorJournal,futuresSelectedKey,Date.now()))return;",
  'single-pair automatic plans require recently confirmed public data');
 app=rep(app,
  " },[futuresMode,futuresScope,futuresStudyPlan,futuresSetup]);",
@@ -106,7 +108,7 @@ app=rep(app,
  'single mode health dependencies');
 app=rep(app,
  "  if(futuresMode!=='auto'||futuresScope!=='multi'||futuresMultiPlans.length===0)return;\n  setFuturesLedger(prev=>enrollChosenDemoPlans(prev,futuresMultiPlans,futuresSetup,Date.now()));",
- "  if(futuresMode!=='auto'||futuresScope!=='multi'||futuresMultiPlans.length===0||!monitorJournal.online||monitorJournal.pausedAt!==null)return;\n  const nowMs=Date.now();\n  const eligible=futuresMultiPlans.filter(plan=>{\n   const health=monitorJournal.feeds[plan.source+':'+plan.symbol+':'+plan.frame];\n   return health?.lastSuccessAt&&health.consecutiveFailures===0&&nowMs-health.lastSuccessAt<=150000;\n  });\n  if(!eligible.length)return;\n  setFuturesLedger(prev=>enrollChosenDemoPlans(prev,eligible,futuresSetup,nowMs));",
+ "  if(futuresMode!=='auto'||futuresScope!=='multi'||futuresMultiPlans.length===0||!monitorJournal.online||monitorJournal.pausedAt!==null)return;\n  const nowMs=Date.now();\n  const eligible=futuresMultiPlans.filter(plan=>hasFreshSourceEvidence(monitorJournal,plan.source+':'+plan.symbol+':'+plan.frame,nowMs));\n  if(!eligible.length)return;\n  setFuturesLedger(prev=>enrollChosenDemoPlans(prev,eligible,futuresSetup,nowMs));",
  'multi-venue automatic plans require their own successful fresh market poll');
 app=rep(app,
  " },[futuresMode,futuresScope,futuresMultiPlans,futuresSetup]);",
