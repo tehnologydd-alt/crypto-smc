@@ -82,9 +82,9 @@ assert.equal(daily.snapshots.length,3,'one new result after a day triggers snaps
 assert.equal(daily.snapshots[2].reviewable,7);
 assert.equal(A.autoCheckpointIfDue(daily,p,report(7),true,T+2*86400000),daily,'no new results no snapshot');
 assert.equal(A.autoCheckpointIfDue(daily,p,report(17),false,T+2*86400000),daily,'user disabled auto');
-const manual=C.saveStudyCheckpoint(daily,p,report(7),T+86400000+4000);
-assert.equal(manual.snapshots.length,4,'manual capture remains available');
-assert.equal(C.restoreStudyCheckpoints(JSON.stringify(manual),T+86400000+4000).snapshots.length,4);
+const manualSnap=C.saveStudyCheckpoint(daily,p,report(7),T+86400000+4000);
+assert.equal(manualSnap.snapshots.length,4,'manual capture remains available');
+assert.equal(C.restoreStudyCheckpoints(JSON.stringify(manualSnap),T+86400000+4000).snapshots.length,4);
 assert.equal(A.autoCheckpointIfDue(daily,V.startStudyProtocol(T),report(10),true,T+86400000+5000),daily,'protocol mismatch must not reset');
 assert.equal(A.autoCheckpointIfDue(C.EMPTY_CHECKPOINTS,null,report(10),true,T),C.EMPTY_CHECKPOINTS);
 const app=fs.readFileSync('src/App.tsx','utf8');
