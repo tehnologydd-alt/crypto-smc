@@ -51,8 +51,8 @@ function parseCheck(raw:unknown,finished:number):NativeFuturesCheck|null{
   !Number.isSafeInteger(x.gapCount)||Number(x.gapCount)<0||Number(x.gapCount)>40)return null;
  const src=x.source as AssistantExchange,fr=x.frame as AssistantFrame;
  if(x.sourceVersion!==(src==='binance'?'binance-futures-public-v1':'bybit-linear-public-v1'))return null;
- return {source:src,symbol:x.symbol,frame:fr,sourceVersion:x.sourceVersion,
-  checkedAt:x.checkedAt,lastClosedAt:x.lastClosedAt,barCount:x.barCount,gapCount:x.gapCount,
+ return {source:src,symbol:x.symbol,frame:fr,sourceVersion:String(x.sourceVersion),
+  checkedAt:x.checkedAt,lastClosedAt:x.lastClosedAt,barCount:Number(x.barCount),gapCount:Number(x.gapCount),
   status:x.status as NativeFuturesCheckStatus,message:typeof x.message==='string'?x.message.slice(0,160):''} as NativeFuturesCheck;
 }
 function parseSample(raw:unknown,now:number):NativeFuturesSample|null{
@@ -73,7 +73,7 @@ function parseSample(raw:unknown,now:number):NativeFuturesSample|null{
  if(x.ready!==ready||x.problems!==problems)return null;
  return {startedAt:x.startedAt,finishedAt:x.finishedAt,
   source:'public-futures-health-v1',venues:x.venues as DemoVenueChoice,frame:x.frame as AssistantFrame,
-  selectedCount:x.selectedCount,checks:valid,ready,problems};
+  selectedCount:Number(x.selectedCount),checks:valid,ready,problems};
 }
 export function parseNativeFuturesStatus(raw:unknown,nativeEnabled=true,now=Date.now()):NativeFuturesStatus{
  if(!nativeEnabled)return EMPTY_NATIVE_FUTURES;
