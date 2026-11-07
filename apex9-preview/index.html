@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090e18">
+  <meta name="description" content="APEX 9.0 — исследовательский прототип с проверяемыми рыночными данными">
+  <title>APEX 9.0 · Market Research</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="identity">
+      <div class="mark" aria-hidden="true">A</div>
+      <div>
+        <div class="brand">APEX <span>9.0</span></div>
+        <div class="brand-sub">MARKET INTELLIGENCE</div>
+      </div>
+    </div>
+    <span class="top-status" id="top-status" aria-live="polite">Источники не проверены</span>
+  </header>
+
+  <main class="content">
+    <section class="intro">
+      <div class="eyebrow">ГЛУБОКОЕ ИССЛЕДОВАНИЕ АКТИВОВ</div>
+      <h1>Рынок в контексте.</h1>
+      <p>Проверяемые данные, несколько площадок и честная оценка полноты информации.</p>
+    </section>
+
+    <form id="search-form" class="search-box" autocomplete="off">
+      <label for="asset-input">Исследуемый актив</label>
+      <div class="search-row">
+        <input id="asset-input" name="asset" list="asset-options" value="BTCUSDT"
+               maxlength="20" spellcheck="false" autocapitalize="characters"
+               aria-describedby="catalog-status" placeholder="BTCUSDT, TON, ETH…">
+        <datalist id="asset-options"></datalist>
+        <button type="submit" id="search-button">Исследовать</button>
+      </div>
+      <div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div>
+    </form>
+
+    <section class="hero card" aria-labelledby="asset-name">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow">ПУБЛИЧНЫЙ РЫНОЧНЫЙ СНИМОК · SPOT</div>
+          <h2 id="asset-name">BTCUSDT</h2>
+        </div>
+        <button class="ghost" id="refresh-button" type="button" title="Обновить данные">↻ Обновить</button>
+      </div>
+      <div class="hero-price">
+        <strong id="market-price">—</strong>
+        <span id="market-change" class="delta">24 ч: —</span>
+      </div>
+      <div class="hero-bottom">
+        <span id="updated-at">Нет проверенных данных</span>
+        <span class="pill">Без демосчетов и ассистента</span>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Разделы анализа">
+      <button class="tab active" data-tab="overview" type="button" aria-current="page">Обзор</button>
+      <button class="tab" data-tab="asset" type="button">Актив</button>
+      <button class="tab" data-tab="forecasts" type="button">Прогнозы</button>
+      <button class="tab" data-tab="sources" type="button">Источники</button>
+    </nav>
+
+    <div id="load-message" class="notice" role="status" aria-live="polite">
+      Выберите актив, чтобы загрузить проверяемые данные.
+    </div>
+
+    <section class="view" id="view-overview" aria-labelledby="overview-title">
+      <div class="section-title"><h2 id="overview-title">Сводка наблюдений</h2><span>Без торговых сигналов</span></div>
+      <div class="metrics">
+        <article class="metric card"><div class="metric-label">Источники онлайн</div><div class="metric-value" id="active-sources">—</div><div class="metric-sub">из 3 доступных адаптеров</div></article>
+        <article class="metric card"><div class="metric-label">Изменение за 24 ч</div><div class="metric-value" id="daily-change">—</div><div class="metric-sub">историческая динамика цены</div></article>
+        <article class="metric card"><div class="metric-label">Охват типов данных</div><div class="metric-value" id="layer-coverage">—</div><div class="metric-sub">из 7 аналитических слоёв</div></article>
+        <article class="metric card"><div class="metric-label">Качество контекста</div><div class="metric-value" id="context-status">—</div><div class="metric-sub">не вероятность прогноза</div></article>
+      </div>
+      <article class="card block">
+        <h3>Что известно сейчас</h3>
+        <p id="assessment-text">Ожидаются ответы рыночных источников.</p>
+        <div class="rule"></div>
+        <div class="small-label">Слои, требующие подключения</div>
+        <div id="missing-layers" class="tags"></div>
+      </article>
+    </section>
+
+    <section class="view hidden" id="view-asset" aria-labelledby="asset-title">
+      <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span>Наблюдаемая ликвидность</span></div>
+      <article class="card block">
+        <h3>Рыночные сведения</h3>
+        <div class="data-row"><span>Объём котируемой валюты, 24 ч</span><strong id="quote-volume">—</strong></div>
+        <div class="data-row"><span>Время рыночного наблюдения</span><strong id="ticker-time">—</strong></div>
+        <p class="footnote">Изменение цены за 24 часа не предсказывает направление следующей свечи.</p>
+      </article>
+      <article class="card block">
+        <h3>Стаканы разных площадок</h3>
+        <div id="depth-list" class="stack"><p class="muted">Снимки глубины ещё не получены.</p></div>
+        <p class="footnote">Отображается лишь ограниченный публичный срез заявок. Это не полная карта ликвидности, не скрытые ордера и не карта ликвидаций.</p>
+      </article>
+    </section>
+
+    <section class="view hidden" id="view-forecasts" aria-labelledby="forecasts-title">
+      <div class="section-title"><h2 id="forecasts-title">Прогнозы и проверка</h2><span>В процессе переноса</span></div>
+      <article class="card block empty">
+        <div class="empty-icon" aria-hidden="true">◎</div>
+        <h3>История прогнозов не подключена</h3>
+        <p>Здесь появятся сценарии, сроки актуальности, изменение статусов, TP1/TP2/TP3 и проверка результатов из APEX 8.6 после переноса настоящих исходников.</p>
+        <p>Сейчас прототип не создаёт искусственных прогнозов и не подменяет результаты тестовыми цифрами.</p>
+      </article>
+    </section>
+
+    <section class="view hidden" id="view-sources" aria-labelledby="sources-title">
+      <div class="section-title"><h2 id="sources-title">Источники и достоверность</h2><span>Наблюдаемое состояние</span></div>
+      <article class="card block">
+        <h3>Подключённые публичные API</h3>
+        <div id="source-list" class="stack"><p class="muted">Статусы станут доступны после запроса.</p></div>
+      </article>
+      <article class="card block">
+        <h3>Следующие аналитические слои</h3>
+        <div class="data-row"><span>Ончейн и крупные кошельки</span><span class="planned">Не подключено</span></div>
+        <div class="data-row"><span>Новости и экономические события</span><span class="planned">Не подключено</span></div>
+        <div class="data-row"><span>Социальные настроения</span><span class="planned">Не подключено</span></div>
+        <div class="data-row"><span>Деривативы и ликвидации</span><span class="planned">Не подключено</span></div>
+        <div class="data-row"><span>Связи активов и макроэкономика</span><span class="planned">Не подключено</span></div>
+        <p class="footnote">Неподключённые источники не участвуют в расчёте. Ограничения сети, CORS и региона отображаются как ошибки, а не скрываются.</p>
+      </article>
+    </section>
+  </main>
+  <footer class="footer">APEX 9.0 · Исследовательский прототип · Только публичные данные · Никаких ордеров</footer>
+</div>
+</body>
+</html>
