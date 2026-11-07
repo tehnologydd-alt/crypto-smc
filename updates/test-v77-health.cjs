@@ -18,6 +18,7 @@ assert.equal(H.restoreMonitorJournal(JSON.stringify(journal),T).events.length,1)
 journal=H.noteMonitorSuccess(journal,k,bars,T);
 assert.equal(journal.feeds[k].lastSuccessAt,T);
 assert.equal(journal.feeds[k].lastClosedAt,T);
+assert.equal(journal.lastSeenAt,T,'last observed poll timestamp is stored for honest restart downtime');
 assert.equal(journal.feeds[k].observedGaps,0);
 assert.equal(H.monitorRows(journal,[k],T)[0].status,'FRESH');
 assert.equal(H.hasFreshSourceEvidence(journal,k,T),true);
