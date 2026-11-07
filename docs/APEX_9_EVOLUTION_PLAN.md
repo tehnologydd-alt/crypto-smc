@@ -1,62 +1,80 @@
-# APEX 9.0 Evolution — implementation baseline (from APEX 8.7)
+# APEX 9.0 — Global Intelligence / Deep Market Research
 
-## Scope
-This document starts the **isolated** redesign branch `apex-9-evolution` forked from `apex-intelligence-v2`. No existing application code, user data or build/release secrets have been changed.
+Status: **new product direction approved**, implementation in isolated `apex-9-evolution` branch. Source baseline: APEX 8.7.
 
-## Verified repository facts (2026-11-07)
-- Repository: `tehnologydd-alt/crypto-smc`; source branch: `apex-intelligence-v2`.
-- Build workflow: `.github/workflows/apex-v2-android.yml`.
-- Runtime app sources are **restored in CI** from `source/APEX_Intelligence_V2.b64.txt`; the `src/` tree is not directly checked into this branch.
-- Existing overlays are located under `updates/` and include `apply-watch.cjs`, `apply-v85.cjs` and `apply-v87.cjs`.
-- `updates/apply-v87.cjs` explicitly labels release 8.7 and patches the restored `src/App.tsx`, adding read-only public Testnet checks and local simulated order lifecycle.
-- The inspected build workflow invokes `updates/apply-watch.cjs` and `updates/inspect-v63.cjs`, **not** `updates/apply-v87.cjs` explicitly. Do not infer that checkout + build currently reproduces 8.7 without verifying the actual overlay chain.
-- `updates/configure-release.cjs` rewrites Android versionName as `6.3.<run>`; release metadata should be audited and corrected before publishing any 9.0 build.
+## Product vision
+APEX is an explainable, multi-source *research and forecasting* platform, **not** an assistant, brokerage terminal, demo portfolio, or order execution service.
 
-## Non-negotiable preservation
-1. Radar and complete searchable symbol catalog, including TON.
-2. Live public market data and source-status/error reporting.
-3. Market structure/Smart Money/forecast lifecycles and per-horizon scenarios.
-4. Forecast journal and evaluation metrics, statuses and expiry rules.
-5. Existing research/Director, virtual portfolio, and local demo histories.
-6. Price and early-warning notifications, including Android background scheduling.
-7. Local preferences, watchlists and saved records.
-8. No implicit exchange account access or real trading introduced by a UI redesign.
+Every forecast should answer:
+1. What is happening around this asset now?
+2. Which independent sources support or contradict the hypothesis?
+3. What causal mechanisms are plausible, versus merely correlated?
+4. Which conditions would invalidate the hypothesis?
+5. How did the forecast perform after its published timestamp?
 
-## Proposed navigation
-- **Радар** — browse/search, watchlists, actionable summaries.
-- **Анализ** — one selected symbol, chart, horizons, forecast and levels.
-- **Журнал** — historical forecasts, virtual portfolio and statistics.
-- **Ассистент** — explanation, research and assistant-only actions.
-- Settings accessed from top app bar; sections currently hidden under Director/research remain reachable in new structure.
+Forecasts must remain probabilistic and clearly labeled. They cannot promise certainty or profit.
 
-## Isolation contract: assistant switch
-Persist a boolean `apex_assistant_enabled_v1` with default `true` for an existing user's first migration unless previous preference says otherwise. Turning it off must:
-- stop assistant-only polling, AI calls, conversational/assistant push and assistant-only work queues;
-- prevent their rescheduling after app restart;
-- keep radar data, forecast algorithms, journal, price notifications and core Android background refresh alive;
-- preserve assistant history locally, display a clear 'Ассистент выключен' placeholder and allow reactivation;
-- not impact existing virtual positions or demo accounting.
-Implement the switch in a dedicated settings/service boundary rather than guarding the root App render.
+## Remove from APEX 9 UI and active services
+- AI assistant/chat, assistant-only schedules and services.
+- Demo wallets, simulated account balances, demo trading engines and execution screens.
+- Exchange account connections, order entry and testnet order-lifecycle panels.
+Do not delete historical localStorage keys/data on upgrade. Introduce an explicit, user-initiated export/cleanup path after migration review. Removing a UI must not quietly erase user data.
 
-## Migration plan
-**Phase 0 — reproducible 8.7 baseline:** inspect overlay chain and build artifacts, confirm package/versionCode/signature, snapshot tests and persistence keys. Gate: CI demonstrates exact 8.7 feature set.
-**Phase 1 — design system:** colors, typography, primitives, fixed bottom navigation, overlay modals and semantic states. Gate: responsive screenshots and accessibility review.
-**Phase 2 — radar + analysis:** migrate UI only, reuse existing selectors/actions/data; verify search/filters, symbols and charts.
-**Phase 3 — journal:** wire existing forecast and virtual-demo state unchanged.
-**Phase 4 — assistant isolation:** dependency audit, persisted master switch and background job separation.
-**Phase 5 — QA and release:** migration/rollback tests, Android lifecycle tests, push scheduling validation, release signing and versionCode review.
+## Preserve and improve
+- Radar, symbol catalog/search including TON, watchlists.
+- Existing forecasting engine, lifecycle tracking (preliminary, published, active, TP1-3 reached, invalidated, expired), horizon segmentation, verification and retrospective statistics.
+- Real public price feeds, quality diagnostics, stale-data warnings, Android background collection and notification controls.
+- Evidence provenance, backtesting with no future-data leakage.
 
-## Regression checklist (must pass before merge)
-- APEX 8.7 source reproduces from a fresh checkout.
-- No duplicate forecast generation on screen switching.
-- Search still finds TON and the full catalog.
-- Existing watchlist, scenarios, statistics and demo balance survive in-place APK update.
-- Stale network feeds are labeled; they never masquerade as live.
-- Disabling the assistant does not disable radar/background forecast updates.
-- Assistant tasks remain stopped after process death and reboot.
-- Notifications avoid duplicates and report Android background limitations honestly.
-- UI does not make any local simulation appear to be a real exchange order.
-- Installation over previous signed APK is tested; rollback path documented.
+## Deep intelligence layers
+1. **Market microstructure:** order-book snapshots/depth, spreads, volume and order-flow imbalances. Publicly visible liquidity only; do not claim to know hidden orders.
+2. **Liquidity:** venue-by-venue liquidity heatmaps, derivatives funding, open interest, liquidation aggregates where sourced and licensed; timestamp and market coverage attached.
+3. **Large participants/on-chain:** public on-chain transfers, exchange inflow/outflow estimates, known wallet clusters with uncertainty labels. Never portray all transfers as buys/sells.
+4. **News & macro:** reputable reporting, scheduled macroeconomic events, rates/regulatory developments and time-stamped market impact context.
+5. **Social sentiment:** lawful public X/Reddit/other available feeds, multilingual sentiment, spam/bot defenses and provenance; no private-account scraping or pretending inaccessible feeds are covered.
+6. **Cross-asset context:** BTC/ETH dominance, equities, rates, FX, risk-on/off correlations and regime shifts when measurable.
+7. **Forecast evaluation:** calibrated probabilistic scenarios per time horizon with confidence intervals, missing-data penalties, contradictions and immutable before/after evaluation.
 
-## First coding gate
-Before implementing UI mutations, inspect reconstructed `src/App.tsx` from the exact 8.7 build and resolve the CI overlay gap. Do not apply brittle string replacements until anchors are verified, and do not change `main` or `apex-intelligence-v2`.
+## Proposed app navigation (no assistant or demo tab)
+- **Обзор** — radar, search and source freshness.
+- **Актив** — one asset with chart, market structure and layered evidence.
+- **Прогнозы** — scenario timelines, invalidation, horizon and notifications.
+- **Исследования** — source matrix, cause/effect hypotheses, model quality, experiments.
+- **Настройки** — privacy, data connections, background checks and alert preferences.
+
+## Analysis pipeline
+Public/API-sourced event -> schema normalization -> source timestamp, freshness, rights and quality checks -> entity/symbol reconciliation -> event deduplication -> feature extraction -> evidence/contradiction graph -> time-aware ensemble/ML forecast -> publication snapshot -> monitoring -> outcome evaluation -> calibration/retraining review.
+
+Every source adapter supports status: OK, LATE, OFFLINE, RATE_LIMITED, UNSUPPORTED. No fabricated or silently substituted observations.
+
+## Data and model safeguards
+- Separate event-time from ingestion-time; prevent look-ahead leakage.
+- Collect only publicly available or authorized data, respecting terms/rate limits.
+- Compare forecasts against simple baselines; stratify by asset, regime, horizon and source availability.
+- Track Brier score, reliability calibration, directional accuracy, coverage, precision/recall for events, and false alerts; keep failed hypotheses visible.
+- Consider source latency, bot manipulation, coincident correlated evidence and regime shifts.
+- ML retraining uses chronological walk-forward splits, never random mixing of past/future.
+- Do not label correlation as demonstrated causation without corroboration.
+
+## Build baseline audit — 2026-11-07
+Repo: `tehnologydd-alt/crypto-smc`, branch `apex-9-evolution`.
+
+- Runtime `src` is reconstructed from `source/APEX_Intelligence_V2.b64.txt`, then 2.3 overlay and version patches.
+- Previous workflow only ran `updates/apply-watch.cjs` (2.5) and a diagnostic `updates/inspect-v63.cjs`, not 8.7.
+- New `updates/rebuild-v87.cjs` enumerates and applies staged version patches in numerical order and verifies the final 8.7 marker and files; CI invokes it only on `apex-9-evolution`.
+- **Blocker found:** authentic `updates/apply-v27.cjs` is missing although 2.8 requires version 2.7. The chain deliberately fails closed until the exact 2.7 overlay or verified source snapshot is recovered. Do not fabricate version 2.7 by changing a label.
+- Existing `updates/configure-release.cjs` sets Android `versionName` to 6.3.RUN even though 8.7 scripts exist. Hold 9.0 signed release until metadata and migration are audited.
+- CI for this branch is **not yet confirmed green**, and no APEX 9 APK is claimed to exist.
+
+## Implementation stages
+0. Recover/verify 2.7 baseline, run complete 8.7 overlay chain, regressions and Android build.
+1. Preserve a read-only snapshot/export of pre-migration user data and map all persistence keys.
+2. Build new research-only shell with source health, charts, and forecast timelines.
+3. Separate all assistant/demo code into inactive legacy modules; only remove after preserving records and testing migrations.
+4. Integrate verified public market/liquidity/macro adapters with visible coverage/latency.
+5. Add on-chain, news and public social adapters, with source access and rate-limit gates.
+6. Build evidence fusion and calibrated ML baseline; publish chronological validation reports.
+7. Android performance/notification, offline mode, accessibility and release validation.
+
+## Release gates
+No 9.0 release unless: 8.7 build reproduced, migration/export validated, no assistant/demo screens active, no order execution path, forecast journal intact, source provenance and data freshness visible, no fake confidence metric, and notifications tested on-device.
