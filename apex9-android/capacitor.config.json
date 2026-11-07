@@ -6,6 +6,10 @@
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_apex",
+      "iconColor": "#37DDE3"
     }
   },
   "server": {
