@@ -252,3 +252,6 @@ require('./apply-v82.cjs');
 
 // APEX 8.3: reserve DEMO per-venue virtual margin, mark floating from confirmed public candles, enforce capital admission.
 require('./apply-v83.cjs');
+
+// APEX 8.4: swipeable compact per-exchange DEMO wallets with folded accounting details.
+require('./apply-v84.cjs');
