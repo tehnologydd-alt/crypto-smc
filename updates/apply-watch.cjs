@@ -231,3 +231,6 @@ require('./apply-v75.cjs');
 
 // APEX 7.6: selected favorites x one/both sources, safe rolling-64 migration.
 require('./apply-v76.cjs');
+
+// APEX 7.7: honest per-venue candle health journal, WebView pause/resume and data freshness gate.
+require('./apply-v77.cjs');
