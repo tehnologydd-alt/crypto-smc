@@ -258,3 +258,6 @@ require('./apply-v84.cjs');
 
 // APEX 8.5: public Binance/Bybit market-data API WebSockets only. No account authentication or real orders.
 require('./apply-v85.cjs');
+
+// APEX 8.6: local-only anonymized account snapshot inspection; no private exchange trading accounts.
+require('./apply-v86.cjs');
