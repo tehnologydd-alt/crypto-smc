@@ -125,7 +125,9 @@ export function parseAssetNews(raw,symbol,receivedAt){
 export async function fetchAssetNews(symbol,{fetchImpl=fetch,now=()=>Date.now(),signal}={}){
  const asset=canonicalContextAsset(symbol);
  if(!asset)return fail('UNSUPPORTED','No unambiguous supported news query for this asset');
- const url=GDELT+'?query='+encodeURIComponent('"'+asset.name+'"')+
+ // GRAM is the native coin of the TON network, not an unrelated 'gram' keyword.
+ const query=asset.base==='GRAM'?'"Gram" "TON"':'"'+asset.name+'"';
+ const url=GDELT+'?query='+encodeURIComponent(query)+
   '&mode=artlist&maxrecords=15&timespan=24h&format=json&sort=datedesc';
  const response=await publicJson(url,{fetchImpl,signal});
  if(response.state!=='OK')return response;
