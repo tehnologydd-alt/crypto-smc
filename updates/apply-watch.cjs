@@ -237,3 +237,6 @@ require('./apply-v77.cjs');
 
 // APEX 7.8: native CORE scheduler truth and Android opt-in demo data-interruption notices.
 require('./apply-v78.cjs');
+
+// APEX 7.9: native opt-in Futures PUBLIC-data background sampling inside the SAME WorkManager job.
+require('./apply-v79.cjs');
