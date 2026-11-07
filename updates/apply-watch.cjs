@@ -228,3 +228,6 @@ require('./apply-v74.cjs');
 
 // APEX 7.5: dynamic Radar favorite watch, append-only checkpoint continuation, educational DEMO P&L.
 require('./apply-v75.cjs');
+
+// APEX 7.6: selected favorites x one/both sources, safe rolling-64 migration.
+require('./apply-v76.cjs');
