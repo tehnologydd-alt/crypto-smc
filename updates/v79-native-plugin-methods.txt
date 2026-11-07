@@ -1,0 +1,108 @@
+    /** APEX 7.9 — one user-approved PUBLIC Futures data sampler on the
+     * EXISTING periodic WorkManager job (no independent scheduler).
+     * Scope: up to four chosen favorites, Binance/Bybit/BOTH, one frame.
+     * The worker NEVER creates, backfills or executes a paper/real order.
+     */
+    @PluginMethod public void configureFuturesStudy(PluginCall call){
+        try{
+            boolean enabled=Boolean.TRUE.equals(call.getBoolean("enabled",false));
+            org.json.JSONArray chosen=call.getArray("symbols");
+            String venues=call.getString("venues","binance");
+            String frame=call.getString("frame","5m");
+            if(!"binance".equals(venues)&&!"bybit".equals(venues)&&!"both".equals(venues)){
+                call.reject("Недопустимый выбор биржи");return;
+            }
+            if(!"5m".equals(frame)&&!"1h".equals(frame)&&!"4h".equals(frame)){
+                call.reject("Недопустимый таймфрейм");return;
+            }
+            org.json.JSONArray clean=new org.json.JSONArray();
+            java.util.LinkedHashSet<String> unique=new java.util.LinkedHashSet<>();
+            if(chosen!=null){
+                for(int i=0;i<chosen.length();i++){
+                    String symbol=chosen.optString(i,"");
+                    if(symbol.matches("[A-Z0-9]{2,20}USDT"))unique.add(symbol);
+                }
+            }
+            if(unique.size()>4||(enabled&&unique.isEmpty())){
+                call.reject("Для фонового DEMO выбери от одной до четырёх пар");return;
+            }
+            for(String symbol:unique)clean.put(symbol);
+            prefs().edit().putBoolean("futuresStudyEnabled",enabled)
+                .putString("futuresStudySymbols",clean.toString())
+                .putString("futuresStudyVenues",venues)
+                .putString("futuresStudyFrame",frame).apply();
+            adjustSharedSchedule();
+            JSObject result=new JSObject();
+            result.put("configured",true);
+            result.put("enabled",enabled);
+            call.resolve(result);
+        }catch(Exception e){call.reject("Не удалось настроить публичное Futures-исследование",e);}
+    }
+
+    private JSObject futuresStudyStatusObject(boolean scheduled,String state,long checked){
+        SharedPreferences p=prefs();
+        JSObject out=new JSObject();
+        out.put("supported",true);
+        out.put("enabled",p.getBoolean("futuresStudyEnabled",false));
+        out.put("scheduled",scheduled);
+        out.put("workState",state);
+        out.put("checkedAt",checked);
+        out.put("lastRunAt",p.getLong("futuresStudyLastRunAt",0));
+        out.put("lastResult",p.getString("futuresStudyLastResult","Фоновая Futures-проверка не выполнялась"));
+        out.put("venues",p.getString("futuresStudyVenues","binance"));
+        out.put("frame",p.getString("futuresStudyFrame","5m"));
+        try{
+            out.put("symbols",new org.json.JSONArray(p.getString("futuresStudySymbols","[]")));
+            out.put("samples",new org.json.JSONArray(p.getString("futuresStudyHistory","[]")));
+        }catch(Exception e){
+            out.put("symbols",new org.json.JSONArray());
+            out.put("samples",new org.json.JSONArray());
+        }
+        return out;
+    }
+
+    /** Read actual WorkInfo; do not report RUNNING if merely ENQUEUED. */
+    @PluginMethod public void futuresStudyStatus(PluginCall call){
+        new Thread(() -> {
+            try{
+                long now=System.currentTimeMillis();
+                boolean enabled=prefs().getBoolean("futuresStudyEnabled",false);
+                java.util.List<androidx.work.WorkInfo> jobs=WorkManager.getInstance(getContext())
+                    .getWorkInfosForUniqueWork(JOB).get(6,TimeUnit.SECONDS);
+                String workState=enabled?"MISSING":"DISABLED";
+                boolean scheduled=false;
+                for(androidx.work.WorkInfo w:jobs){
+                    androidx.work.WorkInfo.State state=w.getState();
+                    if(state==androidx.work.WorkInfo.State.RUNNING||
+                       state==androidx.work.WorkInfo.State.ENQUEUED||
+                       state==androidx.work.WorkInfo.State.BLOCKED){
+                        scheduled=true;workState=state.name();break;
+                    }
+                }
+                call.resolve(futuresStudyStatusObject(scheduled,workState,now));
+            }catch(InterruptedException e){
+                Thread.currentThread().interrupt();
+                call.reject("Android прервал проверку фоновой Futures-задачи",e);
+            }catch(Exception e){
+                call.reject("Не удалось получить фактический статус фонового Futures-сбора",e);
+            }
+        },"apex-futures-background-status").start();
+    }
+
+    /** User-requested check: queues a ONE-TIME worker. A queued task is NOT
+     * equivalent to a completed observation; user must inspect lastRunAt.
+     */
+    @PluginMethod public void runFuturesStudyNow(PluginCall call){
+        if(!prefs().getBoolean("futuresStudyEnabled",false)){
+            call.reject("Сначала включи фоновый учебный сбор");return;
+        }
+        try{
+            Constraints c=new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
+            Data payload=new Data.Builder().putBoolean("futuresOnly",true).build();
+            OneTimeWorkRequest task=new OneTimeWorkRequest.Builder(BackgroundScanWorker.class)
+                .setConstraints(c).setInputData(payload).build();
+            WorkManager.getInstance(getContext()).enqueueUniqueWork(JOB+"-futures-now",ExistingWorkPolicy.KEEP,task);
+            JSObject out=new JSObject();out.put("queued",true);
+            call.resolve(out);
+        }catch(Exception e){call.reject("Не удалось поставить Futures-проверку в очередь Android",e);}
+    }
