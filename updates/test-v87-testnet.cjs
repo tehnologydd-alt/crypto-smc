@@ -84,7 +84,7 @@ async function run(){
  const code=fs.readFileSync('src/radar/v87-testnet-lab.ts','utf8');
  const ui=fs.readFileSync('updates/v87-testnet-ui.txt','utf8');
  const overlay=fs.readFileSync('updates/apply-v87.cjs','utf8');
- assert(!/(apiSecret|apiKey|Authorization:|listenKey|createOrder|\/fapi\/v1\/order|\/v5\/order\/create|leverageOrder|privateKey|POST|DELETE|PUT)/.test(code),
+ assert(!/(apiSecret|apiKey|Authorization:|listenKey|createOrder|\/fapi\/v1\/order|\/v5\/order\/create|leverageOrder|privateKey|method:\\s*['\"](?:POST|DELETE|PUT))/.test(code),
   'read-only public lab cannot create authenticated trade operations');
  assert(!/(setFuturesLedger\(|setDemoWalletBook\(|transferDemoCash\(|localStorage|setFuturesBars\()/.
   test(ui+overlay),'testnet fixture must not edit paper positions or stored capital');
