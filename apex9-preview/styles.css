@@ -248,7 +248,7 @@ body{
  background:#44321e;border:1px solid #d9b5734d;
 }
 .coin-mark.eth{background:#263354;color:#b7cbff;border-color:#667fc0}
-.coin-mark.ton{background:#0c3850;color:#7fdaff;border-color:#337fab}
+.coin-mark.gram{background:#0c3850;color:#7fdaff;border-color:#337fab}
 .coin-mark.sol{background:#1f3b3a;color:#9be9cd;border-color:#60af9b}
 .metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
 .metric{
@@ -333,3 +333,11 @@ body[data-view]:not([data-view="overview"]) .search-box{margin-bottom:18px}
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
+
+.update-panel{border:1px solid #347c87}
+.update-panel .section-title{align-items:center;margin-bottom:4px}
+.update-panel .section-title h3{margin:0}
+.update-controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:15px}
+.update-link{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 15px;border-radius:14px;background:linear-gradient(130deg,#53ebeb,#159ba9);color:#001a22;font-weight:750;font-size:12px;text-decoration:none}
+.update-controls .ghost{min-height:43px}
+#update-status{line-height:1.65}
