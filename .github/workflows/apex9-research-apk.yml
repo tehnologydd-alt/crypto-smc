@@ -35,11 +35,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android platform
+      - name: Verify Android SDK and install platform
         run: |
-          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          test -n "${ANDROID_HOME:-}" && test -d "$ANDROID_HOME"
+          sdkmanager --version
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          test -d "$ANDROID_HOME/platforms/android-35"
+          echo "Android SDK platform 35 ready"
 
       - name: Test source adapters and parsing
         run: |
