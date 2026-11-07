@@ -12,7 +12,8 @@ const seen='20231114T221200Z';
 const news={articles:[{title:'Bitcoin news',url:'https://example.com/a',seendate:seen,domain:'example.com',language:'English'}]};
 const response=(body)=>({ok:true,status:200,json:async()=>body});
 test('assets map to specific unambiguous news search terms',()=>{
- assert.equal(canonicalContextAsset('TONUSDT').name,'Toncoin');
+ assert.equal(canonicalContextAsset('GRAMUSDT').name,'Gram');
+ assert.equal(canonicalContextAsset('TONUSDT').name,'Gram');
  assert.equal(canonicalContextAsset('BTCUSDT').base,'BTC');
  assert.equal(canonicalContextAsset('ABCDUSDT'),null);
 });
@@ -33,7 +34,7 @@ test('bitcoin mempool counts do not pretend to identify whales',()=>{
  assert.throws(()=>parseBitcoinMempool({...mempool,count:-2},now));
 });
 test('bitcoin-only adapter refuses unrelated symbols before network',async()=>{
- const r=await fetchBitcoinMempool('TONUSDT',{fetchImpl:async()=>{throw Error('should not call')}});
+ const r=await fetchBitcoinMempool('GRAMUSDT',{fetchImpl:async()=>{throw Error('should not call')}});
  assert.equal(r.state,'UNSUPPORTED');assert.equal(r.data,null);
 });
 test('news parser rejects unsafe URLs, duplicates, future and stale timestamps',()=>{
@@ -57,7 +58,7 @@ test('context collector separates live data and unsupported coverage',async()=>{
   if(url.includes('gdelt'))return response({articles:[]});
   return response(mempool);
  };
- const r=await collectContext('TONUSDT',{fetchImpl:f,now:()=>now});
+ const r=await collectContext('GRAMUSDT',{fetchImpl:f,now:()=>now});
  assert.deepEqual(r.sources.map(x=>x.state),['OK','UNSUPPORTED','EMPTY']);
  assert.equal(r.coverage,1);
  assert.equal(r.sources[0].data.notDirectionalEvidence,true);
