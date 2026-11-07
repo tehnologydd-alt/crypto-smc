@@ -1,8 +1,7 @@
-name: APEX 9 Evolution Baseline Audit
+name: APEX Intelligence V2 Debug APK
 on:
   push:
-    branches: [apex-intelligence-v2, apex-9-evolution]
-  workflow_dispatch:
+    branches: [apex-intelligence-v2]
 permissions:
   contents: read
 jobs:
@@ -25,12 +24,8 @@ jobs:
             base64 -d source/APEX_Intelligence_2_3_overlay.b64.txt | tar -xJf -
             echo "Applied APEX 2.3 lifecycle and full catalog overlay"
           fi
-          if [ "${{ github.ref_name }}" = 'apex-9-evolution' ]; then
-            node updates/rebuild-v87.cjs
-          else
-            if [ -f updates/apply-watch.cjs ]; then node updates/apply-watch.cjs; fi
-            node updates/inspect-v63.cjs
-          fi
+          if [ -f updates/apply-watch.cjs ]; then node updates/apply-watch.cjs; fi
+          node updates/inspect-v63.cjs
           sed -i 's/, "vite-plugin-pwa\/client"//g' tsconfig.json
           # Normalize the test harness for GitHub's installed TypeScript dependency.
           sed -i "s#require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript')#require('typescript')#g" scripts/test-intelligence.cjs
