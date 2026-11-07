@@ -246,3 +246,6 @@ require('./apply-v80.cjs');
 
 // APEX 8.1: streamlined Assistant with Positions and Research subtabs, separate venue histories.
 require('./apply-v81.cjs');
+
+// APEX 8.2: independent local-only DEMO cash accounts and folded Assistant mode controls.
+require('./apply-v82.cjs');
