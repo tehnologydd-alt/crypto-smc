@@ -70,7 +70,8 @@ assert.equal(M.plansForChosenVenues('both','5m',['DOGEUSDT'],noCopy,T).length,1,
 assert.equal(M.plansForChosenVenues('bybit','5m',['DOGEUSDT'],noCopy,T).length,0);
 const ledger=M.enrollChosenDemoPlans(empty,plans,setup,T);
 assert.equal(ledger.tickets.length,6,'retain global safety cap of six active virtual paper tickets');
-assert(ledger.tickets.some(t=>t.plan.source==='binance')&&ledger.tickets.some(t=>t.plan.source==='bybit'));
+assert.equal(ledger.tickets.filter(t=>t.plan.source==='binance').length,3,'two-source paper monitoring should share virtual capacity fairly');
+assert.equal(ledger.tickets.filter(t=>t.plan.source==='bybit').length,3);
 assert(ledger.tickets.every(t=>t.setup.exchange===t.plan.source));
 assert.equal(M.enrollChosenDemoPlans(ledger,plans,setup,T),ledger,'no duplicate paper signal');
 const rows=M.chosenFeedRows('both','5m',chosen,observations,ledger,T);
