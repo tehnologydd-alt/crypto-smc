@@ -264,3 +264,6 @@ require('./apply-v86.cjs');
 
 // APEX 8.7: public Testnet server clock checks + clearly labeled local order-state fixtures (no authenticated execution).
 require('./apply-v87.cjs');
+
+// APEX 8.8: mobile-first Assistant overview and global pause for all NEW DEMO plan creation.
+require('./apply-v88.cjs');
