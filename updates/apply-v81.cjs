@@ -174,7 +174,16 @@ app=replaceOne(app,'РЫНОЧНЫЙ РАДАР • 8.0','РЫНОЧНЫЙ РА�
 write('src/App.tsx',app);
 fs.copyFileSync('updates/test-v81-assistant-layout.cjs','scripts/test-v81-assistant-layout.cjs');
 for(const f of fs.readdirSync('scripts').filter(x=>x.startsWith('test-')&&x.endsWith('.cjs'))){
- const p='scripts/'+f;write(p,read(p).replaceAll('РЫНОЧНЫЙ РАДАР • 8.0','РЫНОЧНЫЙ РАДАР • 8.1'));
+ const p='scripts/'+f;
+ let test=read(p).replaceAll('РЫНОЧНЫЙ РАДАР • 8.0','РЫНОЧНЫЙ РАДАР • 8.1');
+ if(f==='test-demo-assistant.cjs'){
+  test=test.replace("'Демо-ордера и сопровождение'","'Позиции Spot · DEMO'");
+ }
+ if(f==='test-v65-evidence.cjs'){
+  test=test.replace("/showLegacySpotArchive&&view==='assistant'&&<div/g",
+   "/showLegacySpotArchive&&view==='assistant'&&assistantSubtab==='positions'&&<div/g");
+ }
+ write(p,test);
 }
 const pkg=JSON.parse(read('package.json'));pkg.scripts.test+=' && node scripts/test-v81-assistant-layout.cjs';
 write('package.json',JSON.stringify(pkg,null,2)+'\n');
