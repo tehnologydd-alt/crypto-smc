@@ -38,9 +38,11 @@ jobs:
       - name: Verify Android SDK and install platform
         run: |
           test -n "${ANDROID_HOME:-}" && test -d "$ANDROID_HOME"
-          sdkmanager --version
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER" || { echo "::error::Android sdkmanager was not found under SDK root"; exit 1; }
+          "$SDKMANAGER" --version
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" > /dev/null
           test -d "$ANDROID_HOME/platforms/android-35"
           echo "Android SDK platform 35 ready"
 
