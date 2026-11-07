@@ -12,8 +12,11 @@ const bounded=(x)=>Math.max(0,Math.min(1,x));
 const finiteNumber=(value)=>typeof value==='number'?value:Number(value);
 
 export function normalizeSymbol(input){
- const raw=typeof input==='string'?input.toUpperCase().trim().replace(/[\s/_-]/g,''):'';
+ let raw=typeof input==='string'?input.toUpperCase().trim().replace(/[\s/_-]/g,''):'';
  if(!/^[A-Z0-9]{2,20}$/.test(raw))return null;
+ // Native Gram (GRAM), historic Toncoin. Keep old search and preferences.
+ if(raw==='TON')raw='GRAM';
+ else if(/^TON(USDT|USDC|BTC|ETH|EUR)$/.test(raw))raw='GRAM'+raw.slice(3);
  if(/(USDT|USDC|BTC|ETH|EUR)$/.test(raw))return raw;
  return raw.length<=15?raw+'USDT':null;
 }
