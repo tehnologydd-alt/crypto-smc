@@ -1,0 +1,35 @@
+<div className="space-y-2 rounded-xl border border-cyan-400/20 bg-[#0b1b2c] p-3">
+ <div className="flex items-center justify-between gap-2">
+  <strong className="text-xs text-cyan-100">Охват учебного мониторинга</strong>
+  <span className="rounded-md border border-cyan-400/20 px-2 py-1 text-[10px] text-cyan-200">{futuresScope==='multi'?'Избранные · '+futuresFavorites.length:'1 пара'}</span>
+ </div>
+ <div className="grid grid-cols-2 gap-2">
+  <button type="button" aria-pressed={futuresScope==='single'} onClick={()=>setFuturesScope('single')}
+   className={'min-h-[42px] rounded-lg border text-xs font-semibold '+(futuresScope==='single'?'border-cyan-400/40 bg-cyan-400/15 text-cyan-100':'border-slate-600 text-slate-400')}>Одна пара</button>
+  <button type="button" aria-pressed={futuresScope==='multi'} onClick={()=>setFuturesScope('multi')}
+   className={'min-h-[42px] rounded-lg border text-xs font-semibold '+(futuresScope==='multi'?'border-cyan-400/40 bg-cyan-400/15 text-cyan-100':'border-slate-600 text-slate-400')}>Все избранные · DEMO</button>
+ </div>
+ {futuresScope==='single'?
+  <p className="text-[11px] leading-relaxed text-slate-300">В режиме «Авто · только DEMO» изучается одна пара, выбранная ниже. Менять её можно независимо от избранного.</p>:
+  <>
+   <p className="text-[11px] leading-relaxed text-slate-300">Используются только пары USDT, добавленные в <strong className="text-white">избранное Радара</strong>. Список обновляется автоматически. Для экономии запросов APEX проверяет их небольшими очередями — до четырёх за проход. Переключение открытого контракта не влияет на список.</p>
+   {futuresFavorites.length===0?<p className="rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-xs text-amber-200">Нет подходящих USDT-пар в избранном. Добавь их на вкладке «Радар». Пока подбор виртуальных сценариев приостановлен.</p>:
+   <>
+    <p className="text-[10px] text-slate-400">Сейчас в очереди: {favoriteBatch(futuresFavorites,favoriteRound).join(', ')} · всего избранных пар: {futuresFavorites.length}.</p>
+    <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg bg-[#091525] p-2.5">
+     {favoriteFeed.map(f=><div key={f.symbol} className="flex items-start justify-between gap-2 border-b border-white/5 py-1.5 last:border-0">
+      <div><span className="text-[11px] font-semibold text-slate-200">{f.symbol}</span>
+       <span className="ml-2 text-[10px] text-slate-500">{f.virtualPlans} планов DEMO</span></div>
+      <div className="text-right">
+       <span className={'block text-[10px] '+(f.state==='SIGNAL'?'text-cyan-200':f.state==='OBSERVING'?'text-slate-300':'text-amber-200')}>
+        {f.state==='SIGNAL'?'Учебный сценарий доступен':f.state==='OBSERVING'?'Свечи есть · нет условий сигнала':f.state==='STALE'?'Свечи устарели':'Нет фьючерсных данных'}
+       </span>
+       {f.lastBarAt!==null&&<span className="text-[10px] text-slate-500">{new Date(f.lastBarAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>}
+      </div>
+     </div>)}
+    </div>
+   </>}
+   <p className="text-[10px] leading-relaxed text-slate-400">TONUSDT автоматически приводится к GRAMUSDT только для НОВЫХ наблюдений. Доступность проверяется отдельно по публичным данным Binance и Bybit Futures. Устаревшие или отсутствующие данные не заменяются данными другого рынка. Ротация работает, только когда приложение активно.</p>
+  </>}
+ <p className="text-[10px] text-amber-100/80">Это виртуальные сценарии для исследования, не реальные заявки на биржу. Даже по отслеживаемой паре может не возникнуть условий для сценария.</p>
+</div>
