@@ -17,10 +17,10 @@ app=rep(app,
  'new persisted scope and snapshot preference');
 const newWatch=[
  " const futuresObserveKeys=useMemo(()=>multiDemoKeys(futuresExchange,futuresFrame,futuresScope,",
- "  futuresSymbol,multiDemoSymbols,futuresMode==='auto',view==='assistant',futuresLedger),",
- "  [futuresExchange,futuresFrame,futuresScope,futuresSymbol,multiDemoSymbols,futuresMode,view,futuresLedger]);"
+ "  futuresSymbol,multiDemoSymbols,futuresMode==='auto',view==='assistant'&&!showLegacySpotArchive,futuresLedger),",
+ "  [futuresExchange,futuresFrame,futuresScope,futuresSymbol,multiDemoSymbols,futuresMode,view,showLegacySpotArchive,futuresLedger]);"
 ].join('\n');
-app=repMatch(app,/ const futuresObserveKeys=useMemo\(\(\)=>\{[\s\S]*?\},\[futuresSelectedKey,futuresLedger,view\]\);/,newWatch,'multi-source public candle keys');
+app=repMatch(app,/ const futuresObserveKeys=useMemo\(\(\)=>\{[\s\S]*?\},\[futuresSelectedKey,futuresLedger,view,showLegacySpotArchive\]\);/,newWatch,'multi-source public candle keys');
 app=rep(app,
  " const futuresExisting=Boolean(futuresStudyPlan&&futuresLedger.tickets.some(o=>o.id===futuresStudyPlan.id));",
  " const futuresExisting=Boolean(futuresStudyPlan&&futuresLedger.tickets.some(o=>o.id===futuresStudyPlan.id));\n const futuresMultiPlans=useMemo(()=>deriveMultiDemoPlans(futuresExchange,futuresFrame,multiDemoSymbols,futuresBars,now),[futuresExchange,futuresFrame,multiDemoSymbols,futuresBars,now]);",
