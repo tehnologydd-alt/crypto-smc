@@ -1,4 +1,5 @@
 import {collectAsset,fetchSpotCatalog,normalizeSymbol} from './research.mjs';
+import {collectContext} from './context-sources.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -118,6 +119,74 @@ function renderSources(snapshot){
   list.append(sourceRow(sourceNames[source.id]||source.id,source.state,detail));
  }
 }
+
+const contextSources={
+ 'coingecko-global':'CoinGecko · глобальная статистика',
+ 'bitcoin-mempool':'mempool.space · сеть Bitcoin',
+ 'gdelt-news':'GDELT · упоминания в СМИ'
+};
+const usd=(x)=>Number.isFinite(x)?new Intl.NumberFormat('ru-RU',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(x):'—';
+function appendLine(target,label,value){
+ const line=create('div','data-row');
+ line.append(create('span','',label),create('strong','',value));
+ target.append(line);
+}
+function renderContext(context){
+ const list=el('context-source-list'),global=el('global-context'),
+  chain=el('btc-chain-context'),news=el('news-articles');
+ for(const node of [list,global,chain,news])clear(node);
+ if(!context){
+  for(const node of [list,global,chain,news])
+   node.append(create('p','muted','Нет проверенных сведений.'));
+  text('external-summary','Внешние источники не были получены.');
+  return;
+ }
+ const data=Object.fromEntries(context.sources.map(x=>[x.id,x]));
+ const good=context.sources.filter(x=>x.state==='OK').length;
+ text('external-summary',good+' из 3 внешних источников ответили действительными сведениями. '+
+  'Данные не используются как неподтверждённые предсказания.');
+ for(const item of context.sources){
+  let detail=item.state==='OK'?'Сведения получены':'Нет доступных сведений';
+  if(item.state==='EMPTY')detail='Совпадений по запросу не найдено';
+  if(item.state==='UNSUPPORTED')detail='Источник не подходит для этого актива';
+  if(item.error)detail=item.error;
+  list.append(sourceRow(contextSources[item.id]||item.id,item.state,detail));
+ }
+ const g=data['coingecko-global'];
+ if(g?.state==='OK'&&g.data){
+  appendLine(global,'Общая капитализация',usd(g.data.marketCapUsd));
+  appendLine(global,'Суточный объём',usd(g.data.totalVolumeUsd));
+  appendLine(global,'Доля BTC',fmt(g.data.btcDominancePercent,2)+'%');
+  appendLine(global,'Изменение капитализации за 24 ч',
+   (g.data.marketCapChange24hPercent>0?'+':'')+fmt(g.data.marketCapChange24hPercent,2)+'%');
+  appendLine(global,'Обновление источника',time(g.data.observedAt));
+ }else global.append(create('p','muted','CoinGecko: '+(g?.state||'OFFLINE')+
+  (g?.error?' · '+g.error:'')));
+ const b=data['bitcoin-mempool'];
+ if(b?.state==='OK'&&b.data){
+  appendLine(chain,'Ожидающих транзакций',fmt(b.data.transactionCount,0));
+  appendLine(chain,'Виртуальный размер',fmt(b.data.virtualSizeVBytes,0)+' vB');
+  appendLine(chain,'Сумма комиссий',fmt(b.data.totalFeesSats,0)+' сатоши');
+  appendLine(chain,'Время получения',time(b.data.receivedAt));
+ }else chain.append(create('p','muted',
+  b?.state==='UNSUPPORTED'?'Показатели сети Bitcoin доступны только для BTC.':
+  'mempool.space: '+(b?.state||'OFFLINE')+(b?.error?' · '+b.error:'')));
+ const n=data['gdelt-news'];
+ if(n?.state==='OK'&&n.data?.articles?.length){
+  for(const item of n.data.articles){
+   const row=create('div','source-line');
+   const content=create('div');
+   const link=create('a','news-link',item.title);
+   link.href=item.url;link.target='_blank';link.rel='noopener noreferrer';
+   content.append(link,create('small','',item.domain+' · '+time(item.seenAt)));
+   row.append(content);news.append(row);
+  }
+ }else news.append(create('p','muted',
+  n?.state==='EMPTY'?'За указанный период совпадений в GDELT не обнаружено.':
+  n?.state==='UNSUPPORTED'?'Нет достаточно однозначного названия для новостного поиска.':
+  'GDELT: '+(n?.state||'OFFLINE')+(n?.error?' · '+n.error:'')));
+}
+
 function renderSnapshot(snapshot){
  current=snapshot;
  const srcOk=snapshot.sources.filter(s=>s.state==='OK').length;
@@ -171,14 +240,19 @@ async function investigate(value){
  text('daily-change','—');text('context-status','—');
  text('quote-volume','—');text('ticker-time','—');
  clear(el('depth-list'));clear(el('source-list'));clear(el('missing-layers'));
- setNotice('Получаем публичные данные Binance и Bybit. Неподключённые источники не имитируются.');
+ renderContext(null);
+ setNotice('Получаем публичные данные бирж, общий крипторынок, сведения о BTC и новостные упоминания.');
  el('search-button').disabled=true;
  el('refresh-button').disabled=true;
  try{localStorage.setItem('apex9_preview_asset',chosen);}catch{}
  try{
-  const snapshot=await collectAsset(chosen,{signal:local.signal,now:()=>Date.now()});
+  const [snapshot,context]=await Promise.all([
+   collectAsset(chosen,{signal:local.signal,now:()=>Date.now()}),
+   collectContext(chosen,{signal:local.signal,now:()=>Date.now()})
+  ]);
   if(active!==pending)return;
   renderSnapshot(snapshot);
+  renderContext(context);
   lastLoad=Date.now();
  }catch(error){
   if(active===pending)setNotice('Ошибка обновления: '+String(error?.message||error),true);
