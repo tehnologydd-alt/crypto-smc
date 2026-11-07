@@ -43,3 +43,17 @@ test('network exception reported as OFFLINE',async()=>{
  const r=await fetchPublicDepth('binance','BTCUSDT',{fetchImpl:async()=>{throw Error('blocked')}});
  assert.equal(r.state,'OFFLINE');assert.equal(r.data,null);
 });
+
+test('Bybit response-level exchange timestamp overrides snapshot fallback',()=>{
+ const r=parseDepthSnapshot('bybit','BTCUSDT',{...bybit,ts:now-200},now);
+ assert.equal(r.exchangeTimestamp,now-200);
+});
+test('stale Bybit timestamp is rejected rather than appearing fresh',()=>{
+ assert.throws(()=>parseDepthSnapshot('bybit','BTCUSDT',{...bybit,ts:now-500000},now),/stale/);
+});
+test('Bybit business-level rate limit is not mistaken for an available book',async()=>{
+ const r=await fetchPublicDepth('bybit','BTCUSDT',{fetchImpl:async()=>({
+  ok:true,status:200,json:async()=>({retCode:10006,retMsg:'Too many requests'})
+ })});
+ assert.equal(r.state,'RATE_LIMITED');assert.equal(r.data,null);
+});
