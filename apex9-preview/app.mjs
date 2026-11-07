@@ -47,6 +47,7 @@ function setNotice(message,isError=false){
  text('load-message',message);
 }
 function updateTab(view){
+ document.body.dataset.view=view;
  for(const tab of document.querySelectorAll('[data-tab]')){
   const active=tab.dataset.tab===view;
   tab.classList.toggle('active',active);
@@ -56,8 +57,34 @@ function updateTab(view){
  for(const name of ['overview','asset','forecasts','sources'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
+function navigate(view,targetId){
+ updateTab(view);
+ requestAnimationFrame(()=>{
+  const node=targetId?el(targetId):el('view-'+view);
+  if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
+ });
+}
 for(const button of document.querySelectorAll('[data-tab]'))
- button.addEventListener('click',()=>updateTab(button.dataset.tab));
+ button.addEventListener('click',()=>navigate(button.dataset.tab));
+for(const button of document.querySelectorAll('[data-go]'))
+ button.addEventListener('click',()=>navigate(button.dataset.go,button.dataset.target));
+function markSelectedAsset(){
+ for(const button of document.querySelectorAll('[data-symbol]')){
+  const selected=button.dataset.symbol===chosen;
+  button.classList.toggle('selected',selected);
+  button.setAttribute('aria-pressed',selected?'true':'false');
+ }
+}
+for(const button of document.querySelectorAll('[data-symbol]'))
+ button.addEventListener('click',()=>{
+  const symbol=button.dataset.symbol;
+  if(symbol===chosen){navigate('asset');return;}
+  updateTab('overview');
+  void investigate(symbol);
+  window.scrollTo({top:0,behavior:'smooth'});
+ });
+updateTab('overview');
+markSelectedAsset();
 
 function suggestions(query){
  const datalist=el('asset-options');clear(datalist);
@@ -145,6 +172,8 @@ function renderContext(context){
  const good=context.sources.filter(x=>x.state==='OK').length;
  text('external-summary',good+' из 3 внешних источников ответили действительными сведениями. '+
   'Данные не используются как неподтверждённые предсказания.');
+ const marketOk=current?.sources?.filter(x=>x.state==='OK').length||0;
+ text('top-status',(marketOk+good)+' / 6 источников');
  for(const item of context.sources){
   let detail=item.state==='OK'?'Сведения получены':'Нет доступных сведений';
   if(item.state==='EMPTY')detail='Совпадений по запросу не найдено';
@@ -199,6 +228,7 @@ function renderSnapshot(snapshot){
  text('active-sources',srcOk+' / 3');
  text('daily-change',pct===undefined?'—':(pct>0?'+':'')+fmt(pct,2)+'%');
  text('layer-coverage',snapshot.assessment.coveredLayers.length+' / 7');
+ text('hero-coverage','Покрытие: '+snapshot.assessment.coveredLayers.length+' / 7 слоёв');
  text('context-status',snapshot.assessment.assessment==='INSUFFICIENT'?'Недостаточно':
    snapshot.assessment.assessment==='MIXED'?'Противоречия':'Частичный');
  const assessment=assessmentNames[snapshot.assessment.assessment]||'Статус неизвестен';
@@ -231,12 +261,14 @@ async function investigate(value){
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
  chosen=symbol;
+ markSelectedAsset();
  text('asset-name',chosen);
  el('asset-input').value=chosen;
  text('market-price','—');text('market-change','24 ч: —');
  text('top-status','Обновление…');
  text('updated-at','Запрос публичных источников…');
  text('active-sources','—');text('layer-coverage','—');
+ text('hero-coverage','Покрытие: ожидание данных');
  text('daily-change','—');text('context-status','—');
  text('quote-volume','—');text('ticker-time','—');
  clear(el('depth-list'));clear(el('source-list'));clear(el('missing-layers'));
