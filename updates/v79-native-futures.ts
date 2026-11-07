@@ -63,7 +63,7 @@ function parseSample(raw:unknown,now:number):NativeFuturesSample|null{
   !['5m','1h','4h'].includes(String(x.frame))||
   !Number.isSafeInteger(x.selectedCount)||Number(x.selectedCount)<1||Number(x.selectedCount)>4||
   !Array.isArray(x.checks)||x.checks.length>8||x.checks.length===0)return null;
- const checks=x.checks.map(c=>parseCheck(c,x.finishedAt));
+ const checks=x.checks.map(c=>parseCheck(c,Number(x.finishedAt)));
  if(checks.some(c=>c===null))return null;
  const valid=checks as NativeFuturesCheck[];
  const distinct=new Set(valid.map(c=>c.source+':'+c.symbol+':'+c.frame));
