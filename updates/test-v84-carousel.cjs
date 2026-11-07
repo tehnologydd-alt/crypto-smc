@@ -5,7 +5,7 @@ const version='РЫНОЧНЫЙ РАДАР • 8.4';
 assert(app.includes(version));
 for(const name of [
  'DEMO-счета ·','Горизонтальные виртуальные ','Переключение виртуальных счетов',
- 'Binance','Bybit','Листай','листай влево и вправо','DEMO',
+ 'Binance','Bybit','листай влево и вправо','DEMO',
  'demoWalletCarouselRef','demoWalletActiveIndex','setDemoWalletActiveIndex',
  'demoWalletAction','setDemoWalletAction','scrollIntoView','onScroll={e=>',
  'snap-x','snap-mandatory','overflow-x-auto','min-w-[88%]','snap-center',
