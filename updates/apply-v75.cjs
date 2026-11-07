@@ -102,7 +102,16 @@ app=app.slice(0,start)+read('updates/v75-demo-profit-ui.txt')+'\n '+app.slice(st
 app=rep(app,'РЫНОЧНЫЙ РАДАР • 7.4','РЫНОЧНЫЙ РАДАР • 7.5','version');
 write('src/App.tsx',app);
 for(const f of fs.readdirSync('scripts').filter(x=>x.startsWith('test-')&&x.endsWith('.cjs'))){
- const p='scripts/'+f;write(p,read(p).replaceAll('РЫНОЧНЫЙ РАДАР • 7.4','РЫНОЧНЫЙ РАДАР • 7.5'));
+ const p='scripts/'+f;
+ let script=read(p).replaceAll('РЫНОЧНЫЙ РАДАР • 7.4','РЫНОЧНЫЙ РАДАР • 7.5');
+ if(f==='test-v74-reliability.cjs'){
+  script=script.replace("'Мульти DEMO'","'Все избранные · DEMO'")
+   .replace("'multiDemoSymbols'","'futuresFavorites'")
+   .replace("'multiDemoKeys'","'favoritesObserveKeys'")
+   .replace("'deriveMultiDemoPlans'","'deriveFavoritePlans'")
+   .replace("'apex_v74_multi_symbols'","'apex_v75_checkpoint_continuation'");
+ }
+ write(p,script);
 }
 const pkg=JSON.parse(read('package.json'));pkg.scripts.test+=' && node scripts/test-v75-research.cjs';write('package.json',JSON.stringify(pkg,null,2)+'\n');
 fs.appendFileSync('README.md','\n\n## APEX 7.5 — Radar favorites, GRAM, append-only checkpoints, readable DEMO positive/negative outcomes\n- Futures DEMO multi scope now draws its USDT universe from actual Radar favorites (not the old eight hardcoded symbols), normalizing obsolete TONUSDT to GRAMUSDT **only for new observations**; old tickets/protocol remain unchanged. Favorites over four are scanned in bounded rotating rounds every 75 seconds when the Android web view remains active. A specific pair can show no quote or no fresh hypothetical setup, not a fabricated signal. Historical outcomes never get modified by the rename.\n- After 64 immutable checkpoint snapshots, new append-only continuation segments allow further checkpoints without deleting the previous 64. The legacy localStorage key is kept. If local storage quota runs out, the app reports failure rather than deleting snapshots; the protocol and all existing snapshots continue to be usable.\n- Separate educational summaries for positive gross outcomes, negative gross outcomes and illustrative post-commission results at 0/5/10 hypothetical basis points per side, per Futures exchange and combined. Not real account PnL, includes no slippage/funding/liquidation, no real orders or external trading credentials.\n');
