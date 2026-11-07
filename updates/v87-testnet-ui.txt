@@ -1,0 +1,52 @@
+<details className="rounded-xl border border-sky-400/25 bg-[#101d2d] p-3">
+ <summary className="cursor-pointer text-sm font-semibold text-white">APEX 8.7 · Биржевой Testnet · проверка протокола</summary>
+ <div className="space-y-3 pt-3">
+  <p className="text-[11px] leading-relaxed text-slate-300">
+   Проверяем доступность публичных тестовых серверов Binance и Bybit и отображение состояний учебных заявок. Без ключей, авторизации и реальных ордеров.
+  </p>
+  <div className="grid grid-cols-2 gap-2">
+   {(['binance','bybit'] as const).map(venue=>{
+    const probe=sandboxTestnetProbes[venue];
+    return <div key={venue} className="space-y-1.5 rounded-xl border border-white/10 bg-[#0a1728] p-2.5">
+     <strong className="block text-xs text-white">{venue==='binance'?'Binance Testnet':'Bybit Testnet'}</strong>
+     <span className={'block text-[11px] '+(probe?.status==='OK'?'text-emerald-200':probe?.status==='ERROR'?'text-rose-200':'text-amber-200')}>
+      {probe?.status==='OK'?'Тестовый сервер отвечает':probe?.status==='ERROR'?'Нет подтверждённого ответа':'Ещё не проверен'}
+     </span>
+     <span className="block text-[10px] text-slate-500">{probe?.checkedAt?new Date(probe.checkedAt).toLocaleTimeString('ru-RU'):'Запрос не выполнялся'}</span>
+     {probe?.status==='OK'&&<>
+      <span className="block text-[10px] text-slate-300">Задержка: {probe.latencyMs} мс</span>
+      <span className="block text-[10px] text-slate-400">Разница часов: {probe.clockSkewMs} мс</span>
+     </>}
+     {probe&&<p className="text-[10px] leading-relaxed text-slate-400">{probe.note}</p>}
+    </div>;
+   })}
+  </div>
+  <button type="button" disabled={sandboxTestnetBusy} onClick={()=>void checkTestnetPublicApis()}
+   className="min-h-[44px] w-full rounded-xl border border-sky-400/30 bg-sky-400/10 px-3 text-xs font-semibold text-sky-100 disabled:opacity-40">
+   {sandboxTestnetBusy?'Проверка тестовых серверов…':'Проверить тестовые серверы'}
+  </button>
+  <div className="space-y-2 rounded-xl border border-violet-400/20 bg-[#0b1828] p-3">
+   <strong className="block text-xs font-semibold text-slate-100">Локальный жизненный цикл заявки</strong>
+   <p className="text-[10px] leading-relaxed text-slate-400">Учебная имитация типичных статусов NEW → PARTIALLY_FILLED → FILLED или CANCELLED. Это не подтверждение биржевой заявки.</p>
+   <div className="grid grid-cols-2 gap-2">
+    <button type="button" onClick={()=>setSandboxLocalEvents(makeLocalSandboxOrderSequence('binance',Date.now(),'complete'))}
+     className="min-h-[42px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2 text-[11px] font-semibold text-emerald-100">Binance · исполнение</button>
+    <button type="button" onClick={()=>setSandboxLocalEvents(makeLocalSandboxOrderSequence('bybit',Date.now(),'cancel'))}
+     className="min-h-[42px] rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 text-[11px] font-semibold text-amber-100">Bybit · отмена</button>
+   </div>
+   {sandboxLocalEvents.length>0&&<div className="space-y-2 rounded-lg border border-white/10 bg-[#091527] p-2">
+    <span className="block text-[10px] font-semibold text-amber-200">ЛОКАЛЬНАЯ ИМИТАЦИЯ · не ответ биржи</span>
+    {sandboxLocalEvents.map((event,index)=><div key={event.at+':'+index} className="flex items-center justify-between gap-2 border-b border-white/5 py-1 text-[11px]">
+     <div><strong className="text-slate-200">{event.stage}</strong><span className="block text-[10px] text-slate-500">{event.note}</span></div>
+     <strong className="tabular-nums text-teal-200">{event.filledPct}%</strong>
+    </div>)}
+    <p className={'text-[10px] '+(checkLocalSandboxLifecycle(sandboxLocalEvents).valid?'text-emerald-200':'text-rose-200')}>
+     {checkLocalSandboxLifecycle(sandboxLocalEvents).note}
+    </p>
+   </div>}
+  </div>
+  <p className="text-[10px] leading-relaxed text-amber-100/85">
+   Публичный тестовый ответ проверяет только соединение и формат времени. Учебные статусы заявок создаются локально, не отправляются на биржу и не меняют DEMO-баланс, сделки или статистику.
+  </p>
+ </div>
+</details>
