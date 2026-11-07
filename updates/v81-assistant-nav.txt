@@ -1,0 +1,4 @@
+{view==='assistant'&&<nav role="tablist" aria-label="Разделы ассистента" className="sticky top-0 z-20 grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#0a1424]/95 p-1.5 shadow-lg backdrop-blur">
+ <button type="button" role="tab" aria-selected={assistantSubtab==='positions'} onClick={()=>setAssistantSubtab('positions')} className={'min-h-[48px] rounded-lg px-2 text-xs font-bold '+(assistantSubtab==='positions'?'bg-violet-500/30 text-white shadow-sm':'text-slate-400')}>Позиции · DEMO</button>
+ <button type="button" role="tab" aria-selected={assistantSubtab==='research'} onClick={()=>setAssistantSubtab('research')} className={'min-h-[48px] rounded-lg px-2 text-xs font-bold '+(assistantSubtab==='research'?'bg-teal-500/20 text-teal-100 shadow-sm':'text-slate-400')}>Исследования</button>
+</nav>}
