@@ -101,7 +101,7 @@ export function checkDemoMargin(book:DemoWalletBook|null,venue:AssistantExchange
  now=Date.now()):CapitalPermission{
  const row=futuresCapitalRow(book,venue,ledger,bars,now);
  const neededUSDT=validFutureSetup(setup)?round6(setup.notionalUSDT/setup.leverage):Infinity;
- const room=Math.max(0,6-ledger.tickets.filter(active).length);
+ const room=Math.max(0,Math.min(6-ledger.tickets.filter(active).length,80-ledger.tickets.length));
  const maxAdditional=Number.isFinite(neededUSDT)&&neededUSDT>0&&row.unknownMarks===0?
   Math.max(0,Math.min(room,Math.floor((row.admissionFreeUSDT+1e-8)/neededUSDT))):0;
  let reason='';
