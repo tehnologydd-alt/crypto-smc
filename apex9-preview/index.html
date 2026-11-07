@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#090e18">
+  <meta name="theme-color" content="#06090d">
   <meta name="description" content="APEX 9.0 — исследовательский прототип с проверяемыми рыночными данными">
   <title>APEX 9.0 · Market Research</title>
   <link rel="stylesheet" href="./styles.css">
@@ -24,27 +24,15 @@
 
   <main class="content">
     <section class="intro">
-      <div class="eyebrow">ГЛУБОКОЕ ИССЛЕДОВАНИЕ АКТИВОВ</div>
-      <h1>Рынок в контексте.</h1>
-      <p>Проверяемые данные, несколько площадок и честная оценка полноты информации.</p>
+      <div class="eyebrow">APEX / INTELLIGENCE</div>
+      <h1>Понимать рынок <em>глубже.</em></h1>
+      <p>Многослойные исследования активов — от биржевой ликвидности до событий и новостей.</p>
     </section>
-
-    <form id="search-form" class="search-box" autocomplete="off">
-      <label for="asset-input">Исследуемый актив</label>
-      <div class="search-row">
-        <input id="asset-input" name="asset" list="asset-options" value="BTCUSDT"
-               maxlength="20" spellcheck="false" autocapitalize="characters"
-               aria-describedby="catalog-status" placeholder="BTCUSDT, TON, ETH…">
-        <datalist id="asset-options"></datalist>
-        <button type="submit" id="search-button">Исследовать</button>
-      </div>
-      <div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div>
-    </form>
 
     <section class="hero card" aria-labelledby="asset-name">
       <div class="hero-heading">
         <div>
-          <div class="eyebrow">ПУБЛИЧНЫЙ РЫНОЧНЫЙ СНИМОК · SPOT</div>
+          <div class="eyebrow">РЫНОЧНЫЙ ПАСПОРТ · PUBLIC SPOT</div>
           <h2 id="asset-name">BTCUSDT</h2>
         </div>
         <button class="ghost" id="refresh-button" type="button" title="Обновить данные">↻ Обновить</button>
@@ -55,23 +43,49 @@
       </div>
       <div class="hero-bottom">
         <span id="updated-at">Нет проверенных данных</span>
-        <span class="pill">Без демосчетов и ассистента</span>
+        <span class="pill" id="hero-coverage">Покрытие: ожидание данных</span>
       </div>
     </section>
 
-    <nav class="tabs" aria-label="Разделы анализа">
-      <button class="tab active" data-tab="overview" type="button" aria-current="page">Обзор</button>
-      <button class="tab" data-tab="asset" type="button">Актив</button>
-      <button class="tab" data-tab="forecasts" type="button">Прогнозы</button>
-      <button class="tab" data-tab="sources" type="button">Источники</button>
-    </nav>
+    <form id="search-form" class="search-box" autocomplete="off">
+      <label for="asset-input">Найти актив</label>
+      <div class="search-row">
+        <input id="asset-input" name="asset" list="asset-options" value="BTCUSDT"
+               maxlength="20" spellcheck="false" autocapitalize="characters"
+               aria-describedby="catalog-status" placeholder="BTC, TON, ETH, SOL…">
+        <datalist id="asset-options"></datalist>
+        <button type="submit" id="search-button" aria-label="Исследовать выбранный актив">Найти</button>
+      </div>
+      <div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div>
+    </form>
+
+
+    <section class="home-actions" aria-label="Быстрые разделы исследования">
+      <div class="section-title"><h2>Исследовать</h2><span>Быстрый доступ</span></div>
+      <div class="action-grid">
+        <button class="quick-action" type="button" data-go="asset" data-target="depth-list" aria-label="Перейти к ликвидности актива"><span class="action-orb" aria-hidden="true">≋</span><span>Ликвидность</span></button>
+        <button class="quick-action" type="button" data-go="sources" data-target="news-articles" aria-label="Посмотреть новости актива"><span class="action-orb" aria-hidden="true">▤</span><span>Новости</span></button>
+        <button class="quick-action" type="button" data-go="asset" data-target="btc-chain-context" aria-label="Посмотреть ончейн-контекст"><span class="action-orb" aria-hidden="true">⬡</span><span>Ончейн</span></button>
+        <button class="quick-action" type="button" data-go="forecasts" aria-label="Перейти к прогнозам"><span class="action-orb" aria-hidden="true">◎</span><span>Прогнозы</span></button>
+      </div>
+    </section>
+
+    <section class="asset-shortcuts" aria-label="Активы для исследования">
+      <div class="section-title"><h2>В центре внимания</h2><span>Выберите актив</span></div>
+      <div class="asset-rail">
+        <button type="button" class="asset-chip" data-symbol="BTCUSDT"><span class="coin-mark">₿</span><span><strong>Bitcoin</strong><small>BTC</small></span></button>
+        <button type="button" class="asset-chip" data-symbol="ETHUSDT"><span class="coin-mark eth">◆</span><span><strong>Ethereum</strong><small>ETH</small></span></button>
+        <button type="button" class="asset-chip" data-symbol="TONUSDT"><span class="coin-mark ton">◇</span><span><strong>Toncoin</strong><small>TON</small></span></button>
+        <button type="button" class="asset-chip" data-symbol="SOLUSDT"><span class="coin-mark sol">≋</span><span><strong>Solana</strong><small>SOL</small></span></button>
+      </div>
+    </section>
 
     <div id="load-message" class="notice" role="status" aria-live="polite">
       Выберите актив, чтобы загрузить проверяемые данные.
     </div>
 
     <section class="view" id="view-overview" aria-labelledby="overview-title">
-      <div class="section-title"><h2 id="overview-title">Сводка наблюдений</h2><span>Без торговых сигналов</span></div>
+      <div class="section-title"><h2 id="overview-title">Обзор исследований</h2><span>Данные с источниками</span></div>
       <div class="metrics">
         <article class="metric card"><div class="metric-label">Источники онлайн</div><div class="metric-value" id="active-sources">—</div><div class="metric-sub">из 3 доступных адаптеров</div></article>
         <article class="metric card"><div class="metric-label">Изменение за 24 ч</div><div class="metric-value" id="daily-change">—</div><div class="metric-sub">историческая динамика цены</div></article>
@@ -153,7 +167,13 @@
       </article>
     </section>
   </main>
-  <footer class="footer">APEX 9.0 · Исследовательский прототип · Только публичные данные · Никаких ордеров</footer>
+  <footer class="footer">APEX 9.0 · Research Preview · Проверяемые публичные сведения</footer>
+  <nav class="tabs bottom-dock" aria-label="Главная навигация APEX 9.0">
+    <button class="tab active" data-tab="overview" type="button" aria-current="page"><span class="dock-icon" aria-hidden="true">⌂</span><span>Обзор</span></button>
+    <button class="tab" data-tab="asset" type="button"><span class="dock-icon" aria-hidden="true">◈</span><span>Актив</span></button>
+    <button class="tab" data-tab="forecasts" type="button"><span class="dock-icon" aria-hidden="true">◎</span><span>Прогнозы</span></button>
+    <button class="tab" data-tab="sources" type="button"><span class="dock-icon" aria-hidden="true">☷</span><span>Источники</span></button>
+  </nav>
 </div>
 </body>
 </html>
