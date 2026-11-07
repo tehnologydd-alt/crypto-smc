@@ -124,8 +124,8 @@ const plans=chosen.flatMap((symbol,i)=>[plan('binance',symbol,i),plan('bybit',sy
 const smallLedger=M.enrollMarginAwareMulti(empty,plans,setup('binance'),book,{},T+100);
 const bCount=smallLedger.tickets.filter(t=>t.plan.source==='binance').length;
 const yCount=smallLedger.tickets.filter(t=>t.plan.source==='bybit').length;
-assert.equal(bCount,4,'100 USDT Binance can reserve four of four 20-USDT proposals');
-assert.equal(yCount,2,'global six-active cap after fair interleave');
+assert.equal(bCount,3,'global six-active cap fairly splits virtual proposals between exchanges');
+assert.equal(yCount,3,'global six-active cap after fair interleave');
 assert.equal(smallLedger.tickets.length,6);
 assert.equal(M.enrollMarginAwareMulti(smallLedger,plans,setup('binance'),book,{},T+100),smallLedger);
 const cheap=A.openDemoWallets(empty,T);
