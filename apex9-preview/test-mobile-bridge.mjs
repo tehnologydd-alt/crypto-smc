@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileAssetResearchForecasts ,getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileAssetResearchForecasts,getMobileAssetResearchArchive,getMobileCandleArchive ,getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
 const originalWindow=globalThis.window;
 test('web preview does not invent native persistence',async()=>{
  delete globalThis.window;
@@ -143,5 +143,107 @@ test('cross-asset records, contradictory totals and bad assets are rejected',asy
  assert.equal(r.publishedCount,null);
  assert.match(r.error,/непроверяемую выборку/);
  assert.match((await getMobileAssetResearchForecasts('ethusdt')).error,/Некорректный актив/);
+ globalThis.window=originalWindow;
+});
+
+test('archive pages over 75 without mixing assets or repeating timestamps',async()=>{
+ const history=Array.from({length:5},(_,i)=>({
+  id:'f'+(5-i),asset:'BTCUSDT',publishedAt:5000-i*1000
+ }));
+ const calls=[];
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async ({asset,offset,limit})=>{
+   calls.push({asset,offset,limit});
+   return {asset,assetScoped:true,offset,
+    publishedCount:5,evaluatedCount:3,
+    forecasts:history.slice(offset,offset+limit)};
+  }
+ }}}};
+ const result=await getMobileAssetResearchArchive('BTCUSDT',{pageSize:2});
+ assert.deepEqual(calls.map(x=>x.offset),[0,2,4]);
+ assert.equal(result.complete,true);
+ assert.equal(result.publishedCount,5);
+ assert.equal(result.forecasts.length,5);
+ assert.deepEqual(result.forecasts.map(x=>x.id),['f5','f4','f3','f2','f1']);
+ globalThis.window=originalWindow;
+});
+test('bounded journal correctly reports incomplete evidence above archive cap',async()=>{
+ const history=Array.from({length:5},(_,i)=>({
+  id:'f'+(5-i),asset:'BTCUSDT',publishedAt:5000-i*1000
+ }));
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async ({asset,offset,limit})=>({
+   asset,assetScoped:true,offset,publishedCount:5,evaluatedCount:3,
+   forecasts:history.slice(offset,offset+limit)})
+ }}}};
+ const result=await getMobileAssetResearchArchive('BTCUSDT',{pageSize:2,maxRows:3});
+ assert.equal(result.complete,false);
+ assert.equal(result.publishedCount,5);
+ assert.equal(result.forecasts.length,3);
+ globalThis.window=originalWindow;
+});
+test('native journal changes mid-pagination and fails closed without partial rows',async()=>{
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async ({asset,offset})=>({
+   asset,assetScoped:true,offset,
+   publishedCount:offset?4:3,evaluatedCount:1,
+   forecasts:offset?[{id:'f1',asset,publishedAt:1000}]:[
+    {id:'f3',asset,publishedAt:3000},
+    {id:'f2',asset,publishedAt:2000}]})
+ }}}};
+ const result=await getMobileAssetResearchArchive('BTCUSDT',{pageSize:2});
+ assert.equal(result.complete,false);
+ assert.equal(result.forecasts.length,0);
+ assert.match(result.error,/изменился/);
+ globalThis.window=originalWindow;
+});
+test('old native plugin without page offset cannot claim complete archive',async()=>{
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async ({asset})=>({
+   asset,assetScoped:true,publishedCount:1,evaluatedCount:0,
+   forecasts:[{id:'f',asset,publishedAt:1000}]})
+ }}}};
+ const result=await getMobileAssetResearchArchive('BTCUSDT');
+ assert.equal(result.complete,false);
+ assert.match(result.error,/обновление Android/);
+ globalThis.window=originalWindow;
+});
+test('candle archive assembles actual past pages in chronological order',async()=>{
+ const H=3600000;
+ const bars=[1,2,4,5].map(i=>({
+  t:i*H,closeAt:(i+1)*H-1,open:100,high:105,low:95,
+  close:101,volume:10,closed:true
+ }));
+ const calls=[];
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getCandles:async ({asset,interval,offset,limit})=>{
+   calls.push(offset);
+   return {asset,interval,offset,totalCount:4,
+    candles:bars.slice().reverse().slice(offset,offset+limit).reverse()};
+  }
+ }}}};
+ const r=await getMobileCandleArchive('BTCUSDT','1h',{pageSize:2});
+ assert.deepEqual(calls,[0,2]);
+ assert.equal(r.complete,true);
+ assert.deepEqual(r.candles.map(x=>x.t),[H,2*H,4*H,5*H]);
+ assert.equal(r.candles[2].t-r.candles[1].t,2*H);
+ globalThis.window=originalWindow;
+});
+test('candle archive detects repeated bars across page boundary',async()=>{
+ const H=3600000;
+ const bar=t=>({t,closeAt:t+H-1,open:100,high:105,
+  low:95,close:101,volume:10,closed:true});
+ let request=0;
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getCandles:async({asset,interval,offset})=>{
+   request++;
+   return {asset,interval,offset,totalCount:4,
+    candles:offset?[bar(3*H),bar(2*H)]:[bar(3*H),bar(4*H)]};
+  }
+ }}}};
+ const r=await getMobileCandleArchive('BTCUSDT','1h',{pageSize:2});
+ assert.equal(request,2);
+ assert.equal(r.candles.length,0);
+ assert.match(r.error,/повторная|порядок/);
  globalThis.window=originalWindow;
 });

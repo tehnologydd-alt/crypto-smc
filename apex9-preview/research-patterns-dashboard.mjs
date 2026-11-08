@@ -3,7 +3,7 @@
  * User initiates the audit; all data come from existing Room journal and
  * completed cached H1 candles; no remote calls, fake rates or trading UI.
  */
-import {getMobileAssetResearchForecasts,getMobileCandles} from './mobile-bridge.mjs';
+import {getMobileAssetResearchArchive,getMobileCandleArchive} from './mobile-bridge.mjs';
 import {compareCompletedResearch,PATTERN_KINDS,PATTERN_RULES} from './research-patterns.mjs';
 import {analyzeResearchStability} from './research-stability.mjs';
 const get=id=>document.getElementById(id);
@@ -45,8 +45,8 @@ export function initResearchPatternsDashboard(){
    'Сохранённые исследования этого актива в Room');
   metric('Записей загружено и проверено',
    int(result.loadedForAsset),result.truncated?
-    'Ограничение 75 последних записей; проценты скрыты':
-    'История отобрана для одного актива');
+    'Не весь архив доступен в пределах 1500 записей; проценты скрыты':
+    'Страницы журнала загружены без смешивания активов');
   metric('Завершённых с фактической H1-историей',
    int(result.counts.accepted),'Неперекрывающиеся четырёхчасовые горизонты');
   metric('Не хватает сохранённых свечей',
@@ -144,8 +144,8 @@ export function initResearchPatternsDashboard(){
    ' с пятью завершёнными H1-свечами каждого сценария…');
   try{
    const [journal,candles]=await Promise.all([
-    getMobileAssetResearchForecasts(asset,75),
-    getMobileCandles(asset,'1h',500)
+    getMobileAssetResearchArchive(asset),
+    getMobileCandleArchive(asset,'1h')
    ]);
    if(seq!==serial||select.value!==asset)return;
    if(!journal.native||!candles.native||!journal.assetScoped||
@@ -154,10 +154,15 @@ export function initResearchPatternsDashboard(){
      'Исследование доступно только в установленном Android APK.');
    const result=compareCompletedResearch(
     journal.forecasts||[],candles.candles||[],{
-     asset,now:Date.now(),totalPublished:journal.publishedCount
+     asset,now:Date.now(),totalPublished:journal.publishedCount,
+     candleArchiveComplete:candles.complete
     });
    if(seq!==serial||select.value!==asset)return;
    render(result);
+   metric('Свечи H1 · доступно / сохранено',
+    int(candles.candles.length)+' / '+int(candles.totalCount),
+    candles.complete?'Архив свечей загружен полностью':
+     'Архив свечей загружен частично; доли скрыты');
    const messages={
     DESCRIPTIVE:'Сопоставление выполнено. Доли приведены для трёх последовательных периодов.',
     INCOMPLETE_EVIDENCE:'Выборка неполная: '+result.reason+'.',

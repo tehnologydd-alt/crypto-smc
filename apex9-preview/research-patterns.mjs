@@ -37,7 +37,7 @@ export function classifyResearchPath(replay){
  return 'STAYED_INSIDE';
 }
 export function compareCompletedResearch(rows,candles,{
- asset,now=Date.now(),totalPublished=null
+ asset,now=Date.now(),totalPublished=null,candleArchiveComplete=true
 }={}){
  const response=initial('INVALID',asset,'Ошибка исходных параметров');
  if(!validAsset(asset)||!validTime(now)||!Array.isArray(rows)||
@@ -136,7 +136,7 @@ export function compareCompletedResearch(rows,candles,{
  }
  // Never infer repeatability from a selective cache, overdue experiments,
  // malformed records or unknown global journal completeness.
- const biased=result.truncated||knownTotal===null||
+ const biased=result.truncated||knownTotal===null||candleArchiveComplete!==true||
   result.counts.dueMissing>0||result.counts.invalid>0||
   result.counts.missingCandles>0||result.counts.conflictingSource>0;
  result.state=biased?'INCOMPLETE_EVIDENCE':
@@ -144,6 +144,7 @@ export function compareCompletedResearch(rows,candles,{
  if(biased)result.reason=result.truncated?
   'Журнал Room загружен частично; доли скрыты во избежание смещения выборки':
   knownTotal===null?'Неизвестна полнота журнала; доли скрыты':
+  candleArchiveComplete!==true?'Свечной архив прочитан частично; доли скрыты':
   'В истории есть непроверенные или противоречивые результаты; доли скрыты';
  result.patterns=PATTERN_KINDS.map(p=>{
   const counts=result.periods.map(f=>f.counts[p.id]);

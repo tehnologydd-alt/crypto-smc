@@ -5,8 +5,8 @@
 import {auditCandleSeries,auditVisibleDepth,auditNetwork,
  auditForwardResearch,MIN_FORWARD_SAMPLES} from './evidence-lab.mjs';
 import {chainForAsset} from './onchain-core.mjs';
-import {getMobileCandles,getMobileLiquidityHistory,getMobileOnChainHistory,
- getMobileAssetResearchForecasts} from './mobile-bridge.mjs';
+import {getMobileCandleArchive,getMobileLiquidityHistory,getMobileOnChainHistory,
+ getMobileAssetResearchArchive} from './mobile-bridge.mjs';
 
 const get=id=>document.getElementById(id);
 const fmt=(n,d=1)=>Number.isFinite(n)
@@ -66,10 +66,10 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
    const chain=chainForAsset(asset);
    // All reads are from Android Room. No external exchanges or APIs.
    const [candles,depth,network,journal]=await Promise.all([
-    getMobileCandles(asset,'1h',500),
+    getMobileCandleArchive(asset,'1h'),
     getMobileLiquidityHistory(asset,120),
     chain?getMobileOnChainHistory(asset,100):Promise.resolve({native:true,rows:[]}),
-    getMobileAssetResearchForecasts(asset,75)
+    getMobileAssetResearchArchive(asset)
    ]);
    if(generation!==seq)return;
    if(!candles.native||!journal.native||!journal.assetScoped||
@@ -82,6 +82,14 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
    const f=auditForwardResearch(journal.forecasts,{
     now,totalPublished:journal.publishedCount
    });
+   appendMetric(cards,'H1 · доступно / сохранено',
+    fmt(candles.candles.length,0)+' / '+fmt(candles.totalCount,0),
+    candles.complete?'Локальный свечной архив прочитан полностью':
+     'Архив частичный; пропущенные часы нельзя подменить данными');
+   appendMetric(cards,'Исследования · доступно / сохранено',
+    fmt(journal.forecasts.length,0)+' / '+fmt(journal.publishedCount,0),
+    journal.complete?'Журнал выбранного актива прочитан полностью':
+     'Превышен предел 1500 записей; проценты скрыты');
    appendMetric(cards,'H1 · завершённые свечи',fmt(c.samples,0),
     c.state==='INVALID'?'Ошибка исходной хронологии':
     c.state==='HISTORICAL'?'Последние свечи из локальной истории':

@@ -117,3 +117,13 @@ test('future outcome, corrupted actual close or invalid original method is exclu
  assert.equal(r.state,'INCOMPLETE_EVIDENCE');
  assert.equal(r.counts.invalid,1);
 });
+
+test('partial H1 archive cannot publish Research Stability rates',()=>{
+ const x=dataset();
+ const r=compareCompletedResearch(x.rows,x.bars,{
+  asset:'BTCUSDT',now,totalPublished:42,candleArchiveComplete:false
+ });
+ assert.equal(r.state,'INCOMPLETE_EVIDENCE');
+ assert.equal(r.patterns[0].periodRates,null);
+ assert.match(r.reason,/Свечной архив/);
+});
