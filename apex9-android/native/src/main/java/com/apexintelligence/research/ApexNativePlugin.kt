@@ -167,6 +167,7 @@ class ApexNativePlugin : Plugin() {
         val expected = when {
             asset.matches(Regex("^BTC(USDT|USDC|EUR|BTC)$")) -> "mempool:bitcoin:network"
             asset.matches(Regex("^ETH(USDT|USDC|EUR|BTC)$")) -> "blockscout:ethereum:stats"
+            asset.matches(Regex("^GRAM(USDT|USDC|EUR|BTC)$")) -> "toncenter:ton:masterchain"
             else -> null
         }
         val limit = call.data.optInt("limit", 80).coerceIn(1, 120)
