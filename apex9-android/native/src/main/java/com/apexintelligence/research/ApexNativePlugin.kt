@@ -262,6 +262,35 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Only a user click can request a source-verified historical H1 chunk. */
+    @PluginMethod
+    fun repairHistoricalH1(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val start = call.data.optLong("startTime", -1L)
+        val end = call.data.optLong("endExclusive", -1L)
+        if (!assetRegex.matches(asset)) {
+            call.reject("Invalid historical research asset")
+            return
+        }
+        tasks.launch {
+            try {
+                val r = ApexHistoricalBackfill.repair(context.applicationContext, asset, start, end)
+                val value = JSObject()
+                value.put("asset", r.asset)
+                value.put("startTime", r.startTime)
+                value.put("endExclusive", r.endExclusive)
+                value.put("bars", r.bars)
+                value.put("added", r.added)
+                value.put("existing", r.existing)
+                value.put("state", r.state)
+                value.put("source", r.source)
+                call.resolve(value)
+            } catch (e: Exception) {
+                call.reject("H1 historical repair refused: " + (e.message ?: "source unavailable"))
+            }
+        }
+    }
+
     /** Offline candle history is always labelled cache by the web bridge. */
     @PluginMethod
     fun getCandles(call: PluginCall) {

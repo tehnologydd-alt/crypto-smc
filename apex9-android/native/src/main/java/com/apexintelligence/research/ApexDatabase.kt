@@ -122,6 +122,13 @@ interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveCandles(rows: List<MarketCandle>)
 
+    /** Repair writes only missing records and never overwrites an earlier OHLCV. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertHistoricalCandlesOnce(rows: List<MarketCandle>): List<Long>
+
+    @Query("SELECT * FROM market_candles WHERE asset=:asset AND interval=:interval AND openTime >= :startTime AND openTime < :endExclusive ORDER BY openTime ASC")
+    suspend fun candlesInRange(asset: String, interval: String, startTime: Long, endExclusive: Long): List<MarketCandle>
+
     @Query("SELECT * FROM market_candles WHERE asset = :asset AND interval = :interval ORDER BY openTime DESC LIMIT :limit")
     suspend fun candles(asset: String, interval: String, limit: Int): List<MarketCandle>
 
