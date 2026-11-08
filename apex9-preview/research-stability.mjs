@@ -10,8 +10,8 @@ export function wilsonShare(count,total){
  const p=count/total,z2=Z*Z,denom=1+z2/total;
  const center=(p+z2/(2*total))/denom;
  const margin=Z*Math.sqrt((p*(1-p)+z2/(4*total))/total)/denom;
- return {share:p,lower:Math.max(0,center-margin),
-  upper:Math.min(1,center+margin),count,total};
+ return {share:p,lower:count===0?0:Math.max(0,center-margin),
+  upper:count===total?1:Math.min(1,center+margin),count,total};
 }
 const hidden=reason=>({state:'HIDDEN',reason:reason||'Исходные доли не подтверждены',
  patterns:[],periods:[],note:'Неполная история: интервалы скрыты'});
