@@ -166,12 +166,14 @@ const onChainDashboard=initOnChainDashboard();
 function updateTab(view){
  document.body.dataset.view=view;
  for(const tab of document.querySelectorAll('[data-tab]')){
-  const active=tab.dataset.tab===view||(tab.dataset.tab==='overview'&&['news','macro'].includes(view));
+  const active=tab.dataset.tab===view||
+   (tab.dataset.tab==='overview'&&['news','macro'].includes(view))||
+   (tab.dataset.tab==='forecasts'&&view==='quality');
   tab.classList.toggle('active',active);
   if(active)tab.setAttribute('aria-current','page');
   else tab.removeAttribute('aria-current');
  }
- for(const name of ['overview','asset','forecasts','sources','news','macro'])
+ for(const name of ['overview','asset','forecasts','sources','news','macro','quality'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
 
@@ -458,10 +460,8 @@ function navigate(view,targetId){
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
   if(view==='forecasts')favoriteManager.openForecasts();
-  if(view==='overview'){
-   evidenceDashboard.open();
-   favoriteManager.openOverviewSummary();
-  }
+  if(view==='quality')evidenceDashboard.open();
+  if(view==='overview')favoriteManager.openOverviewSummary();
   if(view==='news'||view==='macro')void editorialDashboard.open(view);
   const node=targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
