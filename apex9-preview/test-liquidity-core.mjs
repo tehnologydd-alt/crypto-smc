@@ -39,7 +39,9 @@ test('three independent recent points create retrospective change for one venue 
   sample('binance',1,{imbalance:0,spread:11}),
   sample('binance',2,{imbalance:.2,spread:10}),
   sample('bybit',2,{imbalance:-.5,spread:50})];
- const r=studyVisibleLiquidity(rows,{now,asset});
+ // The last test sample is captured 30 ms AFTER the nominal 'now'.
+ // Compare only once this synthetic reception actually happened.
+ const r=studyVisibleLiquidity(rows,{now:now+1000,asset});
  assert.equal(r.venues[0].status,'OBSERVED');
  assert.ok(Math.abs(r.venues[0].imbalanceChange-.4)<1e-9);
  assert.ok(Math.abs(r.venues[0].spreadChangeBps+2)<1e-9);
