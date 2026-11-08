@@ -122,3 +122,28 @@ export async function checkMobileResearchForecast(id){
   return {native:true,state:'ERROR',error:String(error?.message||error)};
  }
 }
+
+
+/** User-curated watchlist; authoritative 10-item cap enforced by DataStore. */
+export async function getMobileFavorites(){
+ const status=await getMobileStatus();
+ return {native:status.native===true,favorites:Array.isArray(status.favorites)?status.favorites:[],
+  limit:10,error:status.error};
+}
+export async function changeMobileFavorite(asset,add){
+ const native=plugin();
+ if(!native)throw Error('Избранное доступно в установленном Android APK.');
+ const response=await native.changeResearchFavorite({asset,add:Boolean(add)});
+ return {favorites:response?.favorites||[],limit:response?.limit||10};
+}
+/** APEX generates hypotheses by itself for favorites; user never creates them. */
+export async function syncMobileFavoriteResearch(){
+ const native=plugin();
+ if(!native)return {native:false,checked:0,reports:[]};
+ try{
+  const result=await native.syncFavoriteResearch();
+  return {native:true,checked:result?.checked||0,reports:result?.reports||[]};
+ }catch(error){
+  return {native:true,checked:0,reports:[],error:String(error?.message||error)};
+ }
+}
