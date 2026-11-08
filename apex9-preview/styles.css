@@ -631,3 +631,30 @@ html,body{overflow-x:hidden}
  .network-history{padding:11px 9px}
  .network-history canvas{height:170px}
 }
+
+
+/* On-chain ↔ Market Core: historical association, never a price call. */
+.onchain-match-panel{
+ border-top:1px solid #2b5b67;margin-top:20px;padding-top:17px
+}
+.onchain-match-panel .section-title h4{margin:0;font-size:16px;color:#daf7f4}
+.onchain-match-panel>.muted{font-size:11px;line-height:1.65;margin:10px 1px}
+.onchain-match-run{margin:8px 0;min-height:45px;font-size:12px;
+ border-color:#48b4bd9c;color:#baf7f1;background:#113139}
+#onchain-market-status{font-size:11px;line-height:1.6;min-height:20px}
+.onchain-match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:9px;margin:12px 0}
+.onchain-match-cell{border:1px solid #285863;background:#0a2029;border-radius:13px;
+ display:flex;flex-direction:column;justify-content:space-between;gap:9px;
+ padding:12px;min-height:74px;min-width:0}
+.onchain-match-cell span{font-size:11px;color:#99b9c2;line-height:1.4}
+.onchain-match-cell strong{font-size:17px;color:#b5eee6;font-variant-numeric:tabular-nums;
+ overflow-wrap:anywhere;line-height:1.35}
+.onchain-match-note{font-size:11px;line-height:1.75;color:#d4c096;
+ background:#142830;border:1px solid #355d63;border-radius:12px;
+ padding:11px 12px;margin:10px 0}
+@media(max-width:410px){
+ .onchain-match-grid{gap:7px}
+ .onchain-match-cell{padding:11px 10px}
+ .onchain-match-cell strong{font-size:15px}
+}
