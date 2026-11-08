@@ -740,3 +740,98 @@ html,body{overflow-x:hidden}
  border-radius:13px;margin:12px 0}
 @media(max-width:750px){.validation-fold-grid{grid-template-columns:1fr}}
 @media(min-width:550px) and (max-width:750px){.validation-fold-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* APEX mobile UX renovation: overview remains the only global dashboard. */
+body:not([data-view="overview"]) .overview-only{display:none!important}
+body:not([data-view="overview"]) .content{padding-top:15px}
+body:not([data-view="overview"]) .view{margin-top:6px}
+html{scroll-padding-top:18px}
+.editorial-actions{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
+ gap:12px;padding:5px 2px 13px;scroll-snap-type:x mandatory;
+ scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x}
+.editorial-actions .editorial-action{flex:0 0 clamp(180px,46%,320px)!important;
+ min-height:92px;border:1px solid #33717c;border-radius:22px;
+ display:flex;align-items:center;gap:12px;padding:13px 16px;
+ text-align:left;scroll-snap-align:start;background:#0b2933}
+.editorial-action .action-orb{width:49px!important;height:49px!important;min-width:49px;
+ border-radius:16px;font-size:25px!important;display:grid;place-items:center}
+.editorial-action>span:last-child{display:flex;flex-direction:column;gap:6px}
+.editorial-action strong{font-size:14px;color:#dbf8f4}
+.editorial-action small{font-size:10px;color:#a6bec7}
+.search-box{padding:13px 15px!important}
+.search-box>label{font-size:13px;font-weight:720}
+.search-row{gap:9px!important;margin-top:8px}
+.search-row input{min-height:43px!important;padding:9px 12px!important;font-size:15px!important}
+.search-row button{min-height:43px!important;padding:9px 15px!important;
+ font-size:13px!important}
+.search-help{margin-top:9px;color:#9abbc1;font-size:10px}
+.search-help summary{cursor:pointer;list-style:disclosure-closed}
+.search-help .microcopy{padding:8px 0 0;line-height:1.5}
+.favorites-toolbar{margin:9px 0 0}
+.favorite-toggle{min-height:37px;padding:7px 12px}
+.favorite-card.asset-chip{flex:0 0 270px!important;width:270px!important;
+ min-width:270px!important;height:111px!important;gap:7px!important;
+ padding:10px 7px 10px 12px!important;position:relative}
+.favorite-card .favorite-open{order:0;flex:1;min-width:0;min-height:78px;gap:7px}
+.favorite-card .favorite-names{max-width:87px}
+.favorite-card .coin-mark{width:37px;min-width:37px;height:37px;font-size:20px}
+.favorite-card .favorite-chart{order:1;flex:0 0 67px;height:42px;
+ align-self:center;display:block;overflow:hidden}
+.favorite-card .favorite-remove{order:2;flex:0 0 28px;min-width:28px}
+.apex-sparkline{display:block;width:100%;height:100%;overflow:hidden}
+.forecast-workspace{border:1px solid #367f8770}
+.forecast-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:15px 0 11px}
+.forecast-mode{min-height:43px;border:1px solid #32626a;color:#b1d4d8;
+ border-radius:12px;background:#10242c;font-weight:710;font-size:12px}
+.forecast-mode.selected{background:#175258;color:#b8f8f0;border-color:#47c2c5}
+.forecast-compact-stages{display:flex;overflow-x:auto;gap:7px;scroll-snap-type:x mandatory;
+ scrollbar-width:thin;padding:3px 0 12px}
+.forecast-compact-stage{flex:0 0 auto;min-height:39px;font-size:11px;padding:9px 11px;
+ background:#0b2931;color:#a9cdd0;border:1px solid #356971;border-radius:12px;
+ scroll-snap-align:start}
+.forecast-compact-stage.active{background:#16595c;border-color:#53d2cd;color:#eafffa}
+.forecast-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.forecast-follow,.forecast-open{border:1px solid #3c7e86;background:#0e343c;
+ border-radius:11px;color:#c9f2ea;min-height:40px;padding:8px 12px;
+ font-weight:650;font-size:11px}
+.forecast-follow[aria-pressed="true"]{background:#15554e;border-color:#4aaf9d}
+.forecast-mini-chart{width:100%;height:49px;background:#081e27;
+ border-radius:11px;margin:12px 0 4px;padding:4px 9px;box-sizing:border-box}
+.forecast-stat-all,.forecast-stat-tracked{margin-top:12px}
+.forecast-observation-stat{margin:13px 0;border-top:1px solid #2e555e;padding-top:12px}
+.forecast-observation-stat h4{font-size:12px;color:#d5f5ed;margin:0 0 11px}
+.forecast-stat-line{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.forecast-stat-value{display:flex;flex-direction:column;gap:6px;padding:9px 7px;
+ background:#0d2831;border:1px solid #345964;border-radius:12px}
+.forecast-stat-value span{font-size:10px;color:#9cb8c0}
+.forecast-stat-value strong{font-size:19px;color:#bcece4;font-variant-numeric:tabular-nums}
+.asset-auto-note{color:#a3c4ca;font-size:12px;line-height:1.7;margin:9px 0 15px}
+.asset-scenarios{border-color:#3c8c8b8c}
+.asset-range-line{display:flex;flex-direction:column;gap:7px;border:1px solid #397c7d;
+ background:#0b2932;border-radius:12px;margin-top:10px;padding:11px}
+.asset-range-line strong{font-size:12px;color:#c6eee8}
+.asset-range-line span{font-size:18px;color:#8cece3;font-variant-numeric:tabular-nums}
+.asset-range-line small{font-size:10px;color:#8fb9c1;line-height:1.6}
+body[data-view="asset"] .asset-manual-control{display:none!important}
+body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
+.editorial-view>.muted{font-size:12px;line-height:1.75;margin:12px 0 20px}
+.editorial-feed{display:grid;gap:10px;margin:14px 0}
+.editorial-story{border:1px solid #2c6170;border-radius:16px;
+ background:linear-gradient(135deg,#0b2833,#081b24);padding:15px 14px;
+ min-width:0;display:flex;flex-direction:column;gap:11px}
+.editorial-story-title{font-size:14px;font-weight:700;line-height:1.6;color:#d7f5f2;
+ text-decoration:none;overflow-wrap:anywhere}
+.editorial-story-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
+ font-size:11px;color:#8fb3bc}
+.macro-source-links{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0}
+.macro-source-links a{display:inline-block;font-size:11px;color:#a7eeeb;
+ background:#11313d;border:1px solid #356c79;border-radius:12px;
+ padding:11px 12px;text-decoration:none}
+@media(max-width:420px){
+ .editorial-actions .editorial-action{flex-basis:210px!important}
+ .favorite-card.asset-chip{flex-basis:253px!important;width:253px!important;min-width:253px!important}
+ .favorite-card .favorite-chart{flex-basis:57px}
+ .forecast-stat-line{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .forecast-stat-value strong{font-size:17px}
+}
