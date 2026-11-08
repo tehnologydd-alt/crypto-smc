@@ -58,7 +58,7 @@ jobs:
           node --check apex9-preview/research.mjs
           node --check apex9-preview/context-sources.mjs
           node --check apex9-preview/mobile-bridge.mjs
-          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs
 
       - name: Install Capacitor and stage web assets
         working-directory: apex9-android
