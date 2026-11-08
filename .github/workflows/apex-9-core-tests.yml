@@ -28,7 +28,7 @@ jobs:
           node --check apex9-preview/context-sources.mjs
           node --check updates/v90-evidence.mjs
           node --check updates/v90-market-depth.mjs
-          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs apex9-preview/test-liquidity-core.mjs apex9-preview/test-level-observer.mjs apex9-preview/test-onchain-core.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs apex9-preview/test-liquidity-core.mjs apex9-preview/test-level-observer.mjs apex9-preview/test-onchain-core.mjs apex9-preview/test-onchain-market-compare.mjs
       - name: Package standalone APEX research prototype
         run: zip -r APEX9-Research-Web-Preview.zip apex9-preview updates/v90-evidence.mjs updates/v90-market-depth.mjs
       - uses: actions/upload-artifact@v4
