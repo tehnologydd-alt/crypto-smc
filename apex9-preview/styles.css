@@ -341,3 +341,14 @@ body[data-view]:not([data-view="overview"]) .search-box{margin-bottom:18px}
 .update-link{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:11px 15px;border-radius:14px;background:linear-gradient(130deg,#53ebeb,#159ba9);color:#001a22;font-weight:750;font-size:12px;text-decoration:none}
 .update-controls .ghost{min-height:43px}
 #update-status{line-height:1.65}
+
+/* Android native research history: screen-reader friendly, no dashboard noise */
+.native-storage-panel{border-color:#38959b85}
+.native-storage-panel .section-title h3{margin:0}
+.native-setting{display:flex;align-items:center;gap:13px;margin-top:18px;padding:15px 13px;
+ background:linear-gradient(130deg,#102934,#0b1b22);border:1px solid #235e6696;border-radius:15px;
+ color:#e2f8f7;font-size:13px;font-weight:650;cursor:pointer;min-height:62px}
+.native-setting input{accent-color:#37dde3;width:21px;height:21px;flex-shrink:0}
+.native-setting small{display:block;color:#9eb6be;font-size:11px;font-weight:400;line-height:1.6;margin-top:3px}
+.native-history{margin-top:15px}
+.native-history .source-line{min-height:66px}
