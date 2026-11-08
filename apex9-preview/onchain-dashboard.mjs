@@ -5,6 +5,7 @@
 import {chainForAsset,collectOnChainNetwork,summarizeOnChainHistory,
  parseOnChainHistory} from './onchain-core.mjs';
 import {getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
+import {initOnChainMarketDashboard} from './onchain-market-dashboard.mjs';
 const get=id=>document.getElementById(id);
 const fmt=(v,digits=2)=>Number.isFinite(v)?
  new Intl.NumberFormat('ru-RU',{maximumFractionDigits:digits}).format(v):'—';
@@ -15,7 +16,11 @@ function node(tag,cls,text){
  if(text!==undefined)el.textContent=String(text);
  return el;
 }
-const chainNames={bitcoin:'Bitcoin · сеть BTC',ethereum:'Ethereum · сеть ETH'};
+const chainNames={
+ bitcoin:'Bitcoin · сеть BTC',
+ ethereum:'Ethereum · сеть ETH',
+ ton:'GRAM · сеть TON'
+};
 const keys={
  bitcoin:[
   ['Ожидают в mempool','mempoolCount',' транзакций'],
@@ -29,6 +34,9 @@ const keys={
   ['Загрузка сети','networkUtilizationPct','%'],
   ['Среднее время блока','averageBlockTimeSeconds',' с'],
   ['Средняя оценка gas','averageGasGwei',' Gwei']
+ ],
+ ton:[
+  ['Последний номер блока masterchain','masterchainSeqno','']
  ]
 };
 function draw(canvas,rows,chain){
@@ -40,7 +48,8 @@ function draw(canvas,rows,chain){
  if(!ctx)return;
  ctx.setTransform(dpr,0,0,dpr,0,0);
  ctx.fillStyle='#071923';ctx.fillRect(0,0,w,h);
- const field=chain==='bitcoin'?'mempoolCount':'transactionsToday';
+ const field=chain==='bitcoin'?'mempoolCount':
+  chain==='ethereum'?'transactionsToday':'masterchainSeqno';
  const sorted=rows.filter(x=>Number.isFinite(x[field])).slice(-80);
  ctx.font='11px system-ui';ctx.fillStyle='#99b8be';
  if(sorted.length<2){
@@ -95,6 +104,7 @@ function renderMetrics(chain,latest,stale){
   'Снимок из локальной истории. Значения не являются текущими данными сети.'));
 }
 export function initOnChainDashboard(){
+ const marketComparison=initOnChainMarketDashboard();
  let generation=0,lastAsset='',lastFetchedAt=0,abort=null,rows=[],activeChain=null;
  const canvas=get('network-history-chart');
  const redraw=()=>draw(canvas,rows,activeChain);
@@ -125,12 +135,13 @@ export function initOnChainDashboard(){
   if(asset!==lastAsset){
    generation++;abort?.abort();abort=null;rows=[];activeChain=null;lastFetchedAt=0;
    lastAsset=asset;
+   marketComparison.setAsset(asset);
   }
   const seq=++generation;
   if(!chain){
    get('network-name').textContent='Адаптер сети не подключён';
    get('network-history-count').textContent='0 записей';
-   get('network-history-note').textContent='Не используем данные BTC или ETH для других монет.';
+   get('network-history-note').textContent='Не подставляем сведения чужой блокчейн-сети.';
    renderMetrics(null,null,true);
    rows=[];activeChain=null;redraw();
    setStatus('Для '+asset+' нет прямого проверенного ончейн-источника. История другой сети не подставляется.',true);
@@ -185,6 +196,7 @@ export function initOnChainDashboard(){
  get('network-refresh').addEventListener('click',()=>void refresh(lastAsset,true));
  return {refresh,clear(asset){
   generation++;abort?.abort();abort=null;lastAsset=asset;
+  marketComparison.setAsset(asset);
   lastFetchedAt=0;rows=[];activeChain=null;
   get('network-metrics').replaceChildren();
   get('network-history-count').textContent='0 записей';
