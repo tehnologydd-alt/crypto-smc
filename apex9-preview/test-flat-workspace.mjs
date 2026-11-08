@@ -63,3 +63,9 @@ test('contextual explanation always opens a visible research summary',()=>{
  assert.ok(css.includes('data-quality-entry="dock"'));
  assert.ok(app.includes("button.setAttribute('aria-pressed',String(active))"));
 });
+
+test('contextual research entry keeps direct task selector visible',()=>{
+ assert.ok(app.includes("view==='quality'&&targetId?"));
+ assert.ok(app.includes("el('quality-workspace-anchor')"));
+ assert.ok(html.includes('id="quality-workspace-anchor"'));
+});
