@@ -1385,3 +1385,38 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  border-radius:12px;color:#b0c8ca}
 @media(max-width:365px){.transition-matrix-row>*{padding:8px 3px;
  font-size:9px}.transition-matrix-row .transition-count{font-size:13px}}
+
+/* APEX Research Holdout: compact source-audited historical check */
+.regime-holdout{margin-top:19px;padding:14px 12px;border:1px solid #42717c;
+ border-radius:15px;background:#0b2630}
+.regime-holdout-heading,.holdout-mode-head{display:flex;
+ justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;
+ cursor:pointer;line-height:1.5}
+.regime-holdout-heading strong{font-size:13px;color:#daf3e9}
+.regime-holdout-heading span,.holdout-mode-head span{
+ font-size:10px;color:#a8c7ca}
+.regime-holdout-heading::marker,.holdout-mode-head::marker{color:#6bcbc0}
+.regime-holdout[open]>.regime-holdout-heading{margin-bottom:12px}
+.holdout-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;margin:12px 0}
+.holdout-overview-tile{background:#123740;border:1px solid #37616a;
+ border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:7px}
+.holdout-overview-tile span{font-size:10px;color:#a9c7cb;line-height:1.5}
+.holdout-overview-tile strong{font-size:18px;color:#d9f5eb}
+.holdout-mode{margin:6px 0;padding:12px 0;border-top:1px solid #35606a}
+.holdout-mode-head strong{font-size:12px;color:#d6f1e7}
+.holdout-mode[open]>.holdout-mode-head{margin-bottom:11px}
+.holdout-destination{background:#102f3b;padding:11px;
+ border-radius:11px;border:1px solid #315c67;margin:10px 0}
+.holdout-destination-head{display:flex;justify-content:space-between;
+ flex-wrap:wrap;gap:9px}
+.holdout-destination-head strong,.holdout-destination-head small{
+ font-size:10px;line-height:1.5;color:#c7e5df}
+.holdout-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;margin-top:10px}
+.holdout-rate{min-width:0;padding:10px 8px;border:1px solid #355f68;
+ border-radius:9px;background:#123942;display:flex;flex-direction:column;gap:7px}
+.holdout-rate span,.holdout-rate small{font-size:10px;color:#a6c8ca;line-height:1.5}
+.holdout-rate strong{font-size:15px;font-variant-numeric:tabular-nums;color:#dcf5eb}
+.holdout-disclosure{background:#0b2029;border:1px solid #315965;
+ border-radius:12px;padding:11px;font-size:10px;line-height:1.7;color:#b1c6ca}
