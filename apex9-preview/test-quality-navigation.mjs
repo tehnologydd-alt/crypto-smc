@@ -45,7 +45,7 @@ test('visible quality entry is before long Forecasts journal',()=>{
 test('the router explicitly controls quality visibility and dock selection',()=>{
  assert.match(app,/['"]quality['"]\]/);
  assert.match(app,/view==='quality'/);
- assert.match(app,/if\(view==='quality'\)evidenceDashboard\.open\(\)/);
+ assert.match(app,/if\(view==='quality'\)\{\s*evidenceDashboard\.open\(\)/);
  assert.match(app,/tab\.dataset\.tab==='forecasts'&&view==='quality'/);
 });
 test('no duplicate HTML IDs were introduced',()=>{

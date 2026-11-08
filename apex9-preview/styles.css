@@ -1531,3 +1531,35 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  border-radius:11px;padding:12px;font-size:10px;line-height:1.75;color:#a9c6cb}
 @media(min-width:760px){.synthesis-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
  .synthesis-audits{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+/* Explainability: source-aware passport entry and phone-tap favorite CTA */
+.asset-explain-panel{display:flex;flex-direction:column;gap:12px;
+ padding:14px;margin:12px 0 17px;border:1px solid #396775;
+ border-radius:16px;background:linear-gradient(135deg,#103440,#0d2632)}
+.asset-explain-copy{min-width:0}
+.asset-explain-copy>strong{font-size:13px;line-height:1.55;color:#dcf5eb}
+.asset-explain-copy p{font-size:11px;line-height:1.55;
+ color:#b1d0d2;margin:7px 0}
+.asset-explain-copy small{display:block;font-size:10px;
+ line-height:1.6;color:#9bbac3}
+.asset-explain-copy p[data-state="CHECKED"]{color:#8fdccd}
+.asset-explain-copy p[data-state="PARTIAL"]{color:#e1c494}
+.asset-explain-copy p[data-state="BLOCKED"]{color:#e3b99b}
+#asset-explain{min-height:46px;border:1px solid #4e9294;
+ background:#185057;color:#e6faf1;border-radius:11px;
+ padding:12px;font-size:12px;font-weight:700;line-height:1.35}
+#asset-explain:focus-visible,.favorite-explain:focus-visible{
+ outline:2px solid #8df4ee;outline-offset:3px}
+.asset-chip.favorite-card{flex-basis:244px;width:244px;min-width:244px;
+ padding-right:9px}
+.favorite-explain{flex:0 0 57px;min-width:57px;min-height:38px;
+ border:1px solid #36757e;background:#12414a;color:#c1f5e8;
+ border-radius:9px;font-size:10px;font-weight:700;padding:6px 3px;
+ margin-right:6px}
+.favorite-explain:active,#asset-explain:active{background:#1b646b}
+@media(min-width:700px){.asset-explain-panel{
+ flex-direction:row;justify-content:space-between;align-items:center}
+ #asset-explain{flex-shrink:0}}
+@media(max-width:355px){.asset-chip.favorite-card{
+ flex-basis:231px;width:231px;min-width:231px}
+ .favorite-explain{flex-basis:52px;min-width:52px;margin-right:3px}}
