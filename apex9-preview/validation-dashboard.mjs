@@ -63,7 +63,11 @@ export function initValidationDashboard(){
  const message=(text,warning=false)=>{
   status.textContent=text;status.classList.toggle('is-offline',warning);
  };
- const clear=()=>{generation++;results.replaceChildren();};
+ const clear=()=>{
+  // Invalidate the old read and re-enable the control if the asset changes
+  // during a native Room request; its late answer must never overwrite UI.
+  generation++;busy=false;button.disabled=false;results.replaceChildren();
+ };
  async function run(){
   if(busy)return;
   const selected=get('evidence-asset').value;
