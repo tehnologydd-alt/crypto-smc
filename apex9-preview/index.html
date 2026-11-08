@@ -196,7 +196,7 @@
         <p class="footnote">Капитализация и доминирование BTC относятся ко всему крипторынку, а не к прогнозу выбранного актива.</p>
       </article>
       <article class="card block network-panel" id="onchain-network-panel">
-        <div class="section-title"><h3>On-Chain Core · сеть</h3><span>BTC / ETH</span></div>
+        <div class="section-title"><h3>On-Chain Core · сеть</h3><span>BTC · ETH · GRAM</span></div>
         <p class="muted" id="network-status" role="status" aria-live="polite">Проверяем доступность сетевого адаптера…</p>
         <div class="network-heading">
           <strong id="network-name">Сетевая статистика</strong>
@@ -211,7 +211,15 @@
              role="img" aria-label="История сохранённых наблюдений о состоянии выбранной сети">График требует Canvas.</canvas>
           <p id="network-history-note" class="muted">История хранится на этом Android-телефоне.</p>
         </div>
-        <p class="footnote">Данные mempool.space и Blockscout характеризуют публичную активность сетей, а не покупки, продажи, действия отдельных адресов или вероятность изменения курса. Время наблюдения — момент получения информации телефоном.</p>
+        <section class="onchain-match-panel" aria-label="Сопоставление истории блокчейна и рынка">
+          <div class="section-title"><h4>Сеть и рынок · история</h4><span>H1 / локально</span></div>
+          <p class="muted">APEX сопоставляет ранее полученные сетевые снимки с последними завершёнными часовыми свечами, доступными на момент наблюдений. Важны совпадающие часы и отсутствие пропусков.</p>
+          <button id="onchain-market-run" type="button" class="ghost onchain-match-run">Сопоставить историю</button>
+          <p id="onchain-market-status" class="chart-status" aria-live="polite">Для проверки необходимо накопить сетевые наблюдения.</p>
+          <div id="onchain-market-results"></div>
+          <p class="footnote">Корреляция рассчитывается только при достаточной истории и не означает причинность, точность прогноза или рекомендацию совершать сделки.</p>
+        </section>
+        <p class="footnote">Данные mempool.space, Blockscout и TON Center характеризуют публичное состояние сетей. Для GRAM отслеживается номер блока TON masterchain, а не число транзакций монеты. Время наблюдения — момент получения информации телефоном.</p>
         <div id="btc-chain-context" hidden aria-hidden="true"></div>
       </article>
     </section>
