@@ -15,7 +15,7 @@ const javaRoot=join(appRoot,'src/main/java');
 const nativeRoot=join(project,'native/src/main/java/com/apexintelligence/research');
 if(!existsSync(appGradle)||!existsSync(rootGradle)||!existsSync(javaRoot))
  throw Error('Run npx cap add android first');
-const nativeFiles=['ApexDatabase.kt','ApexPreferences.kt','ApexSyncWorker.kt','ApexNativePlugin.kt'];
+const nativeFiles=['ApexDatabase.kt','ApexPreferences.kt','ApexSyncWorker.kt','ApexNativePlugin.kt','ApexAutoForecast.kt'];
 for(const file of nativeFiles)if(!existsSync(join(nativeRoot,file)))throw Error('Native Kotlin file missing: '+file);
 
 let root=readFileSync(rootGradle,'utf8');
@@ -116,6 +116,17 @@ if(!contents.includes('registerPlugin(ApexNativePlugin')){
     }`);
  }
  writeFileSync(main,contents);
+}
+// Replace the empty generated activity with our maintained Android 15+ inset-safe
+// activity, preserving native plugin registration and preventing system bar overlap.
+if(main.endsWith('.java')){
+ const nativeMain=join(project,'native/MainActivity.java');
+ if(!existsSync(nativeMain))throw Error('APEX native MainActivity is missing');
+ const replacement=readFileSync(nativeMain,'utf8');
+ if(!replacement.includes('registerPlugin(ApexNativePlugin.class)')||
+    !replacement.includes('setOnApplyWindowInsetsListener'))
+  throw Error('APEX native MainActivity missing plugin or safe-area handling');
+ writeFileSync(main,replacement);
 }
 if(!readFileSync(main,'utf8').includes('registerPlugin(ApexNativePlugin'))
  throw Error('Native plugin registration missing');
