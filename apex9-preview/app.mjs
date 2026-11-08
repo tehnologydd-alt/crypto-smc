@@ -191,7 +191,8 @@ const candleView=new CandleChart(el('candle-canvas'),{
 let candleInterval='1h',candleGeneration=0,candleController=null,
  candleLastKey='',candleLastAt=0;
 let scenarioRequest=0,scenarioMode='all',focusedScenarioId=null,
- lastScenarioRows=[],lastScenarioAsset='',lastScenarioFetchedAt=0;
+ lastScenarioRows=[],lastScenarioAsset='',lastScenarioFetchedAt=0,
+ lastScenarioTruncated=false;
 
 function trackedResearchIds(){
  try{
@@ -213,7 +214,11 @@ function renderScenarioMap(asset){
  const onH1=candleInterval==='1h';
  candleView.setInterval(candleInterval);
  candleView.setScenarios(onH1?map.scenarios:[]);
- const extra=map.hidden?' · ещё '+map.hidden+' вне мини-карты':'';
+ const extra=(map.hidden?' · ещё '+map.hidden+' вне мини-карты':'')+
+  (lastScenarioTruncated?' · журнал частичный (последние 75 записей)':'');
+ const focus=map.scenarios.find(sc=>sc.focused);
+ if(focus&&onH1&&candleView.data.length)
+  candleView.focusOnScenario(focus.anchorCloseAt);
  const context=onH1?' · показываем только реальные H1-свечи':
   ' · метки доступны только при выборе H1';
  text('asset-scenario-status',map.state==='INVALID'?
@@ -267,6 +272,7 @@ function renderScenarioMap(asset){
 async function showAssetScenarios(asset,{force=false}={}){
  if(lastScenarioAsset!==asset){
   lastScenarioAsset=asset;lastScenarioRows=[];lastScenarioFetchedAt=0;
+  lastScenarioTruncated=false;
   candleView.setScenarios([]);
  }
  if(!force&&lastScenarioFetchedAt&&Date.now()-lastScenarioFetchedAt<15000){
@@ -285,6 +291,8 @@ async function showAssetScenarios(asset,{force=false}={}){
    return;
   }
   lastScenarioRows=Array.isArray(results.forecasts)?results.forecasts:[];
+  lastScenarioTruncated=Number.isSafeInteger(results.publishedCount)&&
+   results.publishedCount>lastScenarioRows.length;
   lastScenarioFetchedAt=Date.now();
   renderScenarioMap(asset);
  }catch(error){
