@@ -78,6 +78,20 @@ data class ResearchForecastResult(
     val actualChangePct: Double
 )
 
+/** Separate append-only stage log; original published hypothesis never changes. */
+@Entity(
+    tableName = "research_forecast_stages",
+    primaryKeys = ["forecastId", "stage"],
+    indices = [Index(value = ["recordedAt"])]
+)
+data class ResearchForecastStage(
+    val forecastId: String,
+    val stage: String,
+    val observedAt: Long,
+    val recordedAt: Long,
+    val explanation: String
+)
+
 @Dao
 interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -122,6 +136,18 @@ interface ResearchDao {
     @Query("SELECT * FROM research_forecasts WHERE id=:id LIMIT 1")
     suspend fun researchForecast(id: String): ResearchForecast?
 
+    @Query("SELECT * FROM research_forecasts WHERE asset=:asset ORDER BY publishedAt DESC LIMIT 1")
+    suspend fun latestResearchForecast(asset: String): ResearchForecast?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun appendResearchStage(row: ResearchForecastStage): Long
+
+    @Query("SELECT * FROM research_forecast_stages WHERE forecastId=:id ORDER BY observedAt, recordedAt")
+    suspend fun stagesForResearch(id: String): List<ResearchForecastStage>
+
+    @Query("SELECT * FROM research_forecast_stages WHERE forecastId IN (:ids)")
+    suspend fun researchStages(ids: List<String>): List<ResearchForecastStage>
+
     @Query("SELECT * FROM research_forecasts ORDER BY publishedAt DESC LIMIT :limit")
     suspend fun researchForecasts(limit: Int): List<ResearchForecast>
 
@@ -136,8 +162,11 @@ interface ResearchDao {
 }
 
 @Database(
-    entities = [ResearchObservation::class, ResearchForecast::class, MarketCandle::class, ResearchForecastResult::class],
-    version = 3,
+    entities = [
+        ResearchObservation::class, ResearchForecast::class,
+        MarketCandle::class, ResearchForecastResult::class, ResearchForecastStage::class
+    ],
+    version = 4,
     exportSchema = true
 )
 abstract class ApexDatabase : RoomDatabase() {
@@ -176,6 +205,19 @@ abstract class ApexDatabase : RoomDatabase() {
             }
         }
 
+        private val migration3To4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS research_forecast_stages (" +
+                    "forecastId TEXT NOT NULL, stage TEXT NOT NULL, " +
+                    "observedAt INTEGER NOT NULL, recordedAt INTEGER NOT NULL, " +
+                    "explanation TEXT NOT NULL, PRIMARY KEY(forecastId, stage))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_research_forecast_stages_recordedAt " +
+                    "ON research_forecast_stages(recordedAt)")
+            }
+        }
+
         @Volatile private var instance: ApexDatabase? = null
         fun get(context: Context): ApexDatabase =
             instance ?: synchronized(this) {
@@ -183,7 +225,7 @@ abstract class ApexDatabase : RoomDatabase() {
                     context.applicationContext,
                     ApexDatabase::class.java,
                     "apex-research-history.db"
-                ).addMigrations(migration1To2, migration2To3).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3, migration3To4).build().also { instance = it }
             }
     }
 }
