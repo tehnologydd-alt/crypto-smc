@@ -82,10 +82,16 @@ export function mapScenarioToViewport(scenario,bars,{interval='1h'}={}){
  if(indices.length)segments.push({from:indices[0].index,to:indices.at(-1).index});
  const marks=[];
  for(const mark of scenario.milestones||[]){
-  const index=indexByClose.get(mark.observedAt);
-  if(!Number.isSafeInteger(index)||mark.observedAt<scenario.anchorCloseAt||
-   mark.observedAt>scenario.targetCloseAt)continue;
-  marks.push({index,key:mark.key,label:mark.label,observedAt:mark.observedAt});
+  // Publication is shortly AFTER its last known H1 close. Its anchor is that
+  // actual bar, not an invented candle at the HTTP/save timestamp.
+  const sourceCloseAt=mark.key==='PUBLISHED'?
+   scenario.anchorCloseAt:mark.observedAt;
+  const index=indexByClose.get(sourceCloseAt);
+  if(!Number.isSafeInteger(index)||sourceCloseAt<scenario.anchorCloseAt||
+   sourceCloseAt>scenario.targetCloseAt)continue;
+  if(bars[index]?.closed!==true)continue;
+  marks.push({index,key:mark.key,label:mark.label,
+   observedAt:mark.observedAt,sourceCloseAt});
  }
  return {visible:true,segments,marks,
   from:eligible[0].index,to:eligible.at(-1).index};
