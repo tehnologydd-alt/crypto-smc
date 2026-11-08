@@ -1165,3 +1165,17 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .patterns-metric{padding:10px}
  .patterns-metric strong{font-size:19px}
 }
+
+/* Compact Research Stability disclosure */
+.patterns-stability{margin-top:17px;padding:15px 13px;border:1px solid #3b7480;
+ border-radius:16px;background:#0a212b}
+.patterns-stability h5{margin:0 0 12px;font-size:14px;line-height:1.5;color:#daf8f1}
+.patterns-stability-item{padding:12px 0;border-top:1px solid #32525d}
+.patterns-stability-item>strong{font-size:12px;color:#ccece6;line-height:1.55}
+.patterns-stability-intervals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;margin:10px 0}
+.patterns-stability-interval{display:flex;flex-direction:column;gap:6px;min-width:0;
+ padding:10px 8px;border-radius:10px;background:#102f3a;border:1px solid #305e69}
+.patterns-stability-interval span{font-size:10px;color:#a4c3c9;line-height:1.5}
+.patterns-stability-interval b{font-size:11px;color:#d5f5ee;font-variant-numeric:tabular-nums}
+@media(max-width:370px){.patterns-stability-intervals{grid-template-columns:1fr}}

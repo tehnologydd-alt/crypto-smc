@@ -5,6 +5,7 @@
  */
 import {getMobileResearchForecasts,getMobileCandles} from './mobile-bridge.mjs';
 import {compareCompletedResearch,PATTERN_KINDS,PATTERN_RULES} from './research-patterns.mjs';
+import {analyzeResearchStability} from './research-stability.mjs';
 const get=id=>document.getElementById(id);
 const node=(tag,cls='',txt)=>{
  const n=document.createElement(tag);
@@ -88,6 +89,38 @@ export function initResearchPatternsDashboard(){
    group.append(card);
   }
   cards.append(group);
+  const stability=analyzeResearchStability(result);
+  const panel=node('section','patterns-stability');
+  panel.append(node('h5','','Research Stability · неопределённость истории'));
+  if(stability.state==='DESCRIPTIVE'){
+   panel.append(node('p','patterns-note',
+    'Исторические доли и ориентировочные интервалы неопределённости. Не вероятность будущего прогноза.'));
+   for(const pattern of stability.patterns){
+    const item=node('div','patterns-stability-item');
+    item.append(node('strong','',pattern.label));
+    const line=node('div','patterns-stability-intervals');
+    for(const p of pattern.periods){
+     const cell=node('div','patterns-stability-interval');
+     cell.append(node('span','',p.name+' · '+int(p.count)+'/'+int(p.total)),
+      node('b','',pct(p.lower)+' – '+pct(p.upper)));
+     line.append(cell);
+    }
+    const delta=pattern.earlyLateChange*100;
+    item.append(line,node('p','patterns-variation',
+     'Ранний → поздний: '+(delta>=0?'+':'')+
+      new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(delta)+
+      ' п.п. · '+(pattern.commonWilsonIntersection?
+       'Интервалы пересекаются; устойчивость не доказана.':
+       'Общего пересечения нет; различия требуют отдельной проверки.')));
+    panel.append(item);
+   }
+   panel.append(node('p','patterns-note',stability.note));
+  }else{
+   panel.append(node('p','patterns-insufficient',
+    'Интервалы скрыты: '+stability.reason+
+    '. Нельзя делать выводы из неполной или повреждённой истории.'));
+  }
+  cards.append(panel);
   const caveat=node('p','patterns-note',
    'Периоды поделены хронологически по числу наблюдений, а не по календарным кварталам. '+
    'Каждый проверенный сценарий относится только к одному активу. '+
