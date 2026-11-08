@@ -72,7 +72,12 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 dao.saveObservation(record)
                 dao.pruneObservations(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(14))
             }
-            // No source coverage if unavailable; never save synthetic data.
+            // User opted in: scan at most ten favorites for reproducible H1
+            // hypotheses while Android permits background network activity.
+            // All actual observation logic is in the same Kotlin core as foreground.
+            if (settings.favorites.isNotEmpty()) {
+                ApexAutoForecast.syncAll(applicationContext, settings.favorites)
+            }
             Result.success()
         } catch (_: java.io.IOException) {
             Result.retry()
@@ -96,11 +101,11 @@ object ApexSyncScheduler {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .setRequiresBatteryNotLow(true)
             .build()
-        val request = PeriodicWorkRequestBuilder<ApexSyncWorker>(30, TimeUnit.MINUTES)
+        val request = PeriodicWorkRequestBuilder<ApexSyncWorker>(60, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
         manager.enqueueUniquePeriodicWork(
-            UNIQUE_NAME, ExistingPeriodicWorkPolicy.KEEP, request
+            UNIQUE_NAME, ExistingPeriodicWorkPolicy.UPDATE, request
         )
     }
 }
