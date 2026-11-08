@@ -118,6 +118,37 @@ export async function getMobileResearchForecasts(limit=40){
    error:String(error?.message||error)};
  }
 }
+
+/** Verified selected-asset archive: old APK global-journal fallback is rejected. */
+export async function getMobileAssetResearchForecasts(asset,limit=75){
+ const native=plugin();
+ const empty={native:Boolean(native),asset,assetScoped:false,forecasts:[],
+  publishedCount:null,evaluatedCount:null,complete:false,
+  source:'LOCAL_ROOM_JOURNAL'};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{5,20}$/.test(asset))
+  return {...empty,error:'Некорректный актив для локального аудита.'};
+ if(!native)return {...empty,error:'Требуется установленный Android APK.'};
+ const safeLimit=Number.isSafeInteger(limit)?Math.min(75,Math.max(1,limit)):75;
+ try{
+  const data=await native.getResearchForecasts({asset,limit:safeLimit});
+  if(data?.assetScoped!==true||data?.asset!==asset)
+   throw Error('Android не поддерживает проверенную выборку по активу. Обновите APEX.');
+  if(!Array.isArray(data.forecasts)||data.forecasts.length>safeLimit||
+   !Number.isSafeInteger(data.publishedCount)||
+   !Number.isSafeInteger(data.evaluatedCount)||
+   data.publishedCount<0||data.evaluatedCount<0||
+   data.evaluatedCount>data.publishedCount||
+   data.publishedCount<data.forecasts.length||
+   data.forecasts.some(x=>x?.asset!==asset))
+   throw Error('Журнал Room вернул непроверяемую выборку по активу.');
+  return {...empty,assetScoped:true,
+   forecasts:data.forecasts,publishedCount:data.publishedCount,
+   evaluatedCount:data.evaluatedCount,
+   complete:data.forecasts.length===data.publishedCount};
+ }catch(error){
+  return {...empty,error:String(error?.message||error)};
+ }
+}
 export async function checkMobileResearchForecast(id){
  const native=plugin();
  if(!native)return {native:false,state:'UNSUPPORTED'};

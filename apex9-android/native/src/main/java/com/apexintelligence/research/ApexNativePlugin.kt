@@ -373,11 +373,19 @@ class ApexNativePlugin : Plugin() {
     /** Read the whole immutable history. No loss/profit/trading statistics. */
     @PluginMethod
     fun getResearchForecasts(call: PluginCall) {
+        // Legacy global query remains available when no asset was supplied.
+        // Scoped result explicitly attests its asset to older bridge clients.
+        val requestedAsset = call.getString("asset")
+        if (requestedAsset != null && !assetRegex.matches(requestedAsset)) {
+            call.reject("Invalid research asset")
+            return
+        }
         val limit = call.data.optInt("limit", 40).coerceIn(1, 75)
         tasks.launch {
             try {
                 val dao = ApexDatabase.get(context).researchDao()
-                val published = dao.researchForecasts(limit)
+                val published = if (requestedAsset == null) dao.researchForecasts(limit)
+                    else dao.researchForecastsForAsset(requestedAsset, limit)
                 val outcomes = if (published.isEmpty()) emptyMap() else
                     dao.researchResults(published.map { it.id }).associateBy { it.forecastId }
                 val stages = if (published.isEmpty()) emptyMap() else
@@ -422,8 +430,12 @@ class ApexNativePlugin : Plugin() {
                 }
                 val response = JSObject()
                 response.put("forecasts", rows)
-                response.put("publishedCount", dao.forecastCount())
-                response.put("evaluatedCount", dao.researchResultCount())
+                response.put("publishedCount", if (requestedAsset == null)
+                    dao.forecastCount() else dao.forecastCountForAsset(requestedAsset))
+                response.put("evaluatedCount", if (requestedAsset == null)
+                    dao.researchResultCount() else dao.researchResultCountForAsset(requestedAsset))
+                response.put("assetScoped", requestedAsset != null)
+                if (requestedAsset != null) response.put("asset", requestedAsset)
                 response.put("source", "LOCAL_ROOM_JOURNAL")
                 call.resolve(response)
             } catch (e: Exception) {

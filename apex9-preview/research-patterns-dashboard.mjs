@@ -3,7 +3,7 @@
  * User initiates the audit; all data come from existing Room journal and
  * completed cached H1 candles; no remote calls, fake rates or trading UI.
  */
-import {getMobileResearchForecasts,getMobileCandles} from './mobile-bridge.mjs';
+import {getMobileAssetResearchForecasts,getMobileCandles} from './mobile-bridge.mjs';
 import {compareCompletedResearch,PATTERN_KINDS,PATTERN_RULES} from './research-patterns.mjs';
 import {analyzeResearchStability} from './research-stability.mjs';
 const get=id=>document.getElementById(id);
@@ -40,6 +40,13 @@ export function initResearchPatternsDashboard(){
   summary.append(c);
  }
  function render(result){
+  metric('Всего исследований выбранного актива',
+   result.totalPublished===null?'—':int(result.totalPublished),
+   'Сохранённые исследования этого актива в Room');
+  metric('Записей загружено и проверено',
+   int(result.loadedForAsset),result.truncated?
+    'Ограничение 75 последних записей; проценты скрыты':
+    'История отобрана для одного актива');
   metric('Завершённых с фактической H1-историей',
    int(result.counts.accepted),'Неперекрывающиеся четырёхчасовые горизонты');
   metric('Не хватает сохранённых свечей',
@@ -137,11 +144,12 @@ export function initResearchPatternsDashboard(){
    ' с пятью завершёнными H1-свечами каждого сценария…');
   try{
    const [journal,candles]=await Promise.all([
-    getMobileResearchForecasts(75),
+    getMobileAssetResearchForecasts(asset,75),
     getMobileCandles(asset,'1h',500)
    ]);
    if(seq!==serial||select.value!==asset)return;
-   if(!journal.native||!candles.native||journal.error||candles.error)
+   if(!journal.native||!candles.native||!journal.assetScoped||
+    journal.asset!==asset||journal.error||candles.error)
     throw Error(journal.error||candles.error||
      'Исследование доступно только в установленном Android APK.');
    const result=compareCompletedResearch(

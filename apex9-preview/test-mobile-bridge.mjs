@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles ,getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileAssetResearchForecasts ,getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
 const originalWindow=globalThis.window;
 test('web preview does not invent native persistence',async()=>{
  delete globalThis.window;
@@ -87,5 +87,61 @@ test('network evidence persists only from completed provider observations',async
  const bad=await saveMobileOnChainObservation('BTCUSDT',{state:'OFFLINE',data:null});
  assert.equal(bad.saved,false);
  assert.equal(saves.length,1);
+ globalThis.window=originalWindow;
+});
+
+test('asset journal requests one asset even when global journal is crowded',async()=>{
+ const calls=[];
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async options=>{
+   calls.push(options);
+   return {assetScoped:true,asset:options.asset,publishedCount:2,
+    evaluatedCount:1,forecasts:[
+     {id:'a',asset:'BTCUSDT'},{id:'b',asset:'BTCUSDT'}]};
+  }
+ }}}};
+ const r=await getMobileAssetResearchForecasts('BTCUSDT',75);
+ assert.deepEqual(calls,[{asset:'BTCUSDT',limit:75}]);
+ assert.equal(r.native,true);
+ assert.equal(r.assetScoped,true);
+ assert.equal(r.complete,true);
+ assert.equal(r.publishedCount,2);
+ assert.equal(r.evaluatedCount,1);
+ globalThis.window=originalWindow;
+});
+test('75 selected-asset rows cannot impersonate a complete archive of 85',async()=>{
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async()=>({
+   assetScoped:true,asset:'TONUSDT',forecasts:[{asset:'TONUSDT'}],
+   publishedCount:85,evaluatedCount:74})
+ }}}};
+ const r=await getMobileAssetResearchForecasts('TONUSDT');
+ assert.equal(r.complete,false);
+ assert.equal(r.publishedCount,85);
+ globalThis.window=originalWindow;
+});
+test('old Android that ignores asset query fails closed',async()=>{
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async()=>({
+   forecasts:[{asset:'ETHUSDT'}],publishedCount:100,evaluatedCount:50})
+ }}}};
+ const r=await getMobileAssetResearchForecasts('BTCUSDT');
+ assert.equal(r.assetScoped,false);
+ assert.equal(r.publishedCount,null);
+ assert.equal(r.forecasts.length,0);
+ assert.match(r.error,/Обновите APEX/);
+ globalThis.window=originalWindow;
+});
+test('cross-asset records, contradictory totals and bad assets are rejected',async()=>{
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  getResearchForecasts:async()=>({
+   assetScoped:true,asset:'BTCUSDT',forecasts:[{asset:'ETHUSDT'}],
+   publishedCount:1,evaluatedCount:2})
+ }}}};
+ const r=await getMobileAssetResearchForecasts('BTCUSDT');
+ assert.equal(r.complete,false);
+ assert.equal(r.publishedCount,null);
+ assert.match(r.error,/непроверяемую выборку/);
+ assert.match((await getMobileAssetResearchForecasts('ethusdt')).error,/Некорректный актив/);
  globalThis.window=originalWindow;
 });

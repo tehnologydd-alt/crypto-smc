@@ -6,7 +6,7 @@ import {auditCandleSeries,auditVisibleDepth,auditNetwork,
  auditForwardResearch,MIN_FORWARD_SAMPLES} from './evidence-lab.mjs';
 import {chainForAsset} from './onchain-core.mjs';
 import {getMobileCandles,getMobileLiquidityHistory,getMobileOnChainHistory,
- getMobileResearchForecasts} from './mobile-bridge.mjs';
+ getMobileAssetResearchForecasts} from './mobile-bridge.mjs';
 
 const get=id=>document.getElementById(id);
 const fmt=(n,d=1)=>Number.isFinite(n)
@@ -69,10 +69,11 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
     getMobileCandles(asset,'1h',500),
     getMobileLiquidityHistory(asset,120),
     chain?getMobileOnChainHistory(asset,100):Promise.resolve({native:true,rows:[]}),
-    getMobileResearchForecasts(75)
+    getMobileAssetResearchForecasts(asset,75)
    ]);
    if(generation!==seq)return;
-   if(!candles.native||!journal.native||journal.error)
+   if(!candles.native||!journal.native||!journal.assetScoped||
+    journal.asset!==asset||journal.error)
     throw Error(journal.error||'Веб-версия не поддерживает нативный аудит.');
    const now=Date.now();
    const c=auditCandleSeries(candles.candles,'1h',{now});

@@ -158,6 +158,16 @@ interface ResearchDao {
     @Query("SELECT * FROM research_forecasts ORDER BY publishedAt DESC LIMIT :limit")
     suspend fun researchForecasts(limit: Int): List<ResearchForecast>
 
+    /** Read-only asset-scoped historical research; original Room schema retained. */
+    @Query("SELECT * FROM research_forecasts WHERE asset = :asset ORDER BY publishedAt DESC LIMIT :limit")
+    suspend fun researchForecastsForAsset(asset: String, limit: Int): List<ResearchForecast>
+
+    @Query("SELECT COUNT(*) FROM research_forecasts WHERE asset = :asset")
+    suspend fun forecastCountForAsset(asset: String): Int
+
+    @Query("SELECT COUNT(*) FROM research_forecast_results AS r JOIN research_forecasts AS f ON r.forecastId = f.id WHERE f.asset = :asset")
+    suspend fun researchResultCountForAsset(asset: String): Int
+
     @Query("SELECT * FROM research_forecast_results WHERE forecastId IN (:ids)")
     suspend fun researchResults(ids: List<String>): List<ResearchForecastResult>
 
