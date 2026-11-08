@@ -7,6 +7,7 @@ import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
+import {initOnChainDashboard} from './onchain-dashboard.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -157,6 +158,7 @@ function setNotice(message,isError=false){
  text('load-message',message);
 }
 const liquidityDashboard=initLiquidityDashboard();
+const onChainDashboard=initOnChainDashboard();
 
 function updateTab(view){
  document.body.dataset.view=view;
@@ -401,6 +403,7 @@ function navigate(view,targetId){
    candleView.resize();
    void loadCandleHistory(false);
    void liquidityDashboard.refresh(chosen);
+   void onChainDashboard.refresh(chosen);
   }
   if(view==='forecasts')favoriteManager.openForecasts();
   const node=targetId?el(targetId):el('view-'+view);
@@ -592,7 +595,10 @@ async function investigate(value){
  const changed=chosen!==symbol;
  if(changed)resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
  chosen=symbol;
- if(changed)liquidityDashboard.clear(symbol);
+ if(changed){
+  liquidityDashboard.clear(symbol);
+  onChainDashboard.clear(symbol);
+ }
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
  text('asset-name',chosen);
