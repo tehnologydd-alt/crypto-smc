@@ -131,6 +131,14 @@
     <section class="view hidden" id="view-asset" aria-labelledby="asset-title">
       <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span id="asset-passport-name">BTCUSDT · автоматически</span></div>
       <p class="asset-auto-note">Рыночные показатели, структура, сеть и исторические сценарии проверяются автоматически при открытии раздела. При недоступном источнике сохраняется честная пометка о локальных данных.</p>
+      <section class="asset-explain-panel" aria-label="Проверка объяснений выбранного актива">
+        <div class="asset-explain-copy">
+          <strong>Почему APEX пришёл к этим наблюдениям?</strong>
+          <p id="asset-quality-status" data-state="NOT_RUN" role="status" aria-live="polite">Историческая проверка не запускалась</p>
+          <small id="asset-quality-detail">Откройте объяснение, чтобы проверить закрытый H1-архив на устройстве.</small>
+        </div>
+        <button id="asset-explain" type="button">Объяснить исследования</button>
+      </section>
       <article class="card block asset-scenarios">
         <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
         <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
@@ -307,7 +315,7 @@
 
     <section class="view hidden quality-view" id="view-quality" aria-labelledby="quality-title">
       <div class="quality-page-heading">
-        <button type="button" class="quality-back" data-go="forecasts" aria-label="Вернуться к прогнозам">‹ <span>Прогнозы</span></button>
+        <button type="button" id="quality-context-back" class="quality-back" data-go="forecasts" aria-label="Вернуться к прогнозам">‹ <span>Прогнозы</span></button>
         <span class="quality-page-marker">ANDROID FIRST · ROOM</span>
       </div>
       <div class="section-title"><h2 id="quality-title">Качество исследований</h2><span>Evidence Lab</span></div>
@@ -387,7 +395,7 @@
           <div id="cross-result" aria-live="polite"></div>
           <p class="footnote">Нужно минимум два полных архива и 144 совпадающих четырёхчасовых окна. Сходство между монетами описывает историческую совместную динамику, но не доказывает надёжность будущих прогнозов.</p>
         </section>
-        <section class="synthesis-panel" aria-labelledby="synthesis-title">
+        <section id="synthesis-panel" class="synthesis-panel" aria-labelledby="synthesis-title">
           <div class="section-title"><h4 id="synthesis-title">Research Synthesis · объяснение исследований</h4><span>Что знаем · что нет</span></div>
           <p class="muted">Объединяем результаты исследований для выбранного актива без единого «процента уверенности». Показываем исторические наблюдения, расхождения между участками истории и ограничения проверок.</p>
           <div class="synthesis-actions">

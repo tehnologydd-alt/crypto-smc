@@ -14,6 +14,7 @@ import {initResearchPatternsDashboard} from './research-patterns-dashboard.mjs';
 import {initResearchRegimesDashboard} from './research-regimes-dashboard.mjs';
 import {initCrossAssetDashboard} from './cross-asset-dashboard.mjs';
 import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs';
+import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
@@ -636,7 +637,8 @@ const favoriteManager=initFavoriteResearch({
   if(researchId)scenarioMode='all';
   navigate('asset');
  },
- onForecastStage:()=>navigate('forecasts')
+ onForecastStage:()=>navigate('forecasts'),
+ onExplainSymbol:symbol=>openAssetExplanation(symbol)
 });
 void favoriteManager.initialize();
 const evidenceDashboard=initEvidenceDashboard({
@@ -647,8 +649,33 @@ const validationDashboard=initValidationDashboard();
 const researchPatternsDashboard=initResearchPatternsDashboard();
 const researchRegimesDashboard=initResearchRegimesDashboard();
 const crossAssetDashboard=initCrossAssetDashboard();
-const researchSynthesisDashboard=initResearchSynthesisDashboard();
+const researchSynthesisDashboard=initResearchSynthesisDashboard({
+ onSummary:report=>renderPassportResearchQuality(report)
+});
+renderPassportResearchQuality(null);
 let matrixLastRunAt=0;
+
+/** The passport can describe only the last completed, asset-matched audit. */
+function renderPassportResearchQuality(report){
+ const state=describeResearchQuality(report,chosen);
+ const label=el('asset-quality-status'),detail=el('asset-quality-detail');
+ label.textContent=state.label;
+ label.dataset.state=state.state;
+ detail.textContent=state.detail;
+}
+/** User-initiated explain action from passport or exact favorite card. */
+function openAssetExplanation(value){
+ const symbol=normalizeSymbol(value);
+ if(!symbol)return;
+ // investigate synchronizes the app's chosen asset before any network await.
+ if(chosen!==symbol)void investigate(symbol);
+ const selected=evidenceDashboard.selectAsset(symbol);
+ const allowed=[...el('evidence-asset').options].map(x=>x.value);
+ const route=planAssetExplanation(symbol,allowed);
+ if(!selected||route.state!=='READY')return;
+ navigate(route.view,route.targetId);
+ researchSynthesisDashboard.openForAsset(route.asset);
+}
 
 function navigate(view,targetId){
  updateTab(view);
@@ -665,13 +692,22 @@ function navigate(view,targetId){
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
   if(view==='forecasts')favoriteManager.openForecasts();
-  if(view==='quality')evidenceDashboard.open();
+  if(view==='quality'){
+   evidenceDashboard.open();
+   const back=el('quality-context-back');
+   const fromPassport=targetId==='synthesis-panel';
+   back.dataset.go=fromPassport?'asset':'forecasts';
+   back.textContent=fromPassport?'‹ Актив':'‹ Прогнозы';
+   back.setAttribute('aria-label',fromPassport?
+    'Вернуться к паспорту актива':'Вернуться к прогнозам');
+  }
   if(view==='overview')favoriteManager.openOverviewSummary();
   if(view==='news'||view==='macro')void editorialDashboard.open(view);
   const node=targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
  });
 }
+el('asset-explain').addEventListener('click',()=>openAssetExplanation(chosen));
 for(const button of document.querySelectorAll('[data-tab]'))
  button.addEventListener('click',()=>navigate(button.dataset.tab));
 for(const button of document.querySelectorAll('[data-go]'))
@@ -869,6 +905,7 @@ async function investigate(value){
   resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
  }
  chosen=symbol;
+ if(changed)renderPassportResearchQuality(null);
  if(changed){
   liquidityDashboard.clear(symbol);
   onChainDashboard.clear(symbol);

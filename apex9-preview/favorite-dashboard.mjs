@@ -128,7 +128,9 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  }
  return card;
 }
-export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol,onForecastStage}){
+export function initFavoriteResearch({
+ getSelectedSymbol,onSelectSymbol,onForecastStage,onExplainSymbol
+}){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
   lastRows=[],lastTotal=0;
@@ -182,14 +184,22 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol,onForecas
    wrapper.append(spark);
    renderMini(symbol,spark);
    wrapper.addEventListener('click',(e)=>{
-    if(e.target?.closest?.('.favorite-remove'))return;
+    if(e.target?.closest?.('.favorite-remove, .favorite-explain'))return;
     onSelectSymbol(symbol);
    });
    const remove=create('button','favorite-remove','×');
    remove.type='button';
    remove.setAttribute('aria-label','Удалить '+symbol+' из избранного');
    remove.addEventListener('click',()=>void updateFavorite(symbol,false));
-   wrapper.append(open,remove);rail.append(wrapper);
+   const explain=create('button','favorite-explain','Почему?');
+   explain.type='button';
+   explain.setAttribute('aria-label',
+    'Объяснить исторические исследования '+symbol);
+   explain.addEventListener('click',event=>{
+    event.stopPropagation();
+    onExplainSymbol?.(symbol);
+   });
+   wrapper.append(open,explain,remove);rail.append(wrapper);
   }
   const selected=favorites.includes(getSelectedSymbol());
   const toggle=id('favorite-toggle');

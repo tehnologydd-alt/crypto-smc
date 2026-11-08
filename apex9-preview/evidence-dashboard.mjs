@@ -241,6 +241,16 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
  updateAssets();
  return {
   refreshAssetChoices(){updateAssets();},
+  selectAsset(asset){
+   updateAssets();
+   const allowed=[...select.options].some(x=>x.value===asset);
+   if(!allowed)return false;
+   if(select.value!==asset){
+    select.value=asset;
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+   }
+   return true;
+  },
   open(){updateAssets();}
  };
 }

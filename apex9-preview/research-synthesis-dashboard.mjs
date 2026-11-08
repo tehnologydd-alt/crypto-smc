@@ -20,7 +20,7 @@ const date=x=>Number.isSafeInteger(x)?
  new Date(x).toLocaleDateString('ru-RU'):'—';
 const short=x=>x?.replace(/USDT$/,'')||x;
 
-export function initResearchSynthesisDashboard(){
+export function initResearchSynthesisDashboard({onSummary=null}={}){
  const run=get('synthesis-run'),cancel=get('synthesis-cancel'),
   status=get('synthesis-status'),summary=get('synthesis-summary'),
   cards=get('synthesis-cards'),select=get('evidence-asset');
@@ -135,6 +135,7 @@ export function initResearchSynthesisDashboard(){
    const report=synthesizeResearch({asset,primary,peers,now:Date.now()});
    if(seq!==serial||select.value!==asset)return;
    render(report);
+   onSummary?.(report);
    announce(report.state==='DESCRIPTIVE'?
     'Готово: объяснение исторических исследований '+asset+
     '. Прогнозная точность этим не подтверждается.':
@@ -143,6 +144,7 @@ export function initResearchSynthesisDashboard(){
   }catch(error){
    if(seq===serial){
     clear();
+    onSummary?.(null);
     announce('Не удалось завершить исследование: '+
      String(error?.message||error),true);
    }
@@ -153,12 +155,20 @@ export function initResearchSynthesisDashboard(){
  run.addEventListener('click',()=>void start());
  cancel.addEventListener('click',()=>{
   if(!busy)return;
-  serial++;lock(false);clear();
+  serial++;lock(false);clear();onSummary?.(null);
   announce('Остановлено. Незавершённые исследования не показаны.',true);
  });
  select.addEventListener('change',()=>{
-  serial++;lock(false);clear();
+  serial++;lock(false);clear();onSummary?.(null);
   announce('Изменён актив. Запустите исследование для нового актива.');
  });
- return {open(){}};
+ return {
+  open(){},
+  openForAsset(asset){
+   if(select.value!==asset)return false;
+   if(busy){serial++;lock(false);clear();}
+   void start();
+   return true;
+  }
+ };
 }

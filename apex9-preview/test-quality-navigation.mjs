@@ -24,6 +24,10 @@ test('quality laboratory exists exactly once on its own page',()=>{
  assert.ok(quality.includes('id="synthesis-cancel"'));
  assert.ok(quality.includes('id="synthesis-summary"'));
  assert.ok(quality.includes('id="synthesis-cards"'));
+ assert.ok(quality.includes('id="synthesis-panel"'));
+ assert.ok(html.includes('id="asset-explain"'));
+ assert.ok(html.includes('id="asset-quality-status"'));
+ assert.ok(html.includes('id="quality-context-back"'));
  const overview=html.slice(html.indexOf('id="view-overview"'),
   html.indexOf('id="view-asset"'));
  assert.ok(!overview.includes('id="evidence-lab-panel"'),
@@ -47,4 +51,20 @@ test('the router explicitly controls quality visibility and dock selection',()=>
 test('no duplicate HTML IDs were introduced',()=>{
  const all=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
  assert.equal(all.length,new Set(all).size);
+});
+
+test('asset passport and favorites link to the same provenance-first synthesis',()=>{
+ const favorites=readFileSync(new URL('./favorite-dashboard.mjs',import.meta.url),'utf8');
+ const evidence=readFileSync(new URL('./evidence-dashboard.mjs',import.meta.url),'utf8');
+ const synthesis=readFileSync(new URL('./research-synthesis-dashboard.mjs',import.meta.url),'utf8');
+ assert.match(app,/onExplainSymbol:symbol=>openAssetExplanation\(symbol\)/);
+ assert.match(app,/evidenceDashboard\.selectAsset\(symbol\)/);
+ assert.match(app,/researchSynthesisDashboard\.openForAsset\(route\.asset\)/);
+ assert.match(app,/navigate\(route\.view,route\.targetId\)/);
+ assert.match(app,/renderPassportResearchQuality\(null\)/);
+ assert.match(favorites,/favorite-explain/);
+ assert.match(favorites,/event\.stopPropagation\(\)/);
+ assert.match(evidence,/select\.dispatchEvent\(new Event\('change'/);
+ assert.match(synthesis,/openForAsset\(asset\)/);
+ assert.match(synthesis,/onSummary\?\.\(report\)/);
 });
