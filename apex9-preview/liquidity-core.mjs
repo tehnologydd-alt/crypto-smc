@@ -1,0 +1,95 @@
+/**
+ * APEX Liquidity Core — observed PUBLIC spot orderbook history only.
+ * This is not hidden liquidity, liquidations or a predictive orderflow signal.
+ * Different venue depth limits are NEVER pooled or compared as equal coverage.
+ */
+const VENUES=new Set(['binance','bybit']);
+const finite=n=>typeof n==='number'&&Number.isFinite(n);
+const positive=n=>finite(n)&&n>0;
+const SYMBOL=/^[A-Z0-9]{5,20}$/;
+export const LIQUIDITY_SCOPE='LIMITED_PUBLIC_SNAPSHOT';
+
+export function normalizeLiquidityHistory(rows,asset){
+ if(!SYMBOL.test(asset)||!Array.isArray(rows))return [];
+ const cleaned=[];
+ for(const row of rows.slice(0,400)){
+  if(!row||row.asset!==asset||!Number.isSafeInteger(row.observedAt)||
+     !Number.isSafeInteger(row.collectedAt)||row.observedAt<1||
+     row.observedAt>row.collectedAt+60000)continue;
+  const match=/^(binance|bybit):spot:depth$/.exec(row.source||'');
+  if(!match)continue;
+  let payload;
+  try{payload=typeof row.payload==='string'?JSON.parse(row.payload):row.payload;}catch{continue;}
+  if(!payload||payload.sampleScope!==LIQUIDITY_SCOPE||
+     !positive(payload.bestBid)||!positive(payload.bestAsk)||
+     payload.bestBid>=payload.bestAsk||
+     !finite(payload.spreadBps)||payload.spreadBps<=0||payload.spreadBps>2000||
+     !finite(payload.visibleDepthImbalance)||
+     Math.abs(payload.visibleDepthImbalance)>1)continue;
+  const venue=match[1];
+  const mid=(payload.bestBid+payload.bestAsk)/2;
+  const measuredSpread=(payload.bestAsk-payload.bestBid)/mid*10000;
+  if(Math.abs(measuredSpread-payload.spreadBps)>Math.max(.01,.03*measuredSpread))continue;
+  const bid=payload.bidNotional,ask=payload.askNotional;
+  const hasNotional=positive(bid)&&positive(ask);
+  if(hasNotional){
+   const imbalance=(bid-ask)/(bid+ask);
+   if(!finite(imbalance)||Math.abs(imbalance-payload.visibleDepthImbalance)>.012)
+    continue;
+  }
+  cleaned.push({
+   asset,venue,observedAt:row.observedAt,collectedAt:row.collectedAt,
+   bestBid:payload.bestBid,bestAsk:payload.bestAsk,mid,spreadBps:payload.spreadBps,
+   imbalance:payload.visibleDepthImbalance,
+   bidNotional:hasNotional?bid:null,askNotional:hasNotional?ask:null,
+   bidLevels:Number.isSafeInteger(payload.bidLevels)?payload.bidLevels:null,
+   askLevels:Number.isSafeInteger(payload.askLevels)?payload.askLevels:null
+  });
+ }
+ cleaned.sort((a,b)=>a.observedAt-b.observedAt||a.collectedAt-b.collectedAt);
+ const unique=new Map();
+ for(const r of cleaned)unique.set(r.venue+':'+r.observedAt,r);
+ return [...unique.values()].sort((a,b)=>a.observedAt-b.observedAt);
+}
+
+export function studyVisibleLiquidity(rows,{now=Date.now(),asset}={}){
+ if(!SYMBOL.test(asset)||!Number.isSafeInteger(now)||now<=0)
+  return {status:'INVALID',venues:[],points:[],message:'Invalid scope'};
+ const data=normalizeLiquidityHistory(rows,asset);
+ const venues=[];
+ for(const venue of ['binance','bybit']){
+  const points=data.filter(x=>x.venue===venue&&x.observedAt<=now+60000);
+  if(!points.length){
+   venues.push({venue,status:'NO_SAMPLES',samples:0});
+   continue;
+  }
+  const first=points[0],last=points.at(-1);
+  const age=now-last.collectedAt;
+  const span=last.observedAt-first.observedAt;
+  const sufficient=points.length>=3&&span>=120000;
+  // Trend is withheld on sparse observations, or a missing/long historical gap.
+  const gaps=points.slice(1).map((x,i)=>x.observedAt-points[i].observedAt);
+  const longestGap=gaps.length?Math.max(...gaps):0;
+  const continuity=sufficient&&longestGap<=3600000;
+  const recent=age>=0&&age<=180000;
+  const status=!recent?'HISTORICAL':!continuity?'LOW_COVERAGE':'OBSERVED';
+  const wallBid=last.bidNotional,wallAsk=last.askNotional;
+  const quantityScope=last.bidLevels===null?'Неизвестное число уровней':last.bidLevels+
+   ' bid / '+last.askLevels+' ask уровней';
+  venues.push({
+   venue,status,samples:points.length,
+   lastObservedAt:last.observedAt,lastCollectedAt:last.collectedAt,
+   spanMs:span,longestGapMs:longestGap,
+   spreadBps:last.spreadBps,
+   spreadChangeBps:continuity?last.spreadBps-first.spreadBps:null,
+   imbalance:last.imbalance,
+   imbalanceChange:continuity?last.imbalance-first.imbalance:null,
+   bidNotional:wallBid,askNotional:wallAsk,
+   quantityScope
+  });
+ }
+ const counted=venues.filter(x=>x.samples>0);
+ return {status:counted.length?'OBSERVED':'EMPTY',asset,
+  samples:data.length,venues,points:data,
+  note:'Visible depth samples only. Historic observations are not current liquidity.'};
+}
