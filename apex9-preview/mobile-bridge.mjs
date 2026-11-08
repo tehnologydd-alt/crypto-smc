@@ -178,7 +178,8 @@ export async function saveMobileOnChainObservation(asset,result){
  if(!native)return {native:false,saved:false};
  const data=result?.data,chain=result?.chain;
  const expected=chain==='bitcoin'?'mempool:bitcoin:network':
-  chain==='ethereum'?'blockscout:ethereum:stats':null;
+  chain==='ethereum'?'blockscout:ethereum:stats':
+  chain==='ton'?'toncenter:ton:masterchain':null;
  if(result?.state!=='OK'||!expected||!data||
     !Number.isSafeInteger(data.observedAt)||!Number.isSafeInteger(data.collectedAt)||
     data.collectedAt!==data.observedAt)return {native:true,saved:false};
