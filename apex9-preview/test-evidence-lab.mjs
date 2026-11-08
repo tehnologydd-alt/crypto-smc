@@ -48,8 +48,8 @@ test('a forged result does not contribute to observed coverage',()=>{
  assert.equal(summary.counts.invalid,1);
 });
 test('pending overdue observations are not counted as failures',()=>{
- const rows=[forecast(0,{completed:false}),forecast(20,{completed:false})];
- const result=auditForwardResearch(rows,{now});
+ const rows=[forecast(0,{completed:false}),forecast(19,{completed:false})];
+ const result=auditForwardResearch(rows,{now:base+78*H});
  assert.equal(result.counts.evaluated,0);
  assert.equal(result.counts.dueUnevaluated,1);
  assert.equal(result.counts.awaiting,1);
@@ -90,4 +90,22 @@ test('different asset samples do not get pooled into a fake general confidence',
  const r=auditForwardResearch([...a,...b],{now:base+500*H});
  assert.equal(r.cohorts.length,2);
  assert.ok(r.cohorts.every(x=>x.status==='INSUFFICIENT'));
+});
+
+test('records published or evaluated in the future cannot qualify as observed outcomes',()=>{
+ const a=forecast(0);
+ const futurePublish={...a,publishedAt:now+2*H};
+ assert.equal(inspectOutcomeRow(futurePublish,{now}).state,'INVALID');
+ const futureEval={...a,evaluation:{...a.evaluation,evaluatedAt:now+2*H}};
+ assert.equal(inspectOutcomeRow(futureEval,{now}).state,'INVALID');
+});
+test('partial 75-row journal never reports a misleading observed percentage',()=>{
+ const rows=Array.from({length:30},(_,i)=>forecast(i));
+ const result=auditForwardResearch(rows,{
+  now:base+500*H,totalPublished:125
+ });
+ assert.equal(result.truncated,true);
+ assert.equal(result.cohorts[0].status,'PARTIAL_HISTORY');
+ assert.equal(result.cohorts[0].coverage,null);
+ assert.equal(result.cohorts[0].interval95,null);
 });
