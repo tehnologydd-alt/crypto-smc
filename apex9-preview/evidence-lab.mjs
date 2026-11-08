@@ -65,7 +65,8 @@ export function inspectOutcomeRow(row,{now=Date.now()}={}){
  let h;
  try{h=typeof row.hypothesis==='string'?JSON.parse(row.hypothesis):row.hypothesis;}
  catch{return {state:'INVALID'};}
- if(!h||h.model!==forecastMethod||!validTime(h.anchorCloseAt)||
+ if(!h||h.model!==forecastMethod||row.publishedAt>now+60000||
+    !validTime(h.anchorCloseAt)||
     h.anchorCloseAt%hour!==hour-1||
     !validTime(h.targetCloseAt)||h.targetCloseAt!==h.anchorCloseAt+4*hour||
     h.anchorCloseAt>row.publishedAt||row.publishedAt>=h.targetCloseAt||
@@ -79,7 +80,8 @@ export function inspectOutcomeRow(row,{now=Date.now()}={}){
   targetCloseAt:h.targetCloseAt,publishedAt:row.publishedAt};
  if(!row.evaluation)return {...core,state:now>h.targetCloseAt?'DUE_UNEVALUATED':'AWAITING'};
  const result=row.evaluation;
- if(!validTime(result.evaluatedAt)||result.evaluatedAt<=h.targetCloseAt||
+ if(!validTime(result.evaluatedAt)||result.evaluatedAt>now+60000||
+    result.evaluatedAt<=h.targetCloseAt||
     result.targetCloseAt!==h.targetCloseAt||
     !validNumber(result.actualClose)||result.actualClose<=0||
     !['WITHIN_RANGE','OUTSIDE_RANGE'].includes(result.outcome)||
