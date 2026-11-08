@@ -9,6 +9,7 @@ import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
+import {inspectResearchTimeline} from './research-timeline.mjs';
 
 const id=name=>document.getElementById(name);
 const create=(tag,className='',value)=>{
@@ -24,6 +25,58 @@ const date=ms=>Number.isFinite(ms)?new Date(ms).toLocaleString('ru-RU'):'—';
 const coinNames={
  BTC:['Bitcoin','₿'],ETH:['Ethereum','◆'],GRAM:['Gram','◇'],SOL:['Solana','≋']
 };
+function formatRemaining(ms){
+ if(!Number.isFinite(ms)||ms<0)return '—';
+ const minutes=Math.ceil(ms/60000),hours=Math.floor(minutes/60);
+ return hours?hours+' ч '+(minutes%60)+' мин':minutes+' мин';
+}
+function timelineForForecast(row){
+ const trace=inspectResearchTimeline(row,{now:Date.now()});
+ const panel=create('section','research-timeline');
+ panel.setAttribute('aria-label','История зафиксированных этапов сценария');
+ const heading=create('div','research-timeline-heading');
+ heading.append(create('strong','', 'История наблюдений'),
+  create('span','',trace.state==='INVALID'?'Проверка записи':
+   trace.verifiedSteps+' из 4 зафиксировано'));
+ panel.append(heading);
+ if(trace.state==='INVALID'){
+  panel.append(create('p','research-timeline-warning',
+   'Исходная гипотеза не прошла проверку. Этапы не отображаются.'));
+  return {panel,trace};
+ }
+ const steps=create('ol','research-timeline-steps');
+ for(const step of trace.steps){
+  const list=create('li','research-timeline-step '+(step.observed?'observed':'unobserved'));
+  const mark=create('span','research-step-mark',step.observed?'✓':'·');
+  mark.setAttribute('aria-hidden','true');
+  const item=create('div','research-step-body');
+  item.append(create('strong','',step.title),
+   create('span','',step.observed?date(step.at):
+    'Подтверждённого события пока нет'));
+  if(step.observed&&step.recordedAt-step.at>60000){
+   item.append(create('small','',
+    'Записано на устройство: '+date(step.recordedAt)));
+  }
+  list.append(mark,item);steps.append(list);
+ }
+ panel.append(steps);
+ const status=create('p','research-timeline-note');
+ if(trace.state==='INCONSISTENT_RESULT'){
+  status.textContent='Сохранённый итог противоречит исходному исследованию — не включён в статистику.';
+  status.classList.add('warning');
+ }else if(trace.state==='DUE_UNVERIFIED'){
+  status.textContent='Четырёхчасовой горизонт уже прошёл. Итог не проверен: ожидаем исходные закрытые свечи.';
+  status.classList.add('warning');
+ }else if(trace.state==='EVALUATED'){
+  status.textContent='Итог проверен по четвёртому завершённому H1-закрытию.';
+ }else{
+  status.textContent='До конца исследовательского горизонта: '+
+   formatRemaining(trace.remainingMs)+
+   '. Срок сам по себе не означает подтверждение или завершение.';
+ }
+ panel.append(status);
+ return {panel,trace};
+}
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  const card=create('article','forecast-record');
  const headActions=create('div','forecast-card-actions');
@@ -64,19 +117,14 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
   rows.append(line);
  }
  card.append(rows);
- const last=Array.isArray(row.stageEvents)?row.stageEvents.at(-1):null;
- if(last?.explanation){
-  card.append(create('p','forecast-pending-copy',last.explanation));
- }
- if(row.evaluation){
+ const {panel:progress,trace}=timelineForForecast(row);
+ card.append(progress);
+ if(trace.result){
   card.append(create('div','forecast-result',
-   (row.evaluation.outcome==='WITHIN_RANGE'?'Закрылось в исходном диапазоне':
-    row.evaluation.outcome==='OUTSIDE_RANGE'?'Закрылось вне исходного диапазона':
-    'Исторический результат записан')+
-   ' · '+fmt(row.evaluation.actualClose)+' USDT · '+date(row.evaluation.evaluatedAt)));
- }else if(stage==='COMPLETED'){
-  card.append(create('p','forecast-pending-copy',
-   'Горизонт завершён. Результат требует доступной истории свечей.'));
+   (trace.result.outcome==='WITHIN_RANGE'?
+    'Итоговое закрытие внутри опубликованного диапазона':
+    'Итоговое закрытие вне опубликованного диапазона')+
+   ' · '+fmt(trace.result.actualClose)+' USDT · '+date(trace.result.evaluatedAt)));
  }
  return card;
 }
@@ -170,22 +218,25 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol,onForecas
  }
  function renderStats(){
   const stats=journalObservedStats(lastRows,{
-   selectedIds:[...selected],totalPublished:lastTotal
+   selectedIds:[...selected],totalPublished:lastTotal,now:Date.now()
   });
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
    const slot=id('forecast-stat-'+name);slot.replaceChildren();
    const line=create('div','forecast-stat-line');
    for(const [label,n] of [
     ['Всего',value.total],['В работе',value.waiting+value.confirmed+value.active],
-    ['Завершено',value.completed],['В диапазоне',value.within],
-    ['Вне диапазона',value.outside],['Не проверено',value.unverifiedDue]
+    ['Завершено',value.completed],['Подтверждён итог',value.verifiedOutcomes],
+    ['В диапазоне',value.within],['Вне диапазона',value.outside],
+    ['Ждут данных',value.unverifiedDue],['Сомнительные записи',value.inconsistent]
    ]){
     const node=create('div','forecast-stat-value');
     node.append(create('span','',label),create('strong','',fmt(n,0)));line.append(node);
    }
    slot.append(create('h4','',name==='all'?'Все наблюдения':'Отмеченные пользователем'),line);
    if(stats.truncated)slot.append(create('p','muted',
-     'Журнал загружен не полностью; показаны только доступные записи.'));
+     'Общий архив больше открытых 75 записей: эта сводка относится только к загруженной части журнала.'));
+   else slot.append(create('p','muted',
+     'Засчитываются только согласованные с исходной гипотезой итоги. Срок без свечей — не отмена и не успех.'));
   }
  }
  function renderRows(){
