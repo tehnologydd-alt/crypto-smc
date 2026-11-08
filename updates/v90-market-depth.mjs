@@ -21,6 +21,22 @@ function parseLevels(levels,label){
  if(out.some(x=>!Number.isFinite(x.notional)))throw Error(label+': nonfinite notional');
  return out;
 }
+/**
+ * Keep only a bounded set of the largest VISIBLE quoted levels per side.
+ * No hidden liquidity or order identity is inferred from a price bucket.
+ */
+function selectedVisibleLevels(rows,side){
+ const ordered=[...rows].sort((a,b)=>a.notional-b.notional);
+ const midpoint=ordered.length>>1;
+ const median=ordered.length%2
+  ?ordered[midpoint].notional
+  :(ordered[midpoint-1].notional+ordered[midpoint].notional)/2;
+ return [...rows].sort((a,b)=>b.notional-a.notional)
+  .slice(0,8).map(x=>({
+   side,price:x.price,quantity:x.qty,notional:x.notional,
+   relativeToMedian:median>0?x.notional/median:0
+  }));
+}
 /** Normalize one public response. Timestamps must not be fabricated. */
 export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
  if(!Object.hasOwn(HOSTS,venue)||!validSymbol(symbol)||
@@ -50,6 +66,11 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
   bestBid:highestBid,bestAsk:lowestAsk,mid,
   spreadBps:(lowestAsk-highestBid)/mid*10000,
   bidNotional,askNotional,visibleDepthImbalance:(bidNotional-askNotional)/sum,
+  topVisibleLevels:[
+   ...selectedVisibleLevels(bids,'BID'),
+   ...selectedVisibleLevels(asks,'ASK')
+  ],
+  levelSelection:'TOP_8_NOTIONAL_PER_SIDE', 
   sampleScope:'LIMITED_PUBLIC_SNAPSHOT',calibratedProbability:null
  };
 }
