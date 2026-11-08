@@ -16,6 +16,10 @@ test('quality laboratory exists exactly once on its own page',()=>{
  assert.ok(quality.includes('id="validation-run"'));
  assert.ok(quality.includes('id="regimes-run"'));
  assert.ok(quality.includes('id="regimes-summary"'));
+ assert.ok(quality.includes('id="cross-run"'));
+ assert.ok(quality.includes('id="cross-cancel"'));
+ assert.ok(quality.includes('id="cross-sources"'));
+ assert.ok(quality.includes('id="cross-result"'));
  const overview=html.slice(html.indexOf('id="view-overview"'),
   html.indexOf('id="view-asset"'));
  assert.ok(!overview.includes('id="evidence-lab-panel"'),
