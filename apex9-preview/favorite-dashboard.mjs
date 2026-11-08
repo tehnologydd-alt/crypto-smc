@@ -4,9 +4,11 @@
  * Sync is foreground and (when opted-in) via Android WorkManager.
  */
 import {getMobileFavorites,changeMobileFavorite,
- syncMobileFavoriteResearch,getMobileResearchForecasts} from './mobile-bridge.mjs';
+ syncMobileFavoriteResearch,getMobileResearchForecasts,getMobileCandles} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
+import {attachSparkline} from './sparkline.mjs';
+import {journalObservedStats} from './journal-stats.mjs';
 
 const id=name=>document.getElementById(name);
 const create=(tag,className='',value)=>{
@@ -22,8 +24,15 @@ const date=ms=>Number.isFinite(ms)?new Date(ms).toLocaleString('ru-RU'):'—';
 const coinNames={
  BTC:['Bitcoin','₿'],ETH:['Ethereum','◆'],GRAM:['Gram','◇'],SOL:['Solana','≋']
 };
-function cardForForecast(row){
+function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  const card=create('article','forecast-record');
+ const headActions=create('div','forecast-card-actions');
+ const follow=create('button','forecast-follow',tracked?'★ Отмечен':'☆ Наблюдать');
+ follow.type='button';follow.setAttribute('aria-pressed',tracked?'true':'false');
+ follow.addEventListener('click',()=>onToggle?.(row.id));
+ const open=create('button','forecast-open','Паспорт '+row.asset);
+ open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset));
+ headActions.append(follow,open);
  const stage=forecastStage(row);
  let data=null;
  try{data=JSON.parse(row.hypothesis);}catch{}
@@ -33,7 +42,10 @@ function cardForForecast(row){
   create('small','', 'Наблюдение по эмпирическому диапазону'));
  head.append(heading,create('span','forecast-state '+stage.toLowerCase(),
   FORECAST_STAGE_LABELS[stage]));
- card.append(head);
+ card.append(head,headActions);
+ const chart=create('div','forecast-mini-chart');
+ card.append(chart);
+ getMini?.(row.asset,chart);
  if(!data||typeof data.bandLow!=='number'||typeof data.bandHigh!=='number'){
   card.append(create('p','muted','Исходная запись требует проверки формата.'));
   return card;
@@ -67,9 +79,33 @@ function cardForForecast(row){
  }
  return card;
 }
-export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol}){
- let favorites=[],native=false,busy=false, syncing=false,lastSyncAt=0,
-  stage='PENDING_CONFIRMATION';
+export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol,onForecastStage}){
+ let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
+  stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
+  lastRows=[],lastTotal=0;
+ const MINI_CACHE=new Map(),MINI_LOADING=new Set();
+ let selected=new Set();
+ try{
+  const stored=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');
+  if(Array.isArray(stored))selected=new Set(stored.filter(x=>typeof x==='string').slice(0,300));
+ }catch{}
+ const persistSelected=()=>{
+  try{localStorage.setItem('apex9_selected_research_ids_v1',
+   JSON.stringify([...selected].slice(-300)));}catch{}
+ };
+ function renderMini(symbol,slot){
+  if(MINI_CACHE.has(symbol)){attachSparkline(slot,MINI_CACHE.get(symbol));return;}
+  attachSparkline(slot,[]);
+  if(MINI_LOADING.has(symbol))return;
+  MINI_LOADING.add(symbol);
+  void getMobileCandles(symbol,'1h',60).then(r=>{
+   MINI_CACHE.set(symbol,r.candles||[]);
+   const nodes=document.querySelectorAll('[data-spark-symbol]');
+   for(const n of nodes)
+    if(n.dataset.sparkSymbol===symbol)attachSparkline(n,MINI_CACHE.get(symbol));
+  }).catch(()=>MINI_CACHE.set(symbol,[]))
+   .finally(()=>MINI_LOADING.delete(symbol));
+ }
  const status=text=>{id('favorite-selection-status').textContent=text;};
  function renderFavorites(){
   const rail=id('favorite-rail');clear(rail);
@@ -92,6 +128,10 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol}){
    const labels=create('span','favorite-names');
    labels.append(create('strong','',label),create('small','',symbol));
    open.append(icon,labels);
+   const spark=create('span','favorite-chart');
+   spark.dataset.sparkSymbol=symbol;
+   wrapper.append(spark);
+   renderMini(symbol,spark);
    open.addEventListener('click',()=>onSelectSymbol(symbol));
    const remove=create('button','favorite-remove','×');
    remove.type='button';
@@ -124,31 +164,90 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol}){
    busy=false;renderFavorites();
   }
  }
+ function renderStats(){
+  const stats=journalObservedStats(lastRows,{
+   selectedIds:[...selected],totalPublished:lastTotal
+  });
+  for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
+   const slot=id('forecast-stat-'+name);slot.replaceChildren();
+   const line=create('div','forecast-stat-line');
+   for(const [label,n] of [
+    ['Всего',value.total],['В работе',value.waiting+value.confirmed+value.active],
+    ['Завершено',value.completed],['В диапазоне',value.within],
+    ['Вне диапазона',value.outside],['Не проверено',value.unverifiedDue]
+   ]){
+    const node=create('div','forecast-stat-value');
+    node.append(create('span','',label),create('strong','',fmt(n,0)));line.append(node);
+   }
+   slot.append(create('h4','',name==='all'?'Все наблюдения':'Отмеченные пользователем'),line);
+   if(stats.truncated)slot.append(create('p','muted',
+     'Журнал загружен не полностью; показаны только доступные записи.'));
+  }
+ }
+ function renderRows(){
+  const box=id('research-forecast-list');box.replaceChildren();
+  for(const b of document.querySelectorAll('[data-journal-stage]')){
+   const on=b.dataset.journalStage===stage;
+   b.classList.toggle('active',on);
+   b.setAttribute('aria-pressed',on?'true':'false');
+  }
+  for(const b of document.querySelectorAll('[data-forecast-mode]')){
+   const on=b.dataset.forecastMode===journalMode;
+   b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on?'true':'false');
+  }
+  const visible=lastRows.filter(row=>forecastStage(row)===stage&&
+   (journalMode==='all'||selected.has(row.id)));
+  if(!visible.length){
+   box.append(create('p','muted',journalMode==='tracked'?
+    'Пока нет отмеченных сценариев на выбранном этапе. Отметьте нужный сценарий на вкладке «Все».':
+    'На этом этапе пока нет сохранённых наблюдений.'));
+  }else for(const row of visible){
+   box.append(cardForForecast(row,{
+    tracked:selected.has(row.id),
+    onToggle:key=>{
+     if(selected.has(key))selected.delete(key);else selected.add(key);
+     persistSelected();renderStats();renderRows();
+    },
+    onOpen:onSelectSymbol,getMini:renderMini
+   }));
+  }
+  renderStats();
+ }
  async function loadJournal(){
-  const list=id('research-forecast-list');
+  const seq=++journalGeneration;
   const data=await getMobileResearchForecasts(75);
-  clear(list);
+  if(seq!==journalGeneration)return;
   if(!data.native||data.error){
+   lastRows=[];lastTotal=0;
    for(const x of FORECAST_STAGES)id('stage-count-'+x).textContent='0';
    id('forecast-pending-count').textContent='—';
    id('forecast-evaluated-count').textContent='—';
-   list.append(create('p','muted',data.error?
-    'Локальный журнал недоступен: '+data.error:
-    'Журнал прогнозов работает в установленном Android APK.'));
+   renderRows();
+   id('research-forecast-list').replaceChildren(create('p','muted',
+    data.error?'Локальный журнал недоступен: '+data.error:
+    'Журнал исследований доступен в Android APK.'));
    return;
   }
-  const rows=Array.isArray(data.forecasts)?data.forecasts:[];
-  const counts=journalCounts(rows);
+  lastRows=Array.isArray(data.forecasts)?data.forecasts:[];
+  lastTotal=data.publishedCount||lastRows.length;
+  const counts=journalCounts(lastRows);
   for(const [x,num] of Object.entries(counts))
    id('stage-count-'+x).textContent=String(num);
   id('forecast-pending-count').textContent=fmt(counts.PENDING_CONFIRMATION+counts.CONFIRMED+counts.ACTIVE,0);
   id('forecast-evaluated-count').textContent=fmt(data.evaluatedCount,0);
-  const visible=rows.filter(row=>forecastStage(row)===stage);
-  if(!visible.length){
-   list.append(create('p','muted',favorites.length?
-    'На этом этапе пока нет исследований. Новые наблюдения будут проверены при наличии завершённых свечей.':
-    'Добавьте активы в избранное на главном экране. APEX начнёт исследовать их автоматически.'));
-  }else for(const row of visible)list.append(cardForForecast(row));
+  if(!stageTouched&&!counts.PENDING_CONFIRMATION){
+   stage=counts.CONFIRMED?'CONFIRMED':counts.ACTIVE?'ACTIVE':
+    counts.COMPLETED?'COMPLETED':'PENDING_CONFIRMATION';
+  }
+  for(const b of document.querySelectorAll('[data-forecast-stage]')){
+   const on=b.dataset.forecastStage===stage;
+   b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');
+  }
+  renderRows();
+ }
+ function getScenarioRows(asset){
+  return lastRows.filter(x=>x.asset===asset&&
+   ['PENDING_CONFIRMATION','CONFIRMED','ACTIVE'].includes(forecastStage(x)));
  }
  function message(text,error=false){
   const node=id('forecast-action-status');
@@ -176,13 +275,19 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol}){
  }
  for(const button of document.querySelectorAll('[data-forecast-stage]')){
   button.addEventListener('click',()=>{
-   stage=button.dataset.forecastStage;
-   for(const item of document.querySelectorAll('[data-forecast-stage]')){
-    const selected=item.dataset.forecastStage===stage;
-    item.classList.toggle('active',selected);
-    item.setAttribute('aria-pressed',selected?'true':'false');
-   }
-   void loadJournal();
+   stageTouched=true;stage=button.dataset.forecastStage;
+   onForecastStage?.(stage);
+   renderRows();
+  });
+ }
+ for(const button of document.querySelectorAll('[data-journal-stage]')){
+  button.addEventListener('click',()=>{
+   stage=button.dataset.journalStage;stageTouched=true;renderRows();
+  });
+ }
+ for(const button of document.querySelectorAll('[data-forecast-mode]')){
+  button.addEventListener('click',()=>{
+   journalMode=button.dataset.forecastMode;renderRows();
   });
  }
  id('favorite-toggle').addEventListener('click',()=>{
@@ -200,6 +305,10 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol}){
   selectChanged(){renderFavorites();},
   openForecasts(){void loadJournal();void sync(false);},
   resume(){void sync(false);},
-  getFavorites:()=>[...favorites]
+  getFavorites:()=>[...favorites],
+  getScenarioRows,
+  refreshJournal:loadJournal,
+  renderMini,
+  openOverviewSummary:()=>void loadJournal()
  };
 }
