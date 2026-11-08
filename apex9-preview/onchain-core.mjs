@@ -1,11 +1,12 @@
 /**
  * APEX Android First On-Chain Core (v1)
- * Public, keyless network-level Bitcoin/Ethereum context only.
+ * Public, keyless network-level Bitcoin/Ethereum/TON context only.
  * No wallet surveillance, token/chain inference, execution or forecasts.
  */
 const BTC_MEMPOOL='https://mempool.space/api/mempool';
 const BTC_FEES='https://mempool.space/api/v1/fees/recommended';
 const ETH_STATS='https://eth.blockscout.com/api/v2/stats';
+const TON_MASTERCHAIN='https://toncenter.com/api/v2/getMasterchainInfo';
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
 const validNonnegative=n=>finite(n)&&n>=0;
 const validInt=n=>Number.isSafeInteger(n)&&n>=0;
@@ -18,9 +19,11 @@ const number=x=>{
 };
 export function chainForAsset(symbol){
  if(typeof symbol!=='string')return null;
- const match=/^(BTC|ETH)(?:USDT|USDC|EUR|BTC)$/.exec(symbol);
+ // GRAM is the native currency of TON since the 2026 rename.
+ // TONUSDT legacy and unrelated jettons are never assumed equivalent.
+ const match=/^(BTC|ETH|GRAM)(?:USDT|USDC|EUR|BTC)$/.exec(symbol);
  if(!match)return null;
- return match[1]==='BTC'?'bitcoin':'ethereum';
+ return match[1]==='BTC'?'bitcoin':match[1]==='ETH'?'ethereum':'ton';
 }
 export function parseBitcoinNetwork(raw,{fees=null,receivedAt}={}){
  const count=raw?.count,vsize=raw?.vsize,fee=raw?.total_fee;
@@ -72,6 +75,27 @@ export function parseEthereumNetwork(raw,receivedAt){
   notWhaleEvidence:true,notDirectionalEvidence:true
  };
 }
+/**
+ * TON Center API v2 getMasterchainInfo returns masterchain seqno, NOT
+ * transaction totals. The timestamp is the phone's local HTTP reception.
+ */
+export function parseTonNetwork(raw,receivedAt){
+ const last=raw?.result?.last;
+ if(raw?.ok!==true||!Number.isSafeInteger(receivedAt)||receivedAt<=0||
+    !last||last.workchain!==-1||
+    !Number.isSafeInteger(last.seqno)||last.seqno<1||
+    typeof last.root_hash!=='string'||last.root_hash.length<20||
+    typeof last.file_hash!=='string'||last.file_hash.length<20)
+  throw Error('Invalid TON masterchain response');
+ return {
+  scope:'TON_MASTERCHAIN_OBSERVATION',chain:'ton',
+  provider:'TON Center API v2',observedAt:receivedAt,collectedAt:receivedAt,
+  timestampScope:'CLIENT_CAPTURE_NO_PROVIDER_TIMESTAMP',
+  masterchainSeqno:last.seqno,
+  notTransactionCount:true,notWhaleEvidence:true,notDirectionalEvidence:true
+ };
+}
+
 async function getJson(url,{fetchImpl,signal}){
  try{
   const response=await fetchImpl(url,{
@@ -104,6 +128,12 @@ export async function collectOnChainNetwork(symbol,{
    }));
   }catch(e){return fail('INVALID',String(e.message||e),chain);}
  }
+ if(chain==='ton'){
+  const response=await getJson(TON_MASTERCHAIN,{fetchImpl,signal});
+  if(response.state!=='OK')return fail(response.state,response.error,chain);
+  try{return good(chain,parseTonNetwork(response.data,now()));}
+  catch(e){return fail('INVALID',String(e.message||e),chain);}
+ }
  const first=await getJson(ETH_STATS,{fetchImpl,signal});
  if(first.state!=='OK')return fail(first.state,first.error,chain);
  try{return good(chain,parseEthereumNetwork(first.data,now()));}
@@ -114,9 +144,11 @@ export async function collectOnChainNetwork(symbol,{
  * when fetched, NOT a backfilled time series from a full blockchain indexer.
  */
 export function parseOnChainHistory(rows,chain){
- if(!['bitcoin','ethereum'].includes(chain)||!Array.isArray(rows))return [];
- const source=chain==='bitcoin'?'mempool:bitcoin:network':'blockscout:ethereum:stats';
- const scope=chain==='bitcoin'?'BITCOIN_NETWORK_OBSERVATION':'ETHEREUM_NETWORK_OBSERVATION';
+ if(!['bitcoin','ethereum','ton'].includes(chain)||!Array.isArray(rows))return [];
+ const source=chain==='bitcoin'?'mempool:bitcoin:network':
+  chain==='ethereum'?'blockscout:ethereum:stats':'toncenter:ton:masterchain';
+ const scope=chain==='bitcoin'?'BITCOIN_NETWORK_OBSERVATION':
+  chain==='ethereum'?'ETHEREUM_NETWORK_OBSERVATION':'TON_MASTERCHAIN_OBSERVATION';
  const out=[];
  for(const row of rows.slice(0,240)){
   if(!row||row.source!==source||!Number.isSafeInteger(row.observedAt)||
@@ -131,11 +163,11 @@ export function parseOnChainHistory(rows,chain){
   if(chain==='bitcoin'){
    if(!validInt(payload.mempoolCount)||!validInt(payload.mempoolVBytes)||
      !validNonnegative(payload.mempoolFeesSats))continue;
-  }else{
+  }else if(chain==='ethereum'){
    if(!validInt(payload.totalTransactions)||!validInt(payload.totalBlocks)||
       !validInt(payload.transactionsToday)||!finite(payload.networkUtilizationPct)||
       payload.networkUtilizationPct<0||payload.networkUtilizationPct>100)continue;
-  }
+  }else if(!validInt(payload.masterchainSeqno)||payload.masterchainSeqno<1)continue;
   out.push(payload);
  }
  out.sort((a,b)=>a.collectedAt-b.collectedAt);
@@ -144,20 +176,24 @@ export function parseOnChainHistory(rows,chain){
  return [...unique.values()];
 }
 export function summarizeOnChainHistory(rows,{chain,now=Date.now()}={}){
- if(!['bitcoin','ethereum'].includes(chain)||!Number.isSafeInteger(now))
+ if(!['bitcoin','ethereum','ton'].includes(chain)||!Number.isSafeInteger(now))
   return {state:'INVALID',points:[]};
  const points=parseOnChainHistory(rows,chain);
  if(!points.length)return {state:'EMPTY',chain,points,samples:0};
  const latest=points.at(-1);
  const old=now-latest.collectedAt>=10*60000||now<latest.collectedAt-60000;
  const previous=points.length>=2?points.at(-2):null;
- const field=chain==='bitcoin'?'mempoolCount':'transactionsToday';
+ const field=chain==='bitcoin'?'mempoolCount':
+  chain==='ethereum'?'transactionsToday':'masterchainSeqno';
  const change=previous&&latest.collectedAt-previous.collectedAt>=60000
   ?latest[field]-previous[field]:null;
+ const tonRate=chain==='ton'&&change!==null&&change>=0
+  ?change/((latest.collectedAt-previous.collectedAt)/60000):null;
  return {
   state:old?'HISTORICAL':'OBSERVED',chain,points,samples:points.length,
   lastCapturedAt:latest.collectedAt,latest,
   comparisonChange:change,
+  masterchainBlocksPerMinute:tonRate,
   comparisonNote:'Changes describe separately captured network snapshots, not market direction'
  };
 }
