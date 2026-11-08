@@ -160,6 +160,45 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Read-only history of network-level source observations stored on device. */
+    @PluginMethod
+    fun getOnChainHistory(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val expected = when {
+            asset.matches(Regex("^BTC(USDT|USDC|EUR|BTC)$")) -> "mempool:bitcoin:network"
+            asset.matches(Regex("^ETH(USDT|USDC|EUR|BTC)$")) -> "blockscout:ethereum:stats"
+            else -> null
+        }
+        val limit = call.data.optInt("limit", 80).coerceIn(1, 120)
+        if (expected == null) {
+            call.reject("No verified network adapter for this token")
+            return
+        }
+        tasks.launch {
+            try {
+                val saved = ApexDatabase.get(context.applicationContext)
+                    .researchDao().onChainHistory(asset, limit)
+                val rows = JSArray()
+                for (record in saved) {
+                    if (record.source != expected || record.sourceState != "OK") continue
+                    val row = JSObject()
+                    row.put("asset", record.asset)
+                    row.put("source", record.source)
+                    row.put("observedAt", record.observedAt)
+                    row.put("collectedAt", record.collectedAt)
+                    row.put("payload", record.payloadJson)
+                    rows.put(row)
+                }
+                val result = JSObject()
+                result.put("rows", rows)
+                result.put("source", "LOCAL_ROOM_NETWORK_HISTORY")
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject("Could not read network history: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
     private val intervals = mapOf(
         "15m" to 900_000L, "1h" to 3_600_000L,
         "4h" to 14_400_000L, "1d" to 86_400_000L
