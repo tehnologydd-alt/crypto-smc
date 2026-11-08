@@ -3,6 +3,8 @@ package com.apexintelligence.research
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -20,6 +22,7 @@ import java.math.MathContext
  * Every transition uses actual *completed* Binance Spot H1 candles.
  */
 object ApexAutoForecast {
+    private val mutex = Mutex()
     private const val STEP = 3_600_000L
     private const val SAMPLE = 96
     private const val HORIZON = 4
@@ -35,7 +38,7 @@ object ApexAutoForecast {
     private fun validPrice(n: Double) = n.isFinite() && n > 0
 
     suspend fun syncAll(context: Context, favorites: List<String>): List<Report> =
-        withContext(Dispatchers.IO) {
+        mutex.withLock { withContext(Dispatchers.IO) {
             val unique = favorites.filter { symbolPattern.matches(it) }.distinct().take(10)
             val dao = ApexDatabase.get(context).researchDao()
             val reports = mutableListOf<Report>()
@@ -51,7 +54,7 @@ object ApexAutoForecast {
                 }
             }
             reports
-        }
+        } }
 
     private fun download(asset: String, now: Long): List<MarketCandle> {
         val connection = (URL(
