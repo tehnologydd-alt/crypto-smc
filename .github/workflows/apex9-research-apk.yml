@@ -66,7 +66,9 @@ jobs:
           node --check apex9-preview/candle-chart.mjs
           node --check apex9-preview/market-core.mjs
           node --check apex9-preview/forecast-core.mjs
-          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs
+          node --check apex9-preview/favorite-dashboard.mjs
+          node --check apex9-preview/favorite-logic.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs
 
       - name: Install Capacitor and stage web assets
         working-directory: apex9-android
@@ -83,6 +85,8 @@ jobs:
           npx cap sync android
           npm run icons
           node scripts/install-native.mjs
+          test -s android/app/src/main/java/com/apexintelligence/research/ApexAutoForecast.kt
+          grep -q 'setOnApplyWindowInsetsListener' android/app/src/main/java/com/apexintelligence/research/MainActivity.java
           test -s android/app/src/main/java/com/apexintelligence/research/ApexNativePlugin.kt
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -s android/app/src/main/res/drawable/ic_stat_apex.xml
