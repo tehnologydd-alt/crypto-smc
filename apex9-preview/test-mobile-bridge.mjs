@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles ,getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
 const originalWindow=globalThis.window;
 test('web preview does not invent native persistence',async()=>{
  delete globalThis.window;
@@ -60,5 +60,32 @@ test('native candle history persists closed observations only and reads cached r
  const read=await getMobileCandles('BTCUSDT','1h');
  assert.equal(read.candles.length,1);
  assert.equal(read.source,'LOCAL_ROOM_CACHE');
+ globalThis.window=originalWindow;
+});
+
+test('network evidence persists only from completed provider observations',async()=>{
+ const saves=[],history=[];
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  saveObservation:async item=>{saves.push(item);history.push({...item,payload:item.payload});
+   return {saved:true};},
+  getOnChainHistory:async()=>({rows:history})
+ }}}};
+ const captured=1794139200000;
+ const data={scope:'BITCOIN_NETWORK_OBSERVATION',chain:'bitcoin',
+  provider:'mempool.space',observedAt:captured,collectedAt:captured,
+  mempoolCount:1200,mempoolVBytes:43000,mempoolFeesSats:2000,
+  notDirectionalEvidence:true};
+ const persisted=await saveMobileOnChainObservation('BTCUSDT',{
+  state:'OK',chain:'bitcoin',data
+ });
+ assert.equal(persisted.saved,true);
+ assert.equal(saves[0].kind,'onchain');
+ assert.equal(saves[0].source,'mempool:bitcoin:network');
+ const got=await getMobileOnChainHistory('BTCUSDT');
+ assert.equal(got.source,'LOCAL_ROOM_NETWORK_HISTORY');
+ assert.equal(got.rows.length,1);
+ const bad=await saveMobileOnChainObservation('BTCUSDT',{state:'OFFLINE',data:null});
+ assert.equal(bad.saved,false);
+ assert.equal(saves.length,1);
  globalThis.window=originalWindow;
 });
