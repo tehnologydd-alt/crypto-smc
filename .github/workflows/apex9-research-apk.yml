@@ -41,6 +41,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
       - name: Verify Android SDK and install platform
         run: |
           test -n "${ANDROID_HOME:-}" && test -d "$ANDROID_HOME"
@@ -88,6 +92,7 @@ jobs:
           APEX_KEYSTORE_PASSWORD: ${{ secrets.APEX_KEYSTORE_PASSWORD }}
           APEX_KEY_ALIAS: ${{ secrets.APEX_KEY_ALIAS }}
           APEX_KEY_PASSWORD: ${{ secrets.APEX_KEY_PASSWORD }}
+          GRADLE_OPTS: -Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=120000
         run: |
           chmod +x gradlew
           if [ -f ../.apex-signed-release ]; then
@@ -99,11 +104,11 @@ jobs:
           # GitHub's Gradle distribution CDN can transiently return 502/504.
           # Retry wrapper acquisition/build without changing Android version or signing.
           SUCCESS=0
-          for ATTEMPT in 1 2 3; do
+          for ATTEMPT in 1 2 3 4; do
             if ./gradlew "$TARGET" --no-daemon; then SUCCESS=1; break; fi
-            if [ "$ATTEMPT" -lt 3 ]; then
+            if [ "$ATTEMPT" -lt 4 ]; then
               echo "::warning::Gradle build/download attempt $ATTEMPT failed; retrying."
-              sleep $((ATTEMPT * 8))
+              sleep $((ATTEMPT * 12))
             fi
           done
           test "$SUCCESS" = 1
