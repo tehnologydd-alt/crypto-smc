@@ -34,6 +34,10 @@ class ApexNativePlugin : Plugin() {
                 result.put("native", true)
                 result.put("asset", prefs.asset)
                 result.put("backgroundSyncEnabled", prefs.backgroundSyncEnabled)
+                val favoriteItems = JSArray()
+                for (favorite in prefs.favorites) favoriteItems.put(favorite)
+                result.put("favorites", favoriteItems)
+                result.put("favoritesLimit", ApexPreferences.MAX_FAVORITES)
                 result.put("observationCount", db.observationCount())
                 result.put("candleCount", db.candleCount())
                 result.put("forecastCount", db.forecastCount())
@@ -300,13 +304,32 @@ class ApexNativePlugin : Plugin() {
                 val published = dao.researchForecasts(limit)
                 val outcomes = if (published.isEmpty()) emptyMap() else
                     dao.researchResults(published.map { it.id }).associateBy { it.forecastId }
+                val stages = if (published.isEmpty()) emptyMap() else
+                    dao.researchStages(published.map { it.id }).groupBy { it.forecastId }
                 val rows = JSArray()
                 for (forecast in published) {
                     val item = JSObject()
                     item.put("id", forecast.id)
                     item.put("asset", forecast.asset)
                     item.put("interval", forecast.horizon)
-                    item.put("status", forecast.status)
+                    val forecastStages = stages[forecast.id].orEmpty()
+                    val orderedStages = listOf(
+                        "PENDING_CONFIRMATION", "CONFIRMED", "ACTIVE", "COMPLETED"
+                    )
+                    val finalStage = orderedStages.lastOrNull { candidate ->
+                        forecastStages.any { it.stage == candidate }
+                    } ?: if (outcomes[forecast.id] != null) "COMPLETED" else "PENDING_CONFIRMATION"
+                    item.put("status", finalStage)
+                    val eventItems = JSArray()
+                    for (stage in forecastStages.sortedBy { it.recordedAt }) {
+                        val event = JSObject()
+                        event.put("stage", stage.stage)
+                        event.put("observedAt", stage.observedAt)
+                        event.put("recordedAt", stage.recordedAt)
+                        event.put("explanation", stage.explanation)
+                        eventItems.put(event)
+                    }
+                    item.put("stageEvents", eventItems)
                     item.put("publishedAt", forecast.publishedAt)
                     item.put("hypothesis", forecast.hypothesisJson)
                     val outcome = outcomes[forecast.id]
@@ -421,6 +444,57 @@ class ApexNativePlugin : Plugin() {
                 call.resolve(response)
             } catch (e: Exception) {
                 call.reject("Research evaluation unavailable: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    /** Update favorites atomically; no arbitrary UI-side 10-item enforcement. */
+    @PluginMethod
+    fun changeResearchFavorite(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        if (!assetRegex.matches(asset) || !call.data.has("add")) {
+            call.reject("Invalid favorite asset request")
+            return
+        }
+        val add = call.data.optBoolean("add")
+        tasks.launch {
+            try {
+                val settings = ApexPreferences.changeFavorite(context.applicationContext, asset, add)
+                val items = JSArray()
+                for (item in settings.favorites) items.put(item)
+                val result = JSObject()
+                result.put("favorites", items)
+                result.put("limit", ApexPreferences.MAX_FAVORITES)
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject(e.message ?: "Could not update research favorites")
+            }
+        }
+    }
+
+    /** Work is local to the Android device and uses only public market data. */
+    @PluginMethod
+    fun syncFavoriteResearch(call: PluginCall) {
+        tasks.launch {
+            try {
+                val favorites = ApexPreferences.read(context.applicationContext).favorites
+                val reports = ApexAutoForecast.syncAll(context.applicationContext, favorites)
+                val items = JSArray()
+                for (report in reports) {
+                    val item = JSObject()
+                    item.put("asset", report.asset)
+                    item.put("state", report.state)
+                    item.put("stage", report.stage)
+                    item.put("detail", report.detail)
+                    items.put(item)
+                }
+                val result = JSObject()
+                result.put("checked", reports.size)
+                result.put("reports", items)
+                result.put("favoritesLimit", ApexPreferences.MAX_FAVORITES)
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject("Research sync failed: " + (e.message ?: "unknown"))
             }
         }
     }
