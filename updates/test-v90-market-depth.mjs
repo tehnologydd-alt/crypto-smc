@@ -57,3 +57,28 @@ test('Bybit business-level rate limit is not mistaken for an available book',asy
  })});
  assert.equal(r.state,'RATE_LIMITED');assert.equal(r.data,null);
 });
+
+test('largest visible price buckets are bounded by side and source median',()=>{
+ const r=parseDepthSnapshot('binance','BTCUSDT',{
+  lastUpdateId:13,
+  bids:[['100','1'],['99','1'],['98','8'],['97','2']],
+  asks:[['101','1'],['102','3'],['103','1']]
+ },now);
+ assert.equal(r.levelSelection,'TOP_8_NOTIONAL_PER_SIDE');
+ assert.equal(r.topVisibleLevels.length,7);
+ const bigBid=r.topVisibleLevels.find(x=>x.side==='BID'&&x.price===98);
+ assert.ok(bigBid);
+ assert.equal(bigBid.notional,784);
+ assert.ok(bigBid.relativeToMedian>3);
+ assert.ok(r.topVisibleLevels.every(x=>
+   ['BID','ASK'].includes(x.side)&&x.quantity>0&&x.notional>0));
+ assert.equal(r.calibratedProbability,null);
+});
+test('large source depth cannot overflow the bounded level snapshot',()=>{
+ const bids=Array.from({length:100},(_,i)=>[String(100-i*.01),'1']);
+ const asks=Array.from({length:100},(_,i)=>[String(101+i*.01),'1']);
+ const r=parseDepthSnapshot('binance','BTCUSDT',{bids,asks,lastUpdateId:15},now);
+ assert.equal(r.topVisibleLevels.length,16);
+ assert.equal(r.topVisibleLevels.filter(x=>x.side==='BID').length,8);
+ assert.equal(r.topVisibleLevels.filter(x=>x.side==='ASK').length,8);
+});
