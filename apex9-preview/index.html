@@ -69,7 +69,7 @@
       <div class="action-grid">
         <button class="quick-action" type="button" data-go="asset" data-target="depth-list" aria-label="Перейти к ликвидности актива"><span class="action-orb" aria-hidden="true">≋</span><span>Ликвидность</span></button>
         <button class="quick-action" type="button" data-go="sources" data-target="news-articles" aria-label="Посмотреть новости актива"><span class="action-orb" aria-hidden="true">▤</span><span>Новости</span></button>
-        <button class="quick-action" type="button" data-go="asset" data-target="btc-chain-context" aria-label="Посмотреть ончейн-контекст"><span class="action-orb" aria-hidden="true">⬡</span><span>Ончейн</span></button>
+        <button class="quick-action" type="button" data-go="asset" data-target="onchain-network-panel" aria-label="Посмотреть ончейн-контекст"><span class="action-orb" aria-hidden="true">⬡</span><span>Ончейн</span></button>
         <button class="quick-action" type="button" data-go="forecasts" aria-label="Перейти к прогнозам"><span class="action-orb" aria-hidden="true">◎</span><span>Прогнозы</span></button>
       </div>
     </section>
@@ -195,10 +195,24 @@
         <div id="global-context" class="stack"><p class="muted">Данные CoinGecko ещё не получены.</p></div>
         <p class="footnote">Капитализация и доминирование BTC относятся ко всему крипторынку, а не к прогнозу выбранного актива.</p>
       </article>
-      <article class="card block">
-        <h3>Активность сети Bitcoin</h3>
-        <div id="btc-chain-context" class="stack"><p class="muted">Сетевая статистика ещё не получена.</p></div>
-        <p class="footnote">Общий пул неподтверждённых транзакций не позволяет определить действия крупных держателей или покупки и продажи на биржах.</p>
+      <article class="card block network-panel" id="onchain-network-panel">
+        <div class="section-title"><h3>On-Chain Core · сеть</h3><span>BTC / ETH</span></div>
+        <p class="muted" id="network-status" role="status" aria-live="polite">Проверяем доступность сетевого адаптера…</p>
+        <div class="network-heading">
+          <strong id="network-name">Сетевая статистика</strong>
+          <button type="button" class="ghost network-refresh" id="network-refresh">Обновить сеть</button>
+        </div>
+        <div id="network-metrics" class="network-metrics">
+          <p class="muted">Свежие данные появятся после запроса публичного API.</p>
+        </div>
+        <div class="network-history">
+          <div class="section-title"><h4>Локальные наблюдения</h4><span id="network-history-count">0 записей</span></div>
+          <canvas id="network-history-chart" width="700" height="190"
+             role="img" aria-label="История сохранённых наблюдений о состоянии выбранной сети">График требует Canvas.</canvas>
+          <p id="network-history-note" class="muted">История хранится на этом Android-телефоне.</p>
+        </div>
+        <p class="footnote">Данные mempool.space и Blockscout характеризуют публичную активность сетей, а не покупки, продажи, действия отдельных адресов или вероятность изменения курса. Время наблюдения — момент получения информации телефоном.</p>
+        <div id="btc-chain-context" hidden aria-hidden="true"></div>
       </article>
     </section>
 
