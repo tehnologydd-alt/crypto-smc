@@ -60,7 +60,8 @@ jobs:
           node --check apex9-preview/mobile-bridge.mjs
           node --check apex9-preview/candles.mjs
           node --check apex9-preview/candle-chart.mjs
-          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs
+          node --check apex9-preview/market-core.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs
 
       - name: Install Capacitor and stage web assets
         working-directory: apex9-android
