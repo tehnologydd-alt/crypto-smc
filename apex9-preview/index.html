@@ -128,7 +128,7 @@
 
     </section>
 
-    <section class="view hidden" id="view-asset" aria-labelledby="asset-title">
+    <section class="view hidden" id="view-asset" data-asset-area="chart" aria-labelledby="asset-title">
       <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span id="asset-passport-name">BTCUSDT · автоматически</span></div>
       <p class="asset-auto-note">Рыночные показатели, структура, сеть и исторические сценарии проверяются автоматически при открытии раздела. При недоступном источнике сохраняется честная пометка о локальных данных.</p>
       <section class="asset-explain-panel" aria-label="Проверка объяснений выбранного актива">
@@ -139,7 +139,12 @@
         </div>
         <button id="asset-explain" type="button">Объяснить исследования</button>
       </section>
-      <article class="card block asset-scenarios">
+      <nav class="asset-workspace-nav" role="group" aria-label="Разделы паспорта актива">
+        <button type="button" class="asset-workspace-button is-active" data-asset-area-button="chart" aria-pressed="true">График</button>
+        <button type="button" class="asset-workspace-button" data-asset-area-button="structure" aria-pressed="false">Структура</button>
+        <button type="button" class="asset-workspace-button" data-asset-area-button="data" aria-pressed="false">Данные</button>
+      </nav>
+      <article class="card block asset-scenarios" data-asset-pane="chart">
         <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
         <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
         <div class="scenario-map-toolbar" role="group" aria-label="Сценарии на графике">
@@ -157,7 +162,7 @@
         </section>
         <p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p>
       </article>
-      <article class="card block candle-panel">
+      <article class="card block candle-panel" data-asset-pane="chart">
         <div class="chart-heading">
           <div><h3>Свечная история</h3><p class="muted">Binance Spot · OHLCV · наблюдения, не прогноз</p></div>
           <button class="ghost asset-manual-control" type="button" id="chart-refresh" aria-label="Перезагрузить свечи">↻</button>
@@ -176,7 +181,7 @@
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
         <p class="footnote">Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
       </article>
-      <article class="card block market-core-panel">
+      <article class="card block market-core-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Market Core · локальная математика</h3><span id="market-core-interval">H1</span></div>
         <p id="market-core-status" class="muted" aria-live="polite">Ожидаем завершённые свечи выбранного таймфрейма.</p>
         <div class="metrics market-core-grid">
@@ -193,7 +198,7 @@
         </div>
         <p class="footnote">Скорость, ускорение и относительный объём измеряют уже произошедшие изменения. Это не вероятность роста и не рекомендация совершать сделки.</p>
       </article>
-      <article class="card block market-matrix-panel">
+      <article class="card block market-matrix-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Согласованность горизонтов</h3><span>М15 · H1 · H4 · D1</span></div>
         <p id="market-matrix-status" class="muted" aria-live="polite">Сравнение выполняется по запросу, чтобы экономить интернет и заряд батареи.</p>
         <button class="ghost matrix-run asset-manual-control" id="market-matrix-run" type="button">Сравнить 4 периода</button>
@@ -201,24 +206,24 @@
         <p id="market-matrix-summary" class="muted">Данных для сравнения ещё нет.</p>
         <p class="footnote">Считаются только свежие завершённые свечи каждого горизонта. Старый локальный кэш показывается отдельно, но не засчитывается как текущее подтверждение.</p>
       </article>
-      <article class="card block structure-panel">
+      <article class="card block structure-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Рыночная структура</h3><span>По завершённым свечам</span></div>
         <p id="structure-summary" class="muted">Недостаточно исторических данных.</p>
         <div id="structure-events" class="structure-events"></div>
         <p class="footnote">BOS и CHoCH — ретроспективные отметки пробоя подтверждённых экстремумов, не сигналы покупки или продажи. Последняя незакрытая свеча в расчёте не участвует.</p>
       </article>
-      <article class="card block">
+      <article class="card block" data-asset-pane="data">
         <h3>Рыночные сведения</h3>
         <div class="data-row"><span>Объём котируемой валюты, 24 ч</span><strong id="quote-volume">—</strong></div>
         <div class="data-row"><span>Время рыночного наблюдения</span><strong id="ticker-time">—</strong></div>
         <p class="footnote">Изменение цены за 24 часа не предсказывает направление следующей свечи.</p>
       </article>
-      <article class="card block">
+      <article class="card block" data-asset-pane="data">
         <h3>Стаканы разных площадок</h3>
         <div id="depth-list" class="stack"><p class="muted">Снимки глубины ещё не получены.</p></div>
         <p class="footnote">Отображается лишь ограниченный публичный срез заявок. Это не полная карта ликвидности, не скрытые ордера и не карта ликвидаций.</p>
       </article>
-      <article class="card block liquidity-history-panel" id="liquidity-history-panel">
+      <article class="card block liquidity-history-panel" id="liquidity-history-panel" data-asset-pane="data">
         <div class="section-title"><h3>История видимой ликвидности</h3><span>Локально · Room</span></div>
         <p id="liquidity-history-status" class="muted" role="status" aria-live="polite">Загружаем сохранённые наблюдения выбранного актива…</p>
         <div class="liquidity-venue-grid" id="liquidity-history-venues">
@@ -237,12 +242,12 @@
         </div>
         <p class="footnote">Это ограниченные публичные снимки видимых заявок, а не карта скрытой ликвидности или ликвидаций. Пропуски в истории не заполняются. Старая запись не считается текущим состоянием стакана.</p>
       </article>
-      <article class="card block">
+      <article class="card block" data-asset-pane="data">
         <h3>Крипторынок в целом</h3>
         <div id="global-context" class="stack"><p class="muted">Данные CoinGecko ещё не получены.</p></div>
         <p class="footnote">Капитализация и доминирование BTC относятся ко всему крипторынку, а не к прогнозу выбранного актива.</p>
       </article>
-      <article class="card block network-panel" id="onchain-network-panel">
+      <article class="card block network-panel" id="onchain-network-panel" data-asset-pane="data">
         <div class="section-title"><h3>On-Chain Core · сеть</h3><span>BTC · ETH · GRAM</span></div>
         <p class="muted" id="network-status" role="status" aria-live="polite">Проверяем доступность сетевого адаптера…</p>
         <div class="network-heading">
@@ -313,20 +318,30 @@
       </article>
     </section>
 
-    <section class="view hidden quality-view" id="view-quality" aria-labelledby="quality-title">
+    <section class="view hidden quality-view" id="view-quality" data-quality-area="summary" data-quality-entry="dock" aria-labelledby="quality-title">
       <div class="quality-page-heading">
         <button type="button" id="quality-context-back" class="quality-back" data-go="forecasts" aria-label="Вернуться к прогнозам">‹ <span>Прогнозы</span></button>
         <span class="quality-page-marker">ANDROID FIRST · ROOM</span>
       </div>
       <div class="section-title"><h2 id="quality-title">Качество исследований</h2><span>Evidence Lab</span></div>
-      <p class="quality-lead">Прозрачная проверка сохранённых данных, опубликованных исследовательских результатов и устойчивости методов. Никаких выдуманных наблюдений.</p>
+      <p class="quality-lead">Один экран — одна исследовательская задача. Выберите раздел ниже: расчёты и источники сохранены, а длинные лаборатории больше не занимают весь экран сразу.</p>
+      <div class="quality-workspace-top">
+        <label for="evidence-asset">Исследуемый актив
+          <select id="evidence-asset" aria-label="Актив для аудита и исследований"></select>
+        </label>
+        <span class="quality-workspace-origin">История Android Room · данные проверяются отдельно</span>
+      </div>
+      <nav class="quality-workspace-nav" role="group" aria-label="Прямые разделы исследований">
+        <button type="button" class="quality-workspace-button is-active" data-quality-area-button="summary" aria-pressed="true">Сводка</button>
+        <button type="button" class="quality-workspace-button" data-quality-area-button="data" aria-pressed="false">Данные</button>
+        <button type="button" class="quality-workspace-button" data-quality-area-button="tests" aria-pressed="false">Проверки</button>
+        <button type="button" class="quality-workspace-button" data-quality-area-button="regimes" aria-pressed="false">Режимы</button>
+        <button type="button" class="quality-workspace-button" data-quality-area-button="compare" aria-pressed="false">Активы</button>
+      </nav>
       <article class="card block evidence-lab-panel" id="evidence-lab-panel">
         <div class="section-title"><h3>Evidence Lab · качество исследований</h3><span>Android · Room</span></div>
         <p class="muted">Проверка фактически сохранённых свечей, истории стакана, активности блокчейна и исходов опубликованных гипотез. Без новых запросов к бирже.</p>
         <div class="evidence-actions">
-          <label for="evidence-asset">Проверяемый актив
-            <select id="evidence-asset" aria-label="Актив для аудита"></select>
-          </label>
           <button id="evidence-run" type="button" class="ghost evidence-run">Проверить качество данных</button>
         </div>
         <p id="evidence-status" class="chart-status" role="status" aria-live="polite">Аудит запускается по запросу и выполняется локально на телефоне.</p>
@@ -489,7 +504,8 @@
   <nav class="tabs bottom-dock" aria-label="Главная навигация APEX 9.0">
     <button class="tab active" data-tab="overview" type="button" aria-current="page"><span class="dock-icon" aria-hidden="true">⌂</span><span>Обзор</span></button>
     <button class="tab" data-tab="asset" type="button"><span class="dock-icon" aria-hidden="true">◈</span><span>Актив</span></button>
-    <button class="tab" data-tab="forecasts" type="button"><span class="dock-icon" aria-hidden="true">◎</span><span>Прогнозы</span></button>
+    <button class="tab" data-tab="forecasts" type="button"><span class="dock-icon" aria-hidden="true">◎</span><span>Сценарии</span></button>
+    <button class="tab" data-tab="quality" type="button"><span class="dock-icon" aria-hidden="true">◇</span><span>Исследования</span></button>
     <button class="tab" data-tab="sources" type="button"><span class="dock-icon" aria-hidden="true">☷</span><span>Источники</span></button>
   </nav>
 </div>
