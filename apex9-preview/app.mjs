@@ -6,6 +6,7 @@ import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
+import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -155,6 +156,8 @@ function setNotice(message,isError=false){
  el('load-message').classList.toggle('error',isError);
  text('load-message',message);
 }
+const liquidityDashboard=initLiquidityDashboard();
+
 function updateTab(view){
  document.body.dataset.view=view;
  for(const tab of document.querySelectorAll('[data-tab]')){
@@ -397,6 +400,7 @@ function navigate(view,targetId){
   if(view==='asset'){
    candleView.resize();
    void loadCandleHistory(false);
+   void liquidityDashboard.refresh(chosen);
   }
   if(view==='forecasts')favoriteManager.openForecasts();
   const node=targetId?el(targetId):el('view-'+view);
@@ -588,6 +592,7 @@ async function investigate(value){
  const changed=chosen!==symbol;
  if(changed)resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
  chosen=symbol;
+ if(changed)liquidityDashboard.clear(symbol);
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
  text('asset-name',chosen);
@@ -620,6 +625,8 @@ async function investigate(value){
    try{await setMobileSettings({asset:chosen});}catch{}
    void refreshMobileStatus();
   }
+  // Re-read genuine observations only once the native write has completed.
+  void liquidityDashboard.refresh(chosen);
   lastLoad=Date.now();
  }catch(error){
   if(active===pending)setNotice('Ошибка обновления: '+String(error?.message||error),true);
