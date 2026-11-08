@@ -134,7 +134,12 @@
       <article class="card block asset-scenarios">
         <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
         <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
-        <div id="asset-scenario-summary"></div>
+        <div class="scenario-map-toolbar" role="group" aria-label="Сценарии на графике">
+          <button type="button" class="scenario-map-filter selected" data-scenario-map-mode="all" aria-pressed="true">Все сценарии</button>
+          <button type="button" class="scenario-map-filter" data-scenario-map-mode="tracked" aria-pressed="false">★ Отмеченные</button>
+        </div>
+        <div id="asset-scenario-summary" class="scenario-map-list" aria-live="polite"></div>
+        <p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p>
       </article>
       <article class="card block candle-panel">
         <div class="chart-heading">
@@ -153,7 +158,7 @@
           <canvas id="candle-canvas" width="680" height="330" tabindex="0" aria-label="Свечной график. Перетаскивайте для просмотра истории, увеличивайте двумя пальцами.">График требует Canvas</canvas>
         </div>
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
-        <p class="footnote">На графике только реальные свечи. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
+        <p class="footnote">Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
       </article>
       <article class="card block market-core-panel">
         <div class="section-title"><h3>Market Core · локальная математика</h3><span id="market-core-interval">H1</span></div>
