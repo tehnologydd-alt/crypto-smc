@@ -82,3 +82,43 @@ export async function getMobileCandles(symbol,interval,limit=500){
    error:String(error?.message||error)};
  }
 }
+
+
+/**
+ * Published research hypotheses and first observed results are immutable in
+ * native Android Room. The browser preview never simulates a forecast journal.
+ */
+export async function publishMobileResearchForecast(forecast){
+ const native=plugin();
+ if(!native)return {native:false,created:false,error:'Журнал исследований требует Android APK.'};
+ try{
+  const response=await native.publishResearchForecast(forecast);
+  return {native:true,...response};
+ }catch(error){
+  return {native:true,created:false,error:String(error?.message||error)};
+ }
+}
+export async function getMobileResearchForecasts(limit=40){
+ const native=plugin();
+ if(!native)return {native:false,forecasts:[],publishedCount:0,evaluatedCount:0};
+ try{
+  const response=await native.getResearchForecasts({limit:Math.min(75,Math.max(1,limit))});
+  return {native:true,forecasts:response?.forecasts||[],
+   publishedCount:response?.publishedCount||0,
+   evaluatedCount:response?.evaluatedCount||0,
+   source:'LOCAL_ROOM_JOURNAL'};
+ }catch(error){
+  return {native:true,forecasts:[],publishedCount:0,evaluatedCount:0,
+   error:String(error?.message||error)};
+ }
+}
+export async function checkMobileResearchForecast(id){
+ const native=plugin();
+ if(!native)return {native:false,state:'UNSUPPORTED'};
+ try{
+  const result=await native.checkResearchForecast({id});
+  return {native:true,...result};
+ }catch(error){
+  return {native:true,state:'ERROR',error:String(error?.message||error)};
+ }
+}
