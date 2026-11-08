@@ -76,12 +76,12 @@ test('under 30 nonoverlapping outcomes cannot claim calibrated coverage',()=>{
 test('30 genuinely forward-tested windows get only a descriptive Wilson interval',()=>{
  const rows=Array.from({length:MIN_FORWARD_SAMPLES},(_,i)=>
   forecast(i,{outcome:i<24?'WITHIN_RANGE':'OUTSIDE_RANGE'}));
- const r=auditForwardResearch(rows,{now:base+500*H,totalPublished:50});
+ const r=auditForwardResearch(rows,{now:base+500*H,totalPublished:30});
  assert.equal(r.cohorts[0].status,'REPORTABLE');
  assert.ok(Math.abs(r.cohorts[0].coverage-.8)<1e-12);
  assert.ok(r.cohorts[0].interval95.lower<.8);
  assert.ok(r.cohorts[0].interval95.upper>.8);
- assert.equal(r.truncated,true);
+ assert.equal(r.truncated,false);
  assert.ok(wilson95(0,30).upper<.2);
 });
 test('different asset samples do not get pooled into a fake general confidence',()=>{
