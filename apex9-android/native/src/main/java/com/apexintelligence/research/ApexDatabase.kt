@@ -67,6 +67,17 @@ data class MarketCandle(
     val recordedAt: Long
 )
 
+/** First verified outcome is written once. The published hypothesis never changes. */
+@Entity(tableName = "research_forecast_results", indices = [Index(value = ["evaluatedAt"])])
+data class ResearchForecastResult(
+    @PrimaryKey val forecastId: String,
+    val outcome: String,
+    val evaluatedAt: Long,
+    val targetCloseAt: Long,
+    val actualClose: Double,
+    val actualChangePct: Double
+)
+
 @Dao
 interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -98,11 +109,35 @@ interface ResearchDao {
 
     @Query("DELETE FROM market_candles WHERE asset = :asset AND interval = :interval AND openTime < :cutoff")
     suspend fun pruneCandles(asset: String, interval: String, cutoff: Long): Int
+
+    @Query("SELECT * FROM market_candles WHERE asset=:asset AND interval=:interval AND closeTime=:closeAt LIMIT 1")
+    suspend fun candleAtClose(asset: String, interval: String, closeAt: Long): MarketCandle?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun publishResearchForecast(row: ResearchForecast): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun recordResearchResult(row: ResearchForecastResult): Long
+
+    @Query("SELECT * FROM research_forecasts WHERE id=:id LIMIT 1")
+    suspend fun researchForecast(id: String): ResearchForecast?
+
+    @Query("SELECT * FROM research_forecasts ORDER BY publishedAt DESC LIMIT :limit")
+    suspend fun researchForecasts(limit: Int): List<ResearchForecast>
+
+    @Query("SELECT * FROM research_forecast_results WHERE forecastId IN (:ids)")
+    suspend fun researchResults(ids: List<String>): List<ResearchForecastResult>
+
+    @Query("SELECT COUNT(*) FROM research_forecast_results")
+    suspend fun researchResultCount(): Int
+
+    @Query("SELECT * FROM research_forecast_results WHERE forecastId=:id LIMIT 1")
+    suspend fun researchResult(id: String): ResearchForecastResult?
 }
 
 @Database(
-    entities = [ResearchObservation::class, ResearchForecast::class, MarketCandle::class],
-    version = 2,
+    entities = [ResearchObservation::class, ResearchForecast::class, MarketCandle::class, ResearchForecastResult::class],
+    version = 3,
     exportSchema = true
 )
 abstract class ApexDatabase : RoomDatabase() {
@@ -127,6 +162,20 @@ abstract class ApexDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds immutable evaluation results, retaining all v1/v2 source data. */
+        private val migration2To3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS research_forecast_results (" +
+                    "forecastId TEXT NOT NULL, outcome TEXT NOT NULL, evaluatedAt INTEGER NOT NULL, " +
+                    "targetCloseAt INTEGER NOT NULL, actualClose REAL NOT NULL, " +
+                    "actualChangePct REAL NOT NULL, PRIMARY KEY(forecastId))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_research_forecast_results_evaluatedAt " +
+                    "ON research_forecast_results(evaluatedAt)")
+            }
+        }
+
         @Volatile private var instance: ApexDatabase? = null
         fun get(context: Context): ApexDatabase =
             instance ?: synchronized(this) {
@@ -134,7 +183,7 @@ abstract class ApexDatabase : RoomDatabase() {
                     context.applicationContext,
                     ApexDatabase::class.java,
                     "apex-research-history.db"
-                ).addMigrations(migration1To2).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3).build().also { instance = it }
             }
     }
 }
