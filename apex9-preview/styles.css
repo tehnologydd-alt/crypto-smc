@@ -658,3 +658,49 @@ html,body{overflow-x:hidden}
  .onchain-match-cell{padding:11px 10px}
  .onchain-match-cell strong{font-size:15px}
 }
+
+
+/* APEX Evidence Lab — compact, legible integrity diagnostics on Android */
+.evidence-lab-panel{border:1px solid #3b829079;background:
+ radial-gradient(ellipse 70% 60% at 100% 0%,#13898b16,transparent 78%),#0c1b25}
+.evidence-lab-panel .section-title h3{margin:0;font-size:17px}
+.evidence-lab-panel>.muted{font-size:12px;line-height:1.65;margin:11px 0 15px}
+.evidence-actions{display:grid;grid-template-columns:1fr 1fr;align-items:end;gap:11px}
+.evidence-actions label{display:flex;flex-direction:column;gap:8px;
+ font-size:11px;font-weight:700;color:#9fc8ce}
+.evidence-actions select{width:100%;min-width:0;min-height:45px;
+ background:#091c27;color:#d8f6f5;border:1px solid #347079;
+ border-radius:12px;padding:10px 12px;font-size:12px}
+.evidence-run{min-height:45px;border:1px solid #47adb1;
+ background:#12424a;color:#cef8f1;font-size:12px;padding:10px}
+#evidence-status{font-size:11px;line-height:1.6;margin:12px 0}
+.evidence-data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.evidence-metric{display:flex;flex-direction:column;gap:9px;min-width:0;
+ background:linear-gradient(135deg,#0c2933,#0a1d27);
+ border:1px solid #2e646c;border-radius:14px;padding:13px 11px}
+.evidence-metric span{font-size:10px;color:#a1c4c9;line-height:1.5}
+.evidence-metric strong{font-size:clamp(16px,4.6vw,24px);font-weight:750;
+ color:#b2f1e8;line-height:1.25;overflow-wrap:anywhere;
+ font-variant-numeric:tabular-nums}
+.evidence-metric small{font-size:10px;line-height:1.6;color:#93b4c0}
+.evidence-note{grid-column:1/-1;font-size:11px;line-height:1.65;
+ padding:11px 12px;border:1px solid #766141;
+ background:#3c342b61;border-radius:12px;color:#e8ca92;margin:9px 0}
+.evidence-audit-section{margin-top:18px;border-top:1px solid #34626a;padding-top:18px}
+.evidence-audit-section .section-title h4{font-size:15px;margin:0}
+.evidence-audit-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}
+.evidence-count{background:#102b33;border-radius:13px;border:1px solid #315862;
+ display:flex;flex-direction:column;gap:6px;padding:11px}
+.evidence-count strong{font-size:21px;color:#d2f5ef;font-variant-numeric:tabular-nums}
+.evidence-count span{font-size:10px;line-height:1.5;color:#9ebdc4}
+.evidence-cohort{border:1px solid #3a7076;background:#0a2830;
+ border-radius:13px;padding:13px;margin:12px 0}
+.evidence-cohort>strong{font-size:12px;color:#d0f4ef;line-height:1.5}
+.evidence-cohort>p{font-size:11px;color:#b1c9cc;line-height:1.65;margin:9px 0 0}
+.evidence-cohort .evidence-coverage{font-size:19px;font-weight:760;
+ color:#b6efe3;margin:12px 0}
+@media(max-width:390px){
+ .evidence-actions{grid-template-columns:1fr}
+ .evidence-metric strong{font-size:17px}
+ .evidence-audit-counts{gap:7px}
+}
