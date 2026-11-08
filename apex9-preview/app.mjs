@@ -8,6 +8,7 @@ import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-cor
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
+import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -395,6 +396,10 @@ const favoriteManager=initFavoriteResearch({
  }
 });
 void favoriteManager.initialize();
+const evidenceDashboard=initEvidenceDashboard({
+ getSelectedSymbol:()=>chosen,
+ getFavorites:()=>favoriteManager.getFavorites()
+});
 
 function navigate(view,targetId){
  updateTab(view);
@@ -405,7 +410,10 @@ function navigate(view,targetId){
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
   }
-  if(view==='forecasts')favoriteManager.openForecasts();
+  if(view==='forecasts'){
+   favoriteManager.openForecasts();
+   evidenceDashboard.open();
+  }
   const node=targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
  });
@@ -414,7 +422,10 @@ for(const button of document.querySelectorAll('[data-tab]'))
  button.addEventListener('click',()=>navigate(button.dataset.tab));
 for(const button of document.querySelectorAll('[data-go]'))
  button.addEventListener('click',()=>navigate(button.dataset.go,button.dataset.target));
-function markSelectedAsset(){favoriteManager.selectChanged();}
+function markSelectedAsset(){
+ favoriteManager.selectChanged();
+ evidenceDashboard.refreshAssetChoices();
+}
 updateTab('overview');
 markSelectedAsset();
 
