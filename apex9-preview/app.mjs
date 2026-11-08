@@ -11,6 +11,7 @@ import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 import {initValidationDashboard} from './validation-dashboard.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
+import {buildScenarioMap} from './scenario-map.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -189,40 +190,116 @@ const candleView=new CandleChart(el('candle-canvas'),{
 });
 let candleInterval='1h',candleGeneration=0,candleController=null,
  candleLastKey='',candleLastAt=0;
-let scenarioRequest=0;
-async function showAssetScenarios(asset){
- const token=++scenarioRequest;
- text('asset-scenario-status','Загружаем сохранённые исследовательские диапазоны…');
+let scenarioRequest=0,scenarioMode='all',focusedScenarioId=null,
+ lastScenarioRows=[],lastScenarioAsset='',lastScenarioFetchedAt=0;
+
+function trackedResearchIds(){
+ try{
+  const raw=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');
+  return Array.isArray(raw)?raw.filter(x=>typeof x==='string').slice(-300):[];
+ }catch{return [];}
+}
+function renderScenarioMap(asset){
  const box=el('asset-scenario-summary');clear(box);
- candleView.setScenarios([]);
- const results=await getMobileResearchForecasts(75);
- if(token!==scenarioRequest||asset!==chosen)return;
- if(!results.native||results.error){
-  text('asset-scenario-status',results.error||
-   'Сценарии доступны в установленном Android APK.');
-  return;
+ for(const button of document.querySelectorAll('[data-scenario-map-mode]')){
+  const on=button.dataset.scenarioMapMode===scenarioMode;
+  button.classList.toggle('selected',on);
+  button.setAttribute('aria-pressed',on?'true':'false');
  }
- const rows=(results.forecasts||[]).filter(r=>r.asset===asset&&
-  ['PENDING_CONFIRMATION','CONFIRMED','ACTIVE'].includes(r.status));
- const ranges=[];
- for(const item of rows.slice(0,3)){
-  let h;try{h=JSON.parse(item.hypothesis);}catch{continue;}
-  if(!h||!Number.isFinite(h.bandLow)||!Number.isFinite(h.bandHigh)||
-   !Number.isSafeInteger(h.anchorCloseAt)||!Number.isSafeInteger(h.targetCloseAt)||
-   h.bandLow<=0||h.bandLow>=h.bandHigh)continue;
-  ranges.push(h);
-  const line=create('div','asset-range-line');
-  line.append(create('strong','',item.status==='ACTIVE'?'Наблюдается':
-   item.status==='CONFIRMED'?'Подтверждён первым наблюдением':'Ожидает подтверждения'),
-   create('span','',fmt(h.bandLow)+' — '+fmt(h.bandHigh)+' USDT'),
-   create('small','', 'Опорное закрытие: '+new Date(h.anchorCloseAt).toLocaleString('ru-RU')+
-    ' · конец горизонта: '+new Date(h.targetCloseAt).toLocaleString('ru-RU')));
-  box.append(line);
+ const map=buildScenarioMap(lastScenarioRows,{
+  asset,mode:scenarioMode,selectedIds:trackedResearchIds(),
+  focusId:focusedScenarioId,now:Date.now(),max:3
+ });
+ const onH1=candleInterval==='1h';
+ candleView.setInterval(candleInterval);
+ candleView.setScenarios(onH1?map.scenarios:[]);
+ const extra=map.hidden?' · ещё '+map.hidden+' вне мини-карты':'';
+ const context=onH1?' · показываем только реальные H1-свечи':
+  ' · метки доступны только при выборе H1';
+ text('asset-scenario-status',map.state==='INVALID'?
+  'Параметры карты не прошли проверку.':
+  map.available?
+   'Показано '+map.scenarios.length+' из '+map.available+
+   ' доступных сценариев'+extra+context:
+   scenarioMode==='tracked'?
+    'Нет отмеченных пользователем исследований по '+asset+
+    '. Отметить сценарий можно во вкладке «Прогнозы».':
+    'Для '+asset+' пока нет проверяемых сценариев в доступном журнале.');
+ for(const sc of map.scenarios){
+  const button=create('button','scenario-map-item'+
+   (sc.tracked?' tracked':'')+(sc.focused?' focused':''));
+  button.type='button';
+  button.setAttribute('aria-label',
+   'Показать на графике исследовательский сценарий от '+
+   new Date(sc.publishedAt).toLocaleString('ru-RU'));
+  const top=create('span','scenario-map-item-heading');
+  const name=sc.stage==='EVALUATED'?'Завершён · итог сохранён':
+   sc.stage==='DUE_UNVERIFIED'?'Горизонт прошёл · итог не проверен':
+   sc.stage==='ACTIVE'?'Наблюдается · две H1':
+   sc.stage==='CONFIRMED'?'Первое H1 подтверждено':
+   'Ожидает подтверждения';
+  top.append(create('strong','',name),
+   create('small','',(sc.tracked?'★ Отмечен':'Исследование')+
+     ' · '+sc.milestones.length+' из 4 событий'));
+  const middle=create('span','scenario-map-item-range',
+   fmt(sc.bandLow)+' — '+fmt(sc.bandHigh)+' USDT');
+  const detail=create('span','scenario-map-item-time',
+   'Опорная свеча: '+new Date(sc.anchorCloseAt).toLocaleString('ru-RU')+
+   ' · публикация: '+new Date(sc.publishedAt).toLocaleString('ru-RU'));
+  button.append(top,middle,detail);
+  if(sc.result)button.append(create('span','scenario-map-item-result',
+   (sc.result.outcome==='WITHIN_RANGE'?
+    'Итог в исходном диапазоне':'Итог за пределами диапазона')+
+   ' · '+new Date(sc.targetCloseAt).toLocaleString('ru-RU')));
+  button.addEventListener('click',()=>{
+   focusedScenarioId=sc.id;
+   renderScenarioMap(asset);
+   if(!onH1)return;
+   const found=candleView.focusOnScenario(sc.anchorCloseAt);
+   text('chart-selected',found?
+    'График перемещён к опорной H1-свече исследования от '+
+      new Date(sc.publishedAt).toLocaleString('ru-RU')+'.':
+    'Опорной свечи нет в загруженной истории. Карта не дорисовывает недостающие данные.');
+  });
+  box.append(button);
  }
- text('asset-scenario-status',ranges.length?
-  ranges.length+' наблюдаемых исследовательских сценариев · подлинные условия из Room':
-  'Сценариев в работе для '+asset+' пока нет.');
- if(candleInterval==='1h')candleView.setScenarios(ranges);
+}
+async function showAssetScenarios(asset,{force=false}={}){
+ if(lastScenarioAsset!==asset){
+  lastScenarioAsset=asset;lastScenarioRows=[];lastScenarioFetchedAt=0;
+  candleView.setScenarios([]);
+ }
+ if(!force&&lastScenarioFetchedAt&&Date.now()-lastScenarioFetchedAt<15000){
+  renderScenarioMap(asset);return;
+ }
+ const token=++scenarioRequest;
+ text('asset-scenario-status','Проверяем подлинные этапы сохранённых исследований…');
+ try{
+  const results=await getMobileResearchForecasts(75);
+  if(token!==scenarioRequest||asset!==chosen)return;
+  if(!results.native||results.error){
+   lastScenarioRows=[];lastScenarioFetchedAt=Date.now();
+   renderScenarioMap(asset);
+   text('asset-scenario-status',results.error||
+    'Карта наблюдений доступна в установленном Android APK.');
+   return;
+  }
+  lastScenarioRows=Array.isArray(results.forecasts)?results.forecasts:[];
+  lastScenarioFetchedAt=Date.now();
+  renderScenarioMap(asset);
+ }catch(error){
+  if(token!==scenarioRequest||asset!==chosen)return;
+  lastScenarioRows=[];renderScenarioMap(asset);
+  text('asset-scenario-status','Не удалось прочитать историю Room: '+
+   String(error?.message||error));
+ }
+}
+for(const button of document.querySelectorAll('[data-scenario-map-mode]')){
+ button.addEventListener('click',()=>{
+  scenarioMode=button.dataset.scenarioMapMode;
+  focusedScenarioId=null;
+  renderScenarioMap(chosen);
+ });
 }
 
 function candleMessage(message,warning=false){
@@ -413,6 +490,8 @@ for(const button of document.querySelectorAll('[data-interval]')){
  const interval=button.dataset.interval;
  button.addEventListener('click',()=>{
   candleInterval=interval;
+  candleView.setInterval(interval);
+  renderScenarioMap(chosen);
   resetMarketMatrix('Таймфрейм графика изменён. При необходимости повторите сравнение.');
   for(const x of document.querySelectorAll('[data-interval]')){
    const selected=x.dataset.interval===interval;
@@ -431,8 +510,10 @@ el('chart-reset').addEventListener('click',()=>{
 
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
- onSelectSymbol:(symbol)=>{
+ onSelectSymbol:(symbol,researchId=null)=>{
   void investigate(symbol);
+  focusedScenarioId=researchId;
+  if(researchId)scenarioMode='all';
   navigate('asset');
  },
  onForecastStage:()=>navigate('forecasts')
@@ -653,7 +734,13 @@ async function investigate(value){
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
- if(changed)resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
+ if(changed){
+  scenarioRequest++;
+  lastScenarioRows=[];lastScenarioAsset='';lastScenarioFetchedAt=0;
+  focusedScenarioId=null;
+  candleView.setScenarios([]);
+  resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
+ }
  chosen=symbol;
  if(changed){
   liquidityDashboard.clear(symbol);
