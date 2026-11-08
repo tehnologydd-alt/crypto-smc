@@ -1,6 +1,7 @@
 import {collectAsset,fetchSpotCatalog,normalizeSymbol} from './research.mjs';
 import {collectContext} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings} from './mobile-bridge.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -77,6 +78,65 @@ async function checkForUpdates(){
  }
 }
 el('check-updates-button').addEventListener('click',()=>void checkForUpdates());
+
+let mobileReady=false;
+async function refreshMobileStatus(){
+ const data=await getMobileStatus();
+ mobileReady=data.native===true;
+ text('native-observation-count',mobileReady?fmt(data.observationCount,0):'—');
+ text('native-forecast-count',mobileReady?fmt(data.forecastCount,0):'—');
+ const toggle=el('native-background-sync');
+ toggle.disabled=!mobileReady;
+ toggle.checked=mobileReady&&Boolean(data.backgroundSyncEnabled);
+ text('native-storage-status',mobileReady
+  ?'База Room доступна · '+(data.observationCount||0)+' записей · последнее наблюдение: '+
+   (data.latestObservationAt?time(data.latestObservationAt):'пока нет')
+  :(data.error?'Нативное хранилище недоступно: '+data.error:
+   'Веб-режим: локальная база и фоновые задания доступны только внутри Android APK.'));
+ el('native-show-history').disabled=!mobileReady;
+ return data;
+}
+async function showMobileHistory(){
+ if(!mobileReady)return;
+ const list=el('native-history');clear(list);
+ list.append(create('p','muted','Читаем сохранённые наблюдения '+chosen+'…'));
+ try{
+  const result=await getMobileHistory(chosen,15);
+  clear(list);
+  const rows=result.observations||[];
+  if(!rows.length){
+   list.append(create('p','muted','История '+chosen+' пока пуста. После успешного получения публичных данных записи появятся здесь.'));
+   return;
+  }
+  for(const row of rows){
+   const line=create('div','source-line');
+   const left=create('div');
+   left.append(create('b','',row.kind==='liquidity'?'Видимая ликвидность':'Рыночный снимок'),
+    create('small','',row.source+' · наблюдение '+time(Number(row.observedAt))),
+    create('small','', 'Сохранено '+new Date(row.collectedAt).toLocaleString('ru-RU')+' · историческая запись'));
+   line.append(left,create('span','source-state neutral','СОХРАНЕНО'));
+   list.append(line);
+  }
+ }catch(error){
+  clear(list);list.append(create('p','muted','Не удалось прочитать базу: '+String(error?.message||error)));
+ }
+}
+el('native-refresh-status').addEventListener('click',()=>void refreshMobileStatus());
+el('native-show-history').addEventListener('click',()=>void showMobileHistory());
+el('native-background-sync').addEventListener('change',async event=>{
+ const toggle=event.target,enabled=toggle.checked;
+ toggle.disabled=true;
+ text('native-storage-status','Сохраняем настройки Android…');
+ try{
+  await setMobileSettings({asset:chosen,backgroundSyncEnabled:enabled});
+  await refreshMobileStatus();
+ }catch(error){
+  toggle.checked=!enabled;
+  text('native-storage-status','Не удалось настроить фоновые задания: '+String(error?.message||error));
+  toggle.disabled=!mobileReady;
+ }
+});
+void refreshMobileStatus();
 
 function sourceRow(title,status,sub){
  const row=create('div','source-line');
@@ -329,6 +389,13 @@ async function investigate(value){
   if(active!==pending)return;
   renderSnapshot(snapshot);
   renderContext(context);
+  // Persist only actual successful source observations in the phone's Room DB.
+  const persisted=await saveMobileSnapshot(snapshot);
+  if(active!==pending)return;
+  if(persisted.native){
+   try{await setMobileSettings({asset:chosen});}catch{}
+   void refreshMobileStatus();
+  }
   lastLoad=Date.now();
  }catch(error){
   if(active===pending)setNotice('Ошибка обновления: '+String(error?.message||error),true);
