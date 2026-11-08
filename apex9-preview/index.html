@@ -182,12 +182,29 @@
     </section>
 
     <section class="view hidden" id="view-forecasts" aria-labelledby="forecasts-title">
-      <div class="section-title"><h2 id="forecasts-title">Прогнозы и проверка</h2><span>В процессе переноса</span></div>
-      <article class="card block empty">
-        <div class="empty-icon" aria-hidden="true">◎</div>
-        <h3>История прогнозов не подключена</h3>
-        <p>Здесь появятся сценарии, сроки актуальности, изменение статусов, TP1/TP2/TP3 и проверка результатов из APEX 8.6 после переноса настоящих исходников.</p>
-        <p>Сейчас прототип не создаёт искусственных прогнозов и не подменяет результаты тестовыми цифрами.</p>
+      <div class="section-title"><h2 id="forecasts-title">Прогнозы и проверка</h2><span>Журнал Android · Room</span></div>
+      <article class="card block forecast-intro">
+        <div class="section-title"><h3>Исследовательские сценарии</h3><span>Baseline V1</span></div>
+        <p>Проверяемая гипотеза: попадёт ли закрытие <strong>через 4 завершённые H1-свечи</strong> в диапазон, рассчитанный по 96 предыдущим свечам Binance Spot.</p>
+        <p class="footnote">Это ранняя базовая модель, а не торговый сигнал. Исторический 80-й процентиль амплитуды <strong>не означает 80% вероятность</strong> будущего события. Мы пока не заявляем точность модели.</p>
+        <div class="forecast-actions">
+          <button type="button" id="forecast-create" class="forecast-primary">Создать исследовательский сценарий</button>
+          <button type="button" id="forecast-evaluate" class="ghost">Проверить опубликованные</button>
+          <button type="button" id="forecast-refresh" class="ghost">Обновить журнал</button>
+        </div>
+        <p id="forecast-action-status" class="chart-status" aria-live="polite">Для хранения сценариев необходим установленный Android APK. Новые данные загружаются только по запросу.</p>
+        <div class="forecast-stats">
+          <div><span>Опубликовано</span><strong id="forecast-published-count">—</strong></div>
+          <div><span>Проверено</span><strong id="forecast-evaluated-count">—</strong></div>
+          <div><span>Ожидают</span><strong id="forecast-pending-count">—</strong></div>
+        </div>
+      </article>
+      <article class="card block">
+        <div class="section-title"><h3>История гипотез</h3><span>Первоначальные условия неизменны</span></div>
+        <div id="research-forecast-list" class="forecast-journal" aria-live="polite">
+          <p class="muted">Читаем локальную историю исследований…</p>
+        </div>
+        <p class="footnote">Прогноз считается проверенным только после появления всех четырёх фактических закрытых H1-свечей. Отсутствие данных не считается неудачей. Публикация и результат сохраняются отдельно и не редактируются.</p>
       </article>
     </section>
 
