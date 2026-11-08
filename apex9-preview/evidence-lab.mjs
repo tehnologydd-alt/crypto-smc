@@ -14,7 +14,8 @@ const validSymbol=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 export function auditCandleSeries(rows,interval,{now=Date.now()}={}){
  const step=CANDLE_INTERVALS[interval];
  if(!step||!validTime(now))return {state:'INVALID',samples:0,gaps:null};
- const parsed=inspectClosedCandles(rows,interval);
+ // Evidence audit can inspect more stored H1 bars; real-time analysis remains bounded to 750.
+ const parsed=inspectClosedCandles(rows,interval,{maxBars:4800});
  if(parsed.state==='INVALID')
   return {state:'INVALID',samples:0,gaps:null,reason:parsed.reason};
  const bars=parsed.bars;

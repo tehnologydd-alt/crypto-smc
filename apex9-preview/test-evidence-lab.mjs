@@ -109,3 +109,12 @@ test('partial 75-row journal never reports a misleading observed percentage',()=
  assert.equal(result.cohorts[0].coverage,null);
  assert.equal(result.cohorts[0].interval95,null);
 });
+
+test('extended archive audit checks over 750 real H1 bars without weakening live frame cap',()=>{
+ const bars=Array.from({length:1100},(_,i)=>candle(i));
+ const r=auditCandleSeries(bars,'1h',{now:base+1200*H});
+ assert.equal(r.state,'HISTORICAL');
+ assert.equal(r.samples,1100);
+ assert.equal(r.gaps,0);
+ assert.equal(r.coverage,1);
+});

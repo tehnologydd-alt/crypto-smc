@@ -25,12 +25,13 @@ const empty=(reason,interval)=>({
  efficiency:null,mode:'UNKNOWN',direction:'UNKNOWN'
 });
 
-export function inspectClosedCandles(candles,interval){
+export function inspectClosedCandles(candles,interval,{maxBars=750}={}){
  const step=CANDLE_INTERVALS[interval];
- if(!step||!Array.isArray(candles))
+ if(!step||!Array.isArray(candles)||
+  !Number.isSafeInteger(maxBars)||maxBars<1||maxBars>4800)
   return {state:'INVALID',reason:'Invalid timeframe or candle list',bars:[]};
  const closed=candles.filter(x=>x?.closed===true);
- if(closed.length>750)return {state:'INVALID',reason:'Too many bars',bars:[]};
+ if(closed.length>maxBars)return {state:'INVALID',reason:'Too many bars',bars:[]};
  let prior=-Infinity;
  for(const c of closed){
   if(!Number.isSafeInteger(c.t)||c.t<=prior||c.t%step!==0||
