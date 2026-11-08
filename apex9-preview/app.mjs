@@ -10,6 +10,7 @@ import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 import {initValidationDashboard} from './validation-dashboard.mjs';
+import {initResearchPatternsDashboard} from './research-patterns-dashboard.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
@@ -640,6 +641,7 @@ const evidenceDashboard=initEvidenceDashboard({
  getFavorites:()=>favoriteManager.getFavorites()
 });
 const validationDashboard=initValidationDashboard();
+const researchPatternsDashboard=initResearchPatternsDashboard();
 let matrixLastRunAt=0;
 
 function navigate(view,targetId){
