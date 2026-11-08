@@ -835,3 +835,56 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .forecast-stat-line{grid-template-columns:repeat(3,minmax(0,1fr))}
  .forecast-stat-value strong{font-size:17px}
 }
+
+
+/* Evidence Lab navigation: one dedicated page, no duplicate audit panels. */
+.quality-entry,.quality-quicklink{
+ border:1px solid #377b84a8;
+ background:linear-gradient(130deg,#102d38,#091b25 80%);
+}
+.quality-entry{padding:17px!important}
+.quality-entry-heading{display:flex;align-items:center;gap:13px;margin-bottom:12px}
+.quality-entry-icon{
+ width:48px;height:48px;flex:0 0 48px;
+ display:grid;place-items:center;border:1px solid #4fa7a8;
+ border-radius:15px;background:#113c44;color:#7ce5df;font-size:27px
+}
+.quality-entry-heading>div{min-width:0}
+.quality-entry h3,.quality-quicklink h3{
+ font-size:17px;margin:0;color:#e3faf4;line-height:1.35
+}
+.quality-entry-heading p{font-size:11px;margin:5px 0 0;color:#a7c7ca}
+.quality-entry>.muted,.quality-quicklink>.muted{
+ font-size:12px;line-height:1.6;color:#acccd0;margin:10px 0 15px
+}
+.quality-open{
+ width:100%;min-height:48px;border-radius:13px;
+ border:1px solid #54b8b7;background:#14565b;
+ color:#dcfcf6;font-size:13px;font-weight:750;
+ padding:11px 14px;display:flex;justify-content:space-between;
+ align-items:center;gap:12px;text-align:left;cursor:pointer
+}
+.quality-open span{font-size:25px;line-height:1}
+.quality-view{max-width:100%;min-width:0}
+.quality-page-heading{
+ display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:12px;margin:3px 0 18px
+}
+.quality-back{
+ min-height:40px;border-radius:12px;background:#0d2a33;
+ border:1px solid #356b72;color:#b9e9e6;padding:9px 14px;
+ font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer
+}
+.quality-back::first-letter{font-size:18px}
+.quality-page-marker{font-size:10px;letter-spacing:.08em;color:#80b7bf}
+.quality-view>.section-title h2{font-size:clamp(22px,6.3vw,28px);line-height:1.25}
+.quality-lead{font-size:12px;line-height:1.7;color:#adc8cd;margin:12px 0 19px}
+.quality-view>.evidence-lab-panel{margin-top:0}
+.quality-view .validation-panel{scroll-margin-top:20px}
+@media(max-width:400px){
+ .quality-entry{padding:14px!important}
+ .quality-entry-heading{gap:10px}
+ .quality-entry-icon{width:42px;height:42px;flex-basis:42px}
+ .quality-page-marker{font-size:9px}
+ .quality-open{font-size:12px}
+}
