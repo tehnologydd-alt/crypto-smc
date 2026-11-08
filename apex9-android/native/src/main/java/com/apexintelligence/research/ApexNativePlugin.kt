@@ -214,6 +214,217 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** V1: preserve the original model/band/expiry exactly as published. */
+    @PluginMethod
+    fun publishResearchForecast(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val interval = call.getString("interval") ?: ""
+        val id = call.getString("id") ?: ""
+        val method = call.getString("method") ?: ""
+        val source = call.getString("source") ?: ""
+        val publishedAt = call.data.optLong("publishedAt", 0L)
+        val anchorCloseAt = call.data.optLong("anchorCloseAt", 0L)
+        val targetCloseAt = call.data.optLong("targetCloseAt", 0L)
+        val anchorClose = call.data.optDouble("anchorClose", Double.NaN)
+        val bandLow = call.data.optDouble("bandLow", Double.NaN)
+        val bandHigh = call.data.optDouble("bandHigh", Double.NaN)
+        val now = System.currentTimeMillis()
+        val step = 3_600_000L
+        if (!assetRegex.matches(asset) || interval != "1h" ||
+            method != "EMPIRICAL_CLOSE_RANGE_V1" ||
+            source != "Binance Spot /api/v3/klines" ||
+            id != "range1:$asset:$interval:$anchorCloseAt" || id.length > 125 ||
+            anchorCloseAt <= 0L || anchorCloseAt % step != step - 1L ||
+            publishedAt < anchorCloseAt || publishedAt > now + 60_000L ||
+            publishedAt < now - 300_000L ||
+            publishedAt - anchorCloseAt > step + 90_000L ||
+            targetCloseAt != anchorCloseAt + 4L * step ||
+            call.data.optInt("horizonBars", 0) != 4 ||
+            call.data.optInt("sampleBars", 0) != 96 ||
+            call.data.optInt("empiricalSamples", 0) != 92 ||
+            !anchorClose.isFinite() || !bandLow.isFinite() || !bandHigh.isFinite() ||
+            anchorClose <= 0 || bandLow <= 0 || bandLow >= anchorClose ||
+            bandHigh <= anchorClose) {
+            call.reject("Forecast baseline or time validation failed")
+            return
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context).researchDao()
+                val lastBar = dao.candleAtClose(asset, interval, anchorCloseAt)
+                if (lastBar == null || !lastBar.close.isFinite() ||
+                    kotlin.math.abs(lastBar.close - anchorClose) >
+                    kotlin.math.max(1e-10, lastBar.close * 1e-9)) {
+                    call.reject("Source close is not in the verified local Room history")
+                    return@launch
+                }
+                val payload = org.json.JSONObject()
+                payload.put("model", method)
+                payload.put("anchorCloseAt", anchorCloseAt)
+                payload.put("targetCloseAt", targetCloseAt)
+                payload.put("anchorClose", anchorClose)
+                payload.put("bandLow", bandLow)
+                payload.put("bandHigh", bandHigh)
+                payload.put("horizonBars", 4)
+                payload.put("sampleBars", 96)
+                payload.put("empiricalSamples", 92)
+                payload.put("historicalPercentile", 0.8)
+                payload.put("calibratedProbability", org.json.JSONObject.NULL)
+                payload.put("source", source)
+                val existing = dao.researchForecast(id)
+                val created = if (existing == null) {
+                    dao.publishResearchForecast(ResearchForecast(
+                        id = id, asset = asset, horizon = interval, status = "PUBLISHED",
+                        publishedAt = publishedAt, updatedAt = publishedAt,
+                        hypothesisJson = payload.toString()
+                    )) != -1L
+                } else false
+                val response = JSObject()
+                response.put("id", id)
+                response.put("created", created)
+                response.put("immutable", true)
+                call.resolve(response)
+            } catch (e: Exception) {
+                call.reject("Could not preserve research forecast: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    /** Read the whole immutable history. No loss/profit/trading statistics. */
+    @PluginMethod
+    fun getResearchForecasts(call: PluginCall) {
+        val limit = call.data.optInt("limit", 40).coerceIn(1, 75)
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context).researchDao()
+                val published = dao.researchForecasts(limit)
+                val outcomes = if (published.isEmpty()) emptyMap() else
+                    dao.researchResults(published.map { it.id }).associateBy { it.forecastId }
+                val rows = JSArray()
+                for (forecast in published) {
+                    val item = JSObject()
+                    item.put("id", forecast.id)
+                    item.put("asset", forecast.asset)
+                    item.put("interval", forecast.horizon)
+                    item.put("status", forecast.status)
+                    item.put("publishedAt", forecast.publishedAt)
+                    item.put("hypothesis", forecast.hypothesisJson)
+                    val outcome = outcomes[forecast.id]
+                    if (outcome != null) {
+                        val saved = JSObject()
+                        saved.put("outcome", outcome.outcome)
+                        saved.put("targetCloseAt", outcome.targetCloseAt)
+                        saved.put("evaluatedAt", outcome.evaluatedAt)
+                        saved.put("actualClose", outcome.actualClose)
+                        saved.put("actualChangePct", outcome.actualChangePct)
+                        item.put("evaluation", saved)
+                    }
+                    rows.put(item)
+                }
+                val response = JSObject()
+                response.put("forecasts", rows)
+                response.put("publishedCount", dao.forecastCount())
+                response.put("evaluatedCount", dao.researchResultCount())
+                response.put("source", "LOCAL_ROOM_JOURNAL")
+                call.resolve(response)
+            } catch (e: Exception) {
+                call.reject("Could not read forecast journal: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    /**
+     * Observe the exact next four completed H1 candles ALREADY stored in Room.
+     * Never trusts a client-supplied result, never edits the published scenario.
+     */
+    @PluginMethod
+    fun checkResearchForecast(call: PluginCall) {
+        val id = call.getString("id") ?: ""
+        if (!id.startsWith("range1:") || id.length > 125) {
+            call.reject("Unknown research forecast ID")
+            return
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context).researchDao()
+                val forecast = dao.researchForecast(id)
+                if (forecast == null || forecast.horizon != "1h") {
+                    call.reject("Research forecast was not found")
+                    return@launch
+                }
+                val saved = dao.researchResult(id)
+                if (saved != null) {
+                    val response = JSObject()
+                    response.put("state", "EVALUATED")
+                    response.put("outcome", saved.outcome)
+                    response.put("actualClose", saved.actualClose)
+                    response.put("actualChangePct", saved.actualChangePct)
+                    response.put("targetCloseAt", saved.targetCloseAt)
+                    response.put("evaluatedAt", saved.evaluatedAt)
+                    call.resolve(response)
+                    return@launch
+                }
+                val base = org.json.JSONObject(forecast.hypothesisJson)
+                if (base.optString("model") != "EMPIRICAL_CLOSE_RANGE_V1") {
+                    call.reject("Unknown research model")
+                    return@launch
+                }
+                val anchor = base.getLong("anchorCloseAt")
+                val target = base.getLong("targetCloseAt")
+                val close = base.getDouble("anchorClose")
+                val low = base.getDouble("bandLow")
+                val high = base.getDouble("bandHigh")
+                val step = 3_600_000L
+                if (target != anchor + 4L * step || !close.isFinite() ||
+                    !low.isFinite() || !high.isFinite() ||
+                    close <= 0 || low <= 0 || high <= low) {
+                    call.reject("Corrupt baseline definition")
+                    return@launch
+                }
+                val response = JSObject()
+                val now = System.currentTimeMillis()
+                if (now <= target) {
+                    response.put("state", "NOT_DUE")
+                    call.resolve(response)
+                    return@launch
+                }
+                var lastBar: MarketCandle? = null
+                for (i in 1..4) {
+                    val expected = anchor + i * step
+                    val bar = dao.candleAtClose(forecast.asset, forecast.horizon, expected)
+                    if (bar == null || bar.closeTime >= now || bar.recordedAt < bar.closeTime) {
+                        response.put("state", "NEEDS_DATA")
+                        response.put("reason", "Missing verified completed horizon candles")
+                        call.resolve(response)
+                        return@launch
+                    }
+                    lastBar = bar
+                }
+                val final = lastBar!!.close
+                val outcome = if (final >= low && final <= high) "WITHIN_RANGE" else "OUTSIDE_RANGE"
+                val change = (final / close - 1.0) * 100.0
+                if (!final.isFinite() || !change.isFinite()) {
+                    call.reject("Non-finite result")
+                    return@launch
+                }
+                dao.recordResearchResult(ResearchForecastResult(
+                    forecastId = id, outcome = outcome, evaluatedAt = now,
+                    targetCloseAt = target, actualClose = final, actualChangePct = change
+                ))
+                val first = dao.researchResult(id)!!
+                response.put("state", "EVALUATED")
+                response.put("outcome", first.outcome)
+                response.put("actualClose", first.actualClose)
+                response.put("actualChangePct", first.actualChangePct)
+                response.put("targetCloseAt", first.targetCloseAt)
+                response.put("evaluatedAt", first.evaluatedAt)
+                call.resolve(response)
+            } catch (e: Exception) {
+                call.reject("Research evaluation unavailable: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
     @PluginMethod
     fun setSettings(call: PluginCall) {
         val asset = call.getString("asset")
