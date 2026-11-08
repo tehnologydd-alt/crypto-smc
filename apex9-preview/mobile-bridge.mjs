@@ -149,6 +149,120 @@ export async function getMobileAssetResearchForecasts(asset,limit=75){
   return {...empty,error:String(error?.message||error)};
  }
 }
+
+/** Verified, bounded, multi-page archive. Rejects concurrent count drift. */
+export async function getMobileAssetResearchArchive(asset,{
+ pageSize=75,maxRows=1500,onProgress=null
+}={}){
+ const native=plugin();
+ const empty={native:Boolean(native),asset,assetScoped:false,forecasts:[],
+  publishedCount:null,evaluatedCount:null,complete:false,
+  source:'LOCAL_ROOM_JOURNAL'};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{5,20}$/.test(asset))
+  return {...empty,error:'Некорректный актив для архива исследований.'};
+ if(!native)return {...empty,error:'Нужен установленный Android APK.'};
+ if(!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>75||
+  !Number.isSafeInteger(maxRows)||maxRows<1||maxRows>1500)
+  return {...empty,error:'Неверные ограничения чтения архива.'};
+ let total=null,evaluated=null,previous=null;
+ const seen=new Set(),rows=[];
+ try{
+  while(rows.length<maxRows){
+   const offset=rows.length,limit=Math.min(pageSize,maxRows-offset);
+   const data=await native.getResearchForecasts({asset,offset,limit});
+   if(data?.assetScoped!==true||data?.asset!==asset||data?.offset!==offset)
+    throw Error('Требуется обновление Android для постраничного архива APEX.');
+   if(!Number.isSafeInteger(data.publishedCount)||data.publishedCount<0||
+    !Number.isSafeInteger(data.evaluatedCount)||data.evaluatedCount<0||
+    data.evaluatedCount>data.publishedCount||
+    !Array.isArray(data.forecasts))
+    throw Error('Непроверяемые метаданные журнала Room.');
+   if(total===null){total=data.publishedCount;evaluated=data.evaluatedCount;}
+   else if(total!==data.publishedCount||evaluated!==data.evaluatedCount)
+    throw Error('Архив изменился во время чтения. Повторите проверку.');
+   const expected=Math.min(limit,total-offset);
+   if(expected<0||data.forecasts.length!==expected)
+    throw Error('Неполная страница архива Room.');
+   for(const row of data.forecasts){
+    if(row?.asset!==asset||typeof row.id!=='string'||!row.id||
+     !Number.isSafeInteger(row.publishedAt)||row.publishedAt<=0||
+     seen.has(row.id)||
+     (previous&&(row.publishedAt>previous.publishedAt||
+      (row.publishedAt===previous.publishedAt&&row.id>=previous.id))))
+     throw Error('Нарушен порядок или целостность архива.');
+    seen.add(row.id);rows.push(row);previous=row;
+   }
+   if(typeof onProgress==='function')onProgress(rows.length,total);
+   if(rows.length===total)break;
+   if(data.forecasts.length===0)throw Error('Пустая страница неполного архива.');
+  }
+  return {...empty,assetScoped:true,forecasts:rows,
+   publishedCount:total,evaluatedCount:evaluated,
+   complete:rows.length===total};
+ }catch(error){
+  return {...empty,error:String(error?.message||error)};
+ }
+}
+
+/** Offline source candles only. No interpolation of missing H1 records. */
+export async function getMobileCandleArchive(asset,interval='1h',{
+ pageSize=500,maxRows=4800,onProgress=null
+}={}){
+ const native=plugin();
+ const empty={native:Boolean(native),asset,interval,candles:[],
+  totalCount:null,complete:false,source:'LOCAL_ROOM_CACHE'};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{5,20}$/.test(asset)||
+  !['15m','1h','4h','1d'].includes(interval))
+  return {...empty,error:'Некорректный актив или интервал архива свечей.'};
+ if(!native)return {...empty,error:'Нужен установленный Android APK.'};
+ if(!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>600||
+  !Number.isSafeInteger(maxRows)||maxRows<1||maxRows>4800)
+  return {...empty,error:'Неверный размер архива свечей.'};
+ let total=null,previousNewest=null;
+ const rows=[],seen=new Set();
+ try{
+  while(rows.length<maxRows){
+   const offset=rows.length,limit=Math.min(pageSize,maxRows-offset);
+   const data=await native.getCandles({asset,interval,offset,limit});
+   if(data?.asset!==asset||data?.interval!==interval||
+    data?.offset!==offset||
+    !Number.isSafeInteger(data.totalCount)||data.totalCount<0||
+    !Array.isArray(data.candles))
+    throw Error('Требуется обновление Android для архива H1-свечей.');
+   if(total===null)total=data.totalCount;
+   else if(total!==data.totalCount)
+    throw Error('Свечная история изменилась во время чтения.');
+   const expected=Math.min(limit,total-offset);
+   if(expected<0||data.candles.length!==expected)
+    throw Error('Неполная страница свечной истории.');
+   let pagePrev=null;
+   for(const bar of data.candles){
+    if(!Number.isSafeInteger(bar?.t)||bar.t<=0||
+     !Number.isSafeInteger(bar.closeAt)||bar.closeAt<=bar.t||
+     bar.closed!==true||seen.has(bar.t)||
+     (pagePrev!==null&&bar.t<=pagePrev)||
+     ![bar.open,bar.high,bar.low,bar.close,bar.volume]
+      .every(x=>typeof x==='number'&&Number.isFinite(x))||
+     bar.low<=0||bar.high<Math.max(bar.open,bar.close,bar.low)||
+     bar.low>Math.min(bar.open,bar.close)||bar.volume<0)
+     throw Error('Невалидная или повторная сохранённая свеча.');
+    pagePrev=bar.t;seen.add(bar.t);
+   }
+   if(data.candles.length&&previousNewest!==null&&
+    data.candles.at(-1).t>=previousNewest)
+    throw Error('Нарушен хронологический порядок страниц H1.');
+   if(data.candles.length)previousNewest=data.candles[0].t;
+   rows.push(...data.candles);
+   if(typeof onProgress==='function')onProgress(rows.length,total);
+   if(rows.length===total)break;
+   if(data.candles.length===0)throw Error('Пустая страница свечной истории.');
+  }
+  return {...empty,candles:rows.sort((a,b)=>a.t-b.t),
+   totalCount:total,complete:rows.length===total};
+ }catch(error){
+  return {...empty,error:String(error?.message||error)};
+ }
+}
 export async function checkMobileResearchForecast(id){
  const native=plugin();
  if(!native)return {native:false,state:'UNSUPPORTED'};

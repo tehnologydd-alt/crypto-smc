@@ -119,7 +119,8 @@ object ApexAutoForecast {
             if (recent[i].openTime - recent[i - 1].openTime != STEP)
                 return Report(asset, "GAP", "UNKNOWN", "Пропуски в свечной истории")
         dao.saveCandles(rows)
-        dao.pruneCandles(asset, "1h", max(0L, rows.last().openTime - 500L * STEP))
+        // Retain up to 180 days of genuine H1 bars; no synthetic backfill.
+        dao.pruneCandles(asset, "1h", max(0L, rows.last().openTime - 4_320L * STEP))
 
         val latest = dao.latestResearchForecast(asset)
         if (latest != null && latest.hypothesisJson.contains(METHOD)) {

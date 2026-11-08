@@ -125,6 +125,13 @@ interface ResearchDao {
     @Query("SELECT * FROM market_candles WHERE asset = :asset AND interval = :interval ORDER BY openTime DESC LIMIT :limit")
     suspend fun candles(asset: String, interval: String, limit: Int): List<MarketCandle>
 
+    /** Returns only persisted source candles; missing hours remain missing. */
+    @Query("SELECT * FROM market_candles WHERE asset = :asset AND interval = :interval ORDER BY openTime DESC LIMIT :limit OFFSET :offset")
+    suspend fun candlePage(asset: String, interval: String, limit: Int, offset: Int): List<MarketCandle>
+
+    @Query("SELECT COUNT(*) FROM market_candles WHERE asset = :asset AND interval = :interval")
+    suspend fun candleCountForAsset(asset: String, interval: String): Int
+
     @Query("SELECT COUNT(*) FROM market_candles")
     suspend fun candleCount(): Int
 
@@ -161,6 +168,10 @@ interface ResearchDao {
     /** Read-only asset-scoped historical research; original Room schema retained. */
     @Query("SELECT * FROM research_forecasts WHERE asset = :asset ORDER BY publishedAt DESC LIMIT :limit")
     suspend fun researchForecastsForAsset(asset: String, limit: Int): List<ResearchForecast>
+
+    /** Deterministic, bounded journal page; no table migration. */
+    @Query("SELECT * FROM research_forecasts WHERE asset = :asset ORDER BY publishedAt DESC, id DESC LIMIT :limit OFFSET :offset")
+    suspend fun researchForecastPage(asset: String, limit: Int, offset: Int): List<ResearchForecast>
 
     @Query("SELECT COUNT(*) FROM research_forecasts WHERE asset = :asset")
     suspend fun forecastCountForAsset(asset: String): Int

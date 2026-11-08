@@ -249,7 +249,9 @@ class ApexNativePlugin : Plugin() {
             try {
                 val dao = ApexDatabase.get(context).researchDao()
                 dao.saveCandles(candles)
-                val cutoff = maxOf(0L, candles.last().openTime - 500L * step)
+                // Preserve up to 4,320 historical intervals (H1 ~ 180 days).
+                // Older missing source bars are not silently regenerated.
+                val cutoff = maxOf(0L, candles.last().openTime - 4_320L * step)
                 dao.pruneCandles(asset, interval, cutoff)
                 val result = JSObject()
                 result.put("saved", candles.size)
@@ -266,13 +268,17 @@ class ApexNativePlugin : Plugin() {
         val asset = call.getString("asset") ?: ""
         val interval = call.getString("interval") ?: ""
         val limit = call.data.optInt("limit", 500).coerceIn(1, 600)
-        if (!assetRegex.matches(asset) || !intervals.containsKey(interval)) {
+        val offset = call.data.optInt("offset", 0)
+        if (!assetRegex.matches(asset) || !intervals.containsKey(interval) ||
+            offset < 0 || offset > 4_800) {
             call.reject("Invalid candle query")
             return
         }
         tasks.launch {
             try {
-                val saved = ApexDatabase.get(context).researchDao().candles(asset, interval, limit)
+                val dao = ApexDatabase.get(context).researchDao()
+                val saved = dao.candlePage(asset, interval, limit, offset)
+                val total = dao.candleCountForAsset(asset, interval)
                 val rows = JSArray()
                 for (record in saved.asReversed()) {
                     rows.put(JSObject()
@@ -287,6 +293,8 @@ class ApexNativePlugin : Plugin() {
                 result.put("source", "LOCAL_ROOM_CACHE")
                 result.put("asset", asset)
                 result.put("interval", interval)
+                result.put("offset", offset)
+                result.put("totalCount", total)
                 call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Could not load cached candles: " + (e.message ?: "unknown"))
@@ -381,11 +389,17 @@ class ApexNativePlugin : Plugin() {
             return
         }
         val limit = call.data.optInt("limit", 40).coerceIn(1, 75)
+        val offset = call.data.optInt("offset", 0)
+        if (offset < 0 || offset > 1_500 ||
+            (requestedAsset == null && offset != 0)) {
+            call.reject("Invalid research archive offset")
+            return
+        }
         tasks.launch {
             try {
                 val dao = ApexDatabase.get(context).researchDao()
                 val published = if (requestedAsset == null) dao.researchForecasts(limit)
-                    else dao.researchForecastsForAsset(requestedAsset, limit)
+                    else dao.researchForecastPage(requestedAsset, limit, offset)
                 val outcomes = if (published.isEmpty()) emptyMap() else
                     dao.researchResults(published.map { it.id }).associateBy { it.forecastId }
                 val stages = if (published.isEmpty()) emptyMap() else
@@ -436,6 +450,8 @@ class ApexNativePlugin : Plugin() {
                     dao.researchResultCount() else dao.researchResultCountForAsset(requestedAsset))
                 response.put("assetScoped", requestedAsset != null)
                 if (requestedAsset != null) response.put("asset", requestedAsset)
+                response.put("offset", offset)
+                response.put("pageLimit", limit)
                 response.put("source", "LOCAL_ROOM_JOURNAL")
                 call.resolve(response)
             } catch (e: Exception) {
