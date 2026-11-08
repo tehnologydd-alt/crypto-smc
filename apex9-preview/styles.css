@@ -352,3 +352,38 @@ body[data-view]:not([data-view="overview"]) .search-box{margin-bottom:18px}
 .native-setting small{display:block;color:#9eb6be;font-size:11px;font-weight:400;line-height:1.6;margin-top:3px}
 .native-history{margin-top:15px}
 .native-history .source-line{min-height:66px}
+
+
+/* Mobile-first authentic OHLCV research chart */
+.candle-panel{padding:16px 13px 13px;overflow:hidden;border-color:#35828a85}
+.chart-heading{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:0 4px}
+.chart-heading h3{margin:0 0 4px;font-size:17px}
+.chart-heading p{margin:0 0 12px;font-size:11px}
+.chart-heading .ghost{font-size:20px;padding:7px 13px;min-width:43px;min-height:42px}
+.chart-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+.chart-tf,.chart-reset{
+ background:#0b222b;border:1px solid #2b5660;color:#9fbec6;
+ font-size:12px;font-weight:750;padding:8px 10px;border-radius:10px;
+ min-height:39px
+}
+.chart-tf.selected{color:#8cf7e9;background:#0c4447;border-color:#40d9db}
+.chart-reset{margin-left:auto;font-size:10px;font-weight:500}
+.chart-status{margin:8px 2px 9px;color:#a2c0c8;font-size:11px;min-height:16px;line-height:1.45}
+.chart-status.is-offline{color:#e9c58b}
+.chart-surface{width:100%;border:1px solid #2f6c7478;border-radius:15px;
+ background:#08151c;overflow:hidden;box-shadow:inset 0 1px 0 #d6ffff0e}
+.chart-surface canvas{display:block;width:100%;height:330px;touch-action:none;outline-offset:-3px;cursor:crosshair}
+.chart-selected{border-radius:11px;min-height:38px;padding:10px 12px;margin-top:10px;
+ background:#0a242b;color:#b0d5da;font-size:11px;line-height:1.55;font-variant-numeric:tabular-nums}
+.structure-panel{border-color:#2b66746e}
+.structure-panel .section-title h3{margin:0}
+.structure-events{display:grid;gap:8px;margin:14px 0 4px}
+.structure-event{border:1px solid #2b5962;border-radius:12px;padding:11px 12px;
+ background:#0a2027;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.structure-event b{font-size:12px;color:#b8f4ec}
+.structure-event small{font-size:10px;color:#92b8c1}
+@media(max-width:390px){
+ .candle-panel{padding:13px 10px}
+ .chart-surface canvas{height:300px}
+ .chart-tf,.chart-reset{padding:7px 9px}
+}
