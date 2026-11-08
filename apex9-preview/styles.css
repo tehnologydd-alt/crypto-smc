@@ -387,3 +387,28 @@ body[data-view]:not([data-view="overview"]) .search-box{margin-bottom:18px}
  .chart-surface canvas{height:300px}
  .chart-tf,.chart-reset{padding:7px 9px}
 }
+
+
+/* On-device market observations: subdued metrics, no false certainty */
+.market-core-panel,.market-matrix-panel{border-color:#32858b80}
+.market-core-panel .section-title h3,.market-matrix-panel .section-title h3{margin:0}
+.market-core-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
+.market-core-grid .metric{min-width:0;padding:13px 12px;border-radius:15px}
+.market-core-grid .metric-label{font-size:11px}
+.market-core-grid .metric-value{font-size:clamp(17px,4.4vw,23px);line-height:1.3;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;margin:9px 0 4px}
+.market-core-grid .metric-sub{font-size:10px}
+.core-range{background:#0a1a22;border:1px solid #24555f83;border-radius:16px;padding:4px 13px 9px}
+.range-track{width:100%;height:8px;overflow:visible;border:1px solid #25656d;background:linear-gradient(90deg,#34545c,#287f83,#58cfcc);border-radius:999px;margin:12px 0 4px;position:relative}
+.range-track>span{position:absolute;top:-5px;left:50%;height:16px;width:5px;border-radius:4px;background:#e5ffff;box-shadow:0 0 9px #5cfaff;transform:translateX(-50%);transition:left .2s ease}
+.matrix-run{margin:11px 0;min-height:44px}
+.market-matrix-list{display:grid;gap:8px;margin:10px 0}
+.market-matrix-row{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:12px;padding:13px 12px;background:#0d2530;border:1px solid #2b5a65;border-radius:13px;min-width:0}
+.market-matrix-row strong{font-size:12px;color:#c4f5f1;font-variant-numeric:tabular-nums}
+.market-matrix-row .frame-caption{font-size:10px;color:#98b7c3;line-height:1.45;overflow-wrap:anywhere}
+.market-matrix-row .frame-status{font-size:10px;color:#87c9ce;white-space:nowrap}
+.market-matrix-row .frame-status.is-stale{color:#e6c78a}
+#market-matrix-summary{line-height:1.65}
+@media(max-width:380px){
+ .market-core-grid .metric-value{font-size:17px}
+ .market-matrix-row{gap:7px;padding:11px 8px}
+}
