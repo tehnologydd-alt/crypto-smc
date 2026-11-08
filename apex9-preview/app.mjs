@@ -9,6 +9,7 @@ import {initFavoriteResearch} from './favorite-dashboard.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
+import {initValidationDashboard} from './validation-dashboard.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -400,6 +401,7 @@ const evidenceDashboard=initEvidenceDashboard({
  getSelectedSymbol:()=>chosen,
  getFavorites:()=>favoriteManager.getFavorites()
 });
+const validationDashboard=initValidationDashboard();
 
 function navigate(view,targetId){
  updateTab(view);
