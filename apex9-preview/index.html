@@ -127,6 +127,31 @@
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
         <p class="footnote">На графике только реальные свечи. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
       </article>
+      <article class="card block market-core-panel">
+        <div class="section-title"><h3>Market Core · локальная математика</h3><span id="market-core-interval">H1</span></div>
+        <p id="market-core-status" class="muted" aria-live="polite">Ожидаем завершённые свечи выбранного таймфрейма.</p>
+        <div class="metrics market-core-grid">
+          <div class="metric"><div class="metric-label">Рыночный режим</div><div class="metric-value" id="core-regime">—</div><div class="metric-sub">Историческая эффективность движения</div></div>
+          <div class="metric"><div class="metric-label">Скорость</div><div class="metric-value" id="core-velocity">—</div><div class="metric-sub">% за свечу, среднее 4</div></div>
+          <div class="metric"><div class="metric-label">Ускорение</div><div class="metric-value" id="core-acceleration">—</div><div class="metric-sub">Изменение средней скорости</div></div>
+          <div class="metric"><div class="metric-label">Относительный объём</div><div class="metric-value" id="core-volume">—</div><div class="metric-sub">Последняя / медиана 20</div></div>
+        </div>
+        <div class="core-range">
+          <div class="data-row"><span>Диапазон 20 свечей</span><strong id="core-range-values">—</strong></div>
+          <div class="range-track"><span id="core-range-indicator"></span></div>
+          <div class="data-row"><span>Позиция внутри диапазона</span><strong id="core-range-position">—</strong></div>
+          <div class="data-row"><span>Историческая волатильность</span><strong id="core-volatility">—</strong></div>
+        </div>
+        <p class="footnote">Скорость, ускорение и относительный объём измеряют уже произошедшие изменения. Это не вероятность роста и не рекомендация совершать сделки.</p>
+      </article>
+      <article class="card block market-matrix-panel">
+        <div class="section-title"><h3>Согласованность горизонтов</h3><span>М15 · H1 · H4 · D1</span></div>
+        <p id="market-matrix-status" class="muted" aria-live="polite">Сравнение выполняется по запросу, чтобы экономить интернет и заряд батареи.</p>
+        <button class="ghost matrix-run" id="market-matrix-run" type="button">Сравнить 4 периода</button>
+        <div id="market-matrix-items" class="market-matrix-list" aria-live="polite"></div>
+        <p id="market-matrix-summary" class="muted">Данных для сравнения ещё нет.</p>
+        <p class="footnote">Считаются только свежие завершённые свечи каждого горизонта. Старый локальный кэш показывается отдельно, но не засчитывается как текущее подтверждение.</p>
+      </article>
       <article class="card block structure-panel">
         <div class="section-title"><h3>Рыночная структура</h3><span>По завершённым свечам</span></div>
         <p id="structure-summary" class="muted">Недостаточно исторических данных.</p>
