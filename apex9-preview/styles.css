@@ -704,3 +704,39 @@ html,body{overflow-x:hidden}
  .evidence-metric strong{font-size:17px}
  .evidence-audit-counts{gap:7px}
 }
+
+
+/* Research Validation Lab: transparent historical fold and baseline comparison */
+.validation-panel{margin-top:20px;padding-top:19px;border-top:1px solid #365d69}
+.validation-panel .section-title h4{margin:0;font-size:16px;color:#d9f9f3}
+.validation-panel>.muted{font-size:11px;line-height:1.7;margin:12px 0}
+.validation-run{font-size:12px;min-height:46px;margin:5px 0 10px;
+ background:linear-gradient(140deg,#125057,#11323a);
+ border:1px solid #48c9c2;color:#e1faf4}
+#validation-status{font-size:11px;line-height:1.7;min-height:18px}
+.validation-summary{display:flex;flex-direction:column;gap:5px;background:#0b3038;
+ border:1px solid #346f77;border-radius:14px;padding:14px;margin:14px 0}
+.validation-summary strong{font-size:18px;color:#b8f2eb}
+.validation-summary span{font-size:11px;color:#9cbdc3}
+.validation-fold-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.validation-fold{min-width:0;background:#0b202a;border:1px solid #2f5865;
+ border-radius:16px;padding:13px 12px}
+.validation-fold-head{display:flex;flex-direction:column;gap:5px}
+.validation-fold-head strong{font-size:13px;color:#dafff7}
+.validation-fold-head small{font-size:10px;color:#a5c2c8}
+.validation-period-dates{font-size:10px;color:#9bbbc1;line-height:1.6;margin:7px 0 15px}
+.validation-model-row{margin:13px 0}
+.validation-model-heading{display:flex;align-items:baseline;justify-content:space-between;
+ flex-wrap:wrap;gap:6px;color:#abcbd2;font-size:10px;line-height:1.45}
+.validation-model-heading strong{font-size:13px;color:#d9f7f3;font-variant-numeric:tabular-nums}
+.validation-score-track{height:9px;background:#102d38;border:1px solid #32636a;
+ border-radius:999px;overflow:hidden;margin:8px 0}
+.validation-score-bar{display:block;height:100%;border-radius:999px}
+.validation-score-bar.apex{background:linear-gradient(90deg,#207d84,#5be8dc)}
+.validation-score-bar.reference{background:linear-gradient(90deg,#817052,#e5bf7c)}
+.validation-model-info{font-size:10px;line-height:1.65;color:#98b5be;margin:4px 0}
+.validation-hint{font-size:11px;line-height:1.75;color:#c7cfb7;
+ padding:12px 13px;background:#172a30;border:1px solid #426268;
+ border-radius:13px;margin:12px 0}
+@media(max-width:750px){.validation-fold-grid{grid-template-columns:1fr}}
+@media(min-width:550px) and (max-width:750px){.validation-fold-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
