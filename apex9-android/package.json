@@ -9,7 +9,8 @@
     "check:web": "node scripts/prepare-web.mjs --check",
     "test": "node --test ../updates/test-v90-evidence.mjs ../updates/test-v90-market-depth.mjs ../apex9-preview/test-research.mjs ../apex9-preview/test-context-sources.mjs ../apex9-preview/test-update-check.mjs",
     "icons": "node scripts/generate-icons.mjs",
-    "version": "node scripts/set-android-version.mjs"
+    "version": "node scripts/set-android-version.mjs",
+    "native:install": "node scripts/install-native.mjs"
   },
   "dependencies": {
     "@capacitor/android": "7.6.10",
