@@ -57,7 +57,7 @@ test('envelope ends at last observed real candle and never runs into blank futur
  assert.equal(view.visible,true);
  assert.equal(view.segments[0].from,0);
  assert.equal(view.segments[0].to,2);
- assert.deepEqual(view.marks.map(x=>x.key),['CONFIRMED','ACTIVE']);
+ assert.deepEqual(view.marks.map(x=>x.key),['PUBLISHED','CONFIRMED','ACTIVE']);
 });
 test('missing H1 data creates separate segments and cannot create missing stage markers',()=>{
  const s=buildScenarioMap([scenario()],{asset:'BTCUSDT',now}).scenarios[0];
@@ -77,7 +77,7 @@ test('only real candle close times anchor evaluation; live bars cannot draw anno
 });
 test('no cross-timeframe overlays, invalid records and absent candles stay empty',()=>{
  const s=buildScenarioMap([scenario()],{asset:'BTCUSDT',now}).scenarios[0];
- assert.equal(mapScenarioToViewport(s,candles(),'4h' in {}?{interval:'4h'}:{interval:'4h'}).visible,false);
+ assert.equal(mapScenarioToViewport(s,candles(),{interval:'4h'}).visible,false);
  assert.equal(mapScenarioToViewport(s,[]).visible,false);
  assert.equal(buildScenarioMap([{...scenario(),hypothesis:'{}'}],{asset:'BTCUSDT',now}).state,'EMPTY');
 });
