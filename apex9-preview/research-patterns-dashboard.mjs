@@ -144,8 +144,14 @@ export function initResearchPatternsDashboard(){
    ' с пятью завершёнными H1-свечами каждого сценария…');
   try{
    const [journal,candles]=await Promise.all([
-    getMobileAssetResearchArchive(asset),
-    getMobileCandleArchive(asset,'1h')
+    getMobileAssetResearchArchive(asset,{
+     onProgress:(loaded,total)=>{if(seq===serial)
+      announce('Архив исследований '+asset+': '+loaded+' / '+total+'…');}
+    }),
+    getMobileCandleArchive(asset,'1h',{
+     onProgress:(loaded,total)=>{if(seq===serial)
+      announce('Свечи H1 '+asset+': '+loaded+' / '+total+'…');}
+    })
    ]);
    if(seq!==serial||select.value!==asset)return;
    if(!journal.native||!candles.native||!journal.assetScoped||

@@ -66,10 +66,16 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
    const chain=chainForAsset(asset);
    // All reads are from Android Room. No external exchanges or APIs.
    const [candles,depth,network,journal]=await Promise.all([
-    getMobileCandleArchive(asset,'1h'),
+    getMobileCandleArchive(asset,'1h',{
+     onProgress:(loaded,total)=>{if(generation===seq)
+      message('Считываем H1: '+loaded+' из '+total+' сохранённых свечей…');}
+    }),
     getMobileLiquidityHistory(asset,120),
     chain?getMobileOnChainHistory(asset,100):Promise.resolve({native:true,rows:[]}),
-    getMobileAssetResearchArchive(asset)
+    getMobileAssetResearchArchive(asset,{
+     onProgress:(loaded,total)=>{if(generation===seq)
+      message('Считываем журнал: '+loaded+' из '+total+' исследований…');}
+    })
    ]);
    if(generation!==seq)return;
    if(!candles.native||!journal.native||!journal.assetScoped||
@@ -168,7 +174,9 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
   }
  }
  select.addEventListener('change',()=>{
-  generation++;lastAsset=select.value;clearResults();
+  // The previous audit can still be reading Room pages: invalidate it and
+  // immediately enable a new audit for the newly selected asset.
+  generation++;busy=false;run.disabled=false;lastAsset=select.value;clearResults();
   message('Выбран '+select.value+'. Запустите локальную проверку.');
  });
  run.addEventListener('click',()=>void runAudit());
