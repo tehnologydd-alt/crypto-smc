@@ -10,6 +10,7 @@ export class CandleChart {
   this.canvas=canvas;this.ctx=canvas.getContext('2d');
   if(!this.ctx)throw Error('Canvas 2D unavailable');
   this.data=[];this.events=[];this.scenarios=[];this.interval='1h';this.visible=55;this.offset=0;
+  this.replayCursor=null;
   this.pointers=new Map();this.lastPinch=null;this.selected=null;this.onSelect=onSelect;
   this.width=0;this.height=0;this.frame=0;
   this.onResize=()=>this.resize();
@@ -59,6 +60,14 @@ export class CandleChart {
  }
  setInterval(interval){
   this.interval=interval;
+  this.schedule();
+ }
+ setReplayCursor(cursor=null){
+  // A cursor is not a forecast or a source observation by itself.
+  // Render only when matching an actual finished H1 candle below.
+  this.replayCursor=cursor&&Number.isSafeInteger(cursor.closeAt)&&
+   Number.isFinite(cursor.close)&&cursor.close>0?
+   {closeAt:cursor.closeAt,close:cursor.close}:null;
   this.schedule();
  }
  setScenarios(scenarios=[]){
@@ -231,6 +240,24 @@ export class CandleChart {
    const x=(i+.5)*step;
    ctx.textAlign=i===0?'left':i===bars.length-1?'right':'center';
    ctx.fillText(text,Math.min(plotW-2,Math.max(2,x)),h-9);
+  }
+  // Historical Replay cursor: only a candle whose stored close agrees with
+  // the selected factual point may receive the amber inspection marker.
+  if(this.interval==='1h'&&this.replayCursor){
+   const i=bars.findIndex(b=>b.closed===true&&
+    b.closeAt===this.replayCursor.closeAt&&
+    Number.isFinite(b.close)&&
+    Math.abs(b.close-this.replayCursor.close)/
+      Math.max(b.close,this.replayCursor.close)<1e-7);
+   if(i>=0){
+    const x=(i+.5)*step,y=priceY(bars[i].close);
+    ctx.save();ctx.setLineDash([3,4]);ctx.strokeStyle='#f1ca83';
+    ctx.lineWidth=1.25;
+    ctx.beginPath();ctx.moveTo(x,13);ctx.lineTo(x,mainH-6);ctx.stroke();
+    ctx.setLineDash([]);ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);
+    ctx.fillStyle='#f1ca83';ctx.fill();ctx.strokeStyle='#09242e';
+    ctx.lineWidth=1.2;ctx.stroke();ctx.restore();
+   }
   }
   if(this.selected){
    const i=bars.findIndex(b=>b.t===this.selected.t);
