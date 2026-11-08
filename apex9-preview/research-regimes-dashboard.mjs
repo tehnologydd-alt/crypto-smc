@@ -6,6 +6,7 @@ import {getMobileCandleArchive} from './mobile-bridge.mjs';
 import {analyzeResearchRegimes,REGIME_TYPES,VOLATILITY_STATES} from './research-regimes.mjs';
 import {analyzeRegimeStability} from './regime-stability.mjs';
 import {analyzeRegimeTransitions} from './regime-transitions.mjs';
+import {analyzeRegimeHoldout} from './regime-holdout.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,className='',value)=>{
@@ -298,6 +299,74 @@ export function initResearchRegimesDashboard(){
   root.append(node('p','transition-disclaimer',result.note));
   cards.append(root);
  }
+
+ function renderHoldout(report){
+  const result=analyzeRegimeHoldout(report);
+  const section=node('details','regime-holdout');
+  const title=node('summary','regime-holdout-heading');
+  title.append(node('strong','','Research Holdout · отдельная история'),
+   node('span','','Ранний опорный → поздний проверочный'));
+  section.append(title);
+  if(result.state!=='DESCRIPTIVE'){
+   section.append(node('p','regimes-warning',
+    'Историческая контрольная проверка недоступна: '+result.reason));
+   cards.append(section);return;
+  }
+  section.append(node('p','regimes-notes',
+   'Фиксированное сравнение: ранние 60% истории, затем 40-часовой '+
+   'исключённый участок, затем оставшаяся более поздняя история. '+
+   'Порогов по контрольной истории не подбираем.'));
+  const stats=node('div','holdout-overview');
+  for(const [name,value] of [
+   ['Опорных переходов',number(result.reference.pairs)],
+   ['Проверочных переходов',number(result.holdout.pairs)],
+   ['Исключено часов',number(result.embargo.excludedHours)],
+   ['Сопоставимых режимов',number(result.comparableModes)+
+    ' / '+number(result.rows.length)]
+  ]){
+   const tile=node('div','holdout-overview-tile');
+   tile.append(node('span','',name),node('strong','',value));
+   stats.append(tile);
+  }
+  section.append(stats);
+  for(const origin of result.rows){
+   const group=node('details','holdout-mode');
+   const heading=node('summary','holdout-mode-head');
+   heading.append(node('strong','',origin.label),
+    node('span','',number(origin.referencePairs)+' / '+
+     number(origin.holdoutPairs)+' исходных переходов'));
+   group.append(heading);
+   if(origin.state!=='DESCRIPTIVE'){
+    group.append(node('p','regimes-warning',origin.reason+
+     '. Показаны только наблюдаемые количества.'));
+    group.append(node('p','regimes-notes',origin.transitions.map(x=>
+     names[x.id]+': '+number(x.referenceCount)+' / '+
+     number(x.holdoutCount)).join(' · ')));
+   }else for(const dest of origin.transitions){
+    const line=node('div','holdout-destination');
+    const header=node('div','holdout-destination-head');
+    header.append(node('strong','',names[origin.id]+' → '+names[dest.id]),
+     node('small','','Наблюдаемый сдвиг: '+pp(dest.differencePp)));
+    line.append(header);
+    const columns=node('div','holdout-pair');
+    for(const [label,x] of [
+     ['Опорный',dest.referenceRate],
+     ['Проверочный',dest.holdoutRate]
+    ]){
+     const cell=node('div','holdout-rate');
+     cell.append(node('span','',label+' · '+number(x.count)+
+      ' / '+number(x.total)),node('strong','',percent(x.share)),
+      node('small','','Ориентир 95%: '+
+       percent(x.lower)+' – '+percent(x.upper)));
+     columns.append(cell);
+    }
+    line.append(columns);group.append(line);
+   }
+   section.append(group);
+  }
+  section.append(node('p','holdout-disclosure',result.note));
+  cards.append(section);
+ }
  async function runAudit(){
   if(busy||!select.value)return;
   const asset=select.value,seq=++serial;
@@ -321,6 +390,7 @@ export function initResearchRegimesDashboard(){
    if(result.state==='DESCRIPTIVE'){
     renderStability(result);
     renderTransitions(result);
+    renderHoldout(result);
    }
    announce(result.state==='DESCRIPTIVE'?
     'Исследованы '+number(result.overall.samples)+
