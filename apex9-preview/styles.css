@@ -453,3 +453,81 @@ body[data-view]:not([data-view="overview"]) .search-box{margin-bottom:18px}
  font-size:11px;line-height:1.6;color:#a5e6df;background:#12322f}
 .forecast-pending-copy{margin:12px 0 0;font-size:11px;line-height:1.7;color:#d2bd91}
 @media(min-width:700px){.forecast-actions{grid-template-columns:2fr 1fr 1fr}}
+
+
+/* APEX phone-first: system insets applied natively at Android content root. */
+html,body{overflow-x:hidden}
+.topbar{padding-top:18px;min-height:75px;box-sizing:border-box}
+.apex-brand-icon{
+ width:48px;height:48px;display:block;object-fit:contain;border-radius:15px;
+ border:1px solid #54c5d079;background:#041319;
+ transform:none;box-shadow:0 8px 24px #05b7ba26;
+}
+.hero-price{flex-wrap:wrap;align-items:baseline;row-gap:10px}
+.hero-price strong{min-width:0;overflow-wrap:anywhere;line-height:1.2}
+.content{padding-bottom:max(170px,calc(170px + env(safe-area-inset-bottom)))}
+.footer{padding-bottom:max(160px,calc(160px + env(safe-area-inset-bottom)))}
+.tabs.bottom-dock{bottom:max(12px,env(safe-area-inset-bottom));}
+.favorites-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0 3px}
+.favorite-toggle{
+ display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:43px;
+ background:#102f35;border:1px solid #41b7bd93;border-radius:13px;
+ padding:10px 14px;font-size:12px;color:#c6f7ec;font-weight:750;
+}
+.favorite-toggle[aria-pressed="true"]{background:#0e4848;color:#88f3e6}
+.favorites-toolbar .microcopy{flex:1;min-width:180px;line-height:1.6}
+.asset-rail{
+ display:flex;gap:12px;width:100%;overflow-x:auto;overflow-y:hidden;
+ padding:3px 2px 16px;scroll-snap-type:x mandatory;scrollbar-width:thin;
+ overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x;
+}
+.asset-chip.favorite-card{
+ flex:0 0 218px;width:218px;min-width:218px;height:100px;
+ scroll-snap-align:start;display:flex;align-items:center;gap:0;
+ padding:0 10px 0 12px;box-sizing:border-box;overflow:hidden;
+}
+.favorite-open{
+ display:flex;flex:1;align-items:center;gap:10px;min-width:0;min-height:82px;
+ background:transparent;color:inherit;border:0;padding:0;text-align:left;
+}
+.favorite-names{min-width:0}
+.favorite-names strong,.favorite-names small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.favorite-names strong{font-size:13px}
+.favorite-names small{font-size:10px;margin-top:5px;color:#98b5bd}
+.favorite-remove{
+ flex:0 0 31px;min-width:31px;min-height:42px;border:0;border-radius:12px;
+ background:#0c313a;color:#bde5e9;font-size:22px;line-height:1;
+}
+.favorite-remove:focus-visible,.favorite-open:focus-visible{outline:2px solid #8df4ee}
+.favorites-hint{margin:0;color:#88aeb7;font-size:10px;line-height:1.6}
+#favorite-rail>.muted{padding:16px 10px;font-size:12px;line-height:1.7}
+.forecast-stage-tabs{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:16px 0 20px;
+}
+.forecast-filter{
+ border:1px solid #37656c;background:#0c242d;color:#afc8d0;
+ border-radius:14px;min-height:52px;padding:9px 10px;
+ display:flex;align-items:center;justify-content:space-between;gap:6px;
+ text-align:left;font-size:11px;font-weight:720;line-height:1.3;
+}
+.forecast-filter.active{
+ background:linear-gradient(145deg,#15565c,#0d3038);
+ border-color:#54cfd3;color:#e4fffc;
+ box-shadow:inset 0 0 0 1px #39c6cc19;
+}
+.forecast-filter small{font-size:11px;font-weight:800;background:#0c1820;border-radius:8px;
+ padding:4px 7px;color:#9be9e0;min-width:15px;text-align:center}
+.forecast-state{max-width:48%;white-space:normal;text-align:center}
+.forecast-state.pending_confirmation{color:#f0ce8a;border-color:#9d7943}
+.forecast-state.confirmed{color:#9cece3;border-color:#427f80}
+.forecast-state.active{color:#72e1dd;border-color:#2caeb1}
+.forecast-state.completed{color:#b6f0d0;border-color:#3a8d74}
+.forecast-stage-date{display:block;margin-top:10px;color:#87aab3;font-size:10px}
+.forecast-stages .section-title h3{margin:0}
+@media(max-width:410px){
+ .content{padding:11px 15px 176px}
+ .topbar{padding:16px 14px 12px}
+ .apex-brand-icon{width:43px;height:43px}
+ .asset-chip.favorite-card{flex-basis:195px;width:195px;min-width:195px}
+ .forecast-filter{font-size:10px;padding:9px 8px}
+}
