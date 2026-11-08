@@ -19,6 +19,21 @@ const nativeFiles=['ApexDatabase.kt','ApexPreferences.kt','ApexSyncWorker.kt','A
 for(const file of nativeFiles)if(!existsSync(join(nativeRoot,file)))throw Error('Native Kotlin file missing: '+file);
 
 let root=readFileSync(rootGradle,'utf8');
+// Keep the same vetted Maven Central Kotlin coordinates. Route Kotlin artifacts
+// to Google's GCS Maven Central mirror first to avoid GitHub CDN 504 redirects.
+// This affects Kotlin only; all other modules keep their original repositories.
+if(!root.includes('GoogleCentralKotlinMirror')){
+ const projectRepos=/allprojects\s*\{\s*repositories\s*\{/;
+ if(!projectRepos.test(root))
+  throw Error('Android allprojects repositories anchor missing');
+ root=root.replace(projectRepos,match=>match+`
+        maven {
+            name = 'GoogleCentralKotlinMirror'
+            url 'https://maven-central.storage-download.googleapis.com/maven2/'
+            content { includeGroup 'org.jetbrains.kotlin' }
+        }`);
+ writeFileSync(rootGradle,root);
+}
 if(!root.includes('org.jetbrains.kotlin:kotlin-gradle-plugin')){
  const anchor=/classpath\s+(['"])com\.android\.tools\.build:gradle:[^'"]+\1/;
  if(!anchor.test(root))throw Error('Android Gradle Plugin classpath anchor missing');
