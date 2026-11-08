@@ -48,7 +48,7 @@ test('a forged result does not contribute to observed coverage',()=>{
  assert.equal(summary.counts.invalid,1);
 });
 test('pending overdue observations are not counted as failures',()=>{
- const rows=[forecast(0,{completed:false}),forecast(18,{completed:false})];
+ const rows=[forecast(0,{completed:false}),forecast(20,{completed:false})];
  const result=auditForwardResearch(rows,{now});
  assert.equal(result.counts.evaluated,0);
  assert.equal(result.counts.dueUnevaluated,1);
