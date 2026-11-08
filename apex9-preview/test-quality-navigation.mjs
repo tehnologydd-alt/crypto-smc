@@ -23,6 +23,7 @@ test('quality laboratory exists exactly once on its own page',()=>{
  assert.ok(quality.includes('id="synthesis-run"'));
  assert.ok(quality.includes('id="synthesis-cancel"'));
  assert.ok(quality.includes('id="synthesis-summary"'));
+ assert.ok(quality.includes('id="synthesis-brief"'));
  assert.ok(quality.includes('id="synthesis-cards"'));
  assert.ok(quality.includes('id="synthesis-panel"'));
  assert.ok(html.includes('id="asset-explain"'));
