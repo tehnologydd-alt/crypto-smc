@@ -84,7 +84,7 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  follow.type='button';follow.setAttribute('aria-pressed',tracked?'true':'false');
  follow.addEventListener('click',()=>onToggle?.(row.id));
  const open=create('button','forecast-open','Паспорт '+row.asset);
- open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset));
+ open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset,row.id));
  headActions.append(follow,open);
  const stage=forecastStage(row);
  let data=null;
