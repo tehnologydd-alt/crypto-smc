@@ -1,0 +1,205 @@
+/**
+ * APEX Android First — dynamic on-device favorites and automatic research journal.
+ * User selects up to 10 assets; no UI for manually authoring predictions.
+ * Sync is foreground and (when opted-in) via Android WorkManager.
+ */
+import {getMobileFavorites,changeMobileFavorite,
+ syncMobileFavoriteResearch,getMobileResearchForecasts} from './mobile-bridge.mjs';
+import {sanitizeFavorites,journalCounts,forecastStage,
+ FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
+
+const id=name=>document.getElementById(name);
+const create=(tag,className='',value)=>{
+ const node=document.createElement(tag);
+ if(className)node.className=className;
+ if(value!==undefined)node.textContent=String(value);
+ return node;
+};
+const clear=node=>{while(node.firstChild)node.removeChild(node.firstChild);};
+const fmt=(num,digits=6)=>Number.isFinite(num)
+ ?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:digits}).format(num):'—';
+const date=ms=>Number.isFinite(ms)?new Date(ms).toLocaleString('ru-RU'):'—';
+const coinNames={
+ BTC:['Bitcoin','₿'],ETH:['Ethereum','◆'],GRAM:['Gram','◇'],SOL:['Solana','≋']
+};
+function cardForForecast(row){
+ const card=create('article','forecast-record');
+ const stage=forecastStage(row);
+ let data=null;
+ try{data=JSON.parse(row.hypothesis);}catch{}
+ const head=create('div','forecast-record-head');
+ const heading=create('div');
+ heading.append(create('strong','',row.asset+' · H1'),
+  create('small','', 'Наблюдение по эмпирическому диапазону'));
+ head.append(heading,create('span','forecast-state '+stage.toLowerCase(),
+  FORECAST_STAGE_LABELS[stage]));
+ card.append(head);
+ if(!data||typeof data.bandLow!=='number'||typeof data.bandHigh!=='number'){
+  card.append(create('p','muted','Исходная запись требует проверки формата.'));
+  return card;
+ }
+ card.append(create('div','forecast-band',
+  fmt(data.bandLow)+' — '+fmt(data.bandHigh)+' USDT'));
+ const rows=create('div','forecast-info');
+ for(const [label,value] of [
+  ['Опубликован',date(row.publishedAt)],
+  ['Начальная цена',fmt(data.anchorClose)+' USDT'],
+  ['Срок проверки',date(data.targetCloseAt)],
+  ['Источник','Binance Spot · закрытые H1']]){
+  const line=create('div','data-row');
+  line.append(create('span','',label),create('strong','',value));
+  rows.append(line);
+ }
+ card.append(rows);
+ const last=Array.isArray(row.stageEvents)?row.stageEvents.at(-1):null;
+ if(last?.explanation){
+  card.append(create('p','forecast-pending-copy',last.explanation));
+ }
+ if(row.evaluation){
+  card.append(create('div','forecast-result',
+   (row.evaluation.outcome==='WITHIN_RANGE'?'Закрылось в исходном диапазоне':
+    row.evaluation.outcome==='OUTSIDE_RANGE'?'Закрылось вне исходного диапазона':
+    'Исторический результат записан')+
+   ' · '+fmt(row.evaluation.actualClose)+' USDT · '+date(row.evaluation.evaluatedAt)));
+ }else if(stage==='COMPLETED'){
+  card.append(create('p','forecast-pending-copy',
+   'Горизонт завершён. Результат требует доступной истории свечей.'));
+ }
+ return card;
+}
+export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol}){
+ let favorites=[],native=false,busy=false, syncing=false,lastSyncAt=0,
+  stage='PENDING_CONFIRMATION';
+ const status=text=>{id('favorite-selection-status').textContent=text;};
+ function renderFavorites(){
+  const rail=id('favorite-rail');clear(rail);
+  id('favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
+  id('forecast-favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
+  if(!favorites.length){
+   rail.append(create('p','muted',native
+    ?'Избранное пока пусто. Найдите интересующий актив и нажмите «☆ Добавить в избранное».'
+    :'Избранное хранится в Android-приложении.'));
+  }else for(const symbol of favorites){
+   const wrapper=create('div','asset-chip favorite-card');
+   wrapper.setAttribute('role','listitem');
+   if(symbol===getSelectedSymbol())wrapper.classList.add('selected');
+   const open=create('button','favorite-open');
+   open.type='button';open.dataset.symbol=symbol;
+   open.setAttribute('aria-label','Исследовать '+symbol);
+   const token=symbol.replace(/(USDT|USDC|BTC|ETH|EUR)$/,'');
+   const [label,mark]=coinNames[token]||[token,token.slice(0,1)];
+   const icon=create('span','coin-mark '+token.toLowerCase(),mark);
+   const labels=create('span','favorite-names');
+   labels.append(create('strong','',label),create('small','',symbol));
+   open.append(icon,labels);
+   open.addEventListener('click',()=>onSelectSymbol(symbol));
+   const remove=create('button','favorite-remove','×');
+   remove.type='button';
+   remove.setAttribute('aria-label','Удалить '+symbol+' из избранного');
+   remove.addEventListener('click',()=>void updateFavorite(symbol,false));
+   wrapper.append(open,remove);rail.append(wrapper);
+  }
+  const selected=favorites.includes(getSelectedSymbol());
+  const toggle=id('favorite-toggle');
+  toggle.disabled=!native||busy||(!selected&&favorites.length>=FAVORITES_MAX);
+  toggle.textContent=selected?'★ Убрать из избранного':
+   favorites.length>=FAVORITES_MAX?'Максимум 10 активов':'☆ Добавить в избранное';
+  toggle.setAttribute('aria-pressed',selected?'true':'false');
+  status(native?'Избрано '+favorites.length+' из '+FAVORITES_MAX+
+   ' · сохраняется на Android-телефоне':
+   'Android-хранилище недоступно. Избранное не сохраняется в веб-просмотре.');
+ }
+ async function updateFavorite(symbol,add){
+  if(!native||busy)return;
+  busy=true;renderFavorites();
+  try{
+   const result=await changeMobileFavorite(symbol,add);
+   favorites=sanitizeFavorites(result.favorites);
+   renderFavorites();
+   await loadJournal();
+   if(add)void sync(true);
+  }catch(e){
+   status('Не удалось изменить избранное: '+String(e?.message||e));
+  }finally{
+   busy=false;renderFavorites();
+  }
+ }
+ async function loadJournal(){
+  const list=id('research-forecast-list');
+  const data=await getMobileResearchForecasts(75);
+  clear(list);
+  if(!data.native||data.error){
+   for(const x of FORECAST_STAGES)id('stage-count-'+x).textContent='0';
+   id('forecast-pending-count').textContent='—';
+   id('forecast-evaluated-count').textContent='—';
+   list.append(create('p','muted',data.error?
+    'Локальный журнал недоступен: '+data.error:
+    'Журнал прогнозов работает в установленном Android APK.'));
+   return;
+  }
+  const rows=Array.isArray(data.forecasts)?data.forecasts:[];
+  const counts=journalCounts(rows);
+  for(const [x,num] of Object.entries(counts))
+   id('stage-count-'+x).textContent=String(num);
+  id('forecast-pending-count').textContent=fmt(counts.PENDING_CONFIRMATION+counts.CONFIRMED+counts.ACTIVE,0);
+  id('forecast-evaluated-count').textContent=fmt(data.evaluatedCount,0);
+  const visible=rows.filter(row=>forecastStage(row)===stage);
+  if(!visible.length){
+   list.append(create('p','muted',favorites.length?
+    'На этом этапе пока нет исследований. Новые наблюдения будут проверены при наличии завершённых свечей.':
+    'Добавьте активы в избранное на главном экране. APEX начнёт исследовать их автоматически.'));
+  }else for(const row of visible)list.append(cardForForecast(row));
+ }
+ function message(text,error=false){
+  const node=id('forecast-action-status');
+  node.textContent=text;node.classList.toggle('is-offline',error);
+ }
+ async function sync(force=false){
+  if(document.hidden||syncing||!native||favorites.length===0)return;
+  if(!force&&lastSyncAt&&Date.now()-lastSyncAt<15*60*1000)return;
+  syncing=true;lastSyncAt=Date.now();
+  message('APEX исследует избранные активы и проверяет состояния прогнозов…');
+  try{
+   const result=await syncMobileFavoriteResearch();
+   if(result.error)throw Error(result.error);
+   const created=result.reports.filter(x=>x.state==='CREATED').length;
+   const missing=result.reports.filter(x=>[
+    'ERROR','SOURCE_UNAVAILABLE','STALE','GAP','INVALID','INSUFFICIENT'
+   ].includes(x.state));
+   message('Проверено активов: '+result.checked+
+    (created?' · новых гипотез: '+created:' · новых гипотез нет')+
+    (missing.length?' · данных недостаточно для '+missing.length+
+     ' активов.':' · наблюдения сохранены на устройстве.'));
+  }catch(e){
+   message('Проверка избранного: '+String(e?.message||e),true);
+  }finally{syncing=false;await loadJournal();}
+ }
+ for(const button of document.querySelectorAll('[data-forecast-stage]')){
+  button.addEventListener('click',()=>{
+   stage=button.dataset.forecastStage;
+   for(const item of document.querySelectorAll('[data-forecast-stage]')){
+    const selected=item.dataset.forecastStage===stage;
+    item.classList.toggle('active',selected);
+    item.setAttribute('aria-pressed',selected?'true':'false');
+   }
+   void loadJournal();
+  });
+ }
+ id('favorite-toggle').addEventListener('click',()=>{
+  const symbol=getSelectedSymbol();
+  void updateFavorite(symbol,!favorites.includes(symbol));
+ });
+ renderFavorites();
+ return {
+  async initialize(){
+   const result=await getMobileFavorites();
+   native=result.native;favorites=sanitizeFavorites(result.favorites);
+   renderFavorites();await loadJournal();
+   void sync(true);
+  },
+  selectChanged(){renderFavorites();},
+  openForecasts(){void loadJournal();void sync(false);},
+  resume(){void sync(false);},
+  getFavorites:()=>[...favorites]
+ };
+}
