@@ -149,7 +149,7 @@ export function summarizeOnChainHistory(rows,{chain,now=Date.now()}={}){
  const points=parseOnChainHistory(rows,chain);
  if(!points.length)return {state:'EMPTY',chain,points,samples:0};
  const latest=points.at(-1);
- const old=now-latest.collectedAt>10*60000||now<latest.collectedAt-60000;
+ const old=now-latest.collectedAt>=10*60000||now<latest.collectedAt-60000;
  const previous=points.length>=2?points.at(-2):null;
  const field=chain==='bitcoin'?'mempoolCount':'transactionsToday';
  const change=previous&&latest.collectedAt-previous.collectedAt>=60000
