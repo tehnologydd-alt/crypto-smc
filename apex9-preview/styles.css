@@ -1018,3 +1018,65 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .scenario-map-item{padding:11px}
  .scenario-map-item-range{font-size:16px}
 }
+
+
+/* Scenario Replay: verified 5-point H1 story, optimized for touch and offline cache. */
+.scenario-replay{
+ margin:16px 0 13px;padding:15px 13px;
+ border:1px solid #37747d;border-radius:17px;
+ background:linear-gradient(155deg,#0b2a34,#081e28 82%)
+}
+.scenario-replay .section-title h4{font-size:15px;margin:0;color:#dcf7f2}
+.scenario-replay .section-title span{font-size:10px;color:#a4c9c9;
+ font-variant-numeric:tabular-nums;white-space:nowrap}
+#scenario-replay-context{
+ font-size:11px;line-height:1.75;margin:11px 0 14px;color:#acc6cb
+}
+.scenario-replay-steps{
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+ gap:7px;margin:10px 0 13px
+}
+.scenario-replay-step{
+ min-height:59px;border:1px solid #305762;border-radius:12px;
+ padding:7px 3px;background:#112a33;color:#829da8;
+ display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:5px;cursor:pointer
+}
+.scenario-replay-step strong{font-size:15px;line-height:1.1}
+.scenario-replay-step small{font-size:10px;line-height:1;color:#829da8}
+.scenario-replay-step.observed{
+ background:#10353a;color:#b7e9df;border-color:#387f7e
+}
+.scenario-replay-step.observed small{color:#64cfc4}
+.scenario-replay-step.current{
+ background:#184c50;border-color:#7adbd3;
+ color:#e9fff9;box-shadow:inset 0 0 0 1px #53a8a28e
+}
+.scenario-replay-detail{
+ background:#09212b;border:1px solid #355d67;
+ border-radius:13px;padding:13px 12px;min-height:95px
+}
+.scenario-replay-detail>strong{
+ display:block;font-size:12px;line-height:1.55;color:#c6e8e5;margin-bottom:8px
+}
+.scenario-replay-price{
+ font-size:clamp(20px,5.7vw,29px);font-weight:780;line-height:1.2;
+ color:#b1f3e7;font-variant-numeric:tabular-nums;overflow-wrap:anywhere
+}
+.scenario-replay-detail>p{font-size:11px;line-height:1.7;
+ color:#b1cbd1;margin:8px 0 0}
+.scenario-replay-detail>.scenario-replay-absent{
+ color:#eacb96;padding-top:5px
+}
+.scenario-replay-warning{
+ font-size:10px;line-height:1.75;color:#dfc59b;
+ margin:12px 0 0;padding:10px 11px;
+ background:#1a2b31;border:1px solid #5d6360;border-radius:11px
+}
+.scenario-replay .footnote{margin:13px 0 0;font-size:10px;line-height:1.7}
+@media(max-width:380px){
+ .scenario-replay{padding:12px 10px}
+ .scenario-replay-steps{gap:5px}
+ .scenario-replay-step{min-height:53px;border-radius:10px}
+ .scenario-replay-detail{padding:11px}
+}
