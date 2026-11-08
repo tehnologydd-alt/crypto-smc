@@ -4,6 +4,7 @@ import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
+import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -180,8 +181,115 @@ function candleMessage(message,warning=false){
  text('candle-status',message);
  el('candle-status').classList.toggle('is-offline',warning);
 }
+
+const coreRegimes={DIRECTIONAL:'Направленное',RANGE:'Диапазон',MIXED:'Смешанное',UNKNOWN:'—'};
+const frameLabels={'15m':'M15','1h':'H1','4h':'H4','1d':'D1'};
+const directionLabels={UP:'Рост в истории',DOWN:'Снижение в истории',FLAT:'Без изменения',UNKNOWN:'Недостаточно данных'};
+function pctNumber(v,d=2){return Number.isFinite(v)?(v>0?'+':'')+fmt(v,d)+'%':'—';}
+function showMarketCore(candles,origin,interval){
+ const result=analyzeMarketFrame(candles,interval,{now:Date.now(),source:origin});
+ const available=result.status==='OK'||result.status==='STALE';
+ text('market-core-interval',frameLabels[interval]||interval);
+ text('market-core-status',available?
+   origin+' · '+result.closedBars+' завершённых свечей · '+(result.status==='STALE'?'исторический срез':'источник обработан')+
+   ' · это не прогноз':
+   origin+' · '+(result.reason||'Недостаточно данных')+' · вывод не рассчитан');
+ text('core-regime',available?coreRegimes[result.mode]:'—');
+ text('core-velocity',available?pctNumber(result.velocityPctPerBar,3):'—');
+ text('core-acceleration',available?pctNumber(result.accelerationPctPerBar2,3):'—');
+ text('core-volume',available&&Number.isFinite(result.volumeRatio)?fmt(result.volumeRatio,2)+'×':'—');
+ text('core-range-values',available?fmt(result.rangeLow)+' — '+fmt(result.rangeHigh):'—');
+ text('core-range-position',available&&Number.isFinite(result.rangePosition)?fmt(result.rangePosition*100,1)+'%':'—');
+ text('core-volatility',available?pctNumber(result.volatilityPctPerBar,3):'—');
+ el('core-range-indicator').style.left=available&&Number.isFinite(result.rangePosition)
+   ?Math.min(100,Math.max(0,result.rangePosition*100))+'%':'50%';
+ return result;
+}
+let matrixGeneration=0,matrixController=null;
+function resetMarketMatrix(reason='Сравнение ещё не запущено.'){
+ matrixGeneration++;
+ matrixController?.abort();
+ matrixController=null;
+ text('market-matrix-status',reason);
+ text('market-matrix-summary','Нет свежего сравнения горизонтов.');
+ clear(el('market-matrix-items'));
+ el('market-matrix-run').disabled=false;
+}
+function renderMarketMatrix(comparison,asset){
+ const box=el('market-matrix-items');clear(box);
+ const names={DIRECTIONAL:'направленное',RANGE:'диапазон',MIXED:'смешанное',UNKNOWN:'не определён'};
+ for(const frame of comparison.frames){
+  const row=create('div','market-matrix-row');
+  row.append(create('strong','',frameLabels[frame.interval]||frame.interval));
+  const middle=create('div');
+  middle.append(create('div','frame-caption',frame.status==='OK'
+   ?directionLabels[frame.direction]+' · '+(names[frame.mode]||'не определён')
+   :frame.status==='CACHE'?'Историческая запись на телефоне, не текущие сведения':
+    frame.status==='STALE'?'Данные источника устарели':
+    frame.status==='MISSING'?'Нет проверенных данных':'Нет актуальных свечей'));
+  const state=create('span','frame-status '+(frame.status==='OK'?'':'is-stale'),frame.status==='OK'?'Свежие':frame.status);
+  row.append(middle,state);box.append(row);
+ }
+ const message={
+  INSUFFICIENT:'Для сравнения нужно минимум два актуальных горизонта. Исторический кэш не является текущим подтверждением.',
+  DIVERGENT:'Свежие горизонты расходятся по ранее наблюдавшемуся направлению движения.',
+  UP_CONTEXT:'Наблюдалось преобладание роста на доступных свежих горизонтах.',
+  DOWN_CONTEXT:'Наблюдалось преобладание снижения на доступных свежих горизонтах.',
+  MIXED:'Исторические изменения различаются; единого контекста не обнаружено.'
+ };
+ text('market-matrix-summary',(message[comparison.state]||'Контекст не определён')+
+  ' · свежих: '+comparison.available+'/4 · актив: '+asset+'. Не является прогнозом.');
+}
+async function runMarketMatrix(){
+ matrixController?.abort();
+ const run=++matrixGeneration,asset=chosen;
+ const controller=new AbortController();
+ matrixController=controller;
+ const button=el('market-matrix-run');button.disabled=true;
+ const frames={};
+ clear(el('market-matrix-items'));
+ try{
+  for(let i=0;i<MARKET_FRAMES.length;i++){
+   if(run!==matrixGeneration||controller.signal.aborted)return;
+   const interval=MARKET_FRAMES[i];
+   text('market-matrix-status','Проверяем '+asset+' · '+frameLabels[interval]+' ('+(i+1)+'/4). Только публичные данные.');
+   // At most one concurrent fetch to respect Android bandwidth and exchange limits.
+   const cached=await getMobileCandles(asset,interval,120);
+   if(run!==matrixGeneration)return;
+   const source=await fetchCandles(asset,interval,{
+    signal:controller.signal,limit:120,now:()=>Date.now()
+   });
+   if(run!==matrixGeneration)return;
+   if(source.state==='OK'&&source.candles?.length){
+    const summary=analyzeMarketFrame(source.candles,interval,{now:source.receivedAt});
+    frames[interval]={asset,interval,state:summary.status==='OK'?'OK':summary.status,summary};
+    if(summary.status==='OK'){
+     void saveMobileCandles(asset,interval,source.candles.filter(c=>c.closed));
+    }
+   }else if(cached.candles?.length){
+    frames[interval]={asset,interval,state:'CACHE',
+     summary:analyzeMarketFrame(cached.candles,interval)};
+   }else{
+    frames[interval]={asset,interval,state:source.state,summary:null};
+   }
+  }
+  if(run!==matrixGeneration)return;
+  renderMarketMatrix(compareMarketFrames(frames,{asset}),asset);
+  text('market-matrix-status','Проверка завершена · '+new Date().toLocaleTimeString('ru-RU')+
+   ' · источник: Binance Spot');
+ }catch(error){
+  if(run===matrixGeneration)text('market-matrix-status','Сбой получения истории: '+String(error?.message||error));
+ }finally{
+  if(run===matrixGeneration){
+   matrixController=null;button.disabled=false;
+  }
+ }
+}
+el('market-matrix-run').addEventListener('click',()=>void runMarketMatrix());
+
 function displayCandleStructure(candles,description){
  const analysis=analyzeStructure(candles);
+ showMarketCore(candles,description,candleInterval);
  candleView.setData(candles,analysis.events);
  const container=el('structure-events');clear(container);
  const mapDir={UP:'вверх',DOWN:'вниз'};
@@ -221,6 +329,7 @@ async function loadCandleHistory(force=false){
    candleMessage('Локальный кэш: '+cached.candles.length+' завершённых свечей. Проверяем актуальность…',true);
   }else{
    candleView.setData([]);
+   showMarketCore([],'Источник ещё не получен',interval);
    text('structure-summary','Ожидаются реальные завершённые свечи.');
    clear(el('structure-events'));
   }
@@ -255,6 +364,7 @@ for(const button of document.querySelectorAll('[data-interval]')){
  const interval=button.dataset.interval;
  button.addEventListener('click',()=>{
   candleInterval=interval;
+  resetMarketMatrix('Таймфрейм графика изменён. При необходимости повторите сравнение.');
   for(const x of document.querySelectorAll('[data-interval]')){
    const selected=x.dataset.interval===interval;
    x.classList.toggle('selected',selected);
@@ -477,6 +587,7 @@ async function investigate(value){
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
+ if(changed)resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
  chosen=symbol;
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
