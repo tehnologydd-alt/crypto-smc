@@ -23,13 +23,13 @@
   </header>
 
   <main class="content">
-    <section class="intro">
+    <section class="intro overview-only">
       <div class="eyebrow">APEX / INTELLIGENCE</div>
       <h1>Понимать рынок <em>глубже.</em></h1>
       <p>Многослойные исследования активов — от биржевой ликвидности до событий и новостей.</p>
     </section>
 
-    <section class="hero card" aria-labelledby="asset-name">
+    <section class="hero card overview-only" aria-labelledby="asset-name">
       <div class="hero-heading">
         <div>
           <div class="eyebrow">РЫНОЧНЫЙ ПАСПОРТ · PUBLIC SPOT</div>
@@ -47,16 +47,16 @@
       </div>
     </section>
 
-    <form id="search-form" class="search-box" autocomplete="off">
-      <label for="asset-input">Найти актив</label>
+    <form id="search-form" class="search-box overview-only" autocomplete="off">
+      <label for="asset-input">Поиск актива</label>
       <div class="search-row">
         <input id="asset-input" name="asset" list="asset-options" value="BTCUSDT"
                maxlength="20" spellcheck="false" autocapitalize="characters"
                aria-describedby="catalog-status" placeholder="BTC, GRAM, ETH, SOL…">
         <datalist id="asset-options"></datalist>
-        <button type="submit" id="search-button" aria-label="Исследовать выбранный актив">Найти</button>
+        <button type="submit" id="search-button" aria-label="Открыть паспорт выбранного актива">Открыть</button>
       </div>
-      <div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div>
+      <details class="search-help"><summary>Каталог и подсказки</summary><div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div></details>
       <div class="favorites-toolbar">
         <button id="favorite-toggle" class="favorite-toggle" type="button" disabled>☆ Добавить в избранное</button>
         <span id="favorite-selection-status" class="microcopy" aria-live="polite">Избранное хранится на телефоне, максимум 10 активов.</span>
@@ -64,17 +64,19 @@
     </form>
 
 
-    <section class="home-actions" aria-label="Быстрые разделы исследования">
-      <div class="section-title"><h2>Исследовать</h2><span>Быстрый доступ</span></div>
-      <div class="action-grid">
-        <button class="quick-action" type="button" data-go="asset" data-target="depth-list" aria-label="Перейти к ликвидности актива"><span class="action-orb" aria-hidden="true">≋</span><span>Ликвидность</span></button>
-        <button class="quick-action" type="button" data-go="sources" data-target="news-articles" aria-label="Посмотреть новости актива"><span class="action-orb" aria-hidden="true">▤</span><span>Новости</span></button>
-        <button class="quick-action" type="button" data-go="asset" data-target="onchain-network-panel" aria-label="Посмотреть ончейн-контекст"><span class="action-orb" aria-hidden="true">⬡</span><span>Ончейн</span></button>
-        <button class="quick-action" type="button" data-go="forecasts" aria-label="Перейти к прогнозам"><span class="action-orb" aria-hidden="true">◎</span><span>Прогнозы</span></button>
+    <section class="home-actions overview-only" aria-label="Быстрые новости и макроэкономика">
+      <div class="section-title"><h2>Исследовать</h2><span>Актуальные события</span></div>
+      <div class="action-grid editorial-actions">
+        <button class="quick-action editorial-action" type="button" data-go="news" aria-label="Открыть важные свежие криптоновости">
+          <span class="action-orb" aria-hidden="true">▤</span><span><strong>Новости</strong><small>Крипторынок · сейчас</small></span>
+        </button>
+        <button class="quick-action editorial-action" type="button" data-go="macro" aria-label="Открыть макроэкономический контекст">
+          <span class="action-orb" aria-hidden="true">◉</span><span><strong>Макроэкономика</strong><small>Ставки · инфляция · события</small></span>
+        </button>
       </div>
     </section>
 
-    <section class="asset-shortcuts" aria-label="Избранные активы">
+    <section class="asset-shortcuts overview-only" aria-label="Избранные активы">
       <div class="section-title"><h2>Избранные активы</h2><span id="favorites-count">0 / 10</span></div>
       <div id="favorite-rail" class="asset-rail" role="list" aria-label="Горизонтально прокручиваемое избранное">
         <p class="muted" id="favorites-empty">Выберите актив через поиск и добавьте его в избранное — он появится здесь.</p>
@@ -82,7 +84,7 @@
       <p class="favorites-hint">Листайте карточки влево и вправо. Прогнозы автоматически исследуются по вашему избранному.</p>
     </section>
 
-    <div id="load-message" class="notice" role="status" aria-live="polite">
+    <div id="load-message" class="notice overview-only" role="status" aria-live="polite">
       Выберите актив, чтобы загрузить проверяемые данные.
     </div>
 
@@ -106,14 +108,59 @@
         <div class="small-label">Слои, требующие подключения</div>
         <div id="missing-layers" class="tags"></div>
       </article>
+      <section class="card block forecast-stages overview-diagnostics" aria-label="Этапы прогнозирования">
+        <div class="section-title"><h3>Состояние исследований</h3><span>Сводка по стадиям</span></div>
+        <div class="forecast-stage-tabs" role="group" aria-label="Фильтр прогнозов">
+          <button type="button" class="forecast-filter active" data-forecast-stage="PENDING_CONFIRMATION" aria-pressed="true">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
+          <button type="button" class="forecast-filter" data-forecast-stage="CONFIRMED" aria-pressed="false">Подтверждён <small id="stage-count-CONFIRMED">0</small></button>
+          <button type="button" class="forecast-filter" data-forecast-stage="ACTIVE" aria-pressed="false">Активный <small id="stage-count-ACTIVE">0</small></button>
+          <button type="button" class="forecast-filter" data-forecast-stage="COMPLETED" aria-pressed="false">Завершённые <small id="stage-count-COMPLETED">0</small></button>
+        </div>
+
+        <p class="footnote">Этапы фиксируются на телефоне. Переходы происходят после получения новых закрытых H1-свечей. Завершение возможно только по реальным данным, без имитации результатов.</p>
+      </section>
+
+      <article class="card block evidence-lab-panel" id="evidence-lab-panel">
+        <div class="section-title"><h3>Evidence Lab · качество исследований</h3><span>Android · Room</span></div>
+        <p class="muted">Проверка фактически сохранённых свечей, истории стакана, активности блокчейна и исходов опубликованных гипотез. Без новых запросов к бирже.</p>
+        <div class="evidence-actions">
+          <label for="evidence-asset">Проверяемый актив
+            <select id="evidence-asset" aria-label="Актив для аудита"></select>
+          </label>
+          <button id="evidence-run" type="button" class="ghost evidence-run">Проверить качество данных</button>
+        </div>
+        <p id="evidence-status" class="chart-status" role="status" aria-live="polite">Аудит запускается по запросу и выполняется локально на телефоне.</p>
+        <div id="evidence-data-cards" class="evidence-data-grid" aria-live="polite"></div>
+        <div class="evidence-audit-section">
+          <div class="section-title"><h4>Проверка исследовательских прогнозов</h4><span>Записи после публикации</span></div>
+          <div id="evidence-forecast-summary"></div>
+          <div id="evidence-cohorts"></div>
+        </div>
+        <section class="validation-panel" aria-label="Проверка устойчивости исследовательских диапазонов">
+          <div class="section-title"><h4>Research Validation · исторические периоды</h4><span>H1 · 3 периода</span></div>
+          <p class="muted">Сравнение заранее фиксированного диапазона APEX с простой базовой моделью на последовательных участках уже закрытой истории. Это отдельный ретроспективный эксперимент, а не результаты опубликованных прогнозов.</p>
+          <button type="button" id="validation-run" class="ghost validation-run">Сравнить исторические периоды</button>
+          <p id="validation-status" class="chart-status" aria-live="polite">Для расчёта используем только настоящие H1-свечи из локальной базы.</p>
+          <div id="validation-results" aria-live="polite"></div>
+          <p class="footnote">Не выполняется подгонка параметров под результаты. Для сравнения нужны минимум 45 неперекрывающихся окон и три последовательных периода. Даже устойчивость в такой истории не гарантирует полезность модели на новых данных.</p>
+        </section>
+        <p class="footnote">Оценка описывает только проверенные фактические результаты. До 30 неперекрывающихся исходов на актив статистический процент не публикуется. Неполная история и пропущенные результаты также блокируют вывод. Один источник цен не обеспечивает независимой внешней верификации.</p>
+      </article>
+
     </section>
 
     <section class="view hidden" id="view-asset" aria-labelledby="asset-title">
-      <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span>Проверенные рыночные данные</span></div>
+      <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span id="asset-passport-name">BTCUSDT · автоматически</span></div>
+      <p class="asset-auto-note">Рыночные показатели, структура, сеть и исторические сценарии проверяются автоматически при открытии раздела. При недоступном источнике сохраняется честная пометка о локальных данных.</p>
+      <article class="card block asset-scenarios">
+        <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
+        <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
+        <div id="asset-scenario-summary"></div>
+      </article>
       <article class="card block candle-panel">
         <div class="chart-heading">
           <div><h3>Свечная история</h3><p class="muted">Binance Spot · OHLCV · наблюдения, не прогноз</p></div>
-          <button class="ghost" type="button" id="chart-refresh" aria-label="Перезагрузить свечи">↻</button>
+          <button class="ghost asset-manual-control" type="button" id="chart-refresh" aria-label="Перезагрузить свечи">↻</button>
         </div>
         <div class="chart-toolbar" role="group" aria-label="Таймфрейм графика">
           <button class="chart-tf" data-interval="15m" type="button">M15</button>
@@ -149,7 +196,7 @@
       <article class="card block market-matrix-panel">
         <div class="section-title"><h3>Согласованность горизонтов</h3><span>М15 · H1 · H4 · D1</span></div>
         <p id="market-matrix-status" class="muted" aria-live="polite">Сравнение выполняется по запросу, чтобы экономить интернет и заряд батареи.</p>
-        <button class="ghost matrix-run" id="market-matrix-run" type="button">Сравнить 4 периода</button>
+        <button class="ghost matrix-run asset-manual-control" id="market-matrix-run" type="button">Сравнить 4 периода</button>
         <div id="market-matrix-items" class="market-matrix-list" aria-live="polite"></div>
         <p id="market-matrix-summary" class="muted">Данных для сравнения ещё нет.</p>
         <p class="footnote">Считаются только свежие завершённые свечи каждого горизонта. Старый локальный кэш показывается отдельно, но не засчитывается как текущее подтверждение.</p>
@@ -200,7 +247,7 @@
         <p class="muted" id="network-status" role="status" aria-live="polite">Проверяем доступность сетевого адаптера…</p>
         <div class="network-heading">
           <strong id="network-name">Сетевая статистика</strong>
-          <button type="button" class="ghost network-refresh" id="network-refresh">Обновить сеть</button>
+          <button type="button" class="ghost network-refresh asset-manual-control" id="network-refresh">Обновить сеть</button>
         </div>
         <div id="network-metrics" class="network-metrics">
           <p class="muted">Свежие данные появятся после запроса публичного API.</p>
@@ -214,7 +261,7 @@
         <section class="onchain-match-panel" aria-label="Сопоставление истории блокчейна и рынка">
           <div class="section-title"><h4>Сеть и рынок · история</h4><span>H1 / локально</span></div>
           <p class="muted">APEX сопоставляет ранее полученные сетевые снимки с последними завершёнными часовыми свечами, доступными на момент наблюдений. Важны совпадающие часы и отсутствие пропусков.</p>
-          <button id="onchain-market-run" type="button" class="ghost onchain-match-run">Сопоставить историю</button>
+          <button id="onchain-market-run" type="button" class="ghost onchain-match-run asset-manual-control">Сопоставить историю</button>
           <p id="onchain-market-status" class="chart-status" aria-live="polite">Для проверки необходимо накопить сетевые наблюдения.</p>
           <div id="onchain-market-results"></div>
           <p class="footnote">Корреляция рассчитывается только при достаточной истории и не означает причинность, точность прогноза или рекомендацию совершать сделки.</p>
@@ -237,45 +284,47 @@
         </div>
         <p id="forecast-action-status" class="chart-status" role="status" aria-live="polite">Локальный журнал проверяется при открытии приложения и периодически, пока оно активно. Фоновые проверки зависят от разрешений Android.</p>
       </article>
-      <section class="card block forecast-stages" aria-label="Этапы прогнозирования">
-        <div class="section-title"><h3>Этапы прогнозов</h3><span>Выберите статус</span></div>
-        <div class="forecast-stage-tabs" role="group" aria-label="Фильтр прогнозов">
-          <button type="button" class="forecast-filter active" data-forecast-stage="PENDING_CONFIRMATION" aria-pressed="true">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
-          <button type="button" class="forecast-filter" data-forecast-stage="CONFIRMED" aria-pressed="false">Подтверждён <small id="stage-count-CONFIRMED">0</small></button>
-          <button type="button" class="forecast-filter" data-forecast-stage="ACTIVE" aria-pressed="false">Активный <small id="stage-count-ACTIVE">0</small></button>
-          <button type="button" class="forecast-filter" data-forecast-stage="COMPLETED" aria-pressed="false">Завершённые <small id="stage-count-COMPLETED">0</small></button>
+      <article class="card block forecast-workspace">
+        <div class="section-title"><h3>Журнал сценариев</h3><span>Только реальные наблюдения</span></div>
+        <div class="forecast-mode-tabs" role="group" aria-label="Какие сценарии показывать">
+          <button class="forecast-mode selected" data-forecast-mode="all" aria-pressed="true" type="button">Все</button>
+          <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
+        </div>
+        <div class="forecast-compact-stages" role="group" aria-label="Стадия наблюдения">
+          <button class="forecast-compact-stage active" type="button" data-journal-stage="PENDING_CONFIRMATION">Ожидает</button>
+          <button class="forecast-compact-stage" type="button" data-journal-stage="CONFIRMED">Подтверждён</button>
+          <button class="forecast-compact-stage" type="button" data-journal-stage="ACTIVE">Активный</button>
+          <button class="forecast-compact-stage" type="button" data-journal-stage="COMPLETED">Завершён</button>
         </div>
         <div id="research-forecast-list" class="forecast-journal" aria-live="polite">
-          <p class="muted">Получаем журнал Android…</p>
+          <p class="muted">Загружаем локальный журнал…</p>
         </div>
-        <p class="footnote">Этапы фиксируются на телефоне. Переходы происходят после получения новых закрытых H1-свечей. Завершение возможно только по реальным данным, без имитации результатов.</p>
-      </section>
-      <article class="card block evidence-lab-panel" id="evidence-lab-panel">
-        <div class="section-title"><h3>Evidence Lab · качество исследований</h3><span>Android · Room</span></div>
-        <p class="muted">Проверка фактически сохранённых свечей, истории стакана, активности блокчейна и исходов опубликованных гипотез. Без новых запросов к бирже.</p>
-        <div class="evidence-actions">
-          <label for="evidence-asset">Проверяемый актив
-            <select id="evidence-asset" aria-label="Актив для аудита"></select>
-          </label>
-          <button id="evidence-run" type="button" class="ghost evidence-run">Проверить качество данных</button>
-        </div>
-        <p id="evidence-status" class="chart-status" role="status" aria-live="polite">Аудит запускается по запросу и выполняется локально на телефоне.</p>
-        <div id="evidence-data-cards" class="evidence-data-grid" aria-live="polite"></div>
-        <div class="evidence-audit-section">
-          <div class="section-title"><h4>Проверка исследовательских прогнозов</h4><span>Записи после публикации</span></div>
-          <div id="evidence-forecast-summary"></div>
-          <div id="evidence-cohorts"></div>
-        </div>
-        <section class="validation-panel" aria-label="Проверка устойчивости исследовательских диапазонов">
-          <div class="section-title"><h4>Research Validation · исторические периоды</h4><span>H1 · 3 периода</span></div>
-          <p class="muted">Сравнение заранее фиксированного диапазона APEX с простой базовой моделью на последовательных участках уже закрытой истории. Это отдельный ретроспективный эксперимент, а не результаты опубликованных прогнозов.</p>
-          <button type="button" id="validation-run" class="ghost validation-run">Сравнить исторические периоды</button>
-          <p id="validation-status" class="chart-status" aria-live="polite">Для расчёта используем только настоящие H1-свечи из локальной базы.</p>
-          <div id="validation-results" aria-live="polite"></div>
-          <p class="footnote">Не выполняется подгонка параметров под результаты. Для сравнения нужны минимум 45 неперекрывающихся окон и три последовательных периода. Даже устойчивость в такой истории не гарантирует полезность модели на новых данных.</p>
-        </section>
-        <p class="footnote">Оценка описывает только проверенные фактические результаты. До 30 неперекрывающихся исходов на актив статистический процент не публикуется. Неполная история и пропущенные результаты также блокируют вывод. Один источник цен не обеспечивает независимой внешней верификации.</p>
       </article>
+      <article class="card block forecast-observed-statistics">
+        <div class="section-title"><h3>Статистика наблюдений</h3><span>Все / отмеченные</span></div>
+        <div id="forecast-stat-all" class="forecast-observation-stat"></div>
+        <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
+        <p class="footnote">Засчитываются только зафиксированные фактические исходы. Срок наблюдения без данных не считается ни успехом, ни отменой. Цели наблюдения не являются тейк-профитами или торговыми ордерами.</p>
+      </article>
+    </section>
+
+    <section class="view hidden editorial-view" id="view-news" aria-labelledby="news-page-title">
+      <div class="section-title"><h2 id="news-page-title">Новости крипторынка</h2><span>Свежее · проверяемые источники</span></div>
+      <p class="muted">Свежие публикации из открытого международного новостного индекса. Приоритет определяется тематикой и датой, а не доказанным влиянием на цену.</p>
+      <div id="editorial-news-status" class="chart-status" role="status">Получаем актуальные статьи…</div>
+      <div id="editorial-news-list" class="editorial-feed"></div>
+    </section>
+
+    <section class="view hidden editorial-view" id="view-macro" aria-labelledby="macro-page-title">
+      <div class="section-title"><h2 id="macro-page-title">Макроэкономика</h2><span>Контекст · не прогноз</span></div>
+      <p class="muted">Публикации по инфляции, процентным ставкам и решениям центральных банков. Здесь нет вымышленных экономических календарей или дат событий.</p>
+      <div class="macro-source-links">
+        <a href="https://www.federalreserve.gov/newsevents/calendar.htm" target="_blank" rel="noopener noreferrer">ФРС · официальный календарь</a>
+        <a href="https://www.bls.gov/schedule/news_release/" target="_blank" rel="noopener noreferrer">BLS · публикации США</a>
+        <a href="https://www.ecb.europa.eu/press/calendars/html/index.en.html" target="_blank" rel="noopener noreferrer">ЕЦБ · календарь</a>
+      </div>
+      <div id="editorial-macro-status" class="chart-status" role="status">Загружаем публикации…</div>
+      <div id="editorial-macro-list" class="editorial-feed"></div>
     </section>
 
     <section class="view hidden" id="view-sources" aria-labelledby="sources-title">
