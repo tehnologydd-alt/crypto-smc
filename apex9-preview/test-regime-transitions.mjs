@@ -48,8 +48,13 @@ test('transitions form exact three source-validated, no-leakage folds',()=>{
   const p=out.periods[i];
   assert.equal(p.unchangedCount+p.changedCount,p.pairs);
   assert.equal(p.matrix.reduce((sum,r)=>sum+r.total,0),p.pairs);
-  const second=source.windows[(i+1)*48];
-  assert.notEqual(p.lastToAt,second.anchorAt);
+  // No cross-period transition must appear in this period's count.
+  if(i<2){
+   const second=source.windows[(i+1)*48];
+   assert.notEqual(p.lastToAt,second.anchorAt);
+  }else{
+   assert.equal(p.lastToAt,source.windows.at(-1).anchorAt);
+  }
  }
 });
 test('each matrix cell matches observed, not synthetic regime changes',()=>{

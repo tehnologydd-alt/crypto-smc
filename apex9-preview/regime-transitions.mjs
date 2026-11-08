@@ -37,12 +37,6 @@ function matrix(pairs){
   total:pairs.filter(x=>x.from===from).length
  }));
 }
-function intervals(parts,test){
- return parts.map((items,i)=>{
-  const selected=items.filter(test);
-  return {period:i+1,count:selected.length};
- });
-}
 function comparativeRate(groups,filter,match,{minSamples}){
  const selected=groups.map(group=>group.filter(filter));
  if(!selected.every(group=>group.length>=minSamples))return {
