@@ -1339,3 +1339,49 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  background:#0c202a;border:1px solid #2b5361;border-radius:11px
 }
 @media(max-width:370px){.regimes-stability-grid{grid-template-columns:1fr}}
+
+/* Historical regime transition matrix and time-fold comparisons */
+.transition-lab{margin-top:18px;padding:15px 12px;border:1px solid #396974;
+ border-radius:16px;background:#0b2630}
+.transition-lab h5{font-size:14px;color:#d4f2e9;margin:0}
+.transition-lab h6{font-size:11px;color:#d0efe6;margin:15px 0 9px}
+.transition-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;margin:14px 0}
+.transition-stat{padding:10px 7px;min-width:0;border-radius:10px;
+ border:1px solid #38626b;background:#15343e;
+ display:flex;flex-direction:column;gap:6px}
+.transition-stat span{font-size:10px;line-height:1.45;color:#a7c6cb}
+.transition-stat strong{font-size:16px;color:#def9ed}
+.transition-matrix{border:1px solid #335b65;border-radius:12px;
+ overflow:hidden;margin:12px 0}
+.transition-matrix-row{display:grid;grid-template-columns:1.1fr repeat(3,minmax(0,1fr))}
+.transition-matrix-row>*{padding:10px 5px;border-bottom:1px solid #2b505a;
+ min-width:0;text-align:center;font-size:10px;color:#bdd5d4}
+.transition-matrix-row:last-child>*{border-bottom:0}
+.transition-matrix-row:first-child{background:#17444b}
+.transition-matrix-row>*:first-child{text-align:left}
+.transition-matrix-row .transition-count{font-size:15px;font-weight:750;
+ font-variant-numeric:tabular-nums;color:#c5d5df}
+.transition-count.same-regime{background:#154044;color:#baf1dc}
+.transition-origin,.transition-volatility{
+ background:#102f39;border:1px solid #345c65;border-radius:13px;
+ padding:12px 10px;margin:12px 0}
+.transition-destination{border-top:1px solid #2b5861;padding:11px 0}
+.transition-destination>strong,.transition-volatility>strong{
+ font-size:11px;color:#d7f3e9}
+.transition-destination>small,.transition-volatility>span,
+.transition-volatility>small{display:block;font-size:10px;
+ line-height:1.6;color:#a9c9cf}
+.transition-periods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;margin:10px 0}
+.transition-period{min-width:0;border:1px solid #38666d;
+ border-radius:10px;background:#103943;padding:9px 7px;
+ display:flex;flex-direction:column;gap:6px}
+.transition-period span,.transition-period small{
+ font-size:10px;line-height:1.45;color:#a7c5cc}
+.transition-period strong{font-size:14px;color:#d9f5eb}
+.transition-disclaimer{font-size:10px;line-height:1.7;
+ padding:12px;background:#0b202a;border:1px solid #305965;
+ border-radius:12px;color:#b0c8ca}
+@media(max-width:365px){.transition-matrix-row>*{padding:8px 3px;
+ font-size:9px}.transition-matrix-row .transition-count{font-size:13px}}

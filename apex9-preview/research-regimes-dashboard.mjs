@@ -5,6 +5,7 @@
 import {getMobileCandleArchive} from './mobile-bridge.mjs';
 import {analyzeResearchRegimes,REGIME_TYPES,VOLATILITY_STATES} from './research-regimes.mjs';
 import {analyzeRegimeStability} from './regime-stability.mjs';
+import {analyzeRegimeTransitions} from './regime-transitions.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,className='',value)=>{
@@ -205,6 +206,98 @@ export function initResearchRegimesDashboard(){
   section.append(volGrid,node('p','regimes-stability-note',stability.note));
   cards.append(section);
  }
+
+ function renderTransitions(report){
+  const result=analyzeRegimeTransitions(report);
+  const root=node('section','transition-lab');
+  root.append(node('h5','','Regime Transition Lab'),
+   node('p','regimes-notes',
+    'Матрица наблюдавшихся переходов через 4 часа. '+
+    'Следующий режим определяется только после завершения нового окна.'));
+  if(result.state!=='DESCRIPTIVE'){
+   root.append(node('p','regimes-warning','Проверка скрыта: '+result.reason));
+   cards.append(root);return;
+  }
+  const stats=node('div','transition-summary');
+  for(const [label,value] of [
+   ['Наблюдений переходов',number(result.transitions)],
+   ['Пары по периодам',result.periods.map(x=>number(x.pairs)).join(' / ')],
+   ['Граничных пар исключено',number(result.excludedBoundaries)]
+  ]){
+   const cell=node('div','transition-stat');
+   cell.append(node('span','',label),node('strong','',value));
+   stats.append(cell);
+  }
+  root.append(stats,node('h6','','Из режима (строка) → в режим (колонка)'));
+  const matrix=node('div','transition-matrix');
+  const headers=node('div','transition-matrix-row');
+  headers.append(node('span','','От / К'));
+  for(const m of REGIME_TYPES)headers.append(node('strong','',names[m.id]));
+  matrix.append(headers);
+  for(const from of result.matrix){
+   const row=node('div','transition-matrix-row');
+   row.append(node('strong','',names[from.id]));
+   for(const to of REGIME_TYPES){
+    const el=node('span','transition-count'+
+     (from.id===to.id?' same-regime':''),number(from.counts[to.id]));
+    el.setAttribute('aria-label',names[from.id]+' → '+names[to.id]+
+     ': '+number(from.counts[to.id])+' переходов');
+    row.append(el);
+   }
+   matrix.append(row);
+  }
+  root.append(matrix,node('p','regimes-notes',
+   'Диагональ — сохранение режима. Между периодами переходы не считаются.'));
+  root.append(node('h6','','Сопоставление трёх исторических периодов'));
+  for(const from of result.origins){
+   const card=node('article','transition-origin');
+   card.append(node('h6','',from.label+' · '+number(from.count)+' исходных наблюдений'));
+   if(!from.sufficient){
+    card.append(node('p','regimes-warning',
+     'В одном из трёх периодов меньше 12 исходных случаев. Доли скрыты.'),
+     node('p','regimes-notes',from.destinations.map(x=>
+      names[x.id]+': '+number(x.count)).join(' · ')));
+   }else for(const dest of from.destinations){
+    const group=node('div','transition-destination');
+    group.append(node('strong','',names[from.id]+' → '+names[dest.id]),
+     node('small','','Сдвиг ранний → поздний: '+pp(dest.comparison.earlyLateChangePp)));
+    const folds=node('div','transition-periods');
+    for(const band of dest.comparison.periods){
+     const item=node('div','transition-period');
+     item.append(node('span','',band.label+' · '+number(band.count)+
+      ' / '+number(band.total)),node('strong','',percent(band.share)),
+      node('small','',percent(band.lower)+' – '+percent(band.upper)));
+     folds.append(item);
+    }
+    group.append(folds);card.append(group);
+   }
+   root.append(card);
+  }
+  root.append(node('h6','','Волатильность до смены режима'));
+  for(const state of result.volatility){
+   const group=node('div','transition-volatility');
+   group.append(node('strong','',state.label),
+    node('span','',number(state.count)+' исходных наблюдений'));
+   if(state.switching.state!=='DESCRIPTIVE')
+    group.append(node('p','regimes-notes',
+     'Мало наблюдений этого состояния во всех периодах: доли скрыты.'));
+   else{
+    const periods=node('div','transition-periods');
+    for(const band of state.switching.periods){
+     const item=node('div','transition-period');
+     item.append(node('span','',band.label+' · '+number(band.count)+
+      ' / '+number(band.total)),node('strong','',percent(band.share)),
+      node('small','',percent(band.lower)+' – '+percent(band.upper)));
+     periods.append(item);
+    }
+    group.append(periods,node('small','',
+     'Сдвиг доли смен: '+pp(state.switching.earlyLateChangePp)));
+   }
+   root.append(group);
+  }
+  root.append(node('p','transition-disclaimer',result.note));
+  cards.append(root);
+ }
  async function runAudit(){
   if(busy||!select.value)return;
   const asset=select.value,seq=++serial;
@@ -225,7 +318,10 @@ export function initResearchRegimesDashboard(){
    if(seq!==serial||select.value!==asset)return;
    render(result);
    // Incomplete inputs already have a visible warning; avoid duplicating it.
-   if(result.state==='DESCRIPTIVE')renderStability(result);
+   if(result.state==='DESCRIPTIVE'){
+    renderStability(result);
+    renderTransitions(result);
+   }
    announce(result.state==='DESCRIPTIVE'?
     'Исследованы '+number(result.overall.samples)+
     ' неперекрывающихся четырёхчасовых окон. Только проверяемая история '+asset+'.':
