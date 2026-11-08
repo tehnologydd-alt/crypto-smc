@@ -22,11 +22,16 @@ export function buildScenarioMap(rows,{asset,selectedIds=[],mode='all',
   if(mode==='tracked'&&!selected.has(row.id))continue;
   const trace=inspectResearchTimeline(row,{now});
   if(trace.state==='INVALID')continue;
+  // The original anchor close is immutable research data. Expose it only
+  // after the existing strict hypothesis validator accepted this record.
+  let hypothesis;
+  try{hypothesis=typeof row.hypothesis==='string'?
+   JSON.parse(row.hypothesis):row.hypothesis;}catch{continue;}
   eligible.push({
    id:row.id,asset,tracked:selected.has(row.id),
    focused:row.id===focusId,trace,
    stage:trace.state,anchorCloseAt:trace.anchorCloseAt,
-   targetCloseAt:trace.targetCloseAt,
+   anchorClose:hypothesis.anchorClose,targetCloseAt:trace.targetCloseAt,
    bandLow:trace.bandLow,bandHigh:trace.bandHigh,
    publishedAt:row.publishedAt,
    milestones:trace.steps.filter(s=>s.observed).map(s=>({
