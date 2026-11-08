@@ -21,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: apex9-preview-apk-${{ github.ref }}
+  group: apex9-research-apk-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
