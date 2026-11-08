@@ -58,3 +58,27 @@ export async function setMobileSettings({asset,backgroundSyncEnabled}){
  if(!native)throw Error('Нативное хранилище доступно только в Android-приложении.');
  return native.setSettings({asset,backgroundSyncEnabled});
 }
+
+/** Batch-persist only confirmed closed candles, no speculative data. */
+export async function saveMobileCandles(symbol,interval,candles){
+ const native=plugin();
+ if(!native)return {native:false,saved:0};
+ const rows=Array.isArray(candles)?candles.filter(x=>x?.closed===true).slice(-500):[];
+ if(!rows.length)return {native:true,saved:0};
+ try{
+  const result=await native.saveCandles({asset:symbol,interval,candles:rows});
+  return {native:true,saved:result?.saved||0};
+ }catch(error){return {native:true,saved:0,error:String(error?.message||error)};}
+}
+/** Local candles remain expressly historical, even if the network is down. */
+export async function getMobileCandles(symbol,interval,limit=500){
+ const native=plugin();
+ if(!native)return {native:false,candles:[],source:'WEB_ONLY'};
+ try{
+  const result=await native.getCandles({asset:symbol,interval,limit:Math.min(600,Math.max(1,limit))});
+  return {native:true,candles:result?.candles||[],source:'LOCAL_ROOM_CACHE'};
+ }catch(error){
+  return {native:true,candles:[],source:'LOCAL_ROOM_CACHE',
+   error:String(error?.message||error)};
+ }
+}
