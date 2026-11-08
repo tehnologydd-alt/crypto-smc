@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chainForAsset,parseBitcoinNetwork,parseEthereumNetwork,collectOnChainNetwork,
+import {chainForAsset,parseBitcoinNetwork,parseEthereumNetwork,parseTonNetwork,collectOnChainNetwork,
  parseOnChainHistory,summarizeOnChainHistory} from './onchain-core.mjs';
 const now=1794139200000;
 const btc={count:5050,vsize:1770707,total_fee:555111};
@@ -11,9 +11,10 @@ const eth={total_transactions:'3650000000',transactions_today:'1730200',
 test('direct network mapping never conflates unrelated tokens with BTC or Ethereum',()=>{
  assert.equal(chainForAsset('BTCUSDT'),'bitcoin');
  assert.equal(chainForAsset('ETHUSDT'),'ethereum');
- assert.equal(chainForAsset('GRAMUSDT'),null);
+ assert.equal(chainForAsset('GRAMUSDT'),'ton');
  assert.equal(chainForAsset('WBTCUSDT'),null);
  assert.equal(chainForAsset('TONUSDT'),null);
+ assert.equal(chainForAsset('GRAMUSDC'),'ton');
 });
 test('BTC capture timestamp is explicit and fees optional',()=>{
  const r=parseBitcoinNetwork(btc,{fees,receivedAt:now});
@@ -55,7 +56,7 @@ test('partial BTC fee outage does not invent data or hide valid mempool',async()
 });
 test('unavailable source or unsupported chain gives no synthetic observations',async()=>{
  let calls=0;
- const a=await collectOnChainNetwork('GRAMUSDT',{fetchImpl:async()=>{calls++;throw Error('No');}});
+ const a=await collectOnChainNetwork('TONUSDT',{fetchImpl:async()=>{calls++;throw Error('No');}});
  assert.equal(a.state,'UNSUPPORTED');assert.equal(calls,0);
  const b=await collectOnChainNetwork('ETHUSDT',{fetchImpl:async()=>{throw Error('offline')}});
  assert.equal(b.state,'OFFLINE');assert.equal(b.data,null);
@@ -69,4 +70,45 @@ test('offline cache history is distinct by source and age',()=>{
  const study=summarizeOnChainHistory([a],{chain:'bitcoin',now});
  assert.equal(study.state,'HISTORICAL');
  assert.equal(study.latest.mempoolCount,5050);
+});
+
+test('native GRAM uses actual TON masterchain block height, never token transactions',async()=>{
+ const response={ok:true,result:{
+  last:{workchain:-1,seqno:51234567,
+   root_hash:'ABCD'.repeat(11),file_hash:'EFGH'.repeat(11)},
+  state_root_hash:'ABCD'.repeat(11)
+ }};
+ const parsed=parseTonNetwork(response,now);
+ assert.equal(parsed.chain,'ton');
+ assert.equal(parsed.masterchainSeqno,51234567);
+ assert.equal(parsed.notTransactionCount,true);
+ assert.equal(parsed.timestampScope,'CLIENT_CAPTURE_NO_PROVIDER_TIMESTAMP');
+ assert.throws(()=>parseTonNetwork({...response,ok:false},now));
+ assert.throws(()=>parseTonNetwork({ok:true,result:{
+  last:{...response.result.last,workchain:0}}},now));
+ let calls=0;
+ const result=await collectOnChainNetwork('GRAMUSDT',{
+  now:()=>now,fetchImpl:async(url,opts)=>{
+   calls++;
+   assert.ok(url.includes('toncenter.com/api/v2/getMasterchainInfo'));
+   assert.equal(opts.method,'GET');assert.equal(opts.credentials,'omit');
+   return {ok:true,status:200,json:async()=>response};
+  }
+ });
+ assert.equal(calls,1);
+ assert.equal(result.state,'OK');
+ assert.equal(result.data.masterchainSeqno,51234567);
+});
+test('TON network history rejects source substitution and reports time-normalized height change',()=>{
+ const initial=parseTonNetwork({ok:true,result:{last:{
+  workchain:-1,seqno:5000,root_hash:'x'.repeat(32),file_hash:'y'.repeat(32)
+ }}},now-1800000);
+ const after={...initial,observedAt:now,collectedAt:now,masterchainSeqno:5040};
+ const row=x=>({asset:'GRAMUSDT',source:'toncenter:ton:masterchain',
+  observedAt:x.observedAt,collectedAt:x.collectedAt,payload:JSON.stringify(x)});
+ assert.equal(parseOnChainHistory([row(initial)],'ethereum').length,0);
+ const summary=summarizeOnChainHistory([row(initial),row(after)],{chain:'ton',now});
+ assert.equal(summary.samples,2);
+ assert.equal(summary.comparisonChange,40);
+ assert.ok(summary.masterchainBlocksPerMinute>1);
 });
