@@ -139,6 +139,14 @@
           <button type="button" class="scenario-map-filter" data-scenario-map-mode="tracked" aria-pressed="false">★ Отмеченные</button>
         </div>
         <div id="asset-scenario-summary" class="scenario-map-list" aria-live="polite"></div>
+        <section class="scenario-replay" id="scenario-replay-panel" aria-labelledby="scenario-replay-title">
+          <div class="section-title"><h4 id="scenario-replay-title">Scenario Replay · история H1</h4><span id="scenario-replay-counter">0 / 5 закрытий</span></div>
+          <p id="scenario-replay-context" class="muted">Выбери исследование выше, чтобы увидеть его фактические H1-наблюдения.</p>
+          <div id="scenario-replay-steps" class="scenario-replay-steps" role="group" aria-label="Закрытые часовые свечи исследования"></div>
+          <div id="scenario-replay-detail" class="scenario-replay-detail" role="status" aria-live="polite"></div>
+          <p id="scenario-replay-warning" class="scenario-replay-warning" aria-live="polite"></p>
+          <p class="footnote">Replay использует только ранее закрытые свечи, сохранённые на устройстве. Точка H1 №3 — промежуточное наблюдение, не самостоятельное подтверждение. Пропуски не интерполируются; исход журнала сверяется с фактическим последним закрытием.</p>
+        </section>
         <p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p>
       </article>
       <article class="card block candle-panel">
