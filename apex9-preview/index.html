@@ -13,7 +13,7 @@
 <div class="app-shell">
   <header class="topbar">
     <div class="identity">
-      <div class="mark" aria-hidden="true">A</div>
+      <img class="mark apex-brand-icon" src="./apex-logo.svg" width="48" height="48" alt="Логотип APEX">
       <div>
         <div class="brand">APEX <span>9.0</span></div>
         <div class="brand-sub">MARKET INTELLIGENCE</div>
@@ -57,6 +57,10 @@
         <button type="submit" id="search-button" aria-label="Исследовать выбранный актив">Найти</button>
       </div>
       <div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div>
+      <div class="favorites-toolbar">
+        <button id="favorite-toggle" class="favorite-toggle" type="button" disabled>☆ Добавить в избранное</button>
+        <span id="favorite-selection-status" class="microcopy" aria-live="polite">Избранное хранится на телефоне, максимум 10 активов.</span>
+      </div>
     </form>
 
 
@@ -70,14 +74,12 @@
       </div>
     </section>
 
-    <section class="asset-shortcuts" aria-label="Активы для исследования">
-      <div class="section-title"><h2>В центре внимания</h2><span>Выберите актив</span></div>
-      <div class="asset-rail">
-        <button type="button" class="asset-chip" data-symbol="BTCUSDT"><span class="coin-mark">₿</span><span><strong>Bitcoin</strong><small>BTC</small></span></button>
-        <button type="button" class="asset-chip" data-symbol="ETHUSDT"><span class="coin-mark eth">◆</span><span><strong>Ethereum</strong><small>ETH</small></span></button>
-        <button type="button" class="asset-chip" data-symbol="GRAMUSDT"><span class="coin-mark gram">◇</span><span><strong>Gram</strong><small>GRAM</small></span></button>
-        <button type="button" class="asset-chip" data-symbol="SOLUSDT"><span class="coin-mark sol">≋</span><span><strong>Solana</strong><small>SOL</small></span></button>
+    <section class="asset-shortcuts" aria-label="Избранные активы">
+      <div class="section-title"><h2>Избранные активы</h2><span id="favorites-count">0 / 10</span></div>
+      <div id="favorite-rail" class="asset-rail" role="list" aria-label="Горизонтально прокручиваемое избранное">
+        <p class="muted" id="favorites-empty">Выберите актив через поиск и добавьте его в избранное — он появится здесь.</p>
       </div>
+      <p class="favorites-hint">Листайте карточки влево и вправо. Прогнозы автоматически исследуются по вашему избранному.</p>
     </section>
 
     <div id="load-message" class="notice" role="status" aria-live="polite">
@@ -182,30 +184,31 @@
     </section>
 
     <section class="view hidden" id="view-forecasts" aria-labelledby="forecasts-title">
-      <div class="section-title"><h2 id="forecasts-title">Прогнозы и проверка</h2><span>Журнал Android · Room</span></div>
+      <div class="section-title"><h2 id="forecasts-title">Прогнозы APEX</h2><span>Автоматические исследования</span></div>
       <article class="card block forecast-intro">
-        <div class="section-title"><h3>Исследовательские сценарии</h3><span>Baseline V1</span></div>
-        <p>Проверяемая гипотеза: попадёт ли закрытие <strong>через 4 завершённые H1-свечи</strong> в диапазон, рассчитанный по 96 предыдущим свечам Binance Spot.</p>
-        <p class="footnote">Это ранняя базовая модель, а не торговый сигнал. Исторический 80-й процентиль амплитуды <strong>не означает 80% вероятность</strong> будущего события. Мы пока не заявляем точность модели.</p>
-        <div class="forecast-actions">
-          <button type="button" id="forecast-create" class="forecast-primary">Создать исследовательский сценарий</button>
-          <button type="button" id="forecast-evaluate" class="ghost">Проверить опубликованные</button>
-          <button type="button" id="forecast-refresh" class="ghost">Обновить журнал</button>
-        </div>
-        <p id="forecast-action-status" class="chart-status" aria-live="polite">Для хранения сценариев необходим установленный Android APK. Новые данные загружаются только по запросу.</p>
+        <div class="section-title"><h3>Избранные активы · до 10</h3><span>Android First</span></div>
+        <p>APEX самостоятельно исследует сохранённые активы, формирует сценарии по завершённым H1-свечам и наблюдает за результатами. Пользователю не нужно создавать прогнозы вручную.</p>
+        <p class="footnote">Сейчас используется проверяемая базовая гипотеза ценового диапазона. Статус «Подтверждён» означает техническую проверку первой последующей свечи, <strong>не доказанную точность</strong> прогноза. При отсутствии данных вывод не выдумывается.</p>
         <div class="forecast-stats">
-          <div><span>Опубликовано</span><strong id="forecast-published-count">—</strong></div>
-          <div><span>Проверено</span><strong id="forecast-evaluated-count">—</strong></div>
-          <div><span>Ожидают</span><strong id="forecast-pending-count">—</strong></div>
+          <div><span>В избранном</span><strong id="forecast-favorites-count">0 / 10</strong></div>
+          <div><span>В работе</span><strong id="forecast-pending-count">—</strong></div>
+          <div><span>Завершено</span><strong id="forecast-evaluated-count">—</strong></div>
         </div>
+        <p id="forecast-action-status" class="chart-status" role="status" aria-live="polite">Локальный журнал проверяется при открытии приложения и периодически, пока оно активно. Фоновые проверки зависят от разрешений Android.</p>
       </article>
-      <article class="card block">
-        <div class="section-title"><h3>История гипотез</h3><span>Первоначальные условия неизменны</span></div>
+      <section class="card block forecast-stages" aria-label="Этапы прогнозирования">
+        <div class="section-title"><h3>Этапы прогнозов</h3><span>Выберите статус</span></div>
+        <div class="forecast-stage-tabs" role="group" aria-label="Фильтр прогнозов">
+          <button type="button" class="forecast-filter active" data-forecast-stage="PENDING_CONFIRMATION" aria-pressed="true">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
+          <button type="button" class="forecast-filter" data-forecast-stage="CONFIRMED" aria-pressed="false">Подтверждён <small id="stage-count-CONFIRMED">0</small></button>
+          <button type="button" class="forecast-filter" data-forecast-stage="ACTIVE" aria-pressed="false">Активный <small id="stage-count-ACTIVE">0</small></button>
+          <button type="button" class="forecast-filter" data-forecast-stage="COMPLETED" aria-pressed="false">Завершённые <small id="stage-count-COMPLETED">0</small></button>
+        </div>
         <div id="research-forecast-list" class="forecast-journal" aria-live="polite">
-          <p class="muted">Читаем локальную историю исследований…</p>
+          <p class="muted">Получаем журнал Android…</p>
         </div>
-        <p class="footnote">Прогноз считается проверенным только после появления всех четырёх фактических закрытых H1-свечей. Отсутствие данных не считается неудачей. Публикация и результат сохраняются отдельно и не редактируются.</p>
-      </article>
+        <p class="footnote">Этапы фиксируются на телефоне. Переходы происходят после получения новых закрытых H1-свечей. Завершение возможно только по реальным данным, без имитации результатов.</p>
+      </section>
     </section>
 
     <section class="view hidden" id="view-sources" aria-labelledby="sources-title">
@@ -232,7 +235,7 @@
         <div class="data-row"><span>История прогнозов</span><strong id="native-forecast-count">—</strong></div>
         <label class="native-setting">
           <input type="checkbox" id="native-background-sync" disabled>
-          <span>Фоновая синхронизация выбранного актива <small>Разрешить Android периодически проверять публичную цену (примерно раз в 30 мин, время не гарантируется)</small></span>
+          <span>Фоновая синхронизация выбранного актива <small>Разрешить Android периодически проверять публичную цену (примерно раз в час, время не гарантируется)</small></span>
         </label>
         <div class="update-controls">
           <button id="native-show-history" class="ghost" type="button">Показать локальную историю</button>
