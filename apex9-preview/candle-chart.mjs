@@ -8,7 +8,7 @@ export class CandleChart {
   if(!canvas||typeof canvas.getContext!=='function')throw Error('Chart canvas required');
   this.canvas=canvas;this.ctx=canvas.getContext('2d');
   if(!this.ctx)throw Error('Canvas 2D unavailable');
-  this.data=[];this.events=[];this.visible=55;this.offset=0;
+  this.data=[];this.events=[];this.scenarios=[];this.visible=55;this.offset=0;
   this.pointers=new Map();this.lastPinch=null;this.selected=null;this.onSelect=onSelect;
   this.width=0;this.height=0;this.frame=0;
   this.onResize=()=>this.resize();
@@ -55,6 +55,15 @@ export class CandleChart {
  zoom(multiplier){
   this.visible=Math.max(18,Math.min(150,Math.round(this.visible*multiplier)));
   this.offset=this.clampOffset(this.offset);this.schedule();
+ }
+ setScenarios(scenarios=[]){
+  // Only immutable research envelopes with coherent future deadlines.
+  this.scenarios=Array.isArray(scenarios)?scenarios.filter(x=>
+   Number.isFinite(x.bandLow)&&Number.isFinite(x.bandHigh)&&
+   x.bandLow>0&&x.bandLow<x.bandHigh&&Number.isSafeInteger(x.anchorCloseAt)&&
+   Number.isSafeInteger(x.targetCloseAt)&&x.targetCloseAt>x.anchorCloseAt
+  ).slice(0,3):[];
+  this.schedule();
  }
  setData(candles,events=[]){
   this.data=Array.isArray(candles)?candles:[];
@@ -111,6 +120,22 @@ export class CandleChart {
   const low=minV-padding,high=maxV+padding;
   const priceY=p=>14+(high-p)/(high-low)*(mainH-22);
   const step=plotW/bars.length;
+  // Visualize ORIGINAL empirical scenario envelopes, not executable orders.
+  for(const sc of this.scenarios){
+   if(sc.bandHigh<low||sc.bandLow>high)continue;
+   const top=Math.max(14,priceY(Math.min(high,sc.bandHigh)));
+   const bottom=Math.min(mainH-8,priceY(Math.max(low,sc.bandLow)));
+   ctx.fillStyle='rgba(55,190,194,.11)';
+   ctx.fillRect(0,top,plotW,Math.max(1,bottom-top));
+   ctx.save();ctx.setLineDash([5,4]);ctx.strokeStyle='#69dfe0';ctx.lineWidth=1.5;
+   for(const price of [sc.bandLow,sc.bandHigh]){
+    if(price<low||price>high)continue;
+    const y=priceY(price);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(plotW,y);ctx.stroke();
+   }
+   ctx.restore();
+   ctx.fillStyle='#b2efea';ctx.textAlign='left';ctx.font='10px system-ui';
+   ctx.fillText('Исследуемый диапазон · H1',6,Math.max(12,top-8));
+  }
   ctx.strokeStyle='#24424a';ctx.lineWidth=1;
   for(let j=0;j<=4;j++){
    const y=14+(mainH-22)*j/4;
