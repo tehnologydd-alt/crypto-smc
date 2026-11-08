@@ -12,6 +12,7 @@ import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 import {initValidationDashboard} from './validation-dashboard.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
+import {buildScenarioReplay} from './scenario-replay.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -192,7 +193,8 @@ let candleInterval='1h',candleGeneration=0,candleController=null,
  candleLastKey='',candleLastAt=0;
 let scenarioRequest=0,scenarioMode='all',focusedScenarioId=null,
  lastScenarioRows=[],lastScenarioAsset='',lastScenarioFetchedAt=0,
- lastScenarioTruncated=false;
+ lastScenarioTruncated=false,drawnCandleAsset='',drawnCandleInterval='',
+ replayStep=0,replayScenarioId=null;
 
 function trackedResearchIds(){
  try{
@@ -200,6 +202,103 @@ function trackedResearchIds(){
   return Array.isArray(raw)?raw.filter(x=>typeof x==='string').slice(-300):[];
  }catch{return [];}
 }
+const replayTime=stamp=>Number.isSafeInteger(stamp)?
+ new Date(stamp).toLocaleString('ru-RU'):'—';
+function renderScenarioReplay(scenarios){
+ const root=el('scenario-replay-panel'),
+  steps=el('scenario-replay-steps'),
+  detail=el('scenario-replay-detail');
+ clear(steps);clear(detail);
+ const selected=scenarios.find(s=>s.id===focusedScenarioId)||scenarios[0];
+ if(!selected){
+  text('scenario-replay-counter','0 / 5 закрытий');
+  text('scenario-replay-context','Выбери исследование для просмотра его подтверждённой H1-истории.');
+  text('scenario-replay-warning','Сценарии не загружены. Наблюдения не имитируются.');
+  candleView.setReplayCursor(null);
+  root.classList.remove('has-replay');
+  return;
+ }
+ root.classList.add('has-replay');
+ if(replayScenarioId!==selected.id){
+  replayScenarioId=selected.id;replayStep=0;
+ }
+ const hasH1=candleInterval==='1h'&&drawnCandleInterval==='1h'&&
+  drawnCandleAsset===chosen;
+ const observed=hasH1?candleView.data:[];
+ const replay=buildScenarioReplay(selected,observed,{now:Date.now()});
+ text('scenario-replay-counter',replay.observed+' / 5 закрытий');
+ text('scenario-replay-context',
+  selected.asset+' · исходный диапазон '+fmt(selected.bandLow)+
+  ' — '+fmt(selected.bandHigh)+' USDT · опубликовано '+
+  replayTime(selected.publishedAt));
+ for(let i=0;i<=4;i++){
+  const point=replay.points[i];
+  const button=create('button','scenario-replay-step'+
+   (replayStep===i?' current':'')+
+   (point?.state==='OBSERVED'?' observed':' missing'));
+  button.type='button';button.setAttribute('aria-pressed',replayStep===i?'true':'false');
+  button.setAttribute('aria-label','Посмотреть '+(
+   point?.label||'H1 №'+i));
+  button.append(create('strong','',String(i)),
+   create('small','',point?.state==='OBSERVED'?'●':'—'));
+  button.addEventListener('click',()=>{
+   replayStep=i;
+   renderScenarioReplay(scenarios);
+   const step=replay.points[i];
+   if(hasH1&&step?.state==='OBSERVED'){
+    const found=candleView.focusOnScenario(step.closeAt);
+    if(!found)text('chart-selected','Этой H1-свечи нет в видимой истории.');
+   }
+  });
+  steps.append(button);
+ }
+ const point=replay.points[replayStep];
+ if(point){
+  detail.append(create('strong','',point.label+' · '+replayTime(point.closeAt)));
+  if(point.state==='OBSERVED'){
+   detail.append(create('div','scenario-replay-price',
+    fmt(point.close)+' USDT'));
+   const sign=point.deltaPct>0?'+':'';
+   detail.append(create('p','',
+    'Относительно опорного закрытия: '+sign+fmt(point.deltaPct,3)+'% · '+
+    (point.inside?'в исходном диапазоне':'вне исходного диапазона')));
+   detail.append(create('p','',
+    replayStep===3?'Промежуточное закрытие H1. Не является отдельным этапом подтверждения.':
+    point.stageObserved?'Соответствующий этап подтверждён записью Room.':
+    'Цена сохранена, но отдельное подтверждение этапа отсутствует.'));
+   if(replayStep===4)detail.append(create('p','',
+    replay.verifiedFinal?'Итог согласуется с сохранённым исследованием.':
+    'Историческая цена известна, но итог журнала не подтверждён этим наблюдением.'));
+  }else{
+   const messages={
+    NOT_CLOSED:'Свеча ещё не закрыта: значение недоступно.',
+    MISSING:'Нет сохранённой закрытой H1-свечи. Цена не восполняется.',
+    AMBIGUOUS:'Найдены повторные записи на один час. Наблюдение отклонено.',
+    INVALID_SOURCE:'Нарушена проверка сохранённого OHLCV.'
+   };
+   detail.append(create('p','scenario-replay-absent',
+    messages[point.state]||'Наблюдение недоступно.'));
+  }
+ }
+ const reasons={
+  INVALID:'Исходная гипотеза не прошла проверку.',
+  ANCHOR_MISMATCH:'Опорная цена не совпадает с оригинальным исследованием.',
+  SOURCE_CONFLICT:'В истории найдены противоречивые или ошибочные H1-свечи.',
+  RESULT_CONFLICT:'Итог журнала противоречит фактическому H1-закрытию.',
+  EMPTY:'Нет закрытых исходных H1-свечей в доступном кэше.',
+  PARTIAL:'История неполная — отсутствующие цены и этапы не дорисовываются.',
+  COMPLETE:replay.verifiedFinal?
+   'Все пять H1-закрытий известны; итог согласован с журналом.':
+   'Все пять закрытий известны, но итог исследования ещё не подтверждён.'
+ };
+ text('scenario-replay-warning',
+  !hasH1?'Для Replay открой H1 и загрузи исторические свечи выбранного актива.':
+   reasons[replay.state]||'Данные проверяются по исходным записям Room.');
+ if(hasH1&&point?.state==='OBSERVED'){
+  candleView.setReplayCursor({closeAt:point.closeAt,close:point.close});
+ }else candleView.setReplayCursor(null);
+}
+
 function renderScenarioMap(asset){
  const box=el('asset-scenario-summary');clear(box);
  for(const button of document.querySelectorAll('[data-scenario-map-mode]')){
@@ -212,6 +311,10 @@ function renderScenarioMap(asset){
   focusId:focusedScenarioId,now:Date.now(),max:3
  });
  const onH1=candleInterval==='1h';
+ if(map.scenarios.length&&!map.scenarios.some(sc=>sc.focused)){
+  map.scenarios[0].focused=true;
+  focusedScenarioId=map.scenarios[0].id;
+ }
  candleView.setInterval(candleInterval);
  candleView.setScenarios(onH1?map.scenarios:[]);
  const extra=(map.hidden?' · ещё '+map.hidden+' вне мини-карты':'')+
@@ -258,6 +361,7 @@ function renderScenarioMap(asset){
    ' · '+new Date(sc.targetCloseAt).toLocaleString('ru-RU')));
   button.addEventListener('click',()=>{
    focusedScenarioId=sc.id;
+   replayStep=0;
    renderScenarioMap(asset);
    if(!onH1)return;
    const found=candleView.focusOnScenario(sc.anchorCloseAt);
@@ -268,6 +372,7 @@ function renderScenarioMap(asset){
   });
   box.append(button);
  }
+ renderScenarioReplay(map.scenarios);
 }
 async function showAssetScenarios(asset,{force=false}={}){
  if(lastScenarioAsset!==asset){
@@ -305,7 +410,7 @@ async function showAssetScenarios(asset,{force=false}={}){
 for(const button of document.querySelectorAll('[data-scenario-map-mode]')){
  button.addEventListener('click',()=>{
   scenarioMode=button.dataset.scenarioMapMode;
-  focusedScenarioId=null;
+  focusedScenarioId=null;replayScenarioId=null;replayStep=0;
   renderScenarioMap(chosen);
  });
 }
@@ -421,6 +526,7 @@ async function runMarketMatrix(){
 el('market-matrix-run').addEventListener('click',()=>void runMarketMatrix());
 
 function displayCandleStructure(candles,description){
+ drawnCandleAsset=chosen;drawnCandleInterval=candleInterval;
  const analysis=analyzeStructure(candles);
  showMarketCore(candles,description,candleInterval);
  candleView.setData(candles,analysis.events);
@@ -498,6 +604,8 @@ for(const button of document.querySelectorAll('[data-interval]')){
  const interval=button.dataset.interval;
  button.addEventListener('click',()=>{
   candleInterval=interval;
+  drawnCandleInterval='';drawnCandleAsset='';
+  candleView.setReplayCursor(null);
   candleView.setInterval(interval);
   renderScenarioMap(chosen);
   resetMarketMatrix('Таймфрейм графика изменён. При необходимости повторите сравнение.');
@@ -744,6 +852,9 @@ async function investigate(value){
  const changed=chosen!==symbol;
  if(changed){
   scenarioRequest++;
+  drawnCandleAsset='';drawnCandleInterval='';
+  replayScenarioId=null;replayStep=0;
+  candleView.setData([]);candleView.setReplayCursor(null);
   lastScenarioRows=[];lastScenarioAsset='';lastScenarioFetchedAt=0;
   focusedScenarioId=null;
   candleView.setScenarios([]);
