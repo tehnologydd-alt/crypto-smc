@@ -3,12 +3,13 @@
  * Supports drag, pinch and mouse wheel. No fake sample series, orders or signals.
  * Displays only observed OHLCV and retrospective structure annotations.
  */
+import {mapScenarioToViewport} from './scenario-map.mjs';
 export class CandleChart {
  constructor(canvas,{onSelect}={}){
   if(!canvas||typeof canvas.getContext!=='function')throw Error('Chart canvas required');
   this.canvas=canvas;this.ctx=canvas.getContext('2d');
   if(!this.ctx)throw Error('Canvas 2D unavailable');
-  this.data=[];this.events=[];this.scenarios=[];this.visible=55;this.offset=0;
+  this.data=[];this.events=[];this.scenarios=[];this.interval='1h';this.visible=55;this.offset=0;
   this.pointers=new Map();this.lastPinch=null;this.selected=null;this.onSelect=onSelect;
   this.width=0;this.height=0;this.frame=0;
   this.onResize=()=>this.resize();
@@ -56,14 +57,27 @@ export class CandleChart {
   this.visible=Math.max(18,Math.min(150,Math.round(this.visible*multiplier)));
   this.offset=this.clampOffset(this.offset);this.schedule();
  }
+ setInterval(interval){
+  this.interval=interval;
+  this.schedule();
+ }
  setScenarios(scenarios=[]){
-  // Only immutable research envelopes with coherent future deadlines.
+  // Each scenario has a validated real Room hypothesis and stage log.
   this.scenarios=Array.isArray(scenarios)?scenarios.filter(x=>
+   typeof x.id==='string'&&
    Number.isFinite(x.bandLow)&&Number.isFinite(x.bandHigh)&&
    x.bandLow>0&&x.bandLow<x.bandHigh&&Number.isSafeInteger(x.anchorCloseAt)&&
    Number.isSafeInteger(x.targetCloseAt)&&x.targetCloseAt>x.anchorCloseAt
   ).slice(0,3):[];
   this.schedule();
+ }
+ focusOnScenario(anchorCloseAt){
+  if(this.interval!=='1h')return false;
+  const index=this.data.findIndex(c=>c?.closed===true&&c.closeAt===anchorCloseAt);
+  if(index<0)return false;
+  this.offset=this.clampOffset(this.data.length-index-Math.floor(this.visible/2));
+  this.schedule();
+  return true;
  }
  setData(candles,events=[]){
   this.data=Array.isArray(candles)?candles:[];
@@ -120,21 +134,37 @@ export class CandleChart {
   const low=minV-padding,high=maxV+padding;
   const priceY=p=>14+(high-p)/(high-low)*(mainH-22);
   const step=plotW/bars.length;
-  // Visualize ORIGINAL empirical scenario envelopes, not executable orders.
-  for(const sc of this.scenarios){
+  // Every shaded segment corresponds to real consecutive closed H1 candles.
+  const overlays=this.interval==='1h'?this.scenarios.map(sc=>({
+   sc,geometry:mapScenarioToViewport(sc,bars,{interval:this.interval})
+  })).filter(x=>x.geometry.visible):[];
+  for(const {sc,geometry} of overlays){
    if(sc.bandHigh<low||sc.bandLow>high)continue;
-   const top=Math.max(14,priceY(Math.min(high,sc.bandHigh)));
-   const bottom=Math.min(mainH-8,priceY(Math.max(low,sc.bandLow)));
-   ctx.fillStyle='rgba(55,190,194,.11)';
-   ctx.fillRect(0,top,plotW,Math.max(1,bottom-top));
-   ctx.save();ctx.setLineDash([5,4]);ctx.strokeStyle='#69dfe0';ctx.lineWidth=1.5;
+   const top=Math.max(14,Math.min(mainH-8,priceY(Math.min(high,sc.bandHigh))));
+   const bottom=Math.min(mainH-8,Math.max(14,priceY(Math.max(low,sc.bandLow))));
+   if(bottom<=top)continue;
+   ctx.save();ctx.beginPath();ctx.rect(0,14,plotW,mainH-22);ctx.clip();
+   ctx.fillStyle=sc.focused?'rgba(95,229,220,.20)':
+    sc.tracked?'rgba(92,215,205,.13)':'rgba(98,140,159,.08)';
+   for(const seg of geometry.segments){
+    const left=Math.max(0,seg.from*step);
+    const right=Math.min(plotW,(seg.to+1)*step);
+    if(right>left)ctx.fillRect(left,top,right-left,bottom-top);
+   }
+   ctx.setLineDash([5,4]);
+   ctx.strokeStyle=sc.focused?'#83f1dd':sc.tracked?'#5fdad0':'#7493ac';
+   ctx.lineWidth=sc.focused?1.8:1;
+   // Horizontal boundaries are ONLY visible over observed candle segments.
    for(const price of [sc.bandLow,sc.bandHigh]){
     if(price<low||price>high)continue;
-    const y=priceY(price);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(plotW,y);ctx.stroke();
+    const y=priceY(price);
+    for(const seg of geometry.segments){
+     const left=Math.max(0,seg.from*step);
+     const right=Math.min(plotW,(seg.to+1)*step);
+     ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
+    }
    }
    ctx.restore();
-   ctx.fillStyle='#b2efea';ctx.textAlign='left';ctx.font='10px system-ui';
-   ctx.fillText('Исследуемый диапазон · H1',6,Math.max(12,top-8));
   }
   ctx.strokeStyle='#24424a';ctx.lineWidth=1;
   for(let j=0;j<=4;j++){
@@ -159,6 +189,26 @@ export class CandleChart {
    ctx.fillRect(x-candleWidth/2,volumeTop+volumeH*(1-bar.volume/volMax),
     candleWidth,Math.max(1,volumeH*bar.volume/volMax));
   }
+  // Only immutable H1 stages whose SOURCE close exists in this viewport.
+  // Plotted after candle bodies for legibility; never mark expected future bars.
+  for(const {sc,geometry} of overlays){
+   const markerColor=sc.focused?'#8effec':sc.tracked?'#65dcd1':'#a3b0c7';
+   for(const mark of geometry.marks){
+    const x=(mark.index+.5)*step;
+    const y=mainH-17;
+    ctx.save();ctx.fillStyle='#0d2530';ctx.strokeStyle=markerColor;
+    ctx.lineWidth=sc.focused?2:1.5;
+    ctx.beginPath();ctx.arc(x,y,Math.max(6,Math.min(10,step*.36)),0,2*Math.PI);
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle=markerColor;ctx.font='bold 9px system-ui';ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    const icon=mark.key==='PUBLISHED'?'P':
+     mark.key==='CONFIRMED'?'1':mark.key==='ACTIVE'?'2':'4';
+    ctx.fillText(icon,x,y+.4);
+    ctx.restore();
+   }
+  }
+  // P = published anchor, 1 / 2 = observed H1 stages, 4 = verified outcome.
   // Annotate only confirmed retrospective breaks, never preemptive signals.
   const eventByTime=new Map(this.events.map(e=>[e.time,e]));
   for(let i=0;i<bars.length;i++){
