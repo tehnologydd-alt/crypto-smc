@@ -1285,3 +1285,57 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .regimes-counts{grid-template-columns:repeat(3,minmax(0,1fr))}
  .regimes-periods{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+/* Research Regime Stability: uncertainty bands and historical change */
+.regimes-stability{
+ margin-top:18px;border-top:1px solid #34636e;padding:17px 0 4px
+}
+.regimes-stability h5{
+ margin:0 0 10px;color:#d7f2e9;font-size:14px;line-height:1.5
+}
+.regimes-stability h6{color:#c9e9e4;font-size:12px;margin:17px 0 9px}
+.regimes-stability-card{
+ margin:12px 0;padding:12px 11px;border:1px solid #365e69;
+ border-radius:14px;background:#0b2631
+}
+.regimes-stability-grid{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;margin:10px 0
+}
+.regimes-stability-period{
+ padding:10px 8px;border:1px solid #305967;border-radius:10px;
+ background:#12333e;display:flex;flex-direction:column;
+ gap:6px;min-width:0
+}
+.regimes-stability-period span,.regimes-stability-period small{
+ font-size:10px;line-height:1.5;color:#a9c4cb
+}
+.regimes-stability-period strong{
+ font-size:14px;font-variant-numeric:tabular-nums;color:#e2f7ed
+}
+.regimes-stability-outcomes{
+ border-top:1px solid #315965;margin-top:12px;padding-top:12px
+}
+.regimes-stability-outcomes>strong{
+ font-size:11px;color:#cdece7;line-height:1.6
+}
+.regimes-stability-muted{
+ padding:10px;color:#cbbd9b;background:#242b31;
+ border-radius:10px;font-size:10px;line-height:1.65
+}
+.regimes-stability-volatility{display:grid;grid-template-columns:1fr;gap:8px}
+.regimes-stability-volatility-row{
+ background:#102f3a;border:1px solid #315866;border-radius:11px;
+ padding:11px;display:flex;flex-direction:column;gap:6px
+}
+.regimes-stability-volatility-row strong{font-size:11px;color:#d9f2eb}
+.regimes-stability-volatility-row span,
+.regimes-stability-volatility-row small{
+ font-size:10px;line-height:1.5;color:#a4c5cc
+}
+.regimes-stability-note{
+ font-size:10px;line-height:1.75;color:#a9c0c5;
+ margin:13px 0;padding:10px 11px;
+ background:#0c202a;border:1px solid #2b5361;border-radius:11px
+}
+@media(max-width:370px){.regimes-stability-grid{grid-template-columns:1fr}}

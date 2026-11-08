@@ -4,6 +4,7 @@
  */
 import {getMobileCandleArchive} from './mobile-bridge.mjs';
 import {analyzeResearchRegimes,REGIME_TYPES,VOLATILITY_STATES} from './research-regimes.mjs';
+import {analyzeRegimeStability} from './regime-stability.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,className='',value)=>{
@@ -20,6 +21,7 @@ const formatDate=t=>Number.isSafeInteger(t)?
  new Date(t).toLocaleDateString('ru-RU'):'—';
 const names={DIRECTIONAL:'Направленное',RANGE:'Боковик',TRANSITION:'Переход'};
 const volNames=Object.fromEntries(VOLATILITY_STATES.map(x=>[x.id,x.label]));
+const pp=n=>Number.isFinite(n)?(n>=0?'+':'')+number(n,1)+' п.п.':'—';
 
 export function initResearchRegimesDashboard(){
  const run=get('regimes-run'),status=get('regimes-status'),
@@ -124,6 +126,85 @@ export function initResearchRegimesDashboard(){
    'четырёхчасовых исходов. Обучающие окна соседних наблюдений частично '+
    'пересекаются. Исторические доли не являются вероятностями будущих событий.'));
  }
+
+ /**
+  * Only derive charts from the historical report and the second source gate.
+  */
+ function renderStability(report){
+  const stability=analyzeRegimeStability(report);
+  const section=node('section','regimes-stability');
+  section.append(node('h5','','Research Regime Stability · сдвиги по периодам'));
+  if(stability.state!=='DESCRIPTIVE'){
+   section.append(node('p','regimes-warning',
+    'Сравнение устойчивости скрыто: '+stability.reason));
+   cards.append(section);return;
+  }
+  section.append(node('p','regimes-notes',
+   'Ранний, средний и поздний периоды. Доли — исторические наблюдения, '+
+   'полосы — ориентировочные 95% интервалы Уилсона.'));
+  for(const regime of stability.regimes){
+   const block=node('article','regimes-stability-card');
+   const header=node('div','regimes-card-head');
+   header.append(node('strong','',regime.label),
+    node('span','','Сдвиг доли: '+pp(regime.occurrence.earlyLateChangePp)));
+   block.append(header);
+   const grid=node('div','regimes-stability-grid');
+   for(const period of regime.occurrence.periods){
+    const cell=node('div','regimes-stability-period');
+    cell.append(node('span','',period.label+' · '+number(period.count)+' / '+number(period.total)),
+     node('strong','',percent(period.share)),
+     node('small','',percent(period.lower)+' – '+percent(period.upper)));
+    grid.append(cell);
+   }
+   block.append(grid);
+   block.append(node('p','regimes-notes',
+    'Исторический разброс: '+number(regime.occurrence.largestDifferencePp,1)+
+    ' п.п. · '+(regime.occurrence.commonWilsonIntersection?
+     'Интервалы пересекаются; постоянство режима не доказано.':
+     'Общего пересечения нет; причина различий требует проверки.')));
+   if(regime.outcomes.state==='DESCRIPTIVE'){
+    const outcome=node('div','regimes-stability-outcomes');
+    outcome.append(node('strong','',
+     'Следующие 4 часа · закрытие внутри прежнего коридора'),
+     node('p','regimes-notes',
+      'Ниже показаны доли подтверждённых исходов только для этого режима. '+
+      'Порог: 12 случаев в каждом периоде.'));
+    const outcomes=node('div','regimes-stability-grid');
+    regime.outcomes.periods.forEach((period,i)=>{
+     const cell=node('div','regimes-stability-period');
+     cell.append(node('span','',period.label+' · '+number(period.count)+' / '+number(period.total)),
+      node('strong','',percent(period.share)),
+      node('small','',percent(period.lower)+' – '+percent(period.upper)),
+      node('small','','Медиана |4H|: '+
+       number(regime.outcomes.medianAbsFourHourPct[i],2)+'%'));
+     outcomes.append(cell);
+    });
+    outcome.append(outcomes,node('p','regimes-notes',
+     'Наблюдаемый сдвиг исходов: '+
+      pp(regime.outcomes.earlyLateChangePp)+'. '+
+      (regime.outcomes.commonWilsonIntersection?
+       'Исторические интервалы пересекаются.':
+       'Общего пересечения интервалов нет.')));
+    block.append(outcome);
+   }else{
+    block.append(node('p','regimes-stability-muted',
+     regime.outcomes.reason+'; доли исходов скрыты.'));
+   }
+   section.append(block);
+  }
+  section.append(node('h6','','Волатильность · изменение частоты режимов'));
+  const volGrid=node('div','regimes-stability-volatility');
+  for(const v of stability.volatility){
+   const item=node('div','regimes-stability-volatility-row');
+   item.append(node('strong','',v.label),
+    node('span','',v.occurrence.periods.map(p=>
+     p.label+': '+percent(p.share)).join(' · ')),
+    node('small','','Ранний → поздний: '+pp(v.occurrence.earlyLateChangePp)));
+   volGrid.append(item);
+  }
+  section.append(volGrid,node('p','regimes-stability-note',stability.note));
+  cards.append(section);
+ }
  async function runAudit(){
   if(busy||!select.value)return;
   const asset=select.value,seq=++serial;
@@ -143,6 +224,7 @@ export function initResearchRegimesDashboard(){
    });
    if(seq!==serial||select.value!==asset)return;
    render(result);
+   renderStability(result);
    announce(result.state==='DESCRIPTIVE'?
     'Исследованы '+number(result.overall.samples)+
     ' неперекрывающихся четырёхчасовых окон. Только проверяемая история '+asset+'.':
