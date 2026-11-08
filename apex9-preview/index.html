@@ -171,6 +171,19 @@
         <div id="depth-list" class="stack"><p class="muted">Снимки глубины ещё не получены.</p></div>
         <p class="footnote">Отображается лишь ограниченный публичный срез заявок. Это не полная карта ликвидности, не скрытые ордера и не карта ликвидаций.</p>
       </article>
+      <article class="card block liquidity-history-panel" id="liquidity-history-panel">
+        <div class="section-title"><h3>История видимой ликвидности</h3><span>Локально · Room</span></div>
+        <p id="liquidity-history-status" class="muted" role="status" aria-live="polite">Загружаем сохранённые наблюдения выбранного актива…</p>
+        <div class="liquidity-venue-grid" id="liquidity-history-venues">
+          <p class="muted">Пока нет подтверждённых снимков стакана.</p>
+        </div>
+        <div class="liquidity-chart-shell">
+          <canvas id="liquidity-history-canvas" width="680" height="220"
+             role="img" aria-label="Исторические изменения дисбаланса видимых заявок Binance и Bybit">Для графика нужен Canvas.</canvas>
+        </div>
+        <div class="liquidity-legend"><span><i class="legend-binance"></i> Binance Spot</span><span><i class="legend-bybit"></i> Bybit Spot</span></div>
+        <p class="footnote">Это ограниченные публичные снимки видимых заявок, а не карта скрытой ликвидности или ликвидаций. Пропуски в истории не заполняются. Старая запись не считается текущим состоянием стакана.</p>
+      </article>
       <article class="card block">
         <h3>Крипторынок в целом</h3>
         <div id="global-context" class="stack"><p class="muted">Данные CoinGecko ещё не получены.</p></div>
