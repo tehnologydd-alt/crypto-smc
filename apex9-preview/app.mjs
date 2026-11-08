@@ -1,7 +1,7 @@
 import {collectAsset,fetchSpotCatalog,normalizeSymbol} from './research.mjs';
 import {collectContext} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -10,6 +10,7 @@ import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 import {initValidationDashboard} from './validation-dashboard.mjs';
+import {initEditorialDashboard} from './editorial-dashboard.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -165,15 +166,16 @@ const onChainDashboard=initOnChainDashboard();
 function updateTab(view){
  document.body.dataset.view=view;
  for(const tab of document.querySelectorAll('[data-tab]')){
-  const active=tab.dataset.tab===view;
+  const active=tab.dataset.tab===view||(tab.dataset.tab==='overview'&&['news','macro'].includes(view));
   tab.classList.toggle('active',active);
   if(active)tab.setAttribute('aria-current','page');
   else tab.removeAttribute('aria-current');
  }
- for(const name of ['overview','asset','forecasts','sources'])
+ for(const name of ['overview','asset','forecasts','sources','news','macro'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
 
+const editorialDashboard=initEditorialDashboard();
 const candleView=new CandleChart(el('candle-canvas'),{
  onSelect(bar){
   const stamp=new Date(bar.t).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',
@@ -185,6 +187,42 @@ const candleView=new CandleChart(el('candle-canvas'),{
 });
 let candleInterval='1h',candleGeneration=0,candleController=null,
  candleLastKey='',candleLastAt=0;
+let scenarioRequest=0;
+async function showAssetScenarios(asset){
+ const token=++scenarioRequest;
+ text('asset-scenario-status','Загружаем сохранённые исследовательские диапазоны…');
+ const box=el('asset-scenario-summary');clear(box);
+ candleView.setScenarios([]);
+ const results=await getMobileResearchForecasts(75);
+ if(token!==scenarioRequest||asset!==chosen)return;
+ if(!results.native||results.error){
+  text('asset-scenario-status',results.error||
+   'Сценарии доступны в установленном Android APK.');
+  return;
+ }
+ const rows=(results.forecasts||[]).filter(r=>r.asset===asset&&
+  ['PENDING_CONFIRMATION','CONFIRMED','ACTIVE'].includes(r.status));
+ const ranges=[];
+ for(const item of rows.slice(0,3)){
+  let h;try{h=JSON.parse(item.hypothesis);}catch{continue;}
+  if(!h||!Number.isFinite(h.bandLow)||!Number.isFinite(h.bandHigh)||
+   !Number.isSafeInteger(h.anchorCloseAt)||!Number.isSafeInteger(h.targetCloseAt)||
+   h.bandLow<=0||h.bandLow>=h.bandHigh)continue;
+  ranges.push(h);
+  const line=create('div','asset-range-line');
+  line.append(create('strong','',item.status==='ACTIVE'?'Наблюдается':
+   item.status==='CONFIRMED'?'Подтверждён первым наблюдением':'Ожидает подтверждения'),
+   create('span','',fmt(h.bandLow)+' — '+fmt(h.bandHigh)+' USDT'),
+   create('small','', 'Опорное закрытие: '+new Date(h.anchorCloseAt).toLocaleString('ru-RU')+
+    ' · конец горизонта: '+new Date(h.targetCloseAt).toLocaleString('ru-RU')));
+  box.append(line);
+ }
+ text('asset-scenario-status',ranges.length?
+  ranges.length+' наблюдаемых исследовательских сценариев · подлинные условия из Room':
+  'Сценариев в работе для '+asset+' пока нет.');
+ if(candleInterval==='1h')candleView.setScenarios(ranges);
+}
+
 function candleMessage(message,warning=false){
  text('candle-status',message);
  el('candle-status').classList.toggle('is-offline',warning);
@@ -299,6 +337,7 @@ function displayCandleStructure(candles,description){
  const analysis=analyzeStructure(candles);
  showMarketCore(candles,description,candleInterval);
  candleView.setData(candles,analysis.events);
+ void showAssetScenarios(chosen);
  const container=el('structure-events');clear(container);
  const mapDir={UP:'вверх',DOWN:'вниз'};
  const interesting=analysis.events.filter(e=>e.type==='BOS'||e.type==='CHoCH').slice(-6).reverse();
@@ -391,10 +430,10 @@ el('chart-reset').addEventListener('click',()=>{
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
  onSelectSymbol:(symbol)=>{
-  updateTab('overview');
   void investigate(symbol);
-  window.scrollTo({top:0,behavior:'smooth'});
- }
+  navigate('asset');
+ },
+ onForecastStage:()=>navigate('forecasts')
 });
 void favoriteManager.initialize();
 const evidenceDashboard=initEvidenceDashboard({
@@ -402,6 +441,7 @@ const evidenceDashboard=initEvidenceDashboard({
  getFavorites:()=>favoriteManager.getFavorites()
 });
 const validationDashboard=initValidationDashboard();
+let matrixLastRunAt=0;
 
 function navigate(view,targetId){
  updateTab(view);
@@ -409,13 +449,20 @@ function navigate(view,targetId){
   if(view==='asset'){
    candleView.resize();
    void loadCandleHistory(false);
+   void showAssetScenarios(chosen);
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
+   if(!matrixLastRunAt||Date.now()-matrixLastRunAt>15*60000){
+    matrixLastRunAt=Date.now();void runMarketMatrix();
+   }
+   if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
-  if(view==='forecasts'){
-   favoriteManager.openForecasts();
+  if(view==='forecasts')favoriteManager.openForecasts();
+  if(view==='overview'){
    evidenceDashboard.open();
+   favoriteManager.openOverviewSummary();
   }
+  if(view==='news'||view==='macro')void editorialDashboard.open(view);
   const node=targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
  });
@@ -615,7 +662,9 @@ async function investigate(value){
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
  text('asset-name',chosen);
+ text('asset-passport-name',chosen+' · автоматическое наблюдение');
  el('asset-input').value=chosen;
+ if(document.body.dataset.view==='asset')void showAssetScenarios(chosen);
  text('market-price','—');text('market-change','24 ч: —');
  text('top-status','Обновление…');
  text('updated-at','Запрос публичных источников…');
@@ -661,6 +710,7 @@ async function investigate(value){
 el('search-form').addEventListener('submit',(event)=>{
  event.preventDefault();
  void investigate(el('asset-input').value);
+ navigate('asset');
 });
 el('refresh-button').addEventListener('click',()=>void investigate(chosen));
 setInterval(()=>{
