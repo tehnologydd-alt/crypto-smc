@@ -148,6 +148,7 @@ export function initOnChainDashboard(){
    return;
   }
   get('network-name').textContent=chainNames[chain];
+  marketComparison.runAuto();
   setStatus('Проверяем сохранённые наблюдения '+chainNames[chain]+'…');
   let cached=null;
   try{cached=await readCache(asset,chain,seq);}catch(e){
