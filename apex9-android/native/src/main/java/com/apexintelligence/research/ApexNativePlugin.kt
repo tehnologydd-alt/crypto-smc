@@ -124,6 +124,42 @@ class ApexNativePlugin : Plugin() {
     }
 
 
+    /** Research-only historical snapshots. Reuses Room v4, no migration required. */
+    @PluginMethod
+    fun getLiquidityHistory(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val limit = call.data.optInt("limit", 120).coerceIn(1, 200)
+        if (!assetRegex.matches(asset)) {
+            call.reject("Invalid liquidity-history asset")
+            return
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context.applicationContext).researchDao()
+                val saved = dao.liquidityHistory(asset, limit)
+                val rows = JSArray()
+                for (record in saved) {
+                    if (record.source != "binance:spot:depth" &&
+                        record.source != "bybit:spot:depth") continue
+                    val item = JSObject()
+                    item.put("asset", record.asset)
+                    item.put("source", record.source)
+                    item.put("observedAt", record.observedAt)
+                    item.put("collectedAt", record.collectedAt)
+                    item.put("payload", record.payloadJson)
+                    rows.put(item)
+                }
+                val result = JSObject()
+                result.put("rows", rows)
+                result.put("source", "LOCAL_ROOM_DEPTH_HISTORY")
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject("Local liquidity history unavailable: " +
+                    (e.message ?: "unknown"))
+            }
+        }
+    }
+
     private val intervals = mapOf(
         "15m" to 900_000L, "1h" to 3_600_000L,
         "4h" to 14_400_000L, "1d" to 86_400_000L
