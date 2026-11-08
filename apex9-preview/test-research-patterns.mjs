@@ -127,3 +127,14 @@ test('partial H1 archive cannot publish Research Stability rates',()=>{
  assert.equal(r.patterns[0].periodRates,null);
  assert.match(r.reason,/Свечной архив/);
 });
+
+test('indexed 4800-bar archive still detects duplicate H1 source timestamps',()=>{
+ const x=dataset();
+ x.bars.push({...x.bars[0]});
+ const r=compareCompletedResearch(x.rows,x.bars,{
+  asset:'BTCUSDT',now,totalPublished:x.rows.length
+ });
+ assert.equal(r.state,'INCOMPLETE_EVIDENCE');
+ assert.equal(r.counts.conflictingSource,1);
+ assert.equal(r.counts.accepted,41);
+});

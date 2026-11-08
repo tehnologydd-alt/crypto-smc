@@ -49,6 +49,15 @@ export function compareCompletedResearch(rows,candles,{
  result.totalPublished=knownTotal;
  result.loadedForAsset=target.length;
  result.truncated=knownTotal!==null&&knownTotal>rows.length;
+ // Index the actual H1 bars once. The old replay rebuilt a 4,800-bar map
+ // for every research item (up to 1,500 times) on a phone.
+ // Retain duplicate closeAt rows so Scenario Replay can reject ambiguity.
+ const candleByClose=new Map();
+ for(const bar of candles){
+  if(!Number.isSafeInteger(bar?.closeAt)||bar.closeAt<=0)continue;
+  const same=candleByClose.get(bar.closeAt)||[];
+  same.push(bar);candleByClose.set(bar.closeAt,same);
+ }
  const ids=new Set(),candidates=[];
  for(const row of [...target].sort((a,b)=>(a?.publishedAt||0)-(b?.publishedAt||0))){
   if(typeof row?.id!=='string'||ids.has(row.id)){
@@ -72,12 +81,15 @@ export function compareCompletedResearch(rows,candles,{
   let h;
   try{h=typeof row.hypothesis==='string'?JSON.parse(row.hypothesis):row.hypothesis;}
   catch{result.counts.invalid++;continue;}
+  const matchedBars=[];
+  for(let step=0;step<=4;step++)
+   matchedBars.push(...(candleByClose.get(h.anchorCloseAt+step*H)||[]));
   const replay=buildScenarioReplay({
    id:row.id,asset,anchorCloseAt:h.anchorCloseAt,
    targetCloseAt:h.targetCloseAt,anchorClose:h.anchorClose,
    bandLow:h.bandLow,bandHigh:h.bandHigh,
    milestones:[],result:row.evaluation
-  },candles,{now});
+  },matchedBars,{now});
   if(replay.state==='RESULT_CONFLICT'||replay.state==='SOURCE_CONFLICT'||
    replay.state==='ANCHOR_MISMATCH'||replay.state==='INVALID'){
    result.counts.conflictingSource++;continue;
