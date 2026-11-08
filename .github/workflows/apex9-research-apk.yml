@@ -68,7 +68,9 @@ jobs:
           node --check apex9-preview/forecast-core.mjs
           node --check apex9-preview/favorite-dashboard.mjs
           node --check apex9-preview/favorite-logic.mjs
-          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs
+          node --check apex9-preview/liquidity-core.mjs
+          node --check apex9-preview/liquidity-dashboard.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs apex9-preview/test-liquidity-core.mjs
 
       - name: Install Capacitor and stage web assets
         working-directory: apex9-android
