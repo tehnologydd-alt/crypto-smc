@@ -44,6 +44,7 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
   FORECAST_STAGE_LABELS[stage]));
  card.append(head,headActions);
  const chart=create('div','forecast-mini-chart');
+ chart.dataset.sparkSymbol=row.asset;
  card.append(chart);
  getMini?.(row.asset,chart);
  if(!data||typeof data.bandLow!=='number'||typeof data.bandHigh!=='number'){
@@ -132,7 +133,10 @@ export function initFavoriteResearch({getSelectedSymbol,onSelectSymbol,onForecas
    spark.dataset.sparkSymbol=symbol;
    wrapper.append(spark);
    renderMini(symbol,spark);
-   open.addEventListener('click',()=>onSelectSymbol(symbol));
+   wrapper.addEventListener('click',(e)=>{
+    if(e.target?.closest?.('.favorite-remove'))return;
+    onSelectSymbol(symbol);
+   });
    const remove=create('button','favorite-remove','×');
    remove.type='button';
    remove.setAttribute('aria-label','Удалить '+symbol+' из избранного');
