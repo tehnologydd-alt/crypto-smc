@@ -955,3 +955,66 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .research-step-body strong{font-size:11px}
  .forecast-observation-stat .forecast-stat-line{gap:7px}
 }
+
+
+/* H1 Scenario Map — observed Room events, bounded source-price envelopes. */
+.scenario-map-toolbar{
+ display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:13px 0 10px
+}
+.scenario-map-filter{
+ min-height:43px;padding:9px 11px;border-radius:12px;
+ color:#a9c9d0;border:1px solid #35656c;background:#0d2831;
+ font-size:12px;font-weight:690
+}
+.scenario-map-filter.selected{
+ background:#155358;border-color:#51cfcc;color:#defbf4
+}
+.scenario-map-list{
+ display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0
+}
+.scenario-map-item{
+ width:100%;min-height:90px;display:flex;flex-direction:column;gap:8px;
+ padding:13px 14px;text-align:left;color:#c8edec;
+ background:linear-gradient(115deg,#0c2932,#0a1c25);
+ border:1px solid #386470;border-radius:15px;cursor:pointer;
+ transition:border-color .15s ease,background .15s ease;
+}
+.scenario-map-item.tracked{
+ border-color:#4cb8ab;background:linear-gradient(115deg,#11423f,#0c292f)
+}
+.scenario-map-item.focused{
+ border-color:#7ce9d8;background:linear-gradient(115deg,#164c4a,#102c36)
+}
+.scenario-map-item-heading{
+ display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:6px
+}
+.scenario-map-item-heading strong{font-size:13px;color:#d3f4ed}
+.scenario-map-item-heading small{font-size:10px;color:#8dd9c8}
+.scenario-map-item-range{
+ font-size:18px;font-weight:750;color:#9ceee4;
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere
+}
+.scenario-map-item-time{
+ font-size:10px;line-height:1.65;color:#a2bfc7
+}
+.scenario-map-item-result{
+ font-size:11px;color:#a7ded4;line-height:1.5
+}
+.scenario-map-legend{
+ font-size:10px;color:#9dbdc4;line-height:1.75;
+ background:#091f28;border:1px solid #29535d;
+ padding:11px 12px;border-radius:12px;margin:12px 0 2px
+}
+.scenario-map-legend strong{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-width:19px;height:19px;border-radius:50%;
+ color:#b3f7ec;border:1px solid #4db5ac;font-size:11px;
+ margin:0 2px;background:#10383e
+}
+@media(min-width:800px){.scenario-map-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:390px){
+ .scenario-map-filter{font-size:11px;padding:8px 7px}
+ .scenario-map-item{padding:11px}
+ .scenario-map-item-range{font-size:16px}
+}
