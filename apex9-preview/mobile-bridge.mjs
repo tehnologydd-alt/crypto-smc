@@ -40,6 +40,9 @@ export async function saveMobileSnapshot(snapshot) {
     bidNotional:depth.bidNotional,askNotional:depth.askNotional,
     bidLevels:depth.bidLevels,askLevels:depth.askLevels,
     updateId:depth.updateId,scope:'SPOT',
+    levelSelection:depth.levelSelection,
+    topVisibleLevels:Array.isArray(depth.topVisibleLevels)
+      ?depth.topVisibleLevels.slice(0,16):undefined,
     sampleScope:depth.sampleScope})
   });
  }
