@@ -71,31 +71,30 @@ function findMain(root){
 }
 const main=findMain(javaRoot);
 let contents=readFileSync(main,'utf8');
-if(!contents.includes('registerPlugin(ApexNativePlugin.class)')){
+if(!contents.includes('registerPlugin(ApexNativePlugin')){
+ const pkg=contents.match(/^package\s+([^;]+);/m)?.[1];
+ if(pkg!=='com.apexintelligence.research')throw Error('Unexpected Android package '+pkg);
  if(main.endsWith('.java')){
-  const pattern=/super\.onCreate\(savedInstanceState\)\s*;/;
-  if(!pattern.test(contents))throw Error('MainActivity super.onCreate anchor missing');
-  // Generated MainActivity and plugin share same Java package.
-  const pkg=contents.match(/^package\s+([^;]+);/m)?.[1];
-  if(pkg!=='com.apexintelligence.research')throw Error('Unexpected app package: '+pkg);
-  contents=contents.replace(pattern,'registerPlugin(ApexNativePlugin.class);\n        super.onCreate(savedInstanceState);');
   if(!contents.includes('import android.os.Bundle;'))
    contents=contents.replace(/(package\s+[^;]+;)/,'$1\n\nimport android.os.Bundle;');
-  if(!contents.includes('void onCreate(Bundle savedInstanceState)')){
-   contents=contents.replace(/(public class MainActivity extends BridgeActivity\s*\{)/,
-`$1
+  const superCall=/super\.onCreate\(savedInstanceState\)\s*;/;
+  if(superCall.test(contents)){
+   contents=contents.replace(superCall,
+    'registerPlugin(ApexNativePlugin.class);\n        super.onCreate(savedInstanceState);');
+  }else{
+   const classStart=/public\s+class\s+MainActivity\s+extends\s+BridgeActivity\s*\{/;
+   if(!classStart.test(contents))throw Error('Unrecognized generated MainActivity.java');
+   contents=contents.replace(classStart,match=>match+`
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ApexNativePlugin.class);
         super.onCreate(savedInstanceState);
     }`);
-   // Because the super.onCreate injection above only happened if it existed,
-   // this second path is for versions where generated activity has no override.
   }
  }else{
-  if(!contents.includes('class MainActivity'))throw Error('Kotlin MainActivity class anchor missing');
-  contents=contents.replace(/(class MainActivity\s*:\s*BridgeActivity\(\)\s*\{)/,
-`$1
+  const classStart=/class\s+MainActivity\s*:\s*BridgeActivity\(\)\s*\{/;
+  if(!classStart.test(contents))throw Error('Unrecognized generated MainActivity.kt');
+  contents=contents.replace(classStart,match=>match+`
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         registerPlugin(ApexNativePlugin::class.java)
         super.onCreate(savedInstanceState)
@@ -103,5 +102,6 @@ if(!contents.includes('registerPlugin(ApexNativePlugin.class)')){
  }
  writeFileSync(main,contents);
 }
-if(!readFileSync(main,'utf8').includes('registerPlugin(ApexNativePlugin'))throw Error('Native plugin registration missing');
+if(!readFileSync(main,'utf8').includes('registerPlugin(ApexNativePlugin'))
+ throw Error('Native plugin registration missing');
 console.log('APEX Android Kotlin foundation injected: Room, DataStore, WorkManager, Capacitor bridge');
