@@ -1420,3 +1420,72 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
 .holdout-rate strong{font-size:15px;font-variant-numeric:tabular-nums;color:#dcf5eb}
 .holdout-disclosure{background:#0b2029;border:1px solid #315965;
  border-radius:12px;padding:11px;font-size:10px;line-height:1.7;color:#b1c6ca}
+
+/* Cross-Asset Research — source-verified same-clock BTC/ETH/SOL */
+.cross-panel{margin:16px 0 20px;padding:15px 12px;border-radius:17px;
+ border:1px solid #3f727d;background:linear-gradient(135deg,#0c2835,#102b36)}
+.cross-panel .section-title{margin-bottom:9px}
+.cross-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}
+.cross-actions button{min-height:46px;border-radius:11px;
+ padding:11px 14px;border:1px solid #518e91;background:#154048;
+ color:#d7f8ed;font-size:12px;flex:1 1 115px}
+.cross-actions button:disabled{opacity:.47;cursor:not-allowed}
+.cross-source{display:flex;gap:10px;justify-content:space-between;
+ flex-wrap:wrap;align-items:baseline;padding:9px 10px;
+ border:1px solid #315d68;background:#112f39;border-radius:10px;
+ margin:7px 0}
+.cross-source strong{font-size:11px;color:#d5f2e7}
+.cross-source span{font-size:10px;line-height:1.6;color:#a3c6c9;
+ overflow-wrap:anywhere}
+.cross-source.is-excluded{border-color:#766149;background:#302b2a}
+.cross-source.is-excluded span{color:#dec9a7}
+.cross-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;margin:13px 0}
+.cross-stat{border:1px solid #356772;border-radius:11px;
+ padding:11px;background:#11333d;display:flex;flex-direction:column;gap:7px}
+.cross-stat span{font-size:10px;line-height:1.5;color:#a6c8c9}
+.cross-stat strong{font-size:15px;line-height:1.45;color:#def7ed}
+.cross-panel h5{font-size:12px;line-height:1.5;color:#def5eb;margin:19px 0 11px}
+.cross-assets-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.cross-asset-card,.cross-pair{border:1px solid #35616a;
+ border-radius:13px;background:#102e3a;padding:12px}
+.cross-asset-card h6{font-size:11px;color:#ccece2;margin:0 0 10px}
+.cross-mode{margin:10px 0}
+.cross-mode-head,.cross-pair-head{display:flex;gap:10px;
+ justify-content:space-between;align-items:baseline}
+.cross-mode-head span{font-size:10px;color:#a8c8cc}
+.cross-mode-head strong,.cross-pair-head span{font-size:12px;
+ color:#d9f8ee;font-variant-numeric:tabular-nums}
+.cross-track{height:8px;border:1px solid #2d5b67;border-radius:99px;
+ background:#1c4350;overflow:hidden;margin:6px 0}
+.cross-fill{display:block;height:100%;border-radius:99px}
+.cross-directional{background:#59bcae}
+.cross-range{background:#7191c5}
+.cross-transition{background:#d6b67a}
+.cross-pairs{display:grid;grid-template-columns:1fr;gap:10px}
+.cross-pair-head strong{font-size:12px;color:#d7f4e7}
+.cross-mini{font-size:10px;color:#a4c4ca;line-height:1.7;margin:9px 0}
+.cross-folds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:6px;margin:10px 0 0}
+.cross-fold{border:1px solid #315e66;background:#153a42;
+ border-radius:9px;padding:9px 6px;min-width:0;
+ display:flex;flex-direction:column;gap:5px}
+.cross-fold span{font-size:10px;color:#a9c8ca;line-height:1.45}
+.cross-fold strong{font-size:12px;color:#def6ec}
+.cross-transition-details{margin:15px 0;padding:12px;
+ border-radius:12px;background:#0d2833;border:1px solid #346672}
+.cross-transition-details summary{font-size:11px;color:#d5f3e6;
+ cursor:pointer;line-height:1.5}
+.cross-transition-group{padding:12px 0;border-top:1px solid #315965}
+.cross-transition-group>strong{font-size:12px;color:#d3f2e7}
+.cross-transition-row{display:flex;justify-content:space-between;
+ gap:10px;flex-wrap:wrap;padding:7px 0}
+.cross-transition-row span{font-size:10px;color:#b2d1d1}
+.cross-transition-row strong{font-size:11px;color:#ddf5ea}
+.cross-note{font-size:10px;line-height:1.75;color:#b1cdd0;
+ margin:14px 0;background:#0b202a;border:1px solid #2c5765;
+ border-radius:11px;padding:12px}
+@media(min-width:780px){
+ .cross-assets-grid,.cross-pairs{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .cross-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
