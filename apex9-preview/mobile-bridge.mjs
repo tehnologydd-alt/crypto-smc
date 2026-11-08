@@ -168,3 +168,42 @@ export async function getMobileLiquidityHistory(asset,limit=120){
    error:String(error?.message||error)};
  }
 }
+
+/**
+ * Network-level research snapshots. Never use tokens from a different chain.
+ * The native Room write validates actual capture timestamps and bounded JSON.
+ */
+export async function saveMobileOnChainObservation(asset,result){
+ const native=plugin();
+ if(!native)return {native:false,saved:false};
+ const data=result?.data,chain=result?.chain;
+ const expected=chain==='bitcoin'?'mempool:bitcoin:network':
+  chain==='ethereum'?'blockscout:ethereum:stats':null;
+ if(result?.state!=='OK'||!expected||!data||
+    !Number.isSafeInteger(data.observedAt)||!Number.isSafeInteger(data.collectedAt)||
+    data.collectedAt!==data.observedAt)return {native:true,saved:false};
+ try{
+  const response=await native.saveObservation({
+   id:'network:'+chain+':'+asset+':'+data.observedAt,
+   asset,source:expected,kind:'onchain',
+   observedAt:data.observedAt,collectedAt:data.collectedAt,
+   payload:JSON.stringify(data)
+  });
+  return {native:true,saved:response?.saved===true};
+ }catch(error){
+  return {native:true,saved:false,error:String(error?.message||error)};
+ }
+}
+export async function getMobileOnChainHistory(asset,limit=80){
+ const native=plugin();
+ if(!native)return {native:false,rows:[],source:'WEB_ONLY'};
+ try{
+  const response=await native.getOnChainHistory({
+   asset,limit:Math.max(1,Math.min(120,Math.trunc(limit)))
+  });
+  return {native:true,rows:response?.rows||[],source:'LOCAL_ROOM_NETWORK_HISTORY'};
+ }catch(error){
+  return {native:true,rows:[],source:'LOCAL_ROOM_NETWORK_HISTORY',
+   error:String(error?.message||error)};
+ }
+}
