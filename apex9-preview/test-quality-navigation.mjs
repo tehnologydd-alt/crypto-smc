@@ -69,3 +69,15 @@ test('asset passport and favorites link to the same provenance-first synthesis',
  assert.match(synthesis,/openForAsset\(asset\)/);
  assert.match(synthesis,/onSummary\?\.\(report\)/);
 });
+
+test('synthesis displays a brief before collapsed source evidence',()=>{
+ const dashboard=readFileSync(new URL('./research-synthesis-dashboard.mjs',
+  import.meta.url),'utf8');
+ assert.ok(dashboard.includes("buildResearchBrief(report)"));
+ assert.ok(dashboard.includes("renderBrief(report);"));
+ assert.ok(dashboard.includes("el('details','synthesis-group '+cls)"));
+ assert.ok(dashboard.includes("el('summary','synthesis-group-heading'"));
+ assert.ok(dashboard.includes('briefBox.replaceChildren()'));
+ assert.ok(dashboard.indexOf('renderBrief(report);')<
+  dashboard.indexOf("metric('Актив',short(report.asset))"));
+});

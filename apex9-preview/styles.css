@@ -1574,3 +1574,41 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  flex-basis:265px;width:265px;min-width:265px}
  .favorite-card .favorite-chart{flex-basis:47px}
  .favorite-card .favorite-explain{flex-basis:48px;min-width:48px}}
+
+/* APEX Research Synthesis: mobile-first brief, tap-to-expand source evidence */
+#synthesis-brief{margin:13px 0}
+.synthesis-brief-card{border:1px solid #4d8890;border-radius:15px;
+ padding:13px 12px;background:linear-gradient(160deg,#123844,#0d2935)}
+.synthesis-brief-header{display:flex;justify-content:space-between;
+ align-items:baseline;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.synthesis-brief-header strong{font-size:14px;color:#ecfaf3}
+.synthesis-brief-header small{font-size:10px;color:#a5c5cc}
+.synthesis-brief-row{padding:12px 10px;margin:7px 0;border-radius:11px;
+ border:1px solid #366471;background:#112f3b}
+.synthesis-brief-row.is-observed{border-inline-start:3px solid #60c7ac}
+.synthesis-brief-row.is-variation{border-inline-start:3px solid #d6ba7e}
+.synthesis-brief-row.is-limitation{border-inline-start:3px solid #9daacb}
+.synthesis-brief-row strong{display:block;font-size:11px;line-height:1.55;
+ color:#e0f6eb}
+.synthesis-brief-row p{font-size:11px;line-height:1.65;color:#bbd5d5;
+ margin:6px 0;overflow-wrap:anywhere}
+.synthesis-brief-row small{font-size:10px;color:#90b3bf;line-height:1.55}
+.synthesis-brief-disclosure{font-size:10px;line-height:1.65;
+ color:#acc7ca;margin:12px 2px 0}
+.synthesis-brief-fallback{font-size:12px;color:#e7ddc6}
+.synthesis-brief-message{font-size:11px;line-height:1.65;color:#cbd5d5;
+ overflow-wrap:anywhere}
+.synthesis-group{margin-top:9px}
+.synthesis-group-heading{min-height:46px;display:flex;align-items:center;
+ cursor:pointer;gap:7px;font-size:12px;font-weight:720;line-height:1.5;
+ color:#dcf5ed;padding:4px 0}
+.synthesis-group-heading::marker{color:#83d5ca}
+.synthesis-group[open]>.synthesis-group-heading{margin-bottom:12px;
+ border-bottom:1px solid #315662}
+.synthesis-group:not([open]){padding:9px 12px}
+.synthesis-group:not([open]) .synthesis-group-heading{margin:0}
+.synthesis-group[open] .synthesis-evidence{margin:10px 0}
+@media(min-width:720px){
+ .synthesis-brief-card{padding:18px}
+ .synthesis-brief-row{padding:15px}
+}
