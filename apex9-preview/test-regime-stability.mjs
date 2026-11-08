@@ -69,7 +69,8 @@ test('regime with fewer than twelve cases in an early fold hides outcome rates',
  const dir=result.regimes.find(x=>x.id==='DIRECTIONAL');
  assert.equal(dir.outcomes.state,'DESCRIPTIVE');
  assert.equal(dir.outcomes.periods.length,3);
- assert.ok(dir.outcomes.periods.every(x=>x.count>=12));
+ assert.ok(dir.outcomes.periods.every(x=>
+  x.total>=12&&x.count<=x.total&&x.lower<=x.share&&x.share<=x.upper));
 });
 test('incomplete and gapped candle archives cannot leak percentages',()=>{
  for(const report of [

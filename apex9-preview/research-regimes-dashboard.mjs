@@ -224,7 +224,8 @@ export function initResearchRegimesDashboard(){
    });
    if(seq!==serial||select.value!==asset)return;
    render(result);
-   renderStability(result);
+   // Incomplete inputs already have a visible warning; avoid duplicating it.
+   if(result.state==='DESCRIPTIVE')renderStability(result);
    announce(result.state==='DESCRIPTIVE'?
     'Исследованы '+number(result.overall.samples)+
     ' неперекрывающихся четырёхчасовых окон. Только проверяемая история '+asset+'.':
