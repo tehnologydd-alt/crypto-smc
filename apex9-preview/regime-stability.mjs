@@ -22,7 +22,7 @@ export const REGIME_STABILITY_NOTE=
  'не доказывает причинности или пригодности для будущих прогнозов.';
 const validInteger=x=>Number.isSafeInteger(x)&&x>0;
 const countModes=(rows,key,allowed)=>
- Object.fromEntries(allowed.map(id=>[id,rows.filter(x=>x[key]===id).length]));
+ Object.fromEntries([...allowed].map(id=>[id,rows.filter(x=>x[key]===id).length]));
 const hidden=reason=>({
  state:'HIDDEN',reason:reason||'Нет полной проверенной истории',
  periods:[],regimes:[],volatility:[],note:REGIME_STABILITY_NOTE
