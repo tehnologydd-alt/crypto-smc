@@ -171,7 +171,9 @@ class ApexNativePlugin : Plugin() {
                 dao.saveCandles(candles)
                 val cutoff = maxOf(0L, candles.last().openTime - 500L * step)
                 dao.pruneCandles(asset, interval, cutoff)
-                call.resolve(JSObject().put("saved", candles.size))
+                val result = JSObject()
+                result.put("saved", candles.size)
+                call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Could not save native candles: " + (e.message ?: "unknown"))
             }
@@ -200,10 +202,12 @@ class ApexNativePlugin : Plugin() {
                         .put("volume", record.volume).put("closed", true)
                         .put("recordedAt", record.recordedAt))
                 }
-                call.resolve(JSObject()
-                    .put("candles", rows)
-                    .put("source", "LOCAL_ROOM_CACHE")
-                    .put("asset", asset).put("interval", interval))
+                val result = JSObject()
+                result.put("candles", rows)
+                result.put("source", "LOCAL_ROOM_CACHE")
+                result.put("asset", asset)
+                result.put("interval", interval)
+                call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Could not load cached candles: " + (e.message ?: "unknown"))
             }
