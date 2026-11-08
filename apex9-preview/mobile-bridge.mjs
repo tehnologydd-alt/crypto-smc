@@ -37,6 +37,9 @@ export async function saveMobileSnapshot(snapshot) {
    observedAt,collectedAt:received,
    payload:JSON.stringify({bestBid:depth.bestBid,bestAsk:depth.bestAsk,
     spreadBps:depth.spreadBps,visibleDepthImbalance:depth.visibleDepthImbalance,
+    bidNotional:depth.bidNotional,askNotional:depth.askNotional,
+    bidLevels:depth.bidLevels,askLevels:depth.askLevels,
+    updateId:depth.updateId,scope:'SPOT',
     sampleScope:depth.sampleScope})
   });
  }
@@ -145,5 +148,20 @@ export async function syncMobileFavoriteResearch(){
   return {native:true,checked:result?.checked||0,reports:result?.reports||[]};
  }catch(error){
   return {native:true,checked:0,reports:[],error:String(error?.message||error)};
+ }
+}
+
+/** Read-only, bounded phone-local public depth history; no network or predictions. */
+export async function getMobileLiquidityHistory(asset,limit=120){
+ const native=plugin();
+ if(!native)return {native:false,rows:[],source:'WEB_ONLY'};
+ try{
+  const result=await native.getLiquidityHistory({
+   asset,limit:Math.min(200,Math.max(1,Math.trunc(limit)))
+  });
+  return {native:true,rows:result?.rows||[],source:'LOCAL_ROOM_DEPTH_HISTORY'};
+ }catch(error){
+  return {native:true,rows:[],source:'LOCAL_ROOM_DEPTH_HISTORY',
+   error:String(error?.message||error)};
  }
 }
