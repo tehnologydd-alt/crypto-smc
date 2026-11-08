@@ -140,8 +140,21 @@ export function auditForwardResearch(rows,{now=Date.now(),totalPublished=null}={
  const loaded=seen.size;
  const knownTotal=Number.isSafeInteger(totalPublished)&&totalPublished>=loaded
   ?totalPublished:null;
+ const truncated=knownTotal!==null&&knownTotal>loaded;
+ // A partially loaded journal or missing/invalid mature observations can
+ // selectively distort coverage. Withhold percentages, don't "adjust" them.
+ for(const cohort of cohorts){
+  const dueMissing=sorted.some(row=>{
+   if(row?.asset!==cohort.asset)return false;
+   return inspectOutcomeRow(row,{now}).state==='DUE_UNEVALUATED';
+  });
+  if(truncated||dueMissing||counts.invalid){
+   cohort.status=truncated?'PARTIAL_HISTORY':'INCOMPLETE_RESULTS';
+   cohort.coverage=null;cohort.interval95=null;
+  }
+ }
  return {state:counts.invalid?'CHECK_INTEGRITY':'AUDITED',counts,
-  loaded,reportedTotal:knownTotal,truncated:knownTotal!==null&&knownTotal>loaded,
+  loaded,reportedTotal:knownTotal,truncated,
   cohorts,
   disclosure:'Only forward-published, evaluated, nonoverlapping per-asset 4h outcomes; one exchange source, no external validation or calibration.'};
 }
