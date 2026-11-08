@@ -35,6 +35,7 @@ class ApexNativePlugin : Plugin() {
                 result.put("asset", prefs.asset)
                 result.put("backgroundSyncEnabled", prefs.backgroundSyncEnabled)
                 result.put("observationCount", db.observationCount())
+                result.put("candleCount", db.candleCount())
                 result.put("forecastCount", db.forecastCount())
                 result.put("latestObservationAt", db.latestObservationAt() ?: 0L)
                 result.put("storage", "Room")
@@ -114,6 +115,97 @@ class ApexNativePlugin : Plugin() {
                 call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Failed to load history: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+
+    private val intervals = mapOf(
+        "15m" to 900_000L, "1h" to 3_600_000L,
+        "4h" to 14_400_000L, "1d" to 86_400_000L
+    )
+
+    /** Save only genuine FINISHED source candles; batch sizes bounded for phones. */
+    @PluginMethod
+    fun saveCandles(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val interval = call.getString("interval") ?: ""
+        val step = intervals[interval]
+        val rows = call.data.optJSONArray("candles")
+        val now = System.currentTimeMillis()
+        if (!assetRegex.matches(asset) || step == null || rows == null ||
+            rows.length() < 1 || rows.length() > 600) {
+            call.reject("Invalid candle batch")
+            return
+        }
+        val candles = ArrayList<MarketCandle>(rows.length())
+        var previous = -1L
+        for (i in 0 until rows.length()) {
+            val x = rows.optJSONObject(i)
+            if (x == null) {
+                call.reject("Malformed candle data")
+                return
+            }
+            val t = x.optLong("t", -1L)
+            val closeAt = x.optLong("closeAt", -1L)
+            val o = x.optDouble("open", Double.NaN)
+            val h = x.optDouble("high", Double.NaN)
+            val l = x.optDouble("low", Double.NaN)
+            val c = x.optDouble("close", Double.NaN)
+            val v = x.optDouble("volume", Double.NaN)
+            if (t <= 0 || t % step != 0L || t <= previous ||
+                closeAt != t + step - 1L || closeAt >= now ||
+                !o.isFinite() || !h.isFinite() || !l.isFinite() ||
+                !c.isFinite() || !v.isFinite() ||
+                o <= 0.0 || l <= 0.0 || c <= 0.0 ||
+                h < maxOf(o, c, l) || l > minOf(o, c, h) || v < 0.0) {
+                call.reject("Inconsistent or unfinished OHLCV record")
+                return
+            }
+            previous = t
+            candles.add(MarketCandle(asset, interval, t, closeAt, o, h, l, c, v, now))
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context).researchDao()
+                dao.saveCandles(candles)
+                val cutoff = maxOf(0L, candles.last().openTime - 500L * step)
+                dao.pruneCandles(asset, interval, cutoff)
+                call.resolve(JSObject().put("saved", candles.size))
+            } catch (e: Exception) {
+                call.reject("Could not save native candles: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    /** Offline candle history is always labelled cache by the web bridge. */
+    @PluginMethod
+    fun getCandles(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val interval = call.getString("interval") ?: ""
+        val limit = call.data.optInt("limit", 500).coerceIn(1, 600)
+        if (!assetRegex.matches(asset) || !intervals.containsKey(interval)) {
+            call.reject("Invalid candle query")
+            return
+        }
+        tasks.launch {
+            try {
+                val saved = ApexDatabase.get(context).researchDao().candles(asset, interval, limit)
+                val rows = JSArray()
+                for (record in saved.asReversed()) {
+                    rows.put(JSObject()
+                        .put("t", record.openTime).put("closeAt", record.closeTime)
+                        .put("open", record.open).put("high", record.high)
+                        .put("low", record.low).put("close", record.close)
+                        .put("volume", record.volume).put("closed", true)
+                        .put("recordedAt", record.recordedAt))
+                }
+                call.resolve(JSObject()
+                    .put("candles", rows)
+                    .put("source", "LOCAL_ROOM_CACHE")
+                    .put("asset", asset).put("interval", interval))
+            } catch (e: Exception) {
+                call.reject("Could not load cached candles: " + (e.message ?: "unknown"))
             }
         }
     }
