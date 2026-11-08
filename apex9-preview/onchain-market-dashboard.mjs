@@ -115,6 +115,12 @@ export function initOnChainMarketDashboard(){
   }
  }
  run.addEventListener('click',()=>void check());
+ let lastAutomaticAt=0,lastAutomaticAsset='';
  blank();
- return {setAsset};
+ return {setAsset,runAuto(){
+  if(!chainForAsset(selected)||document.hidden)return;
+  if(lastAutomaticAsset===selected&&Date.now()-lastAutomaticAt<15*60000)return;
+  lastAutomaticAsset=selected;lastAutomaticAt=Date.now();
+  void check();
+ }};
 }
