@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="APEX Intelligence — orbiting A symbol">
+<defs>
+ <radialGradient id="bg" cx="28%" cy="18%" r="90%"><stop stop-color="#114651"/><stop offset=".53" stop-color="#081d27"/><stop offset="1" stop-color="#02080D"/></radialGradient>
+ <linearGradient id="metal" x1=".13" y1=".04" x2=".91" y2="1"><stop stop-color="#F5FFFF"/><stop offset=".23" stop-color="#9FDFE4"/><stop offset=".54" stop-color="#F5FFFF"/><stop offset=".72" stop-color="#2B899A"/><stop offset="1" stop-color="#D5FAF8"/></linearGradient>
+ <linearGradient id="aqua" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#A9FFFF"/><stop offset=".45" stop-color="#19DDE8"/><stop offset="1" stop-color="#006F87"/></linearGradient>
+ <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#31DDEC" stop-opacity=".15"/><stop offset=".55" stop-color="#92FFFF"/><stop offset="1" stop-color="#00ADC0" stop-opacity=".22"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="7"/></filter>
+</defs>
+<rect x="12" y="12" width="488" height="488" rx="106" fill="url(#bg)"/>
+<rect x="16" y="16" width="480" height="480" rx="102" fill="none" stroke="#5AE4E7" stroke-opacity=".64" stroke-width="5"/>
+<g fill="none" stroke="#12BAC8" stroke-opacity=".28"><circle cx="257" cy="241" r="177" stroke-width="3"/><circle cx="257" cy="241" r="127" stroke-width="2"/><path d="M74 244h365M257 59v365" stroke-width="1" stroke-dasharray="3 11"/></g>
+<g opacity=".65" fill="#14CBD2">
+<rect x="89" y="324" width="15" height="38" rx="3"/><rect x="111" y="305" width="15" height="56" rx="3"/><rect x="133" y="290" width="15" height="70" rx="3"/><rect x="155" y="273" width="15" height="72" rx="3"/>
+<rect x="351" y="201" width="15" height="62" rx="3"/><rect x="373" y="182" width="15" height="74" rx="3"/><rect x="395" y="164" width="15" height="84" rx="3"/><rect x="417" y="145" width="15" height="96" rx="3"/>
+</g>
+<path d="M108 416L255 96L405 416L329 387L255 235L180 386Z" fill="#08D8E6" opacity=".5" filter="url(#glow)"/>
+<path d="M108 416L255 96L405 416L343 397L255 215L170 399Z" fill="url(#metal)" stroke="#D8FFFF" stroke-opacity=".72" stroke-width="3" stroke-linejoin="round"/>
+<path d="M255 96L405 416L343 397L255 215Z" fill="url(#aqua)" opacity=".82"/>
+<path d="M255 276L306 369L255 339L203 369Z" fill="#8EFCF5" stroke="#CEFFFF" stroke-width="2"/>
+<g transform="rotate(-19 256 298)">
+ <ellipse cx="256" cy="299" rx="216" ry="49" fill="none" stroke="#18CDDE" stroke-width="12" opacity=".32" filter="url(#glow)"/>
+ <ellipse cx="256" cy="299" rx="216" ry="49" fill="none" stroke="url(#orbit)" stroke-width="8"/>
+ <path d="M453 279A216 49 0 0 1 256 348" fill="none" stroke="#E0FFFF" stroke-width="3" opacity=".86"/>
+ <circle cx="455" cy="279" r="7" fill="#E6FFFF"/>
+</g>
+</svg>
