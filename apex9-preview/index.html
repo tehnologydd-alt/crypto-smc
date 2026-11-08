@@ -139,29 +139,11 @@
         </div>
         <button id="asset-explain" type="button">Объяснить исследования</button>
       </section>
-      <nav class="asset-workspace-nav" role="group" aria-label="Разделы паспорта актива">
+      <nav id="asset-workspace-anchor" class="asset-workspace-nav" role="group" aria-label="Разделы паспорта актива">
         <button type="button" class="asset-workspace-button is-active" data-asset-area-button="chart" aria-pressed="true">График</button>
         <button type="button" class="asset-workspace-button" data-asset-area-button="structure" aria-pressed="false">Структура</button>
         <button type="button" class="asset-workspace-button" data-asset-area-button="data" aria-pressed="false">Данные</button>
       </nav>
-      <article class="card block asset-scenarios" data-asset-pane="chart">
-        <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
-        <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
-        <div class="scenario-map-toolbar" role="group" aria-label="Сценарии на графике">
-          <button type="button" class="scenario-map-filter selected" data-scenario-map-mode="all" aria-pressed="true">Все сценарии</button>
-          <button type="button" class="scenario-map-filter" data-scenario-map-mode="tracked" aria-pressed="false">★ Отмеченные</button>
-        </div>
-        <div id="asset-scenario-summary" class="scenario-map-list" aria-live="polite"></div>
-        <section class="scenario-replay" id="scenario-replay-panel" aria-labelledby="scenario-replay-title">
-          <div class="section-title"><h4 id="scenario-replay-title">Scenario Replay · история H1</h4><span id="scenario-replay-counter">0 / 5 закрытий</span></div>
-          <p id="scenario-replay-context" class="muted">Выбери исследование выше, чтобы увидеть его фактические H1-наблюдения.</p>
-          <div id="scenario-replay-steps" class="scenario-replay-steps" role="group" aria-label="Закрытые часовые свечи исследования"></div>
-          <div id="scenario-replay-detail" class="scenario-replay-detail" role="status" aria-live="polite"></div>
-          <p id="scenario-replay-warning" class="scenario-replay-warning" aria-live="polite"></p>
-          <p class="footnote">Replay использует только ранее закрытые свечи, сохранённые на устройстве. Точка H1 №3 — промежуточное наблюдение, не самостоятельное подтверждение. Пропуски не интерполируются; исход журнала сверяется с фактическим последним закрытием.</p>
-        </section>
-        <p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p>
-      </article>
       <article class="card block candle-panel" data-asset-pane="chart">
         <div class="chart-heading">
           <div><h3>Свечная история</h3><p class="muted">Binance Spot · OHLCV · наблюдения, не прогноз</p></div>
@@ -180,6 +162,24 @@
         </div>
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
         <p class="footnote">Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
+      </article>
+      <article class="card block asset-scenarios" data-asset-pane="chart">
+        <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
+        <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
+        <div class="scenario-map-toolbar" role="group" aria-label="Сценарии на графике">
+          <button type="button" class="scenario-map-filter selected" data-scenario-map-mode="all" aria-pressed="true">Все сценарии</button>
+          <button type="button" class="scenario-map-filter" data-scenario-map-mode="tracked" aria-pressed="false">★ Отмеченные</button>
+        </div>
+        <div id="asset-scenario-summary" class="scenario-map-list" aria-live="polite"></div>
+        <section class="scenario-replay" id="scenario-replay-panel" aria-labelledby="scenario-replay-title">
+          <div class="section-title"><h4 id="scenario-replay-title">Scenario Replay · история H1</h4><span id="scenario-replay-counter">0 / 5 закрытий</span></div>
+          <p id="scenario-replay-context" class="muted">Выбери исследование выше, чтобы увидеть его фактические H1-наблюдения.</p>
+          <div id="scenario-replay-steps" class="scenario-replay-steps" role="group" aria-label="Закрытые часовые свечи исследования"></div>
+          <div id="scenario-replay-detail" class="scenario-replay-detail" role="status" aria-live="polite"></div>
+          <p id="scenario-replay-warning" class="scenario-replay-warning" aria-live="polite"></p>
+          <p class="footnote">Replay использует только ранее закрытые свечи, сохранённые на устройстве. Точка H1 №3 — промежуточное наблюдение, не самостоятельное подтверждение. Пропуски не интерполируются; исход журнала сверяется с фактическим последним закрытием.</p>
+        </section>
+        <p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p>
       </article>
       <article class="card block market-core-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Market Core · локальная математика</h3><span id="market-core-interval">H1</span></div>
@@ -325,7 +325,7 @@
       </div>
       <div class="section-title"><h2 id="quality-title">Качество исследований</h2><span>Evidence Lab</span></div>
       <p class="quality-lead">Один экран — одна исследовательская задача. Выберите раздел ниже: расчёты и источники сохранены, а длинные лаборатории больше не занимают весь экран сразу.</p>
-      <div class="quality-workspace-top">
+      <div id="quality-workspace-anchor" class="quality-workspace-top">
         <label for="evidence-asset">Исследуемый актив
           <select id="evidence-asset" aria-label="Актив для аудита и исследований"></select>
         </label>
