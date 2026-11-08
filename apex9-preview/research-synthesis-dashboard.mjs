@@ -6,6 +6,7 @@
 import {getMobileCandleArchive} from './mobile-bridge.mjs';
 import {CROSS_ASSETS} from './cross-asset-research.mjs';
 import {synthesizeResearch} from './research-synthesis.mjs';
+import {buildResearchBrief} from './research-explanation-brief.mjs';
 
 const get=id=>document.getElementById(id);
 const el=(tag,className='',value)=>{
@@ -23,13 +24,16 @@ const short=x=>x?.replace(/USDT$/,'')||x;
 export function initResearchSynthesisDashboard({onSummary=null}={}){
  const run=get('synthesis-run'),cancel=get('synthesis-cancel'),
   status=get('synthesis-status'),summary=get('synthesis-summary'),
-  cards=get('synthesis-cards'),select=get('evidence-asset');
+  cards=get('synthesis-cards'),briefBox=get('synthesis-brief'),
+  select=get('evidence-asset');
  let serial=0,busy=false;
  const announce=(message,warning=false)=>{
   status.textContent=message;
   status.classList.toggle('is-offline',warning);
  };
- const clear=()=>{summary.replaceChildren();cards.replaceChildren();};
+ const clear=()=>{
+  briefBox.replaceChildren();summary.replaceChildren();cards.replaceChildren();
+ };
  const lock=active=>{
   busy=active;
   run.disabled=active;cancel.disabled=!active;
@@ -40,8 +44,9 @@ export function initResearchSynthesisDashboard({onSummary=null}={}){
   summary.append(item);
  };
  const group=(label,entries,cls)=>{
-  const section=el('section','synthesis-group '+cls);
-  section.append(el('h5','',label));
+  const section=el('details','synthesis-group '+cls);
+  section.append(el('summary','synthesis-group-heading',
+   label+' · '+int(entries.length)+' материалов'));
   for(const record of entries){
    const card=el('article','synthesis-evidence');
    card.append(el('strong','',record.title),
@@ -51,8 +56,41 @@ export function initResearchSynthesisDashboard({onSummary=null}={}){
   }
   cards.append(section);
  };
+
+ /** The brief shares the verified source report with every detail card. */
+ function renderBrief(report){
+  const briefing=buildResearchBrief(report);
+  const panel=el('section','synthesis-brief-card');
+  panel.setAttribute('aria-label','Краткая сводка исторических исследований');
+  if(briefing.state!=='DESCRIPTIVE'){
+   panel.append(el('strong','synthesis-brief-fallback',
+    'Историческая сводка недоступна'),
+    el('p','synthesis-brief-message',briefing.headline.detail),
+    el('p','synthesis-brief-disclosure',briefing.note));
+   briefBox.append(panel);
+   return;
+  }
+  const heading=el('div','synthesis-brief-header');
+  heading.append(el('strong','','Коротко о '+briefing.asset),
+   el('small','','Исторический обзор · не прогноз'));
+  panel.append(heading);
+  for(const [item,cls] of [
+   [briefing.headline,'is-observed'],
+   [briefing.variance,'is-variation'],
+   [briefing.limitation,'is-limitation']
+  ]){
+   const row=el('div','synthesis-brief-row '+cls);
+   row.append(el('strong','',item.title),el('p','',item.detail));
+   if(item.source)row.append(el('small','',
+    'Источник: '+item.source));
+   panel.append(row);
+  }
+  panel.append(el('p','synthesis-brief-disclosure',briefing.note));
+  briefBox.append(panel);
+ }
  function render(report){
   clear();
+  renderBrief(report);
   if(report.state!=='DESCRIPTIVE'){
    cards.append(el('p','regimes-warning',
     report.reason||'Исходный H1-архив не прошёл проверку'));
@@ -91,8 +129,9 @@ export function initResearchSynthesisDashboard({onSummary=null}={}){
    group('Где обнаружены исторические расхождения',
     report.differences,'synthesis-differences');
   }else{
-   const pane=el('section','synthesis-group synthesis-differences');
-   pane.append(el('h5','','Исторические расхождения'),
+   const pane=el('details','synthesis-group synthesis-differences');
+   pane.append(el('summary','synthesis-group-heading',
+    'Исторические расхождения · 0 выделено'),
     el('p','synthesis-note',
      'По заранее заданным описательным порогам заметных расхождений '+
      'не выделено. Это не подтверждение стабильности или прогностической точности.'));
