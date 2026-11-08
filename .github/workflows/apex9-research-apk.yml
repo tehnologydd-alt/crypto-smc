@@ -90,11 +90,22 @@ jobs:
         run: |
           chmod +x gradlew
           if [ -f ../.apex-signed-release ]; then
-            ./gradlew :app:assembleRelease --no-daemon
+            TARGET=:app:assembleRelease
           else
             echo "::warning::No stable signing key configured: debug preview cannot upgrade over previous builds."
-            ./gradlew :app:assembleDebug --no-daemon
+            TARGET=:app:assembleDebug
           fi
+          # GitHub's Gradle distribution CDN can transiently return 502/504.
+          # Retry wrapper acquisition/build without changing Android version or signing.
+          SUCCESS=0
+          for ATTEMPT in 1 2 3; do
+            if ./gradlew "$TARGET" --no-daemon; then SUCCESS=1; break; fi
+            if [ "$ATTEMPT" -lt 3 ]; then
+              echo "::warning::Gradle build/download attempt $ATTEMPT failed; retrying."
+              sleep $((ATTEMPT * 8))
+            fi
+          done
+          test "$SUCCESS" = 1
 
       - name: Prepare versioned APK and checksum
         run: |
