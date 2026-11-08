@@ -5,8 +5,7 @@ import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,ge
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
-import {buildResearchHypothesis,RESEARCH_METHOD} from './forecast-core.mjs';
-import {publishMobileResearchForecast,getMobileResearchForecasts,checkMobileResearchForecast} from './mobile-bridge.mjs';
+import {initFavoriteResearch} from './favorite-dashboard.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -382,168 +381,15 @@ el('chart-reset').addEventListener('click',()=>{
 });
 
 
-/** Android-only research journal; web preview does not invent saved predictions. */
-let forecastBusy=false;
-const forecastTime=x=>Number.isFinite(x)?new Date(x).toLocaleString('ru-RU'):'—';
-const forecastMessage=(message,isError=false)=>{
- text('forecast-action-status',message);
- el('forecast-action-status').classList.toggle('is-offline',isError);
-};
-const forecastOutcomeLabels={
- WITHIN_RANGE:'Попало в диапазон',OUTSIDE_RANGE:'Вне диапазона'
-};
-function researchCard(row){
- const card=create('article','forecast-record');
- let h;
- try{h=JSON.parse(row.hypothesis);}catch{h=null;}
- const header=create('div','forecast-record-head');
- const title=create('div');
- title.append(create('strong','',row.asset+' · '+(frameLabels[row.interval]||row.interval)),
-  create('small','', 'Эмпирический диапазон · Baseline V1'));
- const evaluated=Boolean(row.evaluation);
- header.append(title,create('span','forecast-state '+(evaluated?'evaluated':'pending'),
-  evaluated?'ПРОВЕРЕН':'ОЖИДАНИЕ'));
- card.append(header);
- if(!h||h.model!==RESEARCH_METHOD){
-  card.append(create('p','muted','Эта запись относится к другой версии модели и не интерпретируется текущим движком.'));
-  return card;
+const favoriteManager=initFavoriteResearch({
+ getSelectedSymbol:()=>chosen,
+ onSelectSymbol:(symbol)=>{
+  updateTab('overview');
+  void investigate(symbol);
+  window.scrollTo({top:0,behavior:'smooth'});
  }
- const price=create('div','forecast-band',fmt(h.bandLow)+' — '+fmt(h.bandHigh)+' USDT');
- card.append(price);
- const info=create('div','forecast-info');
- for(const [label,value] of [
-  ['Опубликовано',forecastTime(row.publishedAt)],
-  ['Опорная цена',fmt(h.anchorClose)+' USDT'],
-  ['Проверка закрытия',forecastTime(h.targetCloseAt)],
-  ['Источник',h.source||'Binance Spot H1']]){
-  const line=create('div','data-row');
-  line.append(create('span','',label),create('strong','',value));
-  info.append(line);
- }
- card.append(info);
- if(evaluated){
-  const result=row.evaluation;
-  card.append(create('div','forecast-result',
-   (forecastOutcomeLabels[result.outcome]||'Результат неизвестен')+
-   ' · закрытие '+fmt(result.actualClose)+' USDT · '+forecastTime(result.evaluatedAt)));
- }else{
-  card.append(create('p','forecast-pending-copy',
-   Date.now()<h.targetCloseAt?'Исход ещё не наступил. Данные не могут быть известны заранее.':
-    'Срок наблюдения наступил — необходимо получить все четыре завершённые H1-свечи для проверки.'));
- }
- return card;
-}
-async function loadForecastJournal(){
- const list=el('research-forecast-list');
- const result=await getMobileResearchForecasts(75);
- clear(list);
- const native=result.native===true&&!result.error;
- el('forecast-create').disabled=!native||forecastBusy;
- el('forecast-evaluate').disabled=!native||forecastBusy;
- el('forecast-refresh').disabled=forecastBusy;
- if(!native){
-  text('forecast-published-count','—');
-  text('forecast-evaluated-count','—');
-  text('forecast-pending-count','—');
-  list.append(create('p','muted',result.error?
-   'Ошибка локального журнала: '+result.error:
-   'Журнал прогнозов хранится только в установленном Android APK. Веб-прототип не создаёт фиктивные записи.'));
-  return result;
- }
- text('forecast-published-count',fmt(result.publishedCount,0));
- text('forecast-evaluated-count',fmt(result.evaluatedCount,0));
- text('forecast-pending-count',fmt(Math.max(0,result.publishedCount-result.evaluatedCount),0));
- if(!result.forecasts.length){
-  list.append(create('p','muted',
-   'Опубликованных исследований пока нет. Начните с первой проверяемой гипотезы по выбранному активу.'));
-  return result;
- }
- for(const row of result.forecasts)list.append(researchCard(row));
- return result;
-}
-async function publishResearchBaseline(){
- if(forecastBusy)return;
- forecastBusy=true;el('forecast-create').disabled=true;
- el('forecast-evaluate').disabled=true;
- const symbol=chosen;
- forecastMessage('Проверяем текущую закрытую H1-историю '+symbol+'…');
- try{
-  const native=await getMobileStatus();
-  if(!native.native)throw Error('Только установленный Android APK поддерживает журнал прогнозов.');
-  const source=await fetchCandles(symbol,'1h',{limit:120,now:()=>Date.now()});
-  if(source.state!=='OK')
-   throw Error('Нет свежих завершённых свечей Binance Spot: '+source.state+
-    (source.error?' · '+source.error:''));
-  const sample=buildResearchHypothesis(symbol,'1h',source.candles,{now:source.receivedAt});
-  if(sample.state!=='READY')throw Error(sample.error||'Данных недостаточно для гипотезы');
-  forecastMessage('Сохраняем проверенную исходную историю в Room перед публикацией…');
-  const saved=await saveMobileCandles(symbol,'1h',source.candles);
-  if(!saved.native||saved.saved<96)
-   throw Error('Не удалось подтвердить локальное сохранение исходных свечей: '+(saved.error||'нет данных'));
-  const published=await publishMobileResearchForecast(sample.forecast);
-  if(published.error)throw Error(published.error);
-  forecastMessage(published.created
-   ?'Исследовательский сценарий опубликован. Условия неизменны; проверка возможна после 4 закрытых H1-свечей.'
-   :'Такая гипотеза по последней закрытой свече уже опубликована; повторная запись не создана.');
-  void refreshMobileStatus();
- }catch(error){
-  forecastMessage('Публикация не выполнена: '+String(error?.message||error),true);
- }finally{
-  forecastBusy=false;
-  await loadForecastJournal();
- }
-}
-async function reviewResearchJournal(){
- if(forecastBusy)return;
- forecastBusy=true;el('forecast-evaluate').disabled=true;
- el('forecast-create').disabled=true;
- try{
-  const journal=await getMobileResearchForecasts(75);
-  if(!journal.native||journal.error)
-   throw Error(journal.error||'Доступен только локальный Android-журнал');
-  const due=journal.forecasts.filter(x=>{
-   if(x.evaluation)return false;
-   try{const p=JSON.parse(x.hypothesis);
-    return p.model===RESEARCH_METHOD&&Date.now()>p.targetCloseAt;
-   }catch{return false;}
-  });
-  if(!due.length){
-   forecastMessage('Пока нет опубликованных сценариев с наступившим сроком проверки.');
-   return;
-  }
-  const assets=[...new Set(due.map(x=>x.asset))].slice(0,6);
-  let evaluated=0,needsData=0,failed=0;
-  for(const asset of assets){
-   forecastMessage('Проверяем закрытые свечи '+asset+'…');
-   const candles=await fetchCandles(asset,'1h',{limit:500,now:()=>Date.now()});
-   if(candles.candles?.length){
-    const saved=await saveMobileCandles(asset,'1h',candles.candles);
-    if(saved.error)failed++;
-   }else{
-    needsData+=due.filter(x=>x.asset===asset).length;
-    continue;
-   }
-   for(const row of due.filter(x=>x.asset===asset)){
-    const result=await checkMobileResearchForecast(row.id);
-    if(result.state==='EVALUATED')evaluated++;
-    else if(result.state==='NEEDS_DATA'||result.state==='NOT_DUE')needsData++;
-    else failed++;
-   }
-  }
-  forecastMessage('Проверка выполнена. Записано результатов: '+evaluated+
-   ', ожидают достаточной истории: '+needsData+
-   (failed?', ошибки источников/сохранения: '+failed:'')+
-   (assets.length<new Set(due.map(x=>x.asset)).size?'. Остальные активы можно проверить повторным запуском.':'.'));
- }catch(error){
-  forecastMessage('Проверка результатов недоступна: '+String(error?.message||error),true);
- }finally{
-  forecastBusy=false;
-  await loadForecastJournal();
- }
-}
-el('forecast-create').addEventListener('click',()=>void publishResearchBaseline());
-el('forecast-evaluate').addEventListener('click',()=>void reviewResearchJournal());
-el('forecast-refresh').addEventListener('click',()=>void loadForecastJournal());
+});
+void favoriteManager.initialize();
 
 function navigate(view,targetId){
  updateTab(view);
@@ -552,7 +398,7 @@ function navigate(view,targetId){
    candleView.resize();
    void loadCandleHistory(false);
   }
-  if(view==='forecasts')void loadForecastJournal();
+  if(view==='forecasts')favoriteManager.openForecasts();
   const node=targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
  });
@@ -561,21 +407,7 @@ for(const button of document.querySelectorAll('[data-tab]'))
  button.addEventListener('click',()=>navigate(button.dataset.tab));
 for(const button of document.querySelectorAll('[data-go]'))
  button.addEventListener('click',()=>navigate(button.dataset.go,button.dataset.target));
-function markSelectedAsset(){
- for(const button of document.querySelectorAll('[data-symbol]')){
-  const selected=button.dataset.symbol===chosen;
-  button.classList.toggle('selected',selected);
-  button.setAttribute('aria-pressed',selected?'true':'false');
- }
-}
-for(const button of document.querySelectorAll('[data-symbol]'))
- button.addEventListener('click',()=>{
-  const symbol=button.dataset.symbol;
-  if(symbol===chosen){navigate('asset');return;}
-  updateTab('overview');
-  void investigate(symbol);
-  window.scrollTo({top:0,behavior:'smooth'});
- });
+function markSelectedAsset(){favoriteManager.selectChanged();}
 updateTab('overview');
 markSelectedAsset();
 
@@ -812,8 +644,10 @@ setInterval(()=>{
 document.addEventListener('visibilitychange',()=>{
  if(!document.hidden&&!controller&&lastLoad&&Date.now()-lastLoad>90000)
   void investigate(chosen);
+ if(!document.hidden)favoriteManager.resume();
 });
 void loadCatalog().catch(()=>{
  text('catalog-status','Каталог временно недоступен. Введите известный символ вручную.');
 });
 void investigate(chosen);
+setInterval(()=>{if(!document.hidden)favoriteManager.resume();},60000);
