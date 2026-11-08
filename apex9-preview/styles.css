@@ -1612,3 +1612,102 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .synthesis-brief-card{padding:18px}
  .synthesis-brief-row{padding:15px}
 }
+
+/* APEX Flat Workspaces / Android UX — direct task switches, no nested menus.
+ * Keep every source-backed DOM node mounted: only visibility changes. */
+.tabs.bottom-dock{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;
+ width:min(calc(100% - 14px),520px);padding:7px 5px}
+.bottom-dock .tab{min-width:0;min-height:58px;border-radius:15px;
+ padding:7px 0 6px;font-size:9px;line-height:1.35;overflow-wrap:anywhere;
+ letter-spacing:-.015em}
+.bottom-dock .tab .dock-icon{font-size:21px;line-height:1.2}
+@media(min-width:390px){.bottom-dock .tab{font-size:10px;letter-spacing:0}}
+@media(max-width:350px){.tabs.bottom-dock{gap:2px;width:calc(100% - 10px)}
+ .bottom-dock .tab{font-size:8.5px;padding:8px 0}}
+.asset-workspace-nav,.quality-workspace-nav{
+ display:grid;align-items:stretch;gap:6px;margin:12px 0 15px;
+ padding:5px;border:1px solid #315d69;border-radius:15px;
+ background:#0b2530;
+ position:sticky;top:5px;z-index:12;
+ box-shadow:0 8px 22px #00000050}
+.asset-workspace-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+.quality-workspace-nav{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.asset-workspace-button,.quality-workspace-button{
+ min-width:0;min-height:46px;padding:9px 5px;border-radius:11px;
+ border:1px solid transparent;background:transparent;
+ color:#a6c8cb;font-size:11px;font-weight:700;line-height:1.3;
+ text-align:center;cursor:pointer}
+.quality-workspace-button{font-size:10px;padding:9px 2px;letter-spacing:-.015em}
+.asset-workspace-button.is-active,
+.quality-workspace-button.is-active{
+ background:linear-gradient(135deg,#195b61,#10404b);
+ border-color:#58b9b9;color:#e2faf0;
+ box-shadow:inset 0 1px 0 #d6ffff18}
+.asset-workspace-button:focus-visible,
+.quality-workspace-button:focus-visible{
+ outline:2px solid #8df4ee;outline-offset:2px}
+@media(max-width:355px){
+ .quality-workspace-nav{gap:2px;padding:4px}
+ .quality-workspace-button{font-size:9px;padding:8px 0}
+}
+#view-asset > [data-asset-pane]{display:none!important}
+#view-asset[data-asset-area="chart"] > [data-asset-pane="chart"],
+#view-asset[data-asset-area="structure"] > [data-asset-pane="structure"],
+#view-asset[data-asset-area="data"] > [data-asset-pane="data"]{
+ display:block!important}
+#view-asset[data-asset-area="chart"] .candle-panel{
+ border-color:#3f9293}
+#view-asset .asset-explain-panel{margin-bottom:9px}
+#view-quality .quality-page-heading{margin-bottom:8px}
+#view-quality[data-quality-entry="dock"] .quality-back{display:none!important}
+#view-quality .quality-lead{margin:8px 0 13px}
+.quality-workspace-top{
+ display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:8px;padding:12px 13px;margin:12px 0 8px;
+ border:1px solid #315d6b;border-radius:13px;background:#112d38}
+.quality-workspace-top label{display:flex;flex:1 1 175px;
+ min-width:0;align-items:center;justify-content:space-between;gap:9px;
+ color:#c9e4e1;font-size:11px;font-weight:650}
+.quality-workspace-top select{max-width:170px;min-width:0;
+ border:1px solid #427983;border-radius:9px;
+ padding:10px 12px;min-height:44px;background:#10343f;
+ color:#e4f8f2;font-size:12px;font-weight:730}
+.quality-workspace-origin{font-size:10px;line-height:1.5;
+ color:#a1c1c6;flex:1 1 140px}
+.quality-view #evidence-lab-panel{
+ background:transparent!important;border:0!important;
+ box-shadow:none!important;padding:0!important;margin:0!important}
+.quality-view #evidence-lab-panel > *{display:none!important}
+.quality-view[data-quality-area="summary"] #evidence-lab-panel > #synthesis-panel{
+ display:block!important}
+.quality-view[data-quality-area="data"] #evidence-lab-panel >
+ :not(.validation-panel):not(.patterns-panel):not(.regimes-panel):not(.cross-panel):not(#synthesis-panel){
+ display:block!important}
+.quality-view[data-quality-area="data"] #evidence-lab-panel > .section-title,
+.quality-view[data-quality-area="data"] #evidence-lab-panel > .evidence-actions{
+ display:flex!important}
+.quality-view[data-quality-area="data"] #evidence-lab-panel > #evidence-data-cards{
+ display:grid!important}
+.quality-view[data-quality-area="tests"] #evidence-lab-panel > .validation-panel,
+.quality-view[data-quality-area="tests"] #evidence-lab-panel > .patterns-panel{
+ display:block!important}
+.quality-view[data-quality-area="regimes"] #evidence-lab-panel > .regimes-panel{
+ display:block!important}
+.quality-view[data-quality-area="compare"] #evidence-lab-panel > .cross-panel{
+ display:block!important}
+.quality-view .synthesis-panel{margin-top:0}
+.quality-view .evidence-lab-panel .historical-repair{margin-top:12px}
+.quality-view .evidence-lab-panel .section-title{min-width:0}
+.quality-view .evidence-lab-panel > .validation-panel,
+.quality-view .evidence-lab-panel > .patterns-panel{
+ border:1px solid #32636d;border-radius:14px;
+ background:#0d2731;padding:13px;margin:12px 0}
+.quality-view .evidence-lab-panel > .regimes-panel{margin:0;
+ padding:13px;border:1px solid #32636d;border-radius:14px}
+.quality-view .evidence-lab-panel > .cross-panel{margin:0}
+.quality-view .evidence-lab-panel > .evidence-actions{
+ padding:8px 0}
+.quality-view .evidence-lab-panel > .evidence-actions button{
+ min-height:44px;flex:1 1 170px}
+#asset-workspace-anchor,#quality-workspace-anchor{
+ scroll-margin-top:6px}
