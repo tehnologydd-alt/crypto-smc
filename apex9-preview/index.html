@@ -107,7 +107,32 @@
     </section>
 
     <section class="view hidden" id="view-asset" aria-labelledby="asset-title">
-      <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span>Наблюдаемая ликвидность</span></div>
+      <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span>Проверенные рыночные данные</span></div>
+      <article class="card block candle-panel">
+        <div class="chart-heading">
+          <div><h3>Свечная история</h3><p class="muted">Binance Spot · OHLCV · наблюдения, не прогноз</p></div>
+          <button class="ghost" type="button" id="chart-refresh" aria-label="Перезагрузить свечи">↻</button>
+        </div>
+        <div class="chart-toolbar" role="group" aria-label="Таймфрейм графика">
+          <button class="chart-tf" data-interval="15m" type="button">M15</button>
+          <button class="chart-tf selected" data-interval="1h" type="button" aria-pressed="true">H1</button>
+          <button class="chart-tf" data-interval="4h" type="button">H4</button>
+          <button class="chart-tf" data-interval="1d" type="button">D1</button>
+          <button class="chart-reset" id="chart-reset" type="button">Сбросить масштаб</button>
+        </div>
+        <p id="candle-status" class="chart-status" role="status" aria-live="polite">История загрузится при открытии раздела «Актив».</p>
+        <div class="chart-surface">
+          <canvas id="candle-canvas" width="680" height="330" tabindex="0" aria-label="Свечной график. Перетаскивайте для просмотра истории, увеличивайте двумя пальцами.">График требует Canvas</canvas>
+        </div>
+        <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
+        <p class="footnote">На графике только реальные свечи. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
+      </article>
+      <article class="card block structure-panel">
+        <div class="section-title"><h3>Рыночная структура</h3><span>По завершённым свечам</span></div>
+        <p id="structure-summary" class="muted">Недостаточно исторических данных.</p>
+        <div id="structure-events" class="structure-events"></div>
+        <p class="footnote">BOS и CHoCH — ретроспективные отметки пробоя подтверждённых экстремумов, не сигналы покупки или продажи. Последняя незакрытая свеча в расчёте не участвует.</p>
+      </article>
       <article class="card block">
         <h3>Рыночные сведения</h3>
         <div class="data-row"><span>Объём котируемой валюты, 24 ч</span><strong id="quote-volume">—</strong></div>
