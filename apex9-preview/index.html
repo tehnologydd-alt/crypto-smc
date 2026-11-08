@@ -387,6 +387,18 @@
           <div id="cross-result" aria-live="polite"></div>
           <p class="footnote">Нужно минимум два полных архива и 144 совпадающих четырёхчасовых окна. Сходство между монетами описывает историческую совместную динамику, но не доказывает надёжность будущих прогнозов.</p>
         </section>
+        <section class="synthesis-panel" aria-labelledby="synthesis-title">
+          <div class="section-title"><h4 id="synthesis-title">Research Synthesis · объяснение исследований</h4><span>Что знаем · что нет</span></div>
+          <p class="muted">Объединяем результаты исследований для выбранного актива без единого «процента уверенности». Показываем исторические наблюдения, расхождения между участками истории и ограничения проверок.</p>
+          <div class="synthesis-actions">
+            <button id="synthesis-run" type="button" class="ghost">Объяснить результаты по активу</button>
+            <button id="synthesis-cancel" type="button" class="ghost" disabled>Остановить</button>
+          </div>
+          <p id="synthesis-status" class="chart-status" role="status" aria-live="polite">Исследование запускается вручную. Для BTC, ETH и SOL при наличии архивов добавляется межактивное сравнение.</p>
+          <div id="synthesis-summary" class="synthesis-summary" aria-live="polite"></div>
+          <div id="synthesis-cards" aria-live="polite"></div>
+          <p class="footnote">Только оригинальная закрытая H1-история Android Room. Расхождения выделяются заранее заданным описательным порогом, не статистическим тестом. Ни один вывод не является прогнозом или подтверждением будущей доходности.</p>
+        </section>
         <p class="footnote">Оценка описывает только проверенные фактические результаты. До 30 неперекрывающихся исходов на актив статистический процент не публикуется. Неполная история и пропущенные результаты также блокируют вывод. Один источник цен не обеспечивает независимой внешней верификации.</p>
       </article>
     </section>
