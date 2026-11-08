@@ -10,7 +10,7 @@ const here=dirname(fileURLToPath(import.meta.url));
 const root=resolve(here,'../..');
 const preview=join(root,'apex9-preview');
 const dist=join(root,'apex9-android/dist');
-const mandatory=['index.html','styles.css','app.mjs','research.mjs','context-sources.mjs','update-check.mjs'];
+const mandatory=['index.html','styles.css','app.mjs','research.mjs','context-sources.mjs','update-check.mjs','mobile-bridge.mjs'];
 const shared=['v90-evidence.mjs','v90-market-depth.mjs'];
 for(const name of mandatory)
  if(!existsSync(join(preview,name)))throw Error('Missing APEX 9 preview file: '+name);
