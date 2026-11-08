@@ -1,7 +1,9 @@
 import {collectAsset,fetchSpotCatalog,normalizeSymbol} from './research.mjs';
 import {collectContext} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles} from './mobile-bridge.mjs';
+import {fetchCandles,analyzeStructure} from './candles.mjs';
+import {CandleChart} from './candle-chart.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -85,6 +87,7 @@ async function refreshMobileStatus(){
  mobileReady=data.native===true;
  text('native-observation-count',mobileReady?fmt(data.observationCount,0):'—');
  text('native-forecast-count',mobileReady?fmt(data.forecastCount,0):'—');
+ text('native-candle-count',mobileReady?fmt(data.candleCount,0):'—');
  const toggle=el('native-background-sync');
  toggle.disabled=!mobileReady;
  toggle.checked=mobileReady&&Boolean(data.backgroundSyncEnabled);
@@ -161,9 +164,118 @@ function updateTab(view){
  for(const name of ['overview','asset','forecasts','sources'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
+
+const candleView=new CandleChart(el('candle-canvas'),{
+ onSelect(bar){
+  const stamp=new Date(bar.t).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',
+   year:'numeric',hour:'2-digit',minute:'2-digit'});
+  text('chart-selected',stamp+' · O '+fmt(bar.open)+' · H '+fmt(bar.high)+
+   ' · L '+fmt(bar.low)+' · C '+fmt(bar.close)+' · Объём '+fmt(bar.volume,2)+
+   (bar.closed?' · закрыта':' · формируется'));
+ }
+});
+let candleInterval='1h',candleGeneration=0,candleController=null,
+ candleLastKey='',candleLastAt=0;
+function candleMessage(message,warning=false){
+ text('candle-status',message);
+ el('candle-status').classList.toggle('is-offline',warning);
+}
+function displayCandleStructure(candles,description){
+ const analysis=analyzeStructure(candles);
+ candleView.setData(candles,analysis.events);
+ const container=el('structure-events');clear(container);
+ const mapDir={UP:'вверх',DOWN:'вниз'};
+ const interesting=analysis.events.filter(e=>e.type==='BOS'||e.type==='CHoCH').slice(-6).reverse();
+ text('structure-summary',analysis.status==='OK'
+  ?description+' · закрытых свечей: '+analysis.analyzedBars+
+   ' · подтверждённых структурных изменений: '+analysis.events.length+
+   ' · последний исторический контекст: '+(mapDir[analysis.bias]||'не определён')
+  :'Недостаточно закрытых свечей для проверки рыночной структуры.');
+ if(!interesting.length)container.append(create('p','muted','Подтверждённых BOS/CHoCH в доступном периоде не найдено.'));
+ for(const event of interesting){
+  const row=create('div','structure-event'),label=create('div');
+  label.append(create('b','',event.type+' · '+(mapDir[event.direction]||event.direction)),
+   create('small','',new Date(event.time).toLocaleString('ru-RU')+' · уровень '+fmt(event.level)));
+  row.append(label,create('small','',event.type==='CHoCH'?'Изменение':'Продолжение'));
+  container.append(row);
+ }
+}
+async function loadCandleHistory(force=false){
+ const asset=chosen,interval=candleInterval,key=asset+':'+interval;
+ if(!force&&candleLastKey===key&&Date.now()-candleLastAt<90000){
+  requestAnimationFrame(()=>candleView.resize());
+  return;
+ }
+ if(candleController)candleController.abort();
+ const id=++candleGeneration;
+ const request=new AbortController();
+ candleController=request;
+ const timeout=setTimeout(()=>request.abort(),12000);
+ candleLastKey=key;candleLastAt=Date.now();
+ candleMessage('Загружаем '+asset+' · '+interval+' — проверенная история Binance Spot…');
+ try{
+  const cached=await getMobileCandles(asset,interval,500);
+  if(id!==candleGeneration)return;
+  if(cached.candles.length){
+   displayCandleStructure(cached.candles,'Локальный кэш');
+   candleMessage('Локальный кэш: '+cached.candles.length+' завершённых свечей. Проверяем актуальность…',true);
+  }else{
+   candleView.setData([]);
+   text('structure-summary','Ожидаются реальные завершённые свечи.');
+   clear(el('structure-events'));
+  }
+  const result=await fetchCandles(asset,interval,{signal:request.signal,now:()=>Date.now(),limit:500});
+  if(id!==candleGeneration)return;
+  if(result.candles.length){
+   displayCandleStructure(result.candles,result.state==='STALE'?'Источник устарел':'Binance Spot');
+   const closed=result.candles.filter(x=>x.closed);
+   if(closed.length)void saveMobileCandles(asset,interval,closed).then(saved=>{
+    if(saved.native&&saved.saved>0)void refreshMobileStatus();
+   });
+   candleMessage((result.state==='OK'?'Binance Spot':'Устаревшие данные источника')+
+    ' · '+result.candles.length+' свечей · '+interval+
+    ' · получено '+time(result.receivedAt),result.state!=='OK');
+  }else if(cached.candles.length){
+   candleMessage('Нет свежих свечей ('+result.state+'). Отображается исторический кэш на телефоне.',true);
+  }else{
+   candleMessage('История недоступна ('+result.state+'). '+(result.error||'Нет данных'),true);
+   candleLastAt=0;
+  }
+ }catch(error){
+  if(id===candleGeneration){
+   candleMessage('Не удалось загрузить свечи: '+String(error?.message||error),true);
+   candleLastAt=0;
+  }
+ }finally{
+  clearTimeout(timeout);
+  if(id===candleGeneration)candleController=null;
+ }
+}
+for(const button of document.querySelectorAll('[data-interval]')){
+ const interval=button.dataset.interval;
+ button.addEventListener('click',()=>{
+  candleInterval=interval;
+  for(const x of document.querySelectorAll('[data-interval]')){
+   const selected=x.dataset.interval===interval;
+   x.classList.toggle('selected',selected);
+   x.setAttribute('aria-pressed',selected?'true':'false');
+  }
+  void loadCandleHistory(true);
+ });
+}
+el('chart-refresh').addEventListener('click',()=>void loadCandleHistory(true));
+el('chart-reset').addEventListener('click',()=>{
+ candleView.reset();
+ text('chart-selected','Масштаб возвращён к последним свечам.');
+});
+
 function navigate(view,targetId){
  updateTab(view);
  requestAnimationFrame(()=>{
+  if(view==='asset'){
+   candleView.resize();
+   void loadCandleHistory(false);
+  }
   const node=targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
  });
@@ -364,8 +476,10 @@ async function investigate(value){
  controller=new AbortController();
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
+ const changed=chosen!==symbol;
  chosen=symbol;
  markSelectedAsset();
+ if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
  text('asset-name',chosen);
  el('asset-input').value=chosen;
  text('market-price','—');text('market-change','24 ч: —');
