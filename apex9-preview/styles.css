@@ -1563,3 +1563,14 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
 @media(max-width:355px){.asset-chip.favorite-card{
  flex-basis:231px;width:231px;min-width:231px}
  .favorite-explain{flex-basis:52px;min-width:52px;margin-right:3px}}
+
+/* Preserve readable favorite names after adding the independent explain action */
+.asset-chip.favorite-card{flex-basis:280px;width:280px;min-width:280px}
+.favorite-card .favorite-open{gap:6px;min-width:0}
+.favorite-card .favorite-chart{flex-basis:52px}
+.favorite-card .favorite-explain{order:1;flex-basis:52px;min-width:52px;
+ margin-right:4px}
+@media(max-width:355px){.asset-chip.favorite-card{
+ flex-basis:265px;width:265px;min-width:265px}
+ .favorite-card .favorite-chart{flex-basis:47px}
+ .favorite-card .favorite-explain{flex-basis:48px;min-width:48px}}
