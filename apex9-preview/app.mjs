@@ -15,6 +15,7 @@ import {initResearchRegimesDashboard} from './research-regimes-dashboard.mjs';
 import {initCrossAssetDashboard} from './cross-asset-dashboard.mjs';
 import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs';
 import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
+import {workspaceArea,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
@@ -173,15 +174,48 @@ const onChainDashboard=initOnChainDashboard();
 function updateTab(view){
  document.body.dataset.view=view;
  for(const tab of document.querySelectorAll('[data-tab]')){
-  const active=tab.dataset.tab===view||
-   (tab.dataset.tab==='overview'&&['news','macro'].includes(view))||
-   (tab.dataset.tab==='forecasts'&&view==='quality');
+  const active=tab.dataset.tab===activeDock(view);
   tab.classList.toggle('active',active);
   if(active)tab.setAttribute('aria-current','page');
   else tab.removeAttribute('aria-current');
  }
  for(const name of ['overview','asset','forecasts','sources','news','macro','quality'])
   el('view-'+name).classList.toggle('hidden',name!==view);
+}
+
+
+/**
+ * One flat choice per screen, no nested disclosure-navigation tree.
+ * Keep every analytical DOM node mounted so native Room callbacks and
+ * existing panel references keep functioning while areas change.
+ */
+function setAssetArea(requested){
+ const mode=workspaceArea('asset',requested);
+ if(!mode)return;
+ const panel=el('view-asset');
+ panel.dataset.assetArea=mode;
+ for(const button of document.querySelectorAll('[data-asset-area-button]')){
+  const active=button.dataset.assetAreaButton===mode;
+  button.classList.toggle('is-active',active);
+  button.setAttribute('aria-pressed',String(active));
+ }
+ if(document.body.dataset.view==='asset'){
+  if(mode==='chart')requestAnimationFrame(()=>candleView.resize());
+  if(mode==='data')requestAnimationFrame(()=>{
+   void liquidityDashboard.refresh(chosen);
+   void onChainDashboard.refresh(chosen);
+  });
+ }
+}
+function setQualityArea(requested){
+ const mode=workspaceArea('quality',requested);
+ if(!mode)return;
+ el('view-quality').dataset.qualityArea=mode;
+ for(const button of document.querySelectorAll('[data-quality-area-button]')){
+  const active=button.dataset.qualityAreaButton===mode;
+  button.classList.toggle('is-active',active);
+  button.setAttribute('aria-pressed',String(active));
+ }
 }
 
 const editorialDashboard=initEditorialDashboard();
@@ -678,6 +712,8 @@ function openAssetExplanation(value){
 }
 
 function navigate(view,targetId){
+ if(view==='asset')setAssetArea('chart');
+ if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
  requestAnimationFrame(()=>{
   if(view==='asset'){
@@ -696,6 +732,7 @@ function navigate(view,targetId){
    evidenceDashboard.open();
    const back=el('quality-context-back');
    const fromPassport=targetId==='synthesis-panel';
+   el('view-quality').dataset.qualityEntry=fromPassport?'asset':'dock';
    back.dataset.go=fromPassport?'asset':'forecasts';
    back.textContent=fromPassport?'‹ Актив':'‹ Прогнозы';
    back.setAttribute('aria-label',fromPassport?
@@ -708,6 +745,16 @@ function navigate(view,targetId){
  });
 }
 el('asset-explain').addEventListener('click',()=>openAssetExplanation(chosen));
+for(const button of document.querySelectorAll('[data-asset-area-button]'))
+ button.addEventListener('click',()=>{
+  setAssetArea(button.dataset.assetAreaButton);
+  el('asset-workspace-anchor').scrollIntoView({behavior:'smooth',block:'start'});
+ });
+for(const button of document.querySelectorAll('[data-quality-area-button]'))
+ button.addEventListener('click',()=>{
+  setQualityArea(button.dataset.qualityAreaButton);
+  el('quality-workspace-anchor').scrollIntoView({behavior:'smooth',block:'start'});
+ });
 for(const button of document.querySelectorAll('[data-tab]'))
  button.addEventListener('click',()=>navigate(button.dataset.tab));
 for(const button of document.querySelectorAll('[data-go]'))
