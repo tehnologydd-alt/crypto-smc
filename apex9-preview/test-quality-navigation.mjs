@@ -47,7 +47,8 @@ test('the router explicitly controls quality visibility and dock selection',()=>
  assert.match(app,/['"]quality['"]\]/);
  assert.match(app,/view==='quality'/);
  assert.match(app,/if\(view==='quality'\)\{\s*evidenceDashboard\.open\(\)/);
- assert.match(app,/tab\.dataset\.tab==='forecasts'&&view==='quality'/);
+ assert.match(app,/tab\.dataset\.tab===activeDock\(view\)/);
+ assert.ok(html.includes('data-tab="quality"'));
 });
 test('no duplicate HTML IDs were introduced',()=>{
  const all=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
