@@ -888,3 +888,70 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .quality-page-marker{font-size:9px}
  .quality-open{font-size:12px}
 }
+
+
+/* Research Timeline: verified source events only, never a simulated order lifecycle. */
+.research-timeline{
+ margin:16px 0 9px;border:1px solid #315b67;
+ background:linear-gradient(160deg,#0a232d,#0a1a24);
+ padding:14px 13px 11px;border-radius:15px
+}
+.research-timeline-heading{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;
+ flex-wrap:wrap;margin-bottom:15px
+}
+.research-timeline-heading strong{font-size:13px;color:#d6f4ef;line-height:1.45}
+.research-timeline-heading>span{
+ border:1px solid #366d74;border-radius:10px;padding:5px 8px;
+ color:#9ed5d4;background:#12333d;font-size:10px;font-variant-numeric:tabular-nums
+}
+.research-timeline-steps{
+ list-style:none;padding:0 0 0 3px;margin:0;display:flex;flex-direction:column;gap:0
+}
+.research-timeline-step{
+ position:relative;display:flex;align-items:flex-start;gap:12px;
+ margin:0;padding:0 0 18px 0
+}
+.research-timeline-step:last-child{padding-bottom:0}
+.research-timeline-step:not(:last-child)::before{
+ content:"";position:absolute;left:10px;top:23px;bottom:0;
+ width:2px;background:#31545e;border-radius:2px
+}
+.research-timeline-step.observed:not(:last-child)::before{background:#257f80}
+.research-step-mark{
+ position:relative;z-index:1;flex:0 0 22px;
+ height:22px;display:grid;place-items:center;
+ border:1px solid #42636b;border-radius:50%;
+ background:#132b35;color:#99abb5;font-size:13px;font-weight:750
+}
+.research-timeline-step.observed .research-step-mark{
+ background:#155b57;border-color:#57d6c7;color:#d5fff6
+}
+.research-step-body{min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:1px}
+.research-step-body strong{
+ font-size:11px;line-height:1.35;color:#b4cbd0;font-weight:660
+}
+.research-timeline-step.observed .research-step-body strong{color:#e2f8f4}
+.research-step-body>span{font-size:10px;line-height:1.45;color:#8db3bc}
+.research-step-body>small{font-size:10px;line-height:1.5;color:#a9cabf}
+.research-timeline-note{
+ font-size:11px;line-height:1.62;color:#a9d8da;
+ margin:14px 0 0;padding:10px 11px;
+ border:1px solid #2e676d;border-radius:11px;background:#0f3039
+}
+.research-timeline-note.warning{
+ color:#f1d29a;background:#302e274d;border-color:#806b48
+}
+.research-timeline-warning{
+ font-size:11px;color:#f1d29a;line-height:1.6;
+ margin:0;padding:8px 10px;border-radius:10px;background:#302e274d
+}
+.forecast-observation-stat .forecast-stat-line{
+ grid-template-columns:repeat(3,minmax(0,1fr));gap:8px
+}
+@media(max-width:400px){
+ .research-timeline{padding:12px 11px 10px}
+ .research-timeline-heading strong{font-size:12px}
+ .research-step-body strong{font-size:11px}
+ .forecast-observation-stat .forecast-stat-line{gap:7px}
+}
