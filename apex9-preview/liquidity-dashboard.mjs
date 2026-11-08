@@ -4,6 +4,7 @@
  */
 import {getMobileLiquidityHistory} from './mobile-bridge.mjs';
 import {studyVisibleLiquidity} from './liquidity-core.mjs';
+import {renderLevelObserver} from './level-dashboard.mjs';
 
 const get=id=>document.getElementById(id);
 const text=(id,value)=>{get(id).textContent=value;};
@@ -135,6 +136,8 @@ export function initLiquidityDashboard(){
   generation++;lastAsset=asset;lastPoints=[];
   text('liquidity-history-status','Проверяем историю видимых заявок '+asset+'…');
   get('liquidity-history-venues').replaceChildren();
+  get('level-observer-content').replaceChildren();
+  text('level-observer-status','Проверяем ценовые уровни '+asset+'…');
   paint();
  }
  async function refresh(asset){
@@ -148,13 +151,16 @@ export function initLiquidityDashboard(){
    if(!history.native){
     text('liquidity-history-status',
      'Локальная история доступна в установленном Android APK.');
+    renderLevelObserver([],asset);
     lastPoints=[];paint();return;
    }
    if(history.error){
     text('liquidity-history-status','Нет доступа к локальной истории: '+history.error);
+    renderLevelObserver([],asset);
     lastPoints=[];paint();return;
    }
    const analysis=studyVisibleLiquidity(history.rows,{asset,now:Date.now()});
+   renderLevelObserver(history.rows,asset);
    lastPoints=analysis.points;
    for(const venue of analysis.venues)
     venueContainer.append(describeVenue(venue));
@@ -166,6 +172,7 @@ export function initLiquidityDashboard(){
   }catch(e){
    if(n!==generation)return;
    text('liquidity-history-status','Не удалось открыть историю: '+String(e?.message||e));
+   renderLevelObserver([],asset);
    lastPoints=[];paint();
   }
  }
