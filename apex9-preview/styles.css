@@ -1179,3 +1179,29 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
 .patterns-stability-interval span{font-size:10px;color:#a4c3c9;line-height:1.5}
 .patterns-stability-interval b{font-size:11px;color:#d5f5ee;font-variant-numeric:tabular-nums}
 @media(max-width:370px){.patterns-stability-intervals{grid-template-columns:1fr}}
+
+/* Evidence Lab · manual, source-verified H1 historical repair */
+.historical-repair{
+ margin:17px 0 20px;padding:15px 13px;
+ background:linear-gradient(140deg,#092b33,#0b202b);
+ border:1px solid #357580;border-radius:16px
+}
+.historical-repair .section-title{margin-bottom:9px}
+.historical-repair-actions{
+ display:flex;gap:9px;flex-wrap:wrap;align-items:end;margin:12px 0
+}
+.historical-repair-actions label{
+ display:flex;flex:1 1 145px;flex-direction:column;gap:7px;
+ font-size:11px;color:#a9c9ce
+}
+.historical-repair-actions select{
+ width:100%;min-height:45px;padding:10px;border-radius:10px;
+ background:#0f303c;border:1px solid #44828b;color:#e3f8ef
+}
+.historical-repair-actions button{
+ min-height:45px;padding:10px 14px;flex:1 1 125px;
+ border-radius:11px;background:#17434b;color:#ddf6f0;
+ border:1px solid #50918f;font-size:12px
+}
+.historical-repair-actions button:disabled{opacity:.48;cursor:not-allowed}
+#repair-h1-status{font-size:11px;line-height:1.75;min-height:25px}

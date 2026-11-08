@@ -323,6 +323,23 @@
         </div>
         <p id="evidence-status" class="chart-status" role="status" aria-live="polite">Аудит запускается по запросу и выполняется локально на телефоне.</p>
         <div id="evidence-data-cards" class="evidence-data-grid" aria-live="polite"></div>
+        <section class="historical-repair" aria-label="Проверенное восстановление свечного архива">
+          <div class="section-title"><h4>История H1 · восстановление пробелов</h4><span>Binance Spot</span></div>
+          <p class="muted">Только по нажатию: запрашиваем реальные завершённые H1-свечи и сохраняем отсутствующие записи в Room без замены существующих. Недостающие свечи не создаются искусственно.</p>
+          <div class="historical-repair-actions">
+            <label for="repair-h1-range">Проверяемый период
+              <select id="repair-h1-range" aria-label="Период восстановления H1">
+                <option value="30" selected>30 дней</option>
+                <option value="90">90 дней</option>
+                <option value="180">180 дней</option>
+              </select>
+            </label>
+            <button type="button" id="repair-h1-run" class="ghost">Восстановить H1</button>
+            <button type="button" id="repair-h1-cancel" class="ghost" disabled>Остановить</button>
+          </div>
+          <p id="repair-h1-status" class="chart-status" role="status" aria-live="polite">Режим ручной. Объём до 240 свечей на запрос. Записанные исследования не изменяются.</p>
+          <p class="footnote">Если биржа недоступна, ограничивает запросы или возвращает пробелы, загрузка останавливается. Уже подтверждённые данные остаются; повторный запуск доступен по желанию.</p>
+        </section>
         <div class="evidence-audit-section">
           <div class="section-title"><h4>Проверка исследовательских прогнозов</h4><span>Записи после публикации</span></div>
           <div id="evidence-forecast-summary"></div>

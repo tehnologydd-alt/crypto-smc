@@ -6,7 +6,7 @@ import {auditCandleSeries,auditVisibleDepth,auditNetwork,
  auditForwardResearch,MIN_FORWARD_SAMPLES} from './evidence-lab.mjs';
 import {chainForAsset} from './onchain-core.mjs';
 import {getMobileCandleArchive,getMobileLiquidityHistory,getMobileOnChainHistory,
- getMobileAssetResearchArchive} from './mobile-bridge.mjs';
+ getMobileAssetResearchArchive,repairMobileH1Archive} from './mobile-bridge.mjs';
 
 const get=id=>document.getElementById(id);
 const fmt=(n,d=1)=>Number.isFinite(n)
@@ -36,12 +36,58 @@ const horizonState={
 };
 export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
  let busy=false,generation=0,lastAsset='';
+ let repairBusy=false,repairStopped=false,repairGeneration=0;
  const select=get('evidence-asset'),run=get('evidence-run'),
   status=get('evidence-status'),cards=get('evidence-data-cards'),
-  summary=get('evidence-forecast-summary'),cohorts=get('evidence-cohorts');
+  summary=get('evidence-forecast-summary'),cohorts=get('evidence-cohorts'),
+  repairButton=get('repair-h1-run'),repairCancel=get('repair-h1-cancel'),
+  repairRange=get('repair-h1-range'),repairStatus=get('repair-h1-status');
  const message=(text,warning=false)=>{
   status.textContent=text;status.classList.toggle('is-offline',warning);
  };
+ const repairMessage=(value,warn=false)=>{
+  repairStatus.textContent=value;
+  repairStatus.classList.toggle('is-offline',warn);
+ };
+ async function repairHistory(){
+  if(repairBusy||!select.value)return;
+  const asset=select.value,days=Number(repairRange.value),seq=++repairGeneration;
+  repairBusy=true;repairStopped=false;
+  repairButton.disabled=true;repairRange.disabled=true;repairCancel.disabled=false;
+  repairMessage('Binance Spot H1 · запрошена проверка истории '+asset+
+   ' за '+days+' дней. Восстановление выполняется только вручную.');
+  try{
+   const r=await repairMobileH1Archive(asset,{
+    days,
+    shouldStop:()=>repairStopped||select.value!==asset,
+    onProgress:progress=>{
+     if(seq!==repairGeneration||select.value!==asset)return;
+     repairMessage('H1 '+asset+': обработано '+progress.processed+' из '+
+      progress.total+' участков · новых '+progress.added+
+      ' · ранее сохранено '+progress.existing+'.');
+    }
+   });
+   if(seq!==repairGeneration||select.value!==asset)return;
+   if(r.state==='COMPLETE')repairMessage(
+    'Загрузка завершена: '+r.processed+' участков, новых свечей '+r.added+
+    ', уже в Room '+r.existing+
+    '. Можно отдельно запустить проверку качества. Источник: Binance Spot.');
+   else if(r.state==='CANCELLED')repairMessage(
+    'Остановлено после '+r.processed+' из '+r.total+
+    ' участков. Уже сохранённые проверенные свечи остаются в Room.',true);
+   else repairMessage('Восстановление не завершено: '+r.error+
+    '. Загружено участков: '+r.processed+' из '+r.total+
+    '. Результат нельзя считать полной историей.',true);
+  }catch(error){
+   if(seq===repairGeneration)repairMessage(
+    'Не удалось продолжить восстановление H1: '+String(error?.message||error),true);
+  }finally{
+   if(seq===repairGeneration){
+    repairBusy=false;repairButton.disabled=false;
+    repairRange.disabled=false;repairCancel.disabled=true;
+   }
+  }
+ }
  function updateAssets(){
   const options=[...new Set([getSelectedSymbol(),...getFavorites()]
    .filter(x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x)))].slice(0,11);
@@ -177,9 +223,21 @@ export function initEvidenceDashboard({getSelectedSymbol,getFavorites}){
   // The previous audit can still be reading Room pages: invalidate it and
   // immediately enable a new audit for the newly selected asset.
   generation++;busy=false;run.disabled=false;lastAsset=select.value;clearResults();
+  if(repairBusy){
+   repairStopped=true;
+   repairMessage('Актив изменён. Предыдущая загрузка остановится после текущего участка.');
+  }else{
+   repairMessage('Выберите период для '+select.value+
+    ' и запустите восстановление H1 вручную.');
+  }
   message('Выбран '+select.value+'. Запустите локальную проверку.');
  });
  run.addEventListener('click',()=>void runAudit());
+ repairButton.addEventListener('click',()=>void repairHistory());
+ repairCancel.addEventListener('click',()=>{
+  repairStopped=true;repairCancel.disabled=true;
+  repairMessage('Останавливаем после завершения текущего запроса H1…');
+ });
  updateAssets();
  return {
   refreshAssetChoices(){updateAssets();},

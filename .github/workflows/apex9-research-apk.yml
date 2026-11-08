@@ -88,9 +88,10 @@ jobs:
           node --check apex9-preview/research-patterns.mjs
           node --check apex9-preview/research-patterns-dashboard.mjs
           node --check apex9-preview/research-stability.mjs
+          node --check apex9-preview/historical-repair.mjs
           node --check apex9-preview/editorial-core.mjs
           node --check apex9-preview/editorial-dashboard.mjs
-          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs apex9-preview/test-liquidity-core.mjs apex9-preview/test-level-observer.mjs apex9-preview/test-onchain-core.mjs apex9-preview/test-onchain-market-compare.mjs apex9-preview/test-evidence-lab.mjs apex9-preview/test-validation-core.mjs apex9-preview/test-sparkline.mjs apex9-preview/test-journal-stats.mjs apex9-preview/test-editorial-core.mjs apex9-preview/test-quality-navigation.mjs apex9-preview/test-research-timeline.mjs apex9-preview/test-scenario-map.mjs apex9-preview/test-scenario-replay.mjs apex9-preview/test-research-patterns.mjs apex9-preview/test-research-stability.mjs
+          node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-research.mjs apex9-preview/test-context-sources.mjs apex9-preview/test-update-check.mjs apex9-preview/test-mobile-bridge.mjs apex9-preview/test-candles.mjs apex9-preview/test-market-core.mjs apex9-preview/test-forecast-core.mjs apex9-preview/test-favorite-logic.mjs apex9-preview/test-liquidity-core.mjs apex9-preview/test-level-observer.mjs apex9-preview/test-onchain-core.mjs apex9-preview/test-onchain-market-compare.mjs apex9-preview/test-evidence-lab.mjs apex9-preview/test-validation-core.mjs apex9-preview/test-sparkline.mjs apex9-preview/test-journal-stats.mjs apex9-preview/test-editorial-core.mjs apex9-preview/test-quality-navigation.mjs apex9-preview/test-research-timeline.mjs apex9-preview/test-scenario-map.mjs apex9-preview/test-scenario-replay.mjs apex9-preview/test-research-patterns.mjs apex9-preview/test-research-stability.mjs apex9-preview/test-historical-repair.mjs
 
       - name: Install Capacitor and stage web assets
         working-directory: apex9-android
@@ -108,6 +109,7 @@ jobs:
           npm run icons
           node scripts/install-native.mjs
           test -s android/app/src/main/java/com/apexintelligence/research/ApexAutoForecast.kt
+          test -s android/app/src/main/java/com/apexintelligence/research/ApexHistoricalBackfill.kt
           grep -q 'setOnApplyWindowInsetsListener' android/app/src/main/java/com/apexintelligence/research/MainActivity.java
           test -s android/app/src/main/java/com/apexintelligence/research/ApexNativePlugin.kt
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png

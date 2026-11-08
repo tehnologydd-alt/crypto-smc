@@ -3,6 +3,7 @@
  * Calls only user-device storage and opt-in Android WorkManager scheduling.
  * Web preview transparently reports unsupported native features.
  */
+import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
 const unavailable = {native:false,storage:'WEB_ONLY',observationCount:0,forecastCount:0,
  backgroundSyncEnabled:false,latestObservationAt:0};
@@ -275,6 +276,45 @@ export async function checkMobileResearchForecast(id){
 }
 
 
+/**
+ * User-initiated, rate-paced and cancellable-on-next-chunk H1 archive repair.
+ * Only real data acquired by the Android native module can be persisted.
+ * A failed chunk stops this particular run and never claims full completion.
+ */
+export async function repairMobileH1Archive(asset,{
+ days=30,shouldStop=()=>false,onProgress=()=>{},now=Date.now()
+}={}){
+ const plan=planHistoricalH1Repair(asset,days,{now});
+ const native=plugin();
+ const base={native:Boolean(native),asset,days,added:0,existing:0,
+  processed:0,total:plan.windows.length,expectedBars:plan.expectedBars||0};
+ if(plan.state!=='READY')return {...base,state:'INVALID',error:plan.reason};
+ if(!native||typeof native.repairHistoricalH1!=='function')
+  return {...base,state:'UNSUPPORTED',
+   error:'В этой версии Android нет безопасного восстановления H1. Обновите APEX.'};
+ let added=0,existing=0,processed=0;
+ for(const window of plan.windows){
+  if(shouldStop())return {...base,state:'CANCELLED',added,existing,processed};
+  try{
+   const reply=await native.repairHistoricalH1({
+    asset,startTime:window.startTime,endExclusive:window.endExclusive
+   });
+   const verified=checkHistoricalH1Chunk(window,reply);
+   if(verified.state!=='OK')throw Error(verified.reason);
+   added+=verified.added;existing+=verified.existing;processed++;
+   onProgress({asset,processed,total:plan.windows.length,
+    added,existing,verifiedSource:verified.networkVerified});
+  }catch(error){
+   return {...base,state:'ERROR',added,existing,processed,
+    error:String(error?.message||error).slice(0,260)};
+  }
+  if(processed<plan.windows.length){
+   // Throttle deliberate foreground requests; never retry on 418/429.
+   await new Promise(resolve=>setTimeout(resolve,350));
+  }
+ }
+ return {...base,state:'COMPLETE',added,existing,processed};
+}
 /** User-curated watchlist; authoritative 10-item cap enforced by DataStore. */
 export async function getMobileFavorites(){
  const status=await getMobileStatus();
