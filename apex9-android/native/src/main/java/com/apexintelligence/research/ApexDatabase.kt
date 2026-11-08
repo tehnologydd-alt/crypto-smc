@@ -100,6 +100,9 @@ interface ResearchDao {
     @Query("SELECT * FROM research_observations WHERE asset = :asset ORDER BY observedAt DESC LIMIT :limit")
     suspend fun observations(asset: String, limit: Int): List<ResearchObservation>
 
+    @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='liquidity' ORDER BY observedAt DESC LIMIT :limit")
+    suspend fun liquidityHistory(asset: String, limit: Int): List<ResearchObservation>
+
     @Query("SELECT COUNT(*) FROM research_observations")
     suspend fun observationCount(): Int
 
