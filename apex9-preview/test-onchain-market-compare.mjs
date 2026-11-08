@@ -50,7 +50,7 @@ test('duplicate snapshots within an hour do not fabricate additional samples',()
  }));
  const r=compareOnChainMarketHistory([...x.snapshots,...dup],x.candles,{
   asset:'BTCUSDT',now:x.now});
- assert.equal(r.pairedHours,x.candles.length-1); // last hour has no paired closed candle
+ assert.equal(r.pairedHours,x.candles.length); // one real network snapshot per finished H1 candle
 });
 test('no future candle is ever used and wrong asset data cannot contaminate',()=>{
  const x=fixtures();
