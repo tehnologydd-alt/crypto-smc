@@ -137,10 +137,23 @@ object ApexAutoForecast {
         // Only the directional model enforces "one current study per asset".
         val latest = dao.latestDirectionalForecast(asset)
         if (latest != null) {
+            val interval = try {
+                JSONObject(latest.hypothesisJson).optString("evaluationInterval")
+            } catch (_: Exception) { "" }
+            if (interval == ApexM5Evaluation.INTERVAL && dao.researchResult(latest.id) == null) {
+                try {
+                    ApexM5Evaluation.downloadAndSave(asset, dao, now)
+                } catch (e: ApexM5Evaluation.SourceUnavailable) {
+                    return Report(asset, "M5_UNAVAILABLE", "DUE_UNVERIFIED",
+                        "Нет проверенных M5 для контроля точек: " + (e.message ?: "источник недоступен"))
+                }
+            }
             val stage = ApexDirectionalForecast.progress(latest, dao, now)
             if (stage != "COMPLETED")
                 return Report(asset, "UPDATED", stage,
-                    "Направленный сценарий уже наблюдается по реальным H1")
+                    if (interval == ApexM5Evaluation.INTERVAL)
+                        "Направленный сценарий наблюдается по закрытым M5"
+                    else "Ранее опубликованный сценарий оценивается по H1")
         }
         // A new candidate is created only on a newly observed, CURRENT closed H1 bar.
         val last = recent.last()
@@ -183,6 +196,8 @@ object ApexAutoForecast {
             .put("anchorClose",close).put("bandLow",low).put("bandHigh",high)
             .put("levelStudy",levelStudy)
             .put("horizonBars",ApexDirectionalForecast.HORIZON)
+            .put("evaluationInterval",ApexM5Evaluation.INTERVAL)
+            .put("observationMethod",ApexM5Evaluation.METHOD)
             .put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)
@@ -193,11 +208,11 @@ object ApexAutoForecast {
         if (inserted != -1L) {
             dao.appendResearchStage(ResearchForecastStage(
                 id,"PENDING_CONFIRMATION",now,now,
-                "Опубликовано одно направление и неизменяемые TP1–TP3/SL. Ожидаем реальную H1-свечу."
+                "Одно направление и неизменяемые TP1–TP3/SL. Сигнал H1, проверка по закрытым M5."
             ))
         }
         return Report(asset,if(inserted!=-1L) "CREATED" else "ALREADY_EXISTS",
-            "PENDING_CONFIRMATION","Одно направление: $direction · 24 H1 на проверку")
+            "PENDING_CONFIRMATION","Одно направление: $direction · 24 часа, TP/SL проверяются по M5")
     }
 
     private suspend fun progress(forecast: ResearchForecast, dao: ResearchDao, now: Long): String {
