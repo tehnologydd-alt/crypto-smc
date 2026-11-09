@@ -3,6 +3,8 @@
  * Sources are queried on demand only. No automated background poller.
  */
 import {loadEditorialFeed} from './editorial-core.mjs';
+import {fetchNewsBundle} from './news-gateway-client.mjs';
+import {consolidateArticles} from './news-source-fusion.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
@@ -28,12 +30,13 @@ const quotaLine=(r,mode)=>{
  return ' · запросов '+v.used+' / '+EDITORIAL_POLICY[mode].daily+
   ' за сутки (UTC)'+next;
 };
-export function initEditorialDashboard(){
+export function initEditorialDashboard({getSymbol}={}){
  let storage=null;
  try{storage=window.localStorage;}catch{}
  const budget=createEditorialBudget({storage});
  const archive=createEventHistory({storage});
  const comparisonHistory=createBlsComparisonHistory({storage});
+ const gatewayEnabled=document.querySelector('meta[name="apex-news-gateway-mode"]')?.content==='same-origin';
  let active=0,controller=null;
  function showFeed(mode,r){
   const list=get('editorial-'+mode+'-list'),status=get('editorial-'+mode+'-status');
@@ -61,6 +64,8 @@ export function initEditorialDashboard(){
    const meta=node('div','editorial-story-meta');
    meta.append(node('span','',article.domain),
     node('time','',niceTime(article.observedAt)));
+   if(article.indexedBy?.length)
+    meta.append(node('span','',article.indexedBy.join(' / ')));
    if(stale)meta.append(node('span','editorial-stale-label','Архив · не свежая публикация'));
    story.append(link,meta);list.append(story);
   }
@@ -278,6 +283,12 @@ export function initEditorialDashboard(){
    const queries=[
     budget.load(mode,()=>loadEditorialFeed(mode,{signal:current.signal}),{force})
    ];
+   if(mode==='news'){
+    const symbol=String(getSymbol?.()||'BTCUSDT');
+    const coin=symbol.endsWith('USDT')?symbol.slice(0,-4):'';
+    queries.push(fetchNewsBundle(coin,{
+     enabled:gatewayEnabled,location:window.location,signal:current.signal}));
+   }
    if(mode==='macro'){
     queries.push(budget.load('macroData',
      ()=>fetchBlsIndicators({signal:current.signal}),{force}));
@@ -286,8 +297,32 @@ export function initEditorialDashboard(){
    }
    const results=await Promise.all(queries);
    if(seq!==active)return;
-   showFeed(mode,results[0]);
-   if(mode==='news')archive.captureGlobal({news:results[0]});
+   if(mode==='news'){
+    const gateway=results[1];
+    const extra=get('news-extra-provider-status');
+    if(extra){
+     if(!gatewayEnabled){
+      extra.textContent='CryptoPanic / NewsData.io: ожидают защищённого HTTPS-подключения. Ключей в APK нет.';
+     }else{
+      const states=gateway.providers?
+       Object.entries(gateway.providers).map(([key,value])=>key+': '+value).join(' · '):
+       gateway.state;
+      extra.textContent='Дополнительные источники: '+states+
+       ' · контекст, не торговый сигнал';
+     }
+    }
+    if(gateway.state==='OK'&&gateway.articles?.length){
+     const existing=['OK','EMPTY','STALE'].includes(results[0].state)?
+      results[0].articles||[]:[];
+     const articles=consolidateArticles([...existing,...gateway.articles],
+      {limit:18,perDomain:2});
+     showFeed(mode,{...results[0],state:'OK',source:'NETWORK',
+      fetchedAt:Date.now(),articles});
+     get('editorial-news-status').textContent='GDELT: '+results[0].state+
+      ' · защищённый шлюз: OK'+quotaLine(results[0],'news');
+    }else showFeed(mode,results[0]);
+    archive.captureGlobal({news:results[0]});
+   }else showFeed(mode,results[0]);
    if(mode==='macro'){
     archive.captureGlobal({macro:results[0],calendar:results[2]});
     showEventHistory();
