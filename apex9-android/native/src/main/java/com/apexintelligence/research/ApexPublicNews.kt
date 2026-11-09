@@ -101,34 +101,40 @@ object ApexPublicNews {
         }
         return output
     }
-    private fun requestFeed(address: String, source: String, now: Long): JSONArray {
+    private fun requestFeed(address: String, source: String, now: Long):
+        Pair<String, JSONArray> {
         val url = URL(address)
         if (url.protocol != "https" || feeds.none { it.first == address })
-            return JSONArray()
+            return Pair("INVALID_URL", JSONArray())
         var c: HttpsURLConnection? = null
         try {
             c = url.openConnection() as HttpsURLConnection
             c.requestMethod = "GET"
             c.instanceFollowRedirects = false
-            c.connectTimeout = 5500
-            c.readTimeout = 5500
+            c.connectTimeout = 5000
+            c.readTimeout = 5000
             c.setRequestProperty("Accept", "application/rss+xml, application/xml, text/xml")
             c.setRequestProperty("User-Agent", "APEXResearch/9 (read-only personal RSS client)")
-            if (c.responseCode != 200) return JSONArray()
+            val code = c.responseCode
+            if (code != 200) return Pair("HTTP_$code", JSONArray())
             val xml = c.inputStream.use { stream ->
                 val buffer = ByteArray(4096)
                 val out = ByteArrayOutputStream()
                 while (true) {
                     val n = stream.read(buffer)
                     if (n < 0) break
-                    if (out.size() + n > 450_000) return JSONArray()
+                    if (out.size() + n > 450_000)
+                        return Pair("OVERSIZED", JSONArray())
                     out.write(buffer, 0, n)
                 }
                 String(out.toByteArray(), Charsets.UTF_8)
             }
-            return parseRss(xml, source, now)
+            val articles = parseRss(xml, source, now)
+            return Pair(if (articles.length() > 0) "OK" else "EMPTY", articles)
+        } catch (_: java.net.SocketTimeoutException) {
+            return Pair("TIMEOUT", JSONArray())
         } catch (_: Exception) {
-            return JSONArray()
+            return Pair("NETWORK_OR_FORMAT_ERROR", JSONArray())
         } finally { c?.disconnect() }
     }
     fun fetch(ctx: Context): JSONObject {
@@ -140,7 +146,9 @@ object ApexPublicNews {
             val last = store.getLong("lastAttempt", 0L)
             val usableCache = cache != null && saved in 1..now && now - saved <= STALE
             if (usableCache && now - saved <= TTL) {
-                return JSONObject().put("state", "OK").put("articles", JSONArray(cache))
+                return JSONObject().put("state", store.getString("lastState", "OK"))
+                    .put("articles", JSONArray(cache))
+                    .put("sources", JSONObject(store.getString("sources", "{}") ?: "{}"))
                     .put("fetchedAt", saved).put("cached", true)
             }
             val previous = store.getString("day", "")
@@ -152,6 +160,7 @@ object ApexPublicNews {
             if (blocked != null) {
                 if (usableCache) return JSONObject().put("state", "STALE")
                     .put("articles", JSONArray(cache)).put("fetchedAt", saved)
+                    .put("sources", JSONObject(store.getString("sources", "{}") ?: "{}"))
                     .put("reason", blocked)
                 return JSONObject().put("state", blocked).put("articles", JSONArray())
                     .put("nextAt", if (blocked == "WAIT_INTERVAL") last + GAP else 0L)
@@ -161,24 +170,35 @@ object ApexPublicNews {
                 return JSONObject().put("state", "STORAGE_UNAVAILABLE")
         }
         val combined = JSONArray()
+        val sourceStates = JSONObject()
+        var successfulFeeds = 0
         for ((url, name) in feeds) {
-            val items = requestFeed(url, name, now)
+            val (state, items) = requestFeed(url, name, now)
+            sourceStates.put(name, JSONObject().put("state", state)
+                .put("count", items.length()))
+            if (state == "OK" || state == "EMPTY") successfulFeeds++
             for (i in 0 until items.length()) combined.put(items.optJSONObject(i))
         }
-        if (combined.length() == 0) {
+        if (successfulFeeds == 0) {
             val cache = store.getString("articles", null)
             val saved = store.getLong("fetchedAt", 0L)
             if (cache != null && saved in 1..now && now - saved <= STALE)
                 return JSONObject().put("state", "STALE")
                     .put("articles", JSONArray(cache)).put("fetchedAt", saved)
+                    .put("sources", sourceStates)
                     .put("reason", "UPSTREAM_UNAVAILABLE")
             return JSONObject().put("state", "OFFLINE").put("articles", JSONArray())
+                .put("sources", sourceStates)
         }
+        val finalState = if (combined.length() > 0) "OK" else "EMPTY"
         synchronized(lock) {
             store.edit().putString("articles", combined.toString())
+                .putString("sources", sourceStates.toString())
+                .putString("lastState", finalState)
                 .putLong("fetchedAt", now).apply()
         }
-        return JSONObject().put("state", "OK").put("articles", combined)
+        return JSONObject().put("state", finalState).put("articles", combined)
+            .put("sources", sourceStates)
             .put("fetchedAt", now).put("cached", false)
     }
 }
