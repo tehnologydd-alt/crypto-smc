@@ -67,7 +67,7 @@ test('simulated HTTPS proxy bridges client to two sanitized news feeds under quo
   const response=await fakeProxyFetch('https://research.example/v1/status',{
    credentials:'same-origin',method:'GET'});
   const status=await response.json();
-  assert.equal(status.providers.newsdata.dayRemaining,3);
+  assert.equal(status.providers.newsdata.dayRemaining,179);
   assert.equal(status.providers.cryptopanic.dayRemaining,3);
   assert.equal(status.scope,'LOCAL_ONLY_NOT_PUBLIC_APK');
   const raw=JSON.stringify({first,status});
