@@ -142,8 +142,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   list.replaceChildren();
   const context=contextMeasurements?.symbol===symbol?
    Object.fromEntries((contextMeasurements.sources||[]).map(x=>[x.id,x])):{};
-  const observations={...context,...assetMeasurements?.symbol===symbol?
-   assetMeasurements.results:{}};
+  const assetResults=assetMeasurements?.symbol===symbol?
+   assetMeasurements.results:{};
+  const observations={...context,...assetResults};
   const report=reconcileSources(symbol,observations);
   status.textContent='Проверено '+report.checked+' источников · '+report.usable+
    ' со временем наблюдения · без искусственного рейтинга точности.';
