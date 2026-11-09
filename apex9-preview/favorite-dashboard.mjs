@@ -691,7 +691,7 @@ export function initFavoriteResearch({
     'Итоги завершённых наблюдений'));
    const outcomeGrid=create('div','forecast-quality-outcome-grid');
    for(const [label,count] of [
-    ['TP3 · завершён',q.tp3],['SL · завершён',q.stop],
+    ['TP3 · завершён',q.tp3Outcome],['SL · завершён',q.stop],
     ['Порядок неизвестен',q.ambiguous],['Без входа',q.notEntered],
     ['Истёк срок',q.expired]]){
     const node=create('div','forecast-quality-outcome');
