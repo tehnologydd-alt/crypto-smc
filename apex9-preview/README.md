@@ -146,3 +146,35 @@ The extended `.github/workflows/apex-9-news-checks.yml` defines additional
 syntax and regression checks for news, source attribution and M5 research.
 A GitHub Actions pass and an Android APK/device run must be verified
 separately; this commit alone does not prove either.
+
+## APEX 9 — M5 publication references from two prior days
+
+The news M5 panel offers an optional second **manual** action, “Сравнить с 2
+днями”, once the full 240-minute observation window is closed. The client
+fetches a single continuous Binance Spot M5 series (637 or 638 candles,
+depending on the exact publication minute) covering the same UTC clock
+time on the preceding 24 and 48 hours, including the one-hour pre-window.
+The module refuses partial/gapped data, duplicate bars, malformed OHLCV,
+unclosed candles, indexed-only news timestamps and unsupported symbols.
+
+Each elapsed 15/60/240-minute result shows: the observed percentage move,
+the moves from those two earlier days, their mean absolute magnitude, and
+the difference in percentage points. These **two examples do not form a
+statistical baseline**. The comparison cannot tell whether the published
+headline was true, whether an event occurred at publication time, or
+whether the price movement was caused by it.
+
+The original M5 observation and this prior-days comparison share one
+device-local limit of 8 requests per UTC day, but have **separate cached
+results** keyed by study type. No new background polling is enabled.
+Source status and errors remain visible.
+
+Run the added offline tests with Node.js 22+:
+
+```bash
+node --test apex9-preview/test-news-m5-reaction.mjs apex9-preview/test-news-m5-baseline.mjs apex9-preview/test-news-m5-budget.mjs
+```
+
+GitHub Actions is configured to run these automatically, but the status
+of CI and the separate Android APK/device validation must be confirmed
+before declaring the release ready.
