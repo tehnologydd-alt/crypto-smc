@@ -155,9 +155,16 @@ export function createNewsGateway({
  return {load,status,bundle};
 }
 export function startLocalGateway({gateway=createNewsGateway(),
- port=8787,host='127.0.0.1'}={}){
+ port=8787,host='127.0.0.1',proxyOrigin=null}={}){
  if(host!=='127.0.0.1'&&host!=='::1')
   throw Error('Only loopback is allowed without authentication');
+ if(proxyOrigin!==null){
+  let parsed;
+  try{parsed=new URL(proxyOrigin);}catch{throw Error('Invalid HTTPS proxy origin');}
+  if(parsed.protocol!=='https:'||parsed.origin!==proxyOrigin||
+     parsed.username||parsed.password||parsed.search||parsed.hash)
+   throw Error('Invalid HTTPS proxy origin');
+ }
  const server=createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','no-store');
@@ -168,9 +175,14 @@ export function startLocalGateway({gateway=createNewsGateway(),
   const permittedHosts=new Set(['127.0.0.1:'+portText,
    'localhost:'+portText,'[::1]:'+portText]);
   const origin=String(req.headers.origin||'');
+  const fetchSite=String(req.headers['sec-fetch-site']||'');
+  const allowedOrigins=[
+   'http://127.0.0.1:'+portText,
+   'http://localhost:'+portText,'http://[::1]:'+portText];
+  if(proxyOrigin)allowedOrigins.push(proxyOrigin);
   if(!permittedHosts.has(hostHeader)||
-    (origin&&!['http://127.0.0.1:'+portText,
-     'http://localhost:'+portText,'http://[::1]:'+portText].includes(origin))){
+    (origin&&!allowedOrigins.includes(origin))||
+    (fetchSite&&!['same-origin','none'].includes(fetchSite))){
    res.statusCode=403;res.end(JSON.stringify({state:'FORBIDDEN'}));return;
   }
   let u;
