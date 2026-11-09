@@ -57,23 +57,6 @@ export function routeGlobalEvents(news,macro,calendar,{now=Date.now(),max=5}={})
     importance:'SCHEDULED_NOT_ACTUAL',outdated:calendar.state==='STALE'});
   }
  }
- // If nothing matches the narrow "major event" keywords, still show genuine
- // recent publisher headlines. They are ordinary reports, NOT important events.
- if(events.filter(x=>x.group!=='calendar').length<Math.min(3,max)&&
-    news&&['OK','STALE'].includes(news.state)){
-  for(const a of news.articles||[]){
-   if(!a||typeof a.title!=='string'||a.title.length<10||
-    typeof a.href!=='string'||!a.href.startsWith('https://')||
-    !Number.isSafeInteger(a.observedAt)||a.observedAt>now+60000||
-    a.observedAt<now-48*3600000)continue;
-   if(events.some(x=>x.group==='news'&&x.id===a.href))continue;
-   add({id:a.href,title:a.title,observedAt:a.observedAt,
-    href:a.href,group:'news',scope:'PUBLISHER_HEADLINE',
-    importance:'RECENT_UNRANKED',
-    outdated:news.state==='STALE'||a.outdated===true});
-   if(events.filter(x=>x.group!=='calendar').length>=Math.min(3,max))break;
-  }
- }
  events.sort((a,b)=>{
   // Keep upcoming schedule after observed headlines while preserving recency.
   const aFuture=a.group==='calendar',bFuture=b.group==='calendar';
