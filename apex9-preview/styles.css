@@ -2377,3 +2377,18 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 .forecast-quality-details .forecast-quality-archive{border:0;
  border-top:1px solid #36596a;padding-top:12px;border-radius:0}
 .forecast-quality-details .forecast-stat-line{padding:0 0 10px}
+
+/* APEX 9.1 quota-aware public news and BLS release calendar */
+.editorial-budget-row{display:flex;align-items:center;justify-content:space-between;
+ gap:12px;flex-wrap:wrap;margin:12px 0 8px;color:#abc9d0;font-size:12px;
+ line-height:1.5}
+.editorial-budget-row .ghost{min-height:38px;padding:8px 12px;flex-shrink:0}
+.editorial-calendar-card{margin:18px 0 9px}
+.editorial-calendar-list{display:grid;gap:8px;margin:12px 0}
+.editorial-calendar-event{border:1px solid #365d69;background:#102d38;
+ border-radius:12px;padding:13px;display:grid;gap:6px;line-height:1.5}
+.editorial-calendar-event time{font-size:12px;color:#98d3d2}
+.editorial-calendar-event strong{font-size:13px;color:#e2f5f1}
+.editorial-calendar-event span{font-size:11px;color:#a2bdc9}
+.editorial-stale-label{color:#ffce9c;font-weight:700}
+@media(max-width:370px){.editorial-budget-row .ghost{width:100%}}

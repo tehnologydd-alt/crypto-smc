@@ -484,20 +484,29 @@
     <section class="view hidden editorial-view" id="view-news" aria-labelledby="news-page-title">
       <div class="section-title"><h2 id="news-page-title">Новости крипторынка</h2><span>Свежее · проверяемые источники</span></div>
       <p class="muted">Свежие публикации из открытого международного новостного индекса. Приоритет определяется тематикой и датой, а не доказанным влиянием на цену.</p>
-      <div id="editorial-news-status" class="chart-status" role="status">Получаем актуальные статьи…</div>
+      <div class="editorial-budget-row"><span>GDELT · до 12 запросов/сутки · интервал от 45 минут</span><button class="ghost" type="button" id="editorial-news-refresh">Обновить</button></div>
+      <div id="editorial-news-status" class="chart-status" role="status">Проверяем запросы и кеш…</div>
       <div id="editorial-news-list" class="editorial-feed"></div>
     </section>
 
     <section class="view hidden editorial-view" id="view-macro" aria-labelledby="macro-page-title">
       <div class="section-title"><h2 id="macro-page-title">Макроэкономика</h2><span>Контекст · не прогноз</span></div>
-      <p class="muted">Публикации по инфляции, процентным ставкам и решениям центральных банков. Здесь нет вымышленных экономических календарей или дат событий.</p>
+      <p class="muted">Публикации по инфляции, процентным ставкам и решениям центральных банков. Публикации и проверяемый календарь BLS. Нет вымышленных дат или числовых значений событий.</p>
       <div class="macro-source-links">
         <a href="https://www.federalreserve.gov/newsevents/calendar.htm" target="_blank" rel="noopener noreferrer">ФРС · официальный календарь</a>
         <a href="https://www.bls.gov/schedule/news_release/" target="_blank" rel="noopener noreferrer">BLS · публикации США</a>
         <a href="https://www.ecb.europa.eu/press/calendars/html/index.en.html" target="_blank" rel="noopener noreferrer">ЕЦБ · календарь</a>
       </div>
-      <div id="editorial-macro-status" class="chart-status" role="status">Загружаем публикации…</div>
+      <div class="editorial-budget-row"><span>GDELT · до 6 запросов/сутки · интервал от 2 часов</span><button class="ghost" type="button" id="editorial-macro-refresh">Обновить</button></div>
+      <div id="editorial-macro-status" class="chart-status" role="status">Проверяем запросы и кеш…</div>
       <div id="editorial-macro-list" class="editorial-feed"></div>
+      <article class="card block editorial-calendar-card">
+        <div class="section-title"><h3>Экономический календарь · США</h3><span>BLS · 2 запроса/сутки</span></div>
+        <p class="muted">Официальные даты CPI, PPI, занятости и других публикаций. Время указано в часовом поясе устройства, не прогноз влияния на цену.</p>
+        <p id="macro-calendar-status" class="chart-status" role="status">Проверяем календарь…</p>
+        <div id="macro-calendar-list" class="editorial-calendar-list"></div>
+        <p class="footnote">Даты могут измениться. Фактические показатели, календарь ФРС и ЕЦБ пока не загружаются автоматически.</p>
+      </article>
     </section>
 
     <section class="view hidden" id="view-sources" aria-labelledby="sources-title">
