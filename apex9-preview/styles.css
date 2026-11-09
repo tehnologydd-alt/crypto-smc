@@ -282,7 +282,7 @@ body{
  position:fixed;z-index:50;left:50%;transform:translateX(-50%);
  bottom:max(11px,env(safe-area-inset-bottom));
  width:min(calc(100% - 22px),480px);max-width:480px;
- display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;
  padding:8px;border:1px solid #3f929b80;border-radius:25px;
  background:linear-gradient(160deg,#152e38e8,#0c1c25f4);
  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
@@ -292,7 +292,8 @@ body{
 .bottom-dock .tab{
  display:flex;flex-direction:column;align-items:center;justify-content:center;
  gap:2px;border:1px solid transparent;border-radius:17px;min-height:57px;
- color:#99b2bd;font-size:10px;font-weight:660;padding:6px 2px;
+ min-width:0;color:#99b2bd;font-size:clamp(9px,2.6vw,10px);font-weight:660;padding:6px 1px;
+ white-space:nowrap;overflow:hidden;
 }
 .bottom-dock .tab.active{
  color:#7bf7f1;border-color:#29969d5d;
@@ -2125,3 +2126,8 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .favorite-radar-link{right:74px;max-width:calc(100% - 90px);font-size:9px}
  .favorite-card.has-radar-update .favorite-explain{font-size:9px;padding:3px 5px}
 }
+
+/* Navigation: favorites start the Overview; five destinations fit on one mobile row. */
+#overview-favorites-anchor{scroll-margin-top:10px}
+.bottom-dock .tab>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:360px){.tabs.bottom-dock{gap:2px;padding:7px 5px}.bottom-dock .dock-icon{font-size:20px}}
