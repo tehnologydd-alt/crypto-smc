@@ -4,6 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {once} from 'node:events';
+import {request} from 'node:http';
 import {providerRequest,normalizeProviderNews,createNewsGateway,
  startLocalGateway} from './news-gateway.mjs';
 test('fixed hosts and exact supported coins only',()=>{
@@ -95,8 +96,14 @@ test('loopback endpoints return sanitized status and reject cross-origin access'
   const hostile=await fetch(url+'/v1/news?coin=BTC&provider=newsdata',{
    headers:{Origin:'https://untrusted.example'}});
   assert.equal(hostile.status,403);
-  const spoof=await fetch(url+'/v1/status',{headers:{Host:'untrusted.example'}});
-  assert.equal(spoof.status,403);
+  const spoofStatus=await new Promise((done,fail)=>{
+   const req=request({hostname:'127.0.0.1',port,path:'/v1/status',
+    headers:{Host:'untrusted.example'}},res=>{
+    res.resume();done(res.statusCode);
+   });
+   req.on('error',fail);req.end();
+  });
+  assert.equal(spoofStatus,403);
   assert.equal(hostile.headers.get('access-control-allow-origin'),null);
  }finally{await new Promise((done)=>server.close(done));}
 });
