@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {once} from 'node:events';
 import {request} from 'node:http';
-import {providerRequest,normalizeProviderNews,createNewsGateway,
+import {providerRequest,parseProviderPublicationDate,normalizeProviderNews,createNewsGateway,
  startLocalGateway} from './news-gateway.mjs';
 test('fixed hosts and exact supported coins only',()=>{
  assert.equal(providerRequest('evil','BTC','key'),null);
@@ -15,7 +15,10 @@ test('fixed hosts and exact supported coins only',()=>{
  assert.equal(cp.searchParams.get('currencies'),'BTC');
  const nd=providerRequest('newsdata','ETH','secret');
  assert.equal(nd.hostname,'newsdata.io');
- assert.equal(nd.searchParams.get('qInTitle'),'Ethereum');
+ assert.equal(nd.pathname,'/api/1/crypto');
+ assert.equal(nd.searchParams.get('coin'),'eth');
+ assert.equal(nd.searchParams.get('timezone'),'Etc/UTC');
+ assert.equal(nd.searchParams.get('timeframe'),'48');
 });
 test('missing keys do not trigger remote requests',async()=>{
  const g=createNewsGateway({env:{},fetchImpl:()=>{throw Error('network called');}});
@@ -138,4 +141,30 @@ test('exact HTTPS reverse-proxy origin works, cross-site browsers stay forbidden
  }finally{await new Promise(done=>server.close(done));}
  assert.throws(()=>startLocalGateway({proxyOrigin:'http://research.example'}),
   /Invalid HTTPS proxy origin/);
+});
+
+test('news publication timestamps use explicit UTC and reject ambiguous dates',()=>{
+ const t=Date.UTC(2026,10,9,12,30);
+ assert.equal(parseProviderPublicationDate('2026-11-09 12:30:00','newsdata'),t);
+ assert.equal(parseProviderPublicationDate('2026-11-09T12:30:00Z','newsdata'),t);
+ assert.equal(Number.isNaN(parseProviderPublicationDate('2026-11-09 12:30','newsdata')),true);
+ assert.equal(Number.isNaN(parseProviderPublicationDate('2026-11-09 12:30:00','cryptopanic')),true);
+ const r=normalizeProviderNews('newsdata',{results:[{
+  title:'Bitcoin network industry news update',link:'https://publisher.example/bitcoin',
+  pubDate:'2026-11-09 12:29:00'
+ }]},t);
+ assert.equal(r.state,'OK');
+ assert.equal(r.articles[0].observedAt,t-60_000);
+});
+test('expired credentials, provider prohibitions and 429 are distinct statuses',async()=>{
+ for(const [http,status] of [[401,'INVALID_CREDENTIALS'],
+  [403,'FORBIDDEN_OR_LIMITED'],[429,'RATE_LIMITED']]){
+  const d=mkdtempSync(join(tmpdir(),'apex-http-'));
+  try{
+   const g=createNewsGateway({env:{APEX_NEWSDATA_KEY:'test-token'},
+    ledgerFile:join(d,'quota'),
+    fetchImpl:async()=>({status:http,ok:false})});
+   assert.equal((await g.load('newsdata','BTC')).state,status);
+  }finally{rmSync(d,{recursive:true,force:true});}
+ }
 });
