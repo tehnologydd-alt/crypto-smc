@@ -11,7 +11,7 @@ export function journalObservedStats(rows,{selectedIds=[],totalPublished=null,no
  const grouped=(records)=>{
   const result={total:records.length,waiting:0,confirmed:0,active:0,
    completed:0,within:0,outside:0,unverifiedDue:0,inconsistent:0,
-   verifiedOutcomes:0,directional:{published:0,tp3:0,stop:0,
+   verifiedOutcomes:0,directional:{published:0,tp1:0,tp2:0,tp3:0,stop:0,
     ambiguous:0,notEntered:0,horizon:0,pending:0}};
   for(const row of records){
    const stage=forecastStage(row);
@@ -23,6 +23,16 @@ export function journalObservedStats(rows,{selectedIds=[],totalPublished=null,no
     const planned=planDirectionalScenario(row,{now});
     if(planned.state!=='READY'){result.inconsistent++;continue;}
     result.directional.published++;
+    const stageEvents=Array.isArray(row.stageEvents)?row.stageEvents:[];
+    const publishedTouches=new Set(stageEvents.filter(event=>
+      event&&['TP1','TP2'].includes(event.stage)&&
+      Number.isSafeInteger(event.observedAt)&&
+      event.observedAt>planned.plan.publishedAt&&
+      event.observedAt<=planned.plan.targetCloseAt&&
+      Number.isSafeInteger(event.recordedAt)&&
+      event.recordedAt>=event.observedAt).map(event=>event.stage));
+    if(publishedTouches.has('TP1'))result.directional.tp1++;
+    if(publishedTouches.has('TP2'))result.directional.tp2++;
     const evaluation=row.evaluation;
     if(stage==='COMPLETED'&&evaluation&&
      Number.isSafeInteger(evaluation.evaluatedAt)&&evaluation.evaluatedAt<=now+60000&&
