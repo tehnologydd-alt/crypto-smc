@@ -71,6 +71,59 @@ export function parsePersonalProvider(provider,raw,now=Date.now()){
  }
  return {state:articles.length?'OK':'EMPTY',articles};
 }
+/**
+ * Explicit, quota-consuming test for exactly ONE provider on the phone.
+ * A cached hit does not consume another upstream request.
+ * Return only diagnostics, never raw API payloads or keys.
+ */
+export async function checkPersonalNewsProvider(provider,coin,{
+ plugin=native(),now=()=>Date.now()
+}={}){
+ if(!PROVIDERS.includes(provider)||!COINS.has(coin))
+  return {state:'UNSUPPORTED',provider,articleCount:0};
+ if(!plugin?.fetchPersonalNews)
+  return {state:'ANDROID_ONLY',provider,articleCount:0};
+ try{
+  const response=await plugin.fetchPersonalNews({provider,coin});
+  if(response?.state!=='OK'){
+   const allowed=new Set(['NOT_CONFIGURED','INVALID_CREDENTIALS',
+    'FORBIDDEN_OR_LIMITED','RATE_LIMITED','DAILY_LIMIT','MONTHLY_LIMIT',
+    'WAIT_INTERVAL','CLOCK_ERROR','STORAGE_UNAVAILABLE','OFFLINE',
+    'INVALID','UNSUPPORTED']);
+   const state=allowed.has(response?.state)?response.state:'INVALID';
+   const nextAt=Number.isSafeInteger(response?.nextAt)&&response.nextAt>0?
+    response.nextAt:null;
+   return {provider,state,articleCount:0,cached:false,nextAt};
+  }
+  const parsed=parsePersonalProvider(provider,response.raw,now());
+  return {provider,state:parsed.state,articleCount:parsed.articles.length,
+   cached:response.cached===true,
+   newestPublishedAt:parsed.articles.length?
+    Math.max(...parsed.articles.map(a=>a.observedAt)):null};
+ }catch{return {provider,state:'OFFLINE',articleCount:0,cached:false};}
+}
+export function personalNewsDiagnosticLabel(result){
+ const state=result?.state||'INVALID';
+ const labels={
+  OK:'Соединение работает',EMPTY:'Ответ получен · подходящих свежих публикаций нет',
+  NOT_CONFIGURED:'Ключ не настроен',INVALID_CREDENTIALS:'Неверный или недействующий ключ',
+  FORBIDDEN_OR_LIMITED:'Доступ или тариф не разрешает запрос',
+  RATE_LIMITED:'Ограничение запросов сервиса',
+  DAILY_LIMIT:'Внутренний суточный лимит исчерпан',
+  MONTHLY_LIMIT:'Внутренний месячный лимит исчерпан',
+  WAIT_INTERVAL:'Интервал между запросами не завершён',
+  CLOCK_ERROR:'Время устройства требует проверки',
+  STORAGE_UNAVAILABLE:'Защищённое хранилище недоступно',
+  OFFLINE:'Сервис или интернет недоступен',
+  INVALID:'Ответ не соответствует ожидаемому формату',
+  UNSUPPORTED:'Актив или источник не поддерживается',
+  ANDROID_ONLY:'Проверка работает только в Android'
+ };
+ const label=labels[state]||labels.INVALID;
+ if(state!=='OK')return label;
+ return label+' · публикаций '+result.articleCount+
+  (result.cached?' · кеш устройства':' · прямой ответ API');
+}
 export async function fetchPersonalNewsBundle(coin,{
  plugin=native(),now=()=>Date.now()
 }={}){
