@@ -49,3 +49,32 @@ test('simultaneous same-story checks share one upstream request',async()=>{
  assert.equal(requests,1);
  assert.deepEqual(a,c);
 });
+
+test('different M5 study variants never share a cached or in-flight result',async()=>{
+ let time=base,calls=0;
+ const b=createNewsM5Budget({storage:makeStore(),now:()=>time});
+ const first=await b.load('BTCUSDT',base-3600000,
+  async()=>{calls++;return{state:'OBSERVED',version:'SHORT'};},
+  {variant:'reaction'});
+ assert.equal(first.version,'SHORT');
+ const throttled=await b.load('BTCUSDT',base-3600000,
+  async()=>{calls++;return{state:'OBSERVED',version:'LONG'};},
+  {variant:'baseline'});
+ assert.equal(throttled.state,'WAIT_INTERVAL');
+ time+=2*60000;
+ const baseline=await b.load('BTCUSDT',base-3600000,
+  async()=>{calls++;return{state:'OBSERVED',version:'LONG'};},
+  {variant:'baseline'});
+ assert.equal(baseline.version,'LONG');
+ assert.equal(baseline.cached,false);
+ assert.equal(baseline.quota.used,2);
+ assert.equal(calls,2);
+ assert.equal((await b.load('BTCUSDT',base-3600000,
+  async()=>{throw Error('cache should be used')},
+  {variant:'reaction'})).version,'SHORT');
+ assert.equal((await b.load('BTCUSDT',base-3600000,
+  async()=>{throw Error('cache should be used')},
+  {variant:'baseline'})).version,'LONG');
+ assert.equal((await b.load('BTCUSDT',base-3600000,
+  async()=>{}, {variant:'unsupported'})).state,'INVALID');
+});
