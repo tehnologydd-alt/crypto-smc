@@ -1,4 +1,6 @@
 /** Provider adapters usable by Node and Cloudflare; no filesystem or credentials in browser. */
+const CONFIG=Object.freeze({cryptopanic:{env:'APEX_CRYPTOPANIC_TOKEN'},newsdata:{env:'APEX_NEWSDATA_KEY'}});
+const validCoin=/^(BTC|ETH|SOL|XRP|ADA|BNB|DOGE|LTC)$/;
 export function providerRequest(provider,coin,secret){
  if(!CONFIG[provider]||!validCoin.test(coin)||typeof secret!=='string'||!secret.trim())
   return null;
