@@ -11,6 +11,7 @@ import {sanitizeFavorites,journalCounts,forecastStage,
 import {attachSparkline} from './sparkline.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {directionalQualitySummary} from './forecast-quality.mjs';
+import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {planResearchLevels,analyzeResearchLevelSequence} from './research-level-sequence.mjs';
@@ -645,6 +646,7 @@ export function initFavoriteResearch({
   const scopedRows=journalMode==='tracked'?
    lastRows.filter(row=>selected.has(row.id)):lastRows;
   const comparisons=compareScenarioConditions(scopedRows,{now});
+  const byAsset=summarizeAssetQuality(scopedRows,{now,totalLoaded:lastTotal});
   id('forecast-quality-current-scope').textContent=
    journalMode==='tracked'?'Отмеченные':'Все прогнозы';
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
@@ -771,6 +773,32 @@ export function initFavoriteResearch({
     details.append(panel);
    }
    slot.append(study);
+   const detailByAsset=create('details','forecast-asset-comparison');
+   detailByAsset.append(create('summary','',
+    'По активам · '+byAsset.assets.length+' с направленными прогнозами'));
+   detailByAsset.append(create('p','forecast-quality-note',
+    'Сортировка по объёму наблюдений, а не доходности. '+
+    'TP1–TP3 — касания, SL — конечный исход.'));
+   if(byAsset.partial)detailByAsset.append(create('p','forecast-quality-warning',
+    'Частичная история: загружено '+byAsset.scanned+' из '+lastTotal+
+    ' записей журнала. Показатели не полные.'));
+   if(!byAsset.assets.length)detailByAsset.append(
+    create('p','forecast-quality-empty','Недостаточно M5-истории по активам.'));
+   for(const item of byAsset.assets){
+    const card=create('section','forecast-asset-quality-row');
+    card.append(create('strong','',item.symbol),
+     create('small','','Опубликовано '+item.published+
+      ' · с входом '+item.entered+' · завершено '+item.finished+
+      ' · ещё наблюдаются '+item.awaiting),
+     create('span','','TP1 '+item.tp1+' · TP2 '+item.tp2+
+      ' · TP3 '+item.tp3+' (касания)'),
+     create('span','','Завершения: TP3 '+item.tp3Outcome+
+      ' · SL '+item.stop+' · неопределённо '+item.ambiguous),
+     create('small','',item.note+(item.invalid||item.unverified?
+      ' · без проверки '+(item.invalid+item.unverified):'')));
+    detailByAsset.append(card);
+   }
+   slot.append(detailByAsset);
    const archived=create('section','forecast-quality-archive');
    archived.append(create('strong','forecast-quality-subtitle',
     'Общий журнал и архивные исследования'));

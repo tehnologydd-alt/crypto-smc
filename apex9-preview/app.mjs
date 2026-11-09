@@ -20,6 +20,7 @@ import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {routeAssetNews} from './market-event-router.mjs';
 import {fetchBlueskyPosts} from './social-public.mjs';
 import {createEditorialBudget} from './editorial-budget.mjs';
+import {createEventHistory} from './event-history.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
@@ -320,6 +321,7 @@ const editorialDashboard=initEditorialDashboard();
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
+const assetEventArchive=createEventHistory({storage:editorialStorage});
 const radarDashboard=initRadarDashboard({
  getCatalog:()=>catalog,
  onOpenAsset:symbol=>{void investigate(symbol);navigate('asset','structure');}
@@ -1049,6 +1051,35 @@ function appendLine(target,label,value){
  line.append(create('span','',label),create('strong','',value));
  target.append(line);
 }
+function showAssetEventHistory(){
+ const list=el('asset-event-history'),status=el('asset-event-history-status');
+ if(!list||!status)return;
+ clear(list);
+ const result=assetEventArchive.list({symbol:chosen,includeGlobal:true,limit:12});
+ if(result.state!=='OK'){
+  status.textContent='Локальная история недоступна';
+  list.append(create('p','muted','Сохранённые события проверить не удалось.'));
+  return;
+ }
+ status.textContent=chosen+' · найдено в истории '+result.total+
+  ' · показано '+result.events.length;
+ if(!result.events.length){
+  list.append(create('p','muted','История появится после ответов доступных источников.'));
+  return;
+ }
+ for(const event of result.events){
+  const row=create('article','apex-event-history-row');
+  const link=create('a','',event.title);
+  link.href=event.href;link.target='_blank';link.rel='noopener noreferrer';
+  const scope=event.kind==='MACRO'&&!event.assets.includes(chosen)?
+   'Общий макрофон':event.kind==='SOCIAL'?'Социальное обсуждение':
+    'Публикация об активе';
+  row.append(link,create('small','',scope+' · '+
+   new Date(event.eventAt).toLocaleString('ru-RU')+
+   ' · '+event.source+' · влияние не подтверждено'));
+  list.append(row);
+ }
+}
 async function loadAssetSocial(symbol){
  const list=el('asset-social-list'),state=el('asset-social-state');
  if(!symbol||!list||!state)return;
@@ -1057,6 +1088,8 @@ async function loadAssetSocial(symbol){
  const result=await assetNewsBudget.load('social',
   ()=>fetchBlueskyPosts(symbol),{key:symbol});
  if(symbol!==chosen)return;
+ assetEventArchive.captureAsset(symbol,{social:result});
+ showAssetEventHistory();
  if(!['OK','EMPTY','STALE'].includes(result.state)){
   state.textContent='Bluesky · '+result.state+
    ' · запросов '+(result.quota?.used??'—')+'/6 за сутки';
@@ -1090,6 +1123,7 @@ function renderContext(context){
   clear(el('asset-news-list'));
   text('asset-news-state','Нет проверенных упоминаний актива.');
   el('asset-news-list').append(create('p','muted','Источники по активу пока не проверены.'));
+  showAssetEventHistory();
   text('external-summary','Внешние источники не были получены.');
   return;
  }
@@ -1127,6 +1161,8 @@ function renderContext(context){
   'mempool.space: '+(b?.state||'OFFLINE')+(b?.error?' · '+b.error:'')));
  const n=data['gdelt-news'];
  const targeted=routeAssetNews(chosen,n,{max:5});
+ assetEventArchive.captureAsset(chosen,{news:n});
+ showAssetEventHistory();
  const assetEvents=el('asset-news-list');
  clear(assetEvents);
  text('asset-news-state',n?.state==='STALE'?
