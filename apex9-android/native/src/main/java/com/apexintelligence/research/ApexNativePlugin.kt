@@ -6,6 +6,12 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import android.view.WindowManager
+import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +40,13 @@ class ApexNativePlugin : Plugin() {
                 result.put("native", true)
                 result.put("asset", prefs.asset)
                 result.put("backgroundSyncEnabled", prefs.backgroundSyncEnabled)
+                result.put("forecastAlertsEnabled", prefs.forecastAlertsEnabled)
+                result.put("alertLimitReady", prefs.alertLimitReady)
+                result.put("alertTargets", prefs.alertTargets)
+                result.put("alertStop", prefs.alertStop)
+                result.put("keepScreenOn", prefs.keepScreenOn)
+                result.put("notificationPermissionGranted", notificationPermission(app))
+                applyKeepScreenOn(prefs.keepScreenOn)
                 val favoriteItems = JSArray()
                 for (favorite in prefs.favorites) favoriteItems.put(favorite)
                 result.put("favorites", favoriteItems)
@@ -691,11 +704,37 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    private fun notificationPermission(app: android.content.Context): Boolean {
+        return NotificationManagerCompat.from(app).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED)
+    }
+
+    private fun applyKeepScreenOn(enabled: Boolean) {
+        activity?.runOnUiThread {
+            if (enabled)
+                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     @PluginMethod
     fun setSettings(call: PluginCall) {
         val asset = call.getString("asset")
         val enabled = if (call.data.has("backgroundSyncEnabled"))
             call.data.optBoolean("backgroundSyncEnabled") else null
+        val alertsEnabled = if (call.data.has("forecastAlertsEnabled"))
+            call.data.optBoolean("forecastAlertsEnabled") else null
+        val alertLimit = if (call.data.has("alertLimitReady"))
+            call.data.optBoolean("alertLimitReady") else null
+        val alertTargets = if (call.data.has("alertTargets"))
+            call.data.optBoolean("alertTargets") else null
+        val alertStop = if (call.data.has("alertStop"))
+            call.data.optBoolean("alertStop") else null
+        val keepScreenOn = if (call.data.has("keepScreenOn"))
+            call.data.optBoolean("keepScreenOn") else null
         if (asset != null && !assetRegex.matches(asset)) {
             call.reject("Invalid asset")
             return
@@ -703,11 +742,25 @@ class ApexNativePlugin : Plugin() {
         tasks.launch {
             try {
                 val app = context.applicationContext
-                val settings = ApexPreferences.update(app, asset, enabled)
+                if (alertsEnabled == true && !notificationPermission(app)) {
+                    call.reject("Разрешите уведомления для APEX в Android")
+                    return@launch
+                }
+                val settings = ApexPreferences.update(
+                    app, asset, enabled, alertsEnabled, alertLimit,
+                    alertTargets, alertStop, keepScreenOn
+                )
                 ApexSyncScheduler.reconcile(app, settings.backgroundSyncEnabled)
+                applyKeepScreenOn(settings.keepScreenOn)
                 val result = JSObject()
                 result.put("asset", settings.asset)
                 result.put("backgroundSyncEnabled", settings.backgroundSyncEnabled)
+                result.put("forecastAlertsEnabled", settings.forecastAlertsEnabled)
+                result.put("alertLimitReady", settings.alertLimitReady)
+                result.put("alertTargets", settings.alertTargets)
+                result.put("alertStop", settings.alertStop)
+                result.put("keepScreenOn", settings.keepScreenOn)
+                result.put("notificationPermissionGranted", notificationPermission(app))
                 call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Could not save native settings: " + (e.message ?: "unknown"))

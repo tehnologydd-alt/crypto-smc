@@ -15,7 +15,7 @@ const javaRoot=join(appRoot,'src/main/java');
 const nativeRoot=join(project,'native/src/main/java/com/apexintelligence/research');
 if(!existsSync(appGradle)||!existsSync(rootGradle)||!existsSync(javaRoot))
  throw Error('Run npx cap add android first');
-const nativeFiles=['ApexDatabase.kt','ApexPreferences.kt','ApexSyncWorker.kt','ApexNativePlugin.kt','ApexAutoForecast.kt','ApexDirectionalForecast.kt','ApexM5Evaluation.kt','ApexResearchLevels.kt','ApexHistoricalBackfill.kt'];
+const nativeFiles=['ApexDatabase.kt','ApexPreferences.kt','ApexSyncWorker.kt','ApexNativePlugin.kt','ApexAutoForecast.kt','ApexDirectionalForecast.kt','ApexM5Evaluation.kt','ApexResearchLevels.kt','ApexHistoricalBackfill.kt','ApexForecastNotifier.kt'];
 for(const file of nativeFiles)if(!existsSync(join(nativeRoot,file)))throw Error('Native Kotlin file missing: '+file);
 
 let root=readFileSync(rootGradle,'utf8');
@@ -130,4 +130,14 @@ if(main.endsWith('.java')){
 }
 if(!readFileSync(main,'utf8').includes('registerPlugin(ApexNativePlugin'))
  throw Error('Native plugin registration missing');
+// Explicit runtime notification permission; actual request is user-initiated
+// through Capacitor LocalNotifications in the settings dialog.
+const manifest=join(appRoot,'src/main/AndroidManifest.xml');
+let manifestXml=readFileSync(manifest,'utf8');
+if(!manifestXml.includes('android.permission.POST_NOTIFICATIONS')){
+ if(!manifestXml.includes('</manifest>'))throw Error('Android manifest invalid');
+ manifestXml=manifestXml.replace('</manifest>',
+  '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>');
+ writeFileSync(manifest,manifestXml);
+}
 console.log('APEX Android Kotlin foundation injected: Room, DataStore, WorkManager, Capacitor bridge');
