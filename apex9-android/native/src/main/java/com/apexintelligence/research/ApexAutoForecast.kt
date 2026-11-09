@@ -122,17 +122,25 @@ object ApexAutoForecast {
         // Retain up to 180 days of genuine H1 bars; no synthetic backfill.
         dao.pruneCandles(asset, "1h", max(0L, rows.last().openTime - 4_320L * STEP))
 
-        val latest = dao.latestResearchForecast(asset)
-        if (latest != null) {
-            val stage = when {
-                latest.hypothesisJson.contains(ApexDirectionalForecast.METHOD) ->
-                    ApexDirectionalForecast.progress(latest, dao, now)
-                latest.hypothesisJson.contains(METHOD) ->
-                    progress(latest, dao, now)
-                else -> "UNKNOWN"
+        // Legacy V1 has no published direction or committed TP/SL. Keep its
+        // historical 4H observations intact, but NEVER let an unfinished range
+        // prevent the first V2 directional hypothesis on a newer H1 close.
+        val legacy = dao.latestLegacyRangeForecast(asset)
+        if (legacy != null && dao.researchResult(legacy.id) == null) {
+            try {
+                progress(legacy, dao, now)
+            } catch (_: org.json.JSONException) {
+                // A malformed archived V1 record is never silently converted
+                // into a V2 prediction; leave it in Room for separate review.
             }
-            if (stage != "COMPLETED" && stage != "UNKNOWN")
-                return Report(asset, "UPDATED", stage, "Проверены реальные H1-свечи и контрольные уровни")
+        }
+        // Only the directional model enforces "one current study per asset".
+        val latest = dao.latestDirectionalForecast(asset)
+        if (latest != null) {
+            val stage = ApexDirectionalForecast.progress(latest, dao, now)
+            if (stage != "COMPLETED")
+                return Report(asset, "UPDATED", stage,
+                    "Направленный сценарий уже наблюдается по реальным H1")
         }
         // A new candidate is created only on a newly observed, CURRENT closed H1 bar.
         val last = recent.last()
