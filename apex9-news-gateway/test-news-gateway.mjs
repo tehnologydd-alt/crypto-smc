@@ -107,3 +107,16 @@ test('loopback endpoints return sanitized status and reject cross-origin access'
   assert.equal(hostile.headers.get('access-control-allow-origin'),null);
  }finally{await new Promise((done)=>server.close(done));}
 });
+
+test('CryptoPanic links prefer the original news publisher over aggregator mirrors',()=>{
+ const t=Date.UTC(2026,10,9,12);
+ const r=normalizeProviderNews('cryptopanic',{results:[{
+  title:'Bitcoin infrastructure industry update',
+  original_url:'https://publisher.example/bitcoin',
+  url:'https://cryptopanic.com/news/example',
+  published_at:new Date(t-1000).toISOString()
+ }]},t);
+ assert.equal(r.state,'OK');
+ assert.equal(r.articles[0].href,'https://publisher.example/bitcoin');
+ assert.equal(r.articles[0].domain,'publisher.example');
+});
