@@ -296,6 +296,7 @@
       </article>
       <article class="card block forecast-workspace">
         <div class="section-title"><h3>Журнал сценариев</h3><span>Только реальные наблюдения</span></div>
+        <p class="muted">В каждой карточке есть опорная цена, условные TP1–TP3 и защитный уровень для двух направлений. По запросу APEX покажет последовательность касаний в закрытых H1; неоднозначные часы не засчитываются как известный порядок.</p>
         <div class="forecast-mode-tabs" role="group" aria-label="Какие сценарии показывать">
           <button class="forecast-mode selected" data-forecast-mode="all" aria-pressed="true" type="button">Все</button>
           <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
@@ -314,7 +315,7 @@
         <div class="section-title"><h3>Статистика наблюдений</h3><span>Все / отмеченные</span></div>
         <div id="forecast-stat-all" class="forecast-observation-stat"></div>
         <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
-        <p class="footnote">Засчитываются только зафиксированные фактические исходы. Срок наблюдения без данных не считается ни успехом, ни отменой. Цели наблюдения не являются тейк-профитами или торговыми ордерами.</p>
+        <p class="footnote">Итоговые исходы исходных гипотез считаются только по проверенным закрытым H1. Новые условные уровни TP1–TP3/SL — отдельное исследование исторической траектории, а не биржевые ордера или подтверждение доходности. Восстановленные задним числом уровни старых прогнозов не входят в точность прогнозов.</p>
       </article>
     </section>
 
