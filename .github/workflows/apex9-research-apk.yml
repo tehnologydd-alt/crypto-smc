@@ -61,6 +61,7 @@ jobs:
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
+          node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/research.mjs
           node --check apex9-preview/context-sources.mjs
           node --check apex9-preview/mobile-bridge.mjs
