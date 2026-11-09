@@ -2482,3 +2482,22 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .topbar .brand{font-size:15px}
  .topbar .brand-sub{display:none}
 }
+
+/* APEX source-derived local event history: compact, opt-in disclosure */
+.apex-event-history-details{margin:13px 0;border-top:1px solid #365661;padding-top:12px}
+.apex-event-history-details summary,.forecast-asset-comparison summary{
+ cursor:pointer;color:#b5e7e3;font-size:12px;font-weight:700;line-height:1.6}
+.apex-event-history-list{display:grid;gap:8px;margin:11px 0}
+.apex-event-history-row{display:grid;gap:5px;padding:10px 12px;
+ border:1px solid #315461;border-radius:11px;background:#0d2732;min-width:0}
+.apex-event-history-row a{color:#d9f6f1;overflow-wrap:anywhere;
+ font-size:12px;text-decoration:none;line-height:1.5}
+.apex-event-history-row small{color:#9abec6;font-size:10px;line-height:1.45}
+.forecast-asset-comparison{border:1px solid #395565;border-radius:13px;
+ padding:12px;margin:12px 0;background:#101e2b}
+.forecast-asset-quality-row{display:grid;gap:5px;padding:10px 0;
+ border-bottom:1px solid #345161}
+.forecast-asset-quality-row:last-child{border-bottom:0}
+.forecast-asset-quality-row strong{font-size:13px;color:#d9f4ef}
+.forecast-asset-quality-row small{font-size:10px;color:#9dc4c5;line-height:1.5}
+.forecast-asset-quality-row span{font-size:11px;color:#c8dde0}

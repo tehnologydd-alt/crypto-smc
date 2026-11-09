@@ -8,6 +8,7 @@ import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
 import {fetchScheduledEventReaction} from './macro-event-reaction.mjs';
 import {routeGlobalEvents} from './market-event-router.mjs';
+import {createEventHistory} from './event-history.mjs';
 const get=id=>document.getElementById(id);
 const node=(tag,cls='',content)=>{
  const x=document.createElement(tag);
@@ -30,6 +31,7 @@ export function initEditorialDashboard(){
  let storage=null;
  try{storage=window.localStorage;}catch{}
  const budget=createEditorialBudget({storage});
+ const archive=createEventHistory({storage});
  let active=0,controller=null;
  function showFeed(mode,r){
   const list=get('editorial-'+mode+'-list'),status=get('editorial-'+mode+'-status');
@@ -164,6 +166,34 @@ export function initEditorialDashboard(){
    list.append(box);
   }
  }
+ function showEventHistory(){
+  const status=get('overview-event-history-status'),
+   target=get('overview-event-history');
+  if(!status||!target)return;
+  target.replaceChildren();
+  const saved=archive.list({limit:12});
+  if(saved.state!=='OK'){
+   status.textContent='Локальный архив недоступен';
+   target.append(node('p','muted','Не удалось проверить сохранённые события.'));
+   return;
+  }
+  status.textContent='Сохранено на этом устройстве: '+saved.stored+
+   ' · показано: '+saved.events.length;
+  if(!saved.events.length)target.append(node('p','muted',
+   'История будет пополняться после получения публикаций.'));
+  for(const event of saved.events){
+   const card=node('article','apex-event-history-row');
+   const link=node('a','',event.title);
+   link.href=event.href;link.rel='noopener noreferrer';link.target='_blank';
+   const label=event.kind==='MACRO'?'Макро':event.kind==='SCHEDULE'?
+    'План BLS':event.kind==='SOCIAL'?'Соцсети':'Новости';
+   card.append(link,node('small','',
+    label+' · '+niceTime(event.eventAt)+' · '+event.source+
+    (event.timeKind==='SCHEDULED'?' · событие только запланировано':'')+
+    ' · влияние не доказано'));
+   target.append(card);
+  }
+ }
  async function open(mode,{force=false}={}){
   if(!['news','macro'].includes(mode))return;
   const seq=++active;
@@ -189,7 +219,10 @@ export function initEditorialDashboard(){
    const results=await Promise.all(queries);
    if(seq!==active)return;
    showFeed(mode,results[0]);
+   if(mode==='news')archive.captureGlobal({news:results[0]});
    if(mode==='macro'){
+    archive.captureGlobal({macro:results[0],calendar:results[2]});
+    showEventHistory();
     showIndicators(results[1]);
     showCalendar(results[2]);
    }
@@ -216,6 +249,8 @@ export function initEditorialDashboard(){
    budget.load('calendar',()=>loadBlsCalendar())
   ]);
   list.replaceChildren();
+  archive.captureGlobal({news,macro,calendar});
+  showEventHistory();
   const results=routeGlobalEvents(news,macro,calendar,{now:Date.now(),max:5});
   const sourceStates=[news,macro,calendar].map(x=>x.state).join(' · ');
   status.textContent='GDELT / BLS · тематическая подборка, не доказанное влияние · '+
