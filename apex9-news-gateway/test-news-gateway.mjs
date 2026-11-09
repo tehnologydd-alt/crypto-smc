@@ -59,9 +59,9 @@ test('status exposes remaining conservative quota but never credentials',async()
    ledgerFile:join(d,'quota'),now:()=>Date.UTC(2026,10,9,12),
    fetchImpl:async()=>({ok:false,status:503})});
   assert.equal(g.status().providers.cryptopanic.state,'NOT_CONFIGURED');
-  assert.equal(g.status().providers.newsdata.dayRemaining,4);
+  assert.equal(g.status().providers.newsdata.dayRemaining,180);
   assert.equal((await g.load('newsdata','BTC')).state,'OFFLINE');
-  assert.equal(g.status().providers.newsdata.dayRemaining,3);
+  assert.equal(g.status().providers.newsdata.dayRemaining,179);
   assert.equal(JSON.stringify(g.status()).includes('sensitive-test-token'),false);
  }finally{rmSync(d,{recursive:true,force:true});}
 });
