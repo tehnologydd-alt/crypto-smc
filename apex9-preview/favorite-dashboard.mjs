@@ -5,7 +5,7 @@
  */
 import {getMobileFavorites,changeMobileFavorite,
  syncMobileFavoriteResearch,getMobileResearchForecasts,getMobileCandles,
- getMobileCandleArchive} from './mobile-bridge.mjs';
+ getMobileCandleArchive,getMobileM5Window} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
@@ -99,6 +99,29 @@ async function sourceH1(asset){
    return data;
   }).finally(()=>H1_INFLIGHT.delete(asset));
  H1_INFLIGHT.set(asset,request);
+ return request;
+}
+const M5_WINDOW_CACHE=new Map(),M5_INFLIGHT=new Map();
+/** Exactly the closed M5 bars belonging to the published 24h scenario. */
+async function sourceM5(plan){
+ const STEP=300000;
+ const start=plan.anchorCloseAt+1;
+ const end=Math.min(plan.targetCloseAt+1,
+  Math.floor(Date.now()/STEP)*STEP);
+ if(end<=start)return {native:true,complete:true,candles:[]};
+ const key=plan.asset+':'+start+':'+end;
+ const cached=M5_WINDOW_CACHE.get(key);
+ if(cached&&Date.now()-cached.at<45000)return cached.data;
+ if(M5_INFLIGHT.has(key))return M5_INFLIGHT.get(key);
+ const request=getMobileM5Window(plan.asset,start,end)
+  .then(data=>{
+   if(data.native&&data.complete&&!data.error){
+    if(M5_WINDOW_CACHE.size>35)M5_WINDOW_CACHE.clear();
+    M5_WINDOW_CACHE.set(key,{at:Date.now(),data});
+   }
+   return data;
+  }).finally(()=>M5_INFLIGHT.delete(key));
+ M5_INFLIGHT.set(key,request);
  return request;
 }
 const LEVEL_LABEL={tp1:'TP1',tp2:'TP2',tp3:'TP3',sl:'SL'};
@@ -239,7 +262,7 @@ async function copyResearchText(value){
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  if(directionalHypothesis(row))
   return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
-   sourceH1,copyText:copyResearchText});
+   sourceH1,sourceM5,copyText:copyResearchText});
  return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
 }
 function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
