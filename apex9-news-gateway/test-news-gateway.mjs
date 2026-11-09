@@ -120,3 +120,22 @@ test('CryptoPanic links prefer the original news publisher over aggregator mirro
  assert.equal(r.articles[0].href,'https://publisher.example/bitcoin');
  assert.equal(r.articles[0].domain,'publisher.example');
 });
+
+test('exact HTTPS reverse-proxy origin works, cross-site browsers stay forbidden',async()=>{
+ const g=createNewsGateway({env:{}});
+ const server=startLocalGateway({port:0,gateway:g,proxyOrigin:'https://research.example'});
+ try{
+  await once(server,'listening');
+  const url='http://127.0.0.1:'+server.address().port+'/v1/status';
+  const good=await fetch(url,{headers:{
+   Origin:'https://research.example','Sec-Fetch-Site':'same-origin'}});
+  assert.equal(good.status,200);
+  const foreign=await fetch(url,{headers:{
+   Origin:'https://untrusted.example','Sec-Fetch-Site':'same-origin'}});
+  assert.equal(foreign.status,403);
+  const crossSite=await fetch(url,{headers:{'Sec-Fetch-Site':'cross-site'}});
+  assert.equal(crossSite.status,403);
+ }finally{await new Promise(done=>server.close(done));}
+ assert.throws(()=>startLocalGateway({proxyOrigin:'http://research.example'}),
+  /Invalid HTTPS proxy origin/);
+});
