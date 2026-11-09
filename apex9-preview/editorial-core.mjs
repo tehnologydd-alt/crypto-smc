@@ -3,6 +3,7 @@
  * Priority means recency/relevance and domain diversity, not verified impact.
  */
 import {parseGdeltDate} from './context-sources.mjs';
+import {consolidateArticles} from './news-source-fusion.mjs';
 const API='https://api.gdeltproject.org/api/v2/doc/doc';
 const TOPICS=Object.freeze({
  news:'(cryptocurrency OR bitcoin OR ethereum OR blockchain) (regulation OR adoption OR ETF OR hack OR exchange OR market)',
@@ -30,12 +31,7 @@ export function parseEditorialFeed(raw,{mode,now}={}){
    language:String(item.language||'').slice(0,24)});
  }
  rank.sort((a,b)=>b.observedAt-a.observedAt||a.domain.localeCompare(b.domain));
- const domains=new Map(),output=[];
- for(const a of rank){
-  if((domains.get(a.domain)||0)>=2)continue;
-  domains.set(a.domain,(domains.get(a.domain)||0)+1);
-  output.push(a);if(output.length>=18)break;
- }
+ const output=consolidateArticles(rank,{limit:18,perDomain:2});
  return {state:output.length?'OK':'EMPTY',articles:output,
   note:'GDELT index articles from the last 48h; editorial importance or price effects unverified'};
 }
