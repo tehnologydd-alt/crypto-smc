@@ -1711,3 +1711,58 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  min-height:44px;flex:1 1 170px}
 #asset-workspace-anchor,#quality-workspace-anchor{
  scroll-margin-top:6px}
+
+/* Forecast audit: immutable conditional TP1-TP3 / SL research reference */
+.forecast-level-study{margin:11px 0 12px;padding:12px;
+ background:#0e2b35;border:1px solid #356975;border-radius:14px}
+.forecast-level-heading{display:flex;justify-content:space-between;
+ align-items:baseline;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.forecast-level-heading>strong{font-size:12px;color:#d9f7ed}
+.forecast-level-origin{font-size:10px;line-height:1.45;
+ color:#a8c9cb;overflow-wrap:anywhere}
+.forecast-level-reference{display:flex;flex-wrap:wrap;gap:6px;
+ justify-content:space-between;align-items:baseline;padding:9px 8px;
+ border:1px solid #37616b;border-radius:9px;background:#123943}
+.forecast-level-reference span{color:#afcacc;font-size:10px;line-height:1.55}
+.forecast-level-reference strong{color:#e2f7ed;font-size:12px;
+ font-variant-numeric:tabular-nums}
+.forecast-level-sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;margin:10px 0}
+.forecast-level-side{min-width:0;padding:10px 7px;
+ background:#102f3b;border-radius:11px;border:1px solid #355c69}
+.forecast-level-side-title{display:block;font-size:11px;
+ margin:0 0 9px;color:#d7f5ec}
+.forecast-level-line{display:flex;justify-content:space-between;
+ align-items:baseline;flex-wrap:wrap;gap:5px;padding:6px 2px;
+ border-top:1px solid #2d535f}
+.forecast-level-line span{font-size:10px;color:#a7c6c9}
+.forecast-level-line strong{font-size:11px;color:#d9f3e8;
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.forecast-level-line.is-protective{border-top-color:#7d6856}
+.forecast-level-line.is-protective strong{color:#e4caa8}
+.forecast-level-note,.forecast-level-caution{
+ font-size:10px;line-height:1.7;color:#abc6c9;margin:10px 0}
+.forecast-level-warning{font-size:11px;line-height:1.6;color:#e4c198;
+ overflow-wrap:anywhere}
+.forecast-level-check{display:block;width:100%;min-height:44px;
+ background:#15505b;color:#e0f8ed;border:1px solid #40959d;
+ border-radius:10px;padding:10px 12px;font-size:11px;font-weight:720;
+ cursor:pointer}
+.forecast-level-check:disabled{opacity:.55;cursor:wait}
+.forecast-level-outcome{margin-top:10px}
+.forecast-level-path{border:1px solid #3b6270;border-radius:11px;
+ padding:10px;background:#12313d;margin:9px 0}
+.forecast-level-path>strong{display:block;font-size:11px;
+ color:#d6f2e8;line-height:1.5}
+.forecast-level-path>small{display:block;font-size:10px;
+ color:#9fc5c9;margin-top:6px;line-height:1.65}
+.forecast-level-event{display:flex;align-items:baseline;
+ justify-content:space-between;flex-wrap:wrap;gap:6px;padding:7px 0;
+ border-top:1px solid #315761;color:#d0e8e6;font-size:10px;
+ line-height:1.55}
+.forecast-level-event>span:last-child{color:#a2c3c7}
+@media(max-width:355px){
+ .forecast-level-sides{gap:5px}
+ .forecast-level-side{padding:10px 5px}
+ .forecast-level-line strong{font-size:10px}
+}
