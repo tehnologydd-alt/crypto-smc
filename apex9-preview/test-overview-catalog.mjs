@@ -80,3 +80,10 @@ test('overview has market-wide events, while asset data carries separate news an
  assert.ok(app.includes('fetchBlueskyPosts('));
  assert.ok(app.includes('editorialDashboard.openOverview()'));
 });
+
+test('settings gear follows the source indicator as rightmost header button',()=>{
+ const header=html.slice(html.indexOf('<header class="topbar">'),
+  html.indexOf('</header>'));
+ assert.ok(header.indexOf('id="top-status"')<header.indexOf('id="apex-settings-open"'));
+ assert.ok(css.includes('.topbar .top-status{order:0!important'));
+});
