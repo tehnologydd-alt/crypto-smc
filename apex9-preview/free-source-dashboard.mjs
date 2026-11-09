@@ -5,7 +5,7 @@ import {createFreeSourceBudget,FREE_POLICY} from './free-source-budget.mjs';
 import {fetchFearGreed,fetchDexPairs,fetchGeckoPools,
  fetchOkxTicker,dexTokenReference,fetchPaprikaTicker} from './free-source-adapters.mjs';
 import {KEYED_NEWS_PROVIDERS} from './news-source-fusion.mjs';
-import {personalNewsStatus} from './personal-news-client.mjs';
+import {personalNewsStatus,personalNewsDiagnosticLabel} from './personal-news-client.mjs';
 import {initPersonalNewsControls} from './personal-news-controls.mjs';
 import {fetchCmcKeyless} from './cmc-keyless.mjs';
 import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
@@ -35,6 +35,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const latest=new Map();
  let assetSeq=0,globalSeq=0;
  let personalNews={native:false,providers:{}};
+ const personalChecks=new Map();
  let assetMeasurements=null,contextMeasurements=null,marketMeasurements=null;
  let fearMeasurement=null,socialMeasurement=null;
  function annotate(mode,r){
@@ -82,9 +83,11 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    const p=KEYED_NEWS_PROVIDERS[id];
    const row=div('article','free-source-center-row');
    const configured=personalNews.native&&personalNews.providers?.[id]?.configured;
+   const tested=personalChecks.get(id);
    row.append(div('strong','',name),
     div('span','',terms),
-    div('small','',configured?'Личный ключ сохранён в Android · ответ API ещё не проверен':
+    div('small','',tested?'Проверка API: '+personalNewsDiagnosticLabel(tested):
+     configured?'Личный ключ сохранён в Android · ответ API ещё не проверен':
      access+' · '+p.state));
    container.append(row);
   }
@@ -241,7 +244,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   personalNews=await personalNewsStatus();
   refreshCenter();
  }
- initPersonalNewsControls({onChange:()=>void refreshPersonalStatus()});
+ initPersonalNewsControls({getSymbol,
+  onChange:()=>{personalChecks.clear();void refreshPersonalStatus();},
+  onTest:(provider,result)=>{personalChecks.set(provider,result);refreshCenter();}});
  void refreshPersonalStatus();
  el('free-fear-refresh')?.addEventListener('click',()=>void openOverview());
  el('free-asset-market-refresh')?.addEventListener('click',
