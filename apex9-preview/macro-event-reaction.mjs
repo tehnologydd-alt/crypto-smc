@@ -12,9 +12,10 @@ const verifiedEvent=(e,now)=>e?.source==='BLS_OFFICIAL_CALENDAR'&&
  e.status==='SCHEDULED_NOT_RELEASED'&&Number.isSafeInteger(e.at)&&
  e.at>0&&e.at%FIVE===0&&e.at+FOUR<now&&
  now-e.at<=48*3600000;
-export function auditScheduledEventWindow(event,rows,{now=Date.now(),symbol='BTCUSDT'}={}){
- if(!['BTCUSDT','ETHUSDT'].includes(symbol)||!verifiedEvent(event,now))
-  return {state:'INELIGIBLE',reason:'Only fully observed, recent BLS schedule windows'};
+export function auditClosedM5Prices(anchorAt,rows,{now=Date.now()}={}){
+ if(!Number.isSafeInteger(anchorAt)||anchorAt<=0||anchorAt%FIVE!==0||
+  now<=anchorAt+FOUR)
+  return {state:'INELIGIBLE',reason:'Only fully closed, aligned M5 windows'};
  if(!Array.isArray(rows)||rows.length<49||rows.length>200)
   return {state:'INCOMPLETE',reason:'Missing complete 5-minute history'};
  const candleMap=new Map();
@@ -22,13 +23,15 @@ export function auditScheduledEventWindow(event,rows,{now=Date.now(),symbol='BTC
   if(!Array.isArray(row)||row.length<7)return {state:'INVALID'};
   const t=Number(row[0]),end=Number(row[6]);
   const o=Number(row[1]),h=Number(row[2]),l=Number(row[3]),c=Number(row[4]);
+  const v=Number(row[5]);
   if(!Number.isSafeInteger(t)||t%FIVE!==0||end!==t+FIVE-1||
    t>=now||end>=now||![o,h,l,c].every(cleanPrice)||
+   !Number.isFinite(v)||v<0||
    h<Math.max(o,l,c)||l>Math.min(o,h,c)||candleMap.has(t))
    return {state:'INVALID',reason:'Invalid or duplicate M5 bar'};
   candleMap.set(t,{open:o,high:h,low:l,close:c,end});
  }
- const start=event.at-FIVE, bars=[];
+ const start=anchorAt-FIVE, bars=[];
  for(let i=0;i<49;i++){
   const row=candleMap.get(start+i*FIVE);
   if(!row)return {state:'INCOMPLETE',
@@ -44,9 +47,16 @@ export function auditScheduledEventWindow(event,rows,{now=Date.now(),symbol='BTC
    lowestPercent:Number((100*(Math.min(...segment.map(b=>b.low))/base-1)).toFixed(4)),
    closedAt:end.end};
  });
- return {state:'OBSERVED',symbol,source:REACTION_SOURCE,
+ return {state:'OBSERVED',anchorAt,baselineClose:base,observations};
+}
+/** Only official planned releases receive an event label. Controls never do. */
+export function auditScheduledEventWindow(event,rows,{now=Date.now(),symbol='BTCUSDT'}={}){
+ if(!['BTCUSDT','ETHUSDT'].includes(symbol)||!verifiedEvent(event,now))
+  return {state:'INELIGIBLE',reason:'Only fully observed, recent BLS schedule windows'};
+ const result=auditClosedM5Prices(event.at,rows,{now});
+ if(result.state!=='OBSERVED')return result;
+ return {...result,symbol,source:REACTION_SOURCE,
   eventName:event.title,eventAt:event.at,eventSource:event.source,
-  baselineClose:base,observations,
   note:'Price movement after a scheduled event time, NOT proof of an announcement or its impact'};
 }
 export async function fetchScheduledEventReaction(event,{
