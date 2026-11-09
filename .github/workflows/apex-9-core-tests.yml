@@ -24,6 +24,10 @@ jobs:
           node-version: '22'
       - name: Multi-source evidence safety and fusion tests
         run: |
+          # Catch malformed or duplicated ESM source even when it is not imported by tests.
+          for module in apex9-preview/*.mjs apex9-news-gateway/*.mjs; do
+            node --check "$module"
+          done
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/prepare-web.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
