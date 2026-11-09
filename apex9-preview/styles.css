@@ -2131,3 +2131,16 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 #overview-favorites-anchor{scroll-margin-top:10px}
 .bottom-dock .tab>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:360px){.tabs.bottom-dock{gap:2px;padding:7px 5px}.bottom-dock .dock-icon{font-size:20px}}
+
+
+/* Native scroll stays usable on all axes until the user intentionally holds a card. */
+.asset-rail{touch-action:auto}
+.favorite-card.asset-chip{touch-action:auto!important}
+.favorite-card.favorite-armed{
+ touch-action:auto!important;
+ outline:2px solid #64e4c5;
+ outline-offset:-2px;
+}
+@media(prefers-reduced-motion:reduce){
+ .favorite-card.asset-chip{transition:none!important}
+}
