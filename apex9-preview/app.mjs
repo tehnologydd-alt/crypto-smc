@@ -678,7 +678,10 @@ const favoriteManager=initFavoriteResearch({
   navigate('asset');
  },
  onForecastStage:()=>navigate('forecasts'),
- onExplainSymbol:symbol=>openAssetExplanation(symbol)
+ onExplainSymbol:symbol=>openAssetExplanation(symbol),
+ onOpenRadar:(symbol,interval)=>{
+  if(radarDashboard.focus(symbol,interval))navigate('radar','radar-focus-panel');
+ }
 });
 void favoriteManager.initialize().then(()=>{
  if(document.body.dataset.view==='catalog')renderCatalog();
