@@ -9,6 +9,7 @@ on:
       - 'updates/test-v90-market-depth.mjs'
       - 'apex9-preview/**'
       - 'apex9-news-gateway/**'
+      - 'apex9-cloudflare/**'
       - '.github/workflows/apex-9-core-tests.yml'
   workflow_dispatch:
 permissions:
@@ -32,6 +33,9 @@ jobs:
           node --check apex9-android/scripts/prepare-web.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
           node --test apex9-news-gateway/test-news-gateway.mjs apex9-news-gateway/test-hosted-tools.mjs apex9-news-gateway/test-news-bridge.mjs
+          for module in apex9-cloudflare/*.mjs; do node --check "$module"; done
+          node --test apex9-cloudflare/test-worker.mjs
+          python3 apex9-cloudflare/test-sqlite-quota.py
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/favorite-dashboard.mjs
