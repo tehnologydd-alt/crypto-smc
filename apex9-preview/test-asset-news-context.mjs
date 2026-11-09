@@ -39,6 +39,8 @@ test('same article in GDELT and RSS is one story with both indexers',()=>{
  const r=buildAssetNewsContext('BTCUSDT',{gdelt,live},{now});
  assert.equal(r.stories.length,1);
  assert.deepEqual(r.stories[0].indexedBy,['GDELT','CoinDesk RSS']);
+ assert.equal(r.stories[0].timeKind,'PUBLISHED');
+ assert.equal(r.stories[0].observedAt,now-3600000);
 });
 test('unavailable connections do not become positive statuses or fabricated articles',()=>{
  const r=buildAssetNewsContext('SOLUSDT',{
