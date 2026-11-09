@@ -40,7 +40,7 @@ class QuotaTests(unittest.TestCase):
     def test_newsdata_headroom_and_ten_minute_gap(self):
         self.assertTrue(self.reserve("newsdata",START))
         self.assertFalse(self.reserve("newsdata",START+timedelta(minutes=9)))
-        for slot in range(1,180):
+        for slot in range(1,144):
             self.assertTrue(self.reserve("newsdata",START+timedelta(minutes=10*slot)))
         self.assertFalse(self.reserve("newsdata",START+timedelta(hours=23,minutes=59)))
         self.assertTrue(self.reserve("newsdata",START+timedelta(days=1)))
