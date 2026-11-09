@@ -52,7 +52,7 @@ export function normalizeProviderNews(provider,raw,now=Date.now()){
    now-timestamp>48*3600000||title.length<10)continue;
   articles.push({title,href:url.href,observedAt:timestamp,source:
    provider==='cryptopanic'?'CryptoPanic':'NewsData.io',
-   domain:url.hostname,notDirectionalEvidence:true});
+   domain:url.hostname,timeKind:'PUBLISHED',notDirectionalEvidence:true});
  }
  return {state:articles.length?'OK':'EMPTY',articles};
 }
