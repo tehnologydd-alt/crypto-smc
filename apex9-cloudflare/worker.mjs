@@ -6,13 +6,13 @@
  */
 import {providerRequest,normalizeProviderNews} from '../apex9-news-gateway/provider-core.mjs';
 import {consolidateArticles} from '../apex9-preview/news-source-fusion.mjs';
+import {NEWS_SOURCE_POLICY,sourceUsageDescription} from '../apex9-news-gateway/source-policy.mjs';
 const COINS=/^(BTC|ETH|SOL|XRP|ADA|BNB|DOGE|LTC)$/;
 const KEYS=Object.freeze({
  cryptopanic:'APEX_CRYPTOPANIC_TOKEN',
  newsdata:'APEX_NEWSDATA_KEY'
 });
-const SIX_HOURS=6*60*60*1000;
-const MAX_DAY=4,MAX_MONTH=100;
+
 const json=(body,status=200,extra={})=>new Response(JSON.stringify(body),{
  status,headers:{'Content-Type':'application/json; charset=utf-8',
  'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
@@ -55,9 +55,11 @@ async function readQuota(db,key,at){
   .bind(key).first();
  const usedDay=row?.day_key===day(at)?row.day_used:0;
  const usedMonth=row?.month_key===month(at)?row.month_used:0;
- return {usedDay,usedMonth,nextAt:row?.last_at?row.last_at+SIX_HOURS:0};
+ return {usedDay,usedMonth,nextAt:row?.last_at?row.last_at+NEWS_SOURCE_POLICY[key].gapMs:0};
 }
 export async function reserveQuota(db,key,at){
+ const policy=NEWS_SOURCE_POLICY[key];
+ if(!policy)return false;
  // One SQLite statement atomically reserves a counted outbound attempt.
  // If any limit is reached or storage is unavailable, fail closed.
  const stmt=`INSERT INTO news_quota
@@ -76,7 +78,7 @@ export async function reserveQuota(db,key,at){
   AND (news_quota.month_key<>excluded.month_key OR news_quota.month_used<?7)
  RETURNING provider`;
  const saved=await db.prepare(stmt).bind(key,day(at),month(at),at,
-  SIX_HOURS,MAX_DAY,MAX_MONTH).first();
+  policy.gapMs,policy.daily,policy.monthly).first();
  return Boolean(saved);
 }
 async function loadFromCache(db,provider,coin,at){
@@ -88,7 +90,7 @@ async function loadFromCache(db,provider,coin,at){
  let payload;
  try{payload=JSON.parse(item.payload);}catch{return null;}
  if(!Array.isArray(payload)||payload.length>60)return null;
- return {state:age<SIX_HOURS?'CACHED':'STALE',articles:payload};
+ return {state:age<NEWS_SOURCE_POLICY[provider].cacheMs?'CACHED':'STALE',articles:payload};
 }
 async function providerNews(provider,coin,env,at,fetchImpl){
  const secret=env[KEYS[provider]];
@@ -151,10 +153,12 @@ export async function statusResponse(env,{at=Date.now()}={}){
   }
   try{
    const q=await readQuota(env.DB,id,at);
+   const p=NEWS_SOURCE_POLICY[id];
    providers[id]={state:'READY',configured:true,
-    dayRemaining:Math.max(0,MAX_DAY-q.usedDay),
-    monthRemaining:Math.max(0,MAX_MONTH-q.usedMonth),
-    nextAt:q.nextAt};
+    dayRemaining:Math.max(0,p.daily-q.usedDay),
+    monthRemaining:Math.max(0,p.monthly-q.usedMonth),
+    nextAt:q.nextAt,
+    internalPolicy:sourceUsageDescription(id)};
   }catch{providers[id]={state:'STORAGE_UNAVAILABLE'};}
  }
  return {state:'OK',providers,scope:'SINGLE_USER_CLOUDFLARE_PILOT'};
