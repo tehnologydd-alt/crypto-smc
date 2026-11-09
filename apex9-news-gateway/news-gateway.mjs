@@ -31,13 +31,27 @@ export function providerRequest(provider,coin,secret){
   url.searchParams.set('currencies',coin);
   url.searchParams.set('kind','news');
  }else{
-  url=new URL('https://newsdata.io/api/1/latest');
+  url=new URL('https://newsdata.io/api/1/crypto');
   url.searchParams.set('apikey',secret);
-  url.searchParams.set('qInTitle',coin==='BTC'?'Bitcoin':
-   coin==='ETH'?'Ethereum':coin);
+  url.searchParams.set('coin',coin.toLowerCase());
   url.searchParams.set('language','en');
+  url.searchParams.set('timezone','Etc/UTC');
+  url.searchParams.set('timeframe','48');
+  url.searchParams.set('removeduplicate','1');
  }
  return url;
+}
+/** NewsData.io may return a timezone-naive pubDate when the request
+ * explicitly selects Etc/UTC. Interpret ONLY that documented response
+ * shape as UTC; reject unknown date formats instead of guessing. */
+export function parseProviderPublicationDate(value,provider){
+ if(typeof value!=='string'||value.length>48)return NaN;
+ let date=value.trim();
+ if(provider==='newsdata'&&/^\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d$/.test(date))
+  date=date.replace(' ','T')+'Z';
+ if(!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(date))
+  return NaN;
+ return Date.parse(date);
 }
 export function normalizeProviderNews(provider,raw,now=Date.now()){
  const entries=raw?.results;
@@ -48,8 +62,8 @@ export function normalizeProviderNews(provider,raw,now=Date.now()){
   // Link to the original publisher, not the aggregator's copy, when supplied.
   const href=String(provider==='cryptopanic'?
    (entry?.original_url||entry?.url||''):(entry?.link||entry?.url||''));
-  const timestamp=Date.parse(provider==='cryptopanic'?entry?.published_at:
-   entry?.pubDate);
+  const timestamp=parseProviderPublicationDate(provider==='cryptopanic'?
+   entry?.published_at:entry?.pubDate,provider);
   let url;
   try{url=new URL(href);}catch{continue;}
   if(url.protocol!=='https:'||url.username||url.password||
@@ -109,8 +123,9 @@ export function createNewsGateway({
    response=await fetchImpl(url,{method:'GET',redirect:'error',credentials:'omit',
     signal:AbortSignal.timeout(8500)});
   }catch{return {state:'OFFLINE',articles:[]};}
-  if(response.status===429||response.status===403)
-   return {state:'RATE_LIMITED',articles:[]};
+  if(response.status===401)return {state:'INVALID_CREDENTIALS',articles:[]};
+  if(response.status===403)return {state:'FORBIDDEN_OR_LIMITED',articles:[]};
+  if(response.status===429)return {state:'RATE_LIMITED',articles:[]};
   if(!response.ok)return {state:'OFFLINE',articles:[]};
   let raw;
   try{raw=await response.json();}
