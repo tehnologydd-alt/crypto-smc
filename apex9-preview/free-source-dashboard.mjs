@@ -33,6 +33,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const latest=new Map();
  let assetSeq=0,globalSeq=0;
  let assetMeasurements=null,contextMeasurements=null,marketMeasurements=null;
+ let fearMeasurement=null,socialMeasurement=null;
  function annotate(mode,r){
   latest.set(mode,r?.state||'UNKNOWN');
   refreshCenter();
@@ -146,7 +147,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    assetMeasurements.results:{};
   const market=marketMeasurements?.symbol===symbol?
    Object.fromEntries((marketMeasurements.sources||[]).map(x=>[x.id,x])):{};
-  const observations={...market,...context,...assetResults};
+  const social=socialMeasurement?.symbol===symbol?{bluesky:socialMeasurement.result}:{};
+  const observations={...market,...context,...assetResults,
+   ...(fearMeasurement?{fear:fearMeasurement}:{}),...social};
   const report=reconcileSources(symbol,observations);
   status.textContent='Проверено '+report.checked+' источников · '+report.usable+
    ' со временем наблюдения · без искусственного рейтинга точности.';
@@ -172,6 +175,11 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    '. Это не биржевой спред и не независимое подтверждение.';
   list.append(compare);
  }
+ function setSocial(symbol,result){
+  if(getSymbol?.()!==symbol)return;
+  socialMeasurement={symbol,result};
+  renderReconciliation(symbol);
+ }
  function setSnapshot(symbol,snapshot){
   if(getSymbol?.()!==symbol)return;
   marketMeasurements=snapshot&&snapshot.symbol===symbol?snapshot:null;
@@ -188,7 +196,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   if(status)status.textContent='Проверяем Alternative.me и кеш…';
   const r=await budget.load('fear',()=>fetchFearGreed());
   if(seq!==globalSeq)return;
+  fearMeasurement=r;
   showFear(r);annotate('fear',r);
+  renderReconciliation(getSymbol?.());
  }
  async function openAsset(symbol=getSymbol?.()){
   const seq=++assetSeq;
@@ -226,5 +236,5 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  el('free-asset-market-refresh')?.addEventListener('click',
   ()=>void openAsset(getSymbol?.()));
  refreshCenter();
- return {openOverview,openAsset,refreshCenter,setContext,setSnapshot};
+ return {openOverview,openAsset,refreshCenter,setContext,setSnapshot,setSocial};
 }
