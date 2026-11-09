@@ -105,3 +105,44 @@ node --test apex9-preview/test-asset-news-context.mjs apex9-preview/test-news-re
 `.github/workflows/apex-9-news-checks.yml` also defines an independent
 GitHub Actions test job. That workflow does not build an Android APK; the
 separate Android workflow remains blocked without its verified source snapshot.
+
+## APEX 9 — source-attributed news versus historical M5 (2026-11-09)
+
+On **Asset → Data → Events**, a user can explicitly select `Сопоставить M5`
+for a news headline with an attributed `PUBLISHED` timestamp. A GDELT
+`INDEXED` timestamp alone is *not* eligible; it would be misleading to
+treat an index time as the actual publication time.
+
+One bounded, read-only Binance Spot `/api/v3/klines?interval=5m` request
+collects contiguous, fully closed candles for a local observation:
+
+- One hour prior to the publication timestamp.
+- Price change at approximate 15, 60 and 240-minute horizons, with the
+  **actual elapsed minutes** also shown; partial horizons stay unreported.
+- Observed price extremes and average M5 trading volume versus the prior
+  12 fully closed M5 bars. A mixed candle containing a mid-bar publication
+  is excluded from the post-publication volume/extreme sample.
+- Missing or repeated bars, malformed OHLCV, unfinished intervals, invalid
+  source URL or an old publication fail closed with a visible reason.
+
+The on-device `news-m5-budget.mjs` permits at most **8 manually triggered
+checks per UTC day** on that installation, spaced by at least two minutes,
+with a 10-minute cache for successful observations. This is an app budget,
+not an official Binance API quota or a promise of network availability.
+
+**Important limitation:** a publication timestamp does not verify the
+reported event's actual time, its truth, its influence on price, or future
+market direction. A historical price change following a headline is not
+causal proof or a trading recommendation. No order or forecast code consumes
+these results.
+
+Test these new modules in Node 22+:
+
+```bash
+node --test apex9-preview/test-news-m5-reaction.mjs apex9-preview/test-news-m5-budget.mjs
+```
+
+The extended `.github/workflows/apex-9-news-checks.yml` defines additional
+syntax and regression checks for news, source attribution and M5 research.
+A GitHub Actions pass and an Android APK/device run must be verified
+separately; this commit alone does not prove either.
