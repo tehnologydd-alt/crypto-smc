@@ -2445,3 +2445,10 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
   max-width:none!important;min-height:0;padding:4px 9px;font-size:10px}
  .topbar .apex-settings-icon{width:40px;height:40px;min-width:40px;flex-basis:40px}
 }
+
+/* Per-category notifications and opt-in always-on screen controls. */
+.apex-settings-divider{height:1px;background:#35606a;margin:17px 0 13px}
+.apex-settings-subtitle{font-size:14px;font-weight:780;margin:0 0 7px;color:#d0ede9}
+.apex-settings-alert-types{margin-left:12px;border-left:2px solid #2c6970;padding-left:12px}
+.apex-settings-dialog .apex-settings-alert-types .apex-setting-toggle{margin-top:7px}
+.apex-settings-dialog .apex-setting-toggle:has(input:disabled){opacity:.6}

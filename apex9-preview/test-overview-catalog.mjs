@@ -60,3 +60,12 @@ test('new top-right APEX settings gear opens an Android sync dialog',()=>{
  assert.ok(app.includes("original.dispatchEvent(new Event('change'"));
  assert.ok(css.includes('.topbar .apex-settings-icon'));
 });
+
+test('settings expose distinct native-backed limit, TP, SL and keep-awake controls',()=>{
+ for(const id of ['apex-settings-alerts','apex-settings-alert-limit',
+  'apex-settings-alert-targets','apex-settings-alert-stop','apex-settings-screen'])
+  assert.equal(html.split('id="'+id+'"').length-1,1,id);
+ assert.ok(app.includes('requestMobileForecastNotificationPermission()'));
+ assert.ok(app.includes("await setMobileSettings({[key]:requested})"));
+ assert.ok(css.includes('.apex-settings-alert-types'));
+});

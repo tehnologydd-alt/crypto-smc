@@ -247,3 +247,17 @@ test('candle archive detects repeated bars across page boundary',async()=>{
  assert.match(r.error,/повторная|порядок/);
  globalThis.window=originalWindow;
 });
+
+test('settings bridge has explicit notification and keep-awake options',async()=>{
+ const args={keepScreenOn:true,forecastAlertsEnabled:true,alertStop:false};
+ let saved=null;
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  setSettings:async data=>{saved=data;return data;}
+ },LocalNotifications:{requestPermissions:async()=>({display:'granted'})}}}};
+ const result=await setMobileSettings(args);
+ assert.equal(result.keepScreenOn,true);
+ assert.deepEqual(saved,args);
+ const {requestMobileForecastNotificationPermission}=await import('./mobile-bridge.mjs');
+ assert.equal((await requestMobileForecastNotificationPermission()).granted,true);
+ globalThis.window=originalWindow;
+});

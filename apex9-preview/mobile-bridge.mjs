@@ -6,7 +6,9 @@
 import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
 const unavailable = {native:false,storage:'WEB_ONLY',observationCount:0,forecastCount:0,
- backgroundSyncEnabled:false,latestObservationAt:0};
+ backgroundSyncEnabled:false,forecastAlertsEnabled:false,alertLimitReady:true,
+ alertTargets:true,alertStop:true,keepScreenOn:false,
+ notificationPermissionGranted:false,latestObservationAt:0};
 export async function getMobileStatus() {
  const native=plugin();
  if(!native) return unavailable;
@@ -60,10 +62,26 @@ export async function getMobileHistory(symbol,limit=15){
  const response=await native.getObservations({asset:symbol,limit:Math.min(50,Math.max(1,limit))});
  return {native:true,observations:response?.observations||[]};
 }
-export async function setMobileSettings({asset,backgroundSyncEnabled}){
+export async function setMobileSettings(settings={}){
  const native=plugin();
  if(!native)throw Error('Нативное хранилище доступно только в Android-приложении.');
- return native.setSettings({asset,backgroundSyncEnabled});
+ const allowed=['asset','backgroundSyncEnabled','forecastAlertsEnabled',
+  'alertLimitReady','alertTargets','alertStop','keepScreenOn'];
+ const payload={};
+ for(const k of allowed)if(settings[k]!==undefined)payload[k]=settings[k];
+ return native.setSettings(payload);
+}
+/** Request permission only on an explicit user gesture enabling alerts. */
+export async function requestMobileForecastNotificationPermission(){
+ const localNotifications=globalThis.window?.Capacitor?.Plugins?.LocalNotifications;
+ if(!localNotifications?.requestPermissions)
+  return {granted:false,error:'Плагин уведомлений недоступен'};
+ try{
+  const r=await localNotifications.requestPermissions();
+  return {granted:r?.display==='granted'};
+ }catch(error){
+  return {granted:false,error:String(error?.message||error).slice(0,140)};
+ }
 }
 
 /** Batch-persist only confirmed closed candles, no speculative data. */

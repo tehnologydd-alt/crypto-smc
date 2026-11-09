@@ -64,3 +64,17 @@ Turning it off cancels the unique periodic job. The worker stores a verified
 public market observation and maintains native favorite research; it never
 places trades. Faster guaranteed background execution requires a separate
 foreground-service design and is intentionally not enabled.
+
+## Android forecast alerts and optional keep-screen-on
+The gear in the upper-right header opens native-backed settings. Notifications
+are OFF by default and require an explicit user-triggered Android permission
+grant. LIMIT_READY, TP1–TP3 and SL can be selected separately. Notification
+events are taken only from immutable Room stages after genuine closed M5 bars.
+Each forecast/stage is deduplicated with a local persistent delivery ledger.
+Existing old history is not replayed as new notifications. Delivery can be
+delayed or prevented by WorkManager timing, Android permissions, network
+availability and missing M5 candles. No broker orders or actual trades are involved.
+
+The opt-in keep-screen-on switch is OFF by default, uses the Android activity's
+FLAG_KEEP_SCREEN_ON while APEX is visible, and consumes additional battery.
+It does not wake the screen or keep an Android service running in background.

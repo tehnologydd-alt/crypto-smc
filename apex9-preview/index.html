@@ -36,6 +36,19 @@
     <div class="apex-setting-line"><span>Все рыночные данные</span><strong>≈ 10 минут · при открытом приложении</strong></div>
     <label class="apex-setting-toggle"><input type="checkbox" id="apex-settings-background" disabled><span>Фоновая синхронизация<small>WorkManager · около 15 минут, Android может отложить запуск</small></span></label>
     <p id="apex-settings-background-status" class="muted" role="status">Проверяем состояние Android…</p>
+    <div class="apex-settings-divider"></div>
+    <h3 class="apex-settings-subtitle">Оповещения о прогнозах</h3>
+    <label class="apex-setting-toggle"><input id="apex-settings-alerts" type="checkbox" disabled><span>Уведомления APEX<small>Только подтверждённые события по закрытым M5; не исполнение ордеров</small></span></label>
+    <div id="apex-settings-alert-types" class="apex-settings-alert-types">
+      <label class="apex-setting-toggle"><input id="apex-settings-alert-limit" type="checkbox" disabled><span>Лимитный прогноз<small>После первой полностью закрытой M5</small></span></label>
+      <label class="apex-setting-toggle"><input id="apex-settings-alert-targets" type="checkbox" disabled><span>TP1, TP2, TP3<small>Каждое подтверждённое касание уровня отдельно</small></span></label>
+      <label class="apex-setting-toggle"><input id="apex-settings-alert-stop" type="checkbox" disabled><span>Стоп-уровень SL<small>Касание после наблюдаемого входа</small></span></label>
+    </div>
+    <p id="apex-settings-alert-status" class="muted" role="status">Оповещения отключены по умолчанию. Для фоновых проверок включите синхронизацию Android.</p>
+    <div class="apex-settings-divider"></div>
+    <h3 class="apex-settings-subtitle">Экран</h3>
+    <label class="apex-setting-toggle"><input id="apex-settings-screen" type="checkbox" disabled><span>Не выключать экран<small>Только пока APEX открыт на экране телефона. Увеличивает расход батареи.</small></span></label>
+    <p id="apex-settings-screen-status" class="muted" role="status">По умолчанию экран гаснет по настройкам телефона.</p>
     <button type="button" id="apex-settings-sources" class="ghost">Источники, лимиты и данные</button>
   </dialog>
   <main class="content">

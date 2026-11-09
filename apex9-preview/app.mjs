@@ -1,7 +1,7 @@
 import {collectAsset,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {collectContext} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -114,6 +114,31 @@ async function refreshMobileStatus(){
  const modalToggle=el('apex-settings-background');
  modalToggle.checked=toggle.checked;
  modalToggle.disabled=!mobileReady;
+ for(const [id,field] of [
+  ['apex-settings-alerts','forecastAlertsEnabled'],
+  ['apex-settings-alert-limit','alertLimitReady'],
+  ['apex-settings-alert-targets','alertTargets'],
+  ['apex-settings-alert-stop','alertStop'],
+  ['apex-settings-screen','keepScreenOn']
+ ]){
+  const input=el(id);
+  input.checked=Boolean(data[field]);
+  input.disabled=!mobileReady||(id.startsWith('apex-settings-alert-')&&
+   !data.forecastAlertsEnabled);
+ }
+ text('apex-settings-alert-status',!mobileReady?
+  'Оповещения доступны в Android APK.':
+  !data.forecastAlertsEnabled?'Уведомления выключены.':
+  !data.notificationPermissionGranted?
+   'У Android нет разрешения на уведомления. Проверьте системные настройки.':
+  data.backgroundSyncEnabled?
+   'Новые M5-события отслеживаются. В фоне возможны задержки Android.':
+   'Уведомления включены, но для фона нужна синхронизация Android.');
+ text('apex-settings-screen-status',!mobileReady?
+  'Режим экрана доступен в Android APK.':
+  data.keepScreenOn?
+   'Экран остаётся включённым, пока приложение видно.':
+   'Экран гаснет по обычным настройкам телефона.');
  text('apex-settings-background-status',mobileReady
   ?(toggle.checked?'Фоновая синхронизация включена. Точное время запуска определяет Android.':
     'Фоновая синхронизация отключена.')
@@ -177,6 +202,32 @@ el('apex-settings-background').addEventListener('change',event=>{
  original.checked=event.target.checked;
  original.dispatchEvent(new Event('change',{bubbles:true}));
 });
+for(const [id,key] of [
+ ['apex-settings-alerts','forecastAlertsEnabled'],
+ ['apex-settings-alert-limit','alertLimitReady'],
+ ['apex-settings-alert-targets','alertTargets'],
+ ['apex-settings-alert-stop','alertStop'],
+ ['apex-settings-screen','keepScreenOn']
+]){
+ el(id).addEventListener('change',async event=>{
+  const input=event.target,requested=input.checked;
+  input.disabled=true;
+  try{
+   if(key==='forecastAlertsEnabled'&&requested){
+    const permission=await requestMobileForecastNotificationPermission();
+    if(!permission.granted)
+     throw Error(permission.error||'Разрешение на уведомления не предоставлено');
+   }
+   await setMobileSettings({[key]:requested});
+   await refreshMobileStatus();
+  }catch(error){
+   input.checked=!requested;
+   text(key==='keepScreenOn'?'apex-settings-screen-status':'apex-settings-alert-status',
+    'Не удалось сохранить настройку: '+String(error?.message||error));
+   input.disabled=!mobileReady;
+  }
+ });
+}
 el('native-background-sync').addEventListener('change',async event=>{
  const toggle=event.target,enabled=toggle.checked;
  toggle.disabled=true;
