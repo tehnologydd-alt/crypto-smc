@@ -11,7 +11,7 @@ Run from the repository root with:
 Local endpoint: `GET http://127.0.0.1:8787/v1/news?provider=newsdata&coin=BTC`.
 Cryptopanic provider: `provider=cryptopanic`. These two providers are intentionally disabled until keys are configured.
 
-Quotas per key are conservative internal caps of **4/day, 100/month**, with 6-hour gaps. They are not verified vendor allowances. Attempts count, including errors.
+Internal budgets (not vendor quotas): **NewsData.io up to 180/day, 5,580/month and at least 10 minutes between upstream requests**; **CryptoPanic 4/day, 100/month and at least 6 hours between upstream requests** until the account's entitlement is confirmed. Both cache a response for 6 hours by coin. Attempts count, including errors. The documented NewsData.io Free plan includes **200 credits/day**, but news is about **12 hours delayed**, so it is not a live-news source. Do not infer a free CryptoPanic entitlement from these settings.
 The quota file is local; shared or public deployment requires a centralized atomic quota store, authentication, security review and verified provider plan/terms.
 Do **not** expose this HTTP server to the Internet, bind it to a public IP, or assume it can serve a remote Android phone.
 All responses are contextual news metadata, not predictions or trade instructions.
