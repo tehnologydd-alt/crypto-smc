@@ -105,6 +105,8 @@ export function verifiedDirectionalEvidence(row,{now=Date.now()}={}){
 function tally(items,{now}){
  const score=empty();
  for(const row of items){
+  // Invalid old H1 records must never contaminate the M5 quality cohort.
+  if(directionalHypothesis(row)?.evaluationInterval!=='5m')continue;
   const record=verifiedDirectionalEvidence(row,{now});
   if(record.state==='NOT_DIRECTIONAL')continue;
   if(record.state==='INVALID'){score.invalid++;continue;}
