@@ -633,7 +633,8 @@ export function initFavoriteResearch({
    study.append(create('strong','', 'Односторонние сценарии · TP / SL'));
    const items=create('div','forecast-directional-counts');
    for(const [label,num] of [
-    ['Опубликовано',directional.published],['TP3',directional.tp3],
+    ['Опубликовано',directional.published],['TP1',directional.tp1],
+    ['TP2',directional.tp2],['TP3',directional.tp3],
     ['SL',directional.stop],['Порядок неизвестен',directional.ambiguous],
     ['Без входа',directional.notEntered],['Срок истёк',directional.horizon],
     ['В наблюдении',directional.pending]]){
