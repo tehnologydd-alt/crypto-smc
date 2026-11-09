@@ -8,6 +8,7 @@ import {planDirectionalScenario,auditDirectionalScenario,directionalOutcomeLabel
 import {forecastStage} from './favorite-logic.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {displayPair,priceText} from './forecast-card-ux.mjs';
+import {buildForecastEventTimeline} from './forecast-event-timeline.mjs';
 
 const create=(tag,style='',label)=>{
  const element=document.createElement(tag);
@@ -70,6 +71,7 @@ export function directionalForecastCard(row,{
  const plan=verified.plan;
  const isM5=plan?.evaluationInterval==='5m';
  const sourceFrame=isM5?'M5':'H1';
+ const timeline=buildForecastEventTimeline(row,{now:Date.now()});
  const finishedNative=forecastStage(row)==='COMPLETED'&&
   terminalStates.has(row.evaluation?.outcome);
  const card=create('article','forecast-record forecast-visual forecast-directional'+
@@ -144,9 +146,73 @@ export function directionalForecastCard(row,{
   return bar;
  });
  progress.append(summary,bars);levels.append(progress);card.append(levels,copied);
- const events=create('div','forecast-directional-history');
- events.append(create('p','muted','История касаний загружается из Room '+sourceFrame+'.'));
- card.append(events);
+ // An immediately visible, immutable Room chronology. A later candle replay is
+ // only a cross-check; it must never silently overwrite the saved event order.
+ const chronology=create('section','forecast-event-timeline');
+ chronology.setAttribute('aria-label','Хронология достижения уровней');
+ const chronologyHeader=create('div','forecast-event-heading');
+ chronologyHeader.append(create('strong','',
+  'Порядок уровней · '+sourceFrame),
+  create('span','',
+   timeline.state==='VERIFIED'?'Журнал Room':'Нет полной проверки'));
+ chronology.append(chronologyHeader);
+ const story=create('p','forecast-event-path',
+  timeline.state==='VERIFIED'?timeline.label:
+   'Последовательность уровней пока не подтверждена');
+ chronology.append(story);
+ if(timeline.state==='VERIFIED'){
+  const ordered=create('div','forecast-event-items');
+  for(const mark of timeline.events){
+   const item=create('div','forecast-event-item'+
+    (mark.terminal?' is-terminal':''));
+   item.append(create('span','forecast-event-item-name',mark.label),
+    create('strong','forecast-event-item-time',date(mark.at)));
+   if(mark.price!==null)
+    item.append(create('small','forecast-event-item-price',
+     priceText(mark.price)+' USDT'));
+   else if(mark.stage==='PUBLISHED')
+    item.append(create('small','forecast-event-item-price','Модель H1'));
+   else item.append(create('small','forecast-event-item-price',
+    mark.source+' · наблюдение'));
+   ordered.append(item);
+  }
+  chronology.append(ordered);
+  chronology.append(create('p','forecast-event-note',timeline.note));
+ }else{
+  chronology.append(create('p','forecast-event-warning',
+   timeline.reason||'Данные событий Room отсутствуют'));
+ }
+ card.append(chronology);
+ const replayStatus=create('p','forecast-event-replay',
+  'Сверка по закрытым '+sourceFrame+'-свечам доступна при наличии архива.');
+ card.append(replayStatus);
+ if(timeline.state==='VERIFIED'){
+  for(const [i,observed] of [
+   true,timeline.entered,timeline.finished
+  ].entries()){
+   stageNodes[i].className='forecast-step '+(observed?'is-done':'is-pending');
+   stageNodes[i].textContent=(observed?'✓ ':'· ')+['Создан','Вход','Итог'][i];
+  }
+  const roomTouches=new Set(timeline.events.map(mark=>mark.stage));
+  for(const [i,key] of ['tp1','tp2','tp3'].entries()){
+   const hit=roomTouches.has(key.toUpperCase());
+   cells[key].tile.classList.toggle('is-hit',hit);
+   cells[key].info.textContent=hit?'✓ Касание '+sourceFrame:'Не отмечено Room';
+   parts[i].classList.toggle('is-hit',hit);
+   parts[i].setAttribute('aria-label',key.toUpperCase()+
+    (hit?' · подтверждено Room':' · не отмечено Room'));
+  }
+  if(timeline.finished){
+   card.classList.add('is-completed');
+   state.className='forecast-visual-state finished';
+   state.textContent='Завершено';
+   status.textContent=directionalOutcomeLabel(timeline.outcome)+
+    ' · подтверждено событиями Room';
+  }else if(timeline.entered){
+   state.textContent='Вход отмечен · '+sourceFrame;
+   status.textContent='Вход подтверждён. Отслеживаем контрольные точки '+sourceFrame+'.';
+  }
+ }
  const actions=create('div','forecast-visual-actions');
  actions.append(
   btn('forecast-follow',tracked?'✓ В отмеченных':'☆ Добавить в отмеченные',
@@ -169,14 +235,41 @@ export function directionalForecastCard(row,{
  void (isM5?reader(plan):reader(row.asset)).then(archive=>{
   if(!card.isConnected)return;
   if(!archive.native||archive.error||!archive.complete){
-   status.textContent='Проверенный архив '+sourceFrame+' недоступен. Результат уровней неизвестен.';
+   replayStatus.textContent='Повторная проверка '+sourceFrame+
+    ' сейчас недоступна. Исходный журнал Room остаётся без изменений.';
+   if(timeline.state!=='VERIFIED')
+    status.textContent='Нет подтверждённого порядка уровней: архив '+sourceFrame+' недоступен.';
    return;
   }
   const audit=auditDirectionalScenario(plan,archive.candles,{now:Date.now()});
   if(['NEEDS_DATA','INVALID'].includes(audit.state)){
-   status.textContent='Нет подтверждённого порядка касаний: '+audit.reason;
+   replayStatus.textContent='Повторная проверка '+sourceFrame+
+    ': недостаточно достоверных свечей. '+audit.reason;
+   if(timeline.state!=='VERIFIED')
+    status.textContent='Нет подтверждённого порядка касаний: '+audit.reason;
    return;
   }
+  if(timeline.state==='VERIFIED'){
+   const sameEntry=(audit.entryAt??null)===(timeline.events.find(
+    x=>x.stage==='CONFIRMED')?.at??null);
+   const sameTargets=['TP1','TP2','TP3'].every(key=>
+    (audit.hits.find(x=>x.key===key.toLowerCase())?.at??null)===
+    (timeline.events.find(x=>x.stage===key)?.at??null));
+   const sameOutcome=audit.finished===timeline.finished&&
+    (!audit.finished||audit.outcome===timeline.outcome);
+   if(sameEntry&&sameTargets&&sameOutcome){
+    replayStatus.textContent='✓ Сверено: история Room совпадает с закрытыми '+
+     sourceFrame+'-свечами.';
+   }else{
+    replayStatus.textContent='⚠️ Журнал Room и повторная проверка '+
+     sourceFrame+' расходятся. Требуется проверка источника; '+
+     'отображённые события Room не изменены.';
+    replayStatus.classList.add('is-warning');
+   }
+   return;
+  }
+  replayStatus.textContent='Независимая проверка по закрытым '+sourceFrame+
+   ' завершена; события Room остаются неподтверждёнными.';
   const finished=audit.finished;
   card.classList.toggle('is-completed',finished||finishedNative);
   state.className='forecast-visual-state '+(finished||finishedNative?'finished':'active');
@@ -197,16 +290,14 @@ export function directionalForecastCard(row,{
    (finished?' · '+date(audit.terminalAt):' · проверка до '+date(plan.targetCloseAt));
   summary.textContent='Проверено '+(isM5?audit.observedBars+'/288 M5':audit.observedHours+'/24 H1')+' · TP: '+
    audit.hits.length+'/3. '+(audit.reason||audit.note);
-  events.replaceChildren();
-  if(audit.entryAt)events.append(create('p','forecast-directional-event',
-   'Опорная цена наблюдалась: '+date(audit.entryAt)));
-  for(const hit of audit.hits)events.append(create('p','forecast-directional-event',
-   hit.key.toUpperCase()+' · '+date(hit.at)));
-  if(finished)events.append(create('p','forecast-directional-event',
-   directionalOutcomeLabel(audit.outcome)+' · '+date(audit.terminalAt)));
-  if(audit.reason)events.append(create('p','forecast-level-warning',audit.reason));
+  if(audit.reason)replayStatus.textContent+=' '+audit.reason;
  }).catch(()=>{
-  if(card.isConnected)status.textContent='Архив '+sourceFrame+' недоступен для независимой проверки.';
+  if(card.isConnected){
+   replayStatus.textContent='Архив '+sourceFrame+
+    ' недоступен для независимой проверки.';
+   if(timeline.state!=='VERIFIED')
+    status.textContent='Хронология уровней не подтверждена.';
+  }
  });
  return card;
 }
