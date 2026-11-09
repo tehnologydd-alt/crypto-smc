@@ -66,7 +66,8 @@ export async function fetchRadarUniverse({
 
 export function describeRadarFrame(summary){
  if(!summary||summary.status!=='OK'||!RADAR_INTERVALS.includes(summary.interval))
-  return {state:summary?.status||'NO_DATA',direction:'UNKNOWN',mode:'UNKNOWN',
+  return {state:!summary?'NO_DATA':summary.status!=='OK'?summary.status:'INVALID_INTERVAL',
+   direction:'UNKNOWN',mode:'UNKNOWN',
    movement:null,volumeRatio:null,lastClosedAt:null,efficiency:null};
  const direction=['UP','DOWN','FLAT'].includes(summary.direction)?
   summary.direction:'UNKNOWN';
