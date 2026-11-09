@@ -52,7 +52,8 @@ export function initNewsM5Panel({getSymbol,storage,
     'объём не сопоставим':
     'средний объём '+fmt(point.volumeVsPreviousHour,2)+
      '× относительно предыдущих 12 M5';
-   line.append(div('strong','',point.minutes+' мин · '+signed(point.changePercent)),
+   line.append(div('strong','',point.minutes+' мин · '+signed(point.changePercent)+
+    ' · замер через '+fmt(point.sampledAfterMinutes,2)+' мин'),
     div('small','',
      'Диапазон относительно исходной цены: '+
      signed(point.lowestPercent)+' … '+signed(point.highestPercent)+
