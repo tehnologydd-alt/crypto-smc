@@ -68,10 +68,18 @@ export function routeGlobalEvents(news,macro,calendar,{now=Date.now(),max=5}={})
 export function routeAssetNews(symbol,result,{max=5}={}){
  if(!result||!['OK','EMPTY','STALE'].includes(result.state))return [];
  const arr=result.data?.articles||[];
- return arr.filter(x=>assetHeadlineMatches(symbol,x.title)&&
-  typeof x.url==='string'&&x.url.startsWith('https://')&&
-  Number.isSafeInteger(x.seenAt)).slice(0,max)
-  .map(x=>({title:x.title,url:x.url,seenAt:x.seenAt,
-   provider:'GDELT',scope:'NAME_MATCH_NOT_VERIFIED_IMPACT',
-   outdated:result.state==='STALE'}));
+ // GDELT parser now returns canonical news entries (href/observedAt);
+ // older persisted snapshots may still contain url/seenAt.
+ return arr.filter(x=>{
+  if(!assetHeadlineMatches(symbol,x?.title))return false;
+  const href=x.href||x.url,at=x.observedAt??x.seenAt;
+  if(typeof href!=='string'||!Number.isSafeInteger(at)||at<=0)return false;
+  try{const u=new URL(href);return u.protocol==='https:'&&
+   !u.username&&!u.password&&u.hostname.includes('.');}
+  catch{return false;}
+ }).slice(0,max).map(x=>({
+  title:x.title,url:x.href||x.url,seenAt:x.observedAt??x.seenAt,
+  provider:'GDELT',scope:'NAME_MATCH_NOT_VERIFIED_IMPACT',
+  outdated:result.state==='STALE'
+ }));
 }
