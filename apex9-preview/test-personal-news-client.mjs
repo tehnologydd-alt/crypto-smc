@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {changePersonalNewsKey,removePersonalNewsKey,personalNewsStatus,
- parsePersonalProvider,fetchPersonalNewsBundle} from './personal-news-client.mjs';
+ parsePersonalProvider,fetchPersonalNewsBundle,
+ checkPersonalNewsProvider,personalNewsDiagnosticLabel} from './personal-news-client.mjs';
 const at=Date.UTC(2026,10,9,12);
 const crypto={results:[{title:'Bitcoin network research announcement',
  original_url:'https://publisher.example/story?utm_source=panic',
@@ -58,4 +59,53 @@ test('missing native plugin never creates a fabricated connection',async()=>{
  assert.equal(result.state,'NO_VERIFIED_NEWS');
  assert.equal(result.providers.newsdata,'INVALID_CREDENTIALS');
  assert.equal(result.providers.cryptopanic,'NOT_CONFIGURED');
+});
+
+test('on-demand single-provider check reveals actual source state without token or extra calls',async()=>{
+ const requests=[];
+ const plugin={fetchPersonalNews:async args=>{
+  requests.push(args);
+  return {state:'OK',cached:true,raw:data};
+ }};
+ const checked=await checkPersonalNewsProvider('newsdata','BTC',{plugin,now:()=>at});
+ assert.deepEqual(requests,[{provider:'newsdata',coin:'BTC'}]);
+ assert.equal(checked.state,'OK');
+ assert.equal(checked.articleCount,1);
+ assert.equal(checked.cached,true);
+ assert.equal(checked.newestPublishedAt,at-60_000);
+ assert.match(personalNewsDiagnosticLabel(checked),/кеш устройства/);
+ assert.equal(JSON.stringify(checked).includes('apikey'),false);
+});
+test('provider checks distinguish auth, limit and connection problems honestly',async()=>{
+ const cases=[
+  ['NOT_CONFIGURED','Ключ не настроен'],
+  ['INVALID_CREDENTIALS','Неверный'],
+  ['FORBIDDEN_OR_LIMITED','Доступ или тариф'],
+  ['RATE_LIMITED','Ограничение запросов'],
+  ['DAILY_LIMIT','суточный лимит'],
+  ['MONTHLY_LIMIT','месячный лимит'],
+  ['WAIT_INTERVAL','Интервал'],
+  ['OFFLINE','недоступен']
+ ];
+ for(const [state,label] of cases){
+  const r=await checkPersonalNewsProvider('cryptopanic','BTC',{
+   plugin:{fetchPersonalNews:async()=>({state})},now:()=>at});
+  assert.equal(r.state,state);
+  assert.equal(r.articleCount,0);
+  assert.ok(personalNewsDiagnosticLabel(r).includes(label));
+ }
+ const wait=await checkPersonalNewsProvider('newsdata','BTC',{
+  plugin:{fetchPersonalNews:async()=>({state:'WAIT_INTERVAL',nextAt:at+600000})}});
+ assert.equal(wait.nextAt,at+600000);
+ const bad=await checkPersonalNewsProvider('reddit','BTC',{
+  plugin:{fetchPersonalNews:async()=>{throw Error('should not run')}}});
+ assert.equal(bad.state,'UNSUPPORTED');
+});
+test('empty valid response means connection succeeded but does not invent articles',async()=>{
+ const r=await checkPersonalNewsProvider('newsdata','BTC',{
+  plugin:{fetchPersonalNews:async()=>({state:'OK',cached:false,raw:{results:[]}})},
+  now:()=>at});
+ assert.equal(r.state,'EMPTY');
+ assert.equal(r.articleCount,0);
+ assert.match(personalNewsDiagnosticLabel(r),/Ответ получен/);
 });
