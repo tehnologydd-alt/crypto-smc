@@ -5,6 +5,9 @@
  * No price forecasts, no trades and no invented source confirmations.
  */
 const SPECS=Object.freeze({
+ 'binance-ticker':{title:'Binance Spot',group:'VENUE_SPOT'},
+ 'binance-depth':{title:'Binance depth',group:'VISIBLE_ORDER_BOOK'},
+ 'bybit-depth':{title:'Bybit depth',group:'VISIBLE_ORDER_BOOK'},
  okx:{title:'OKX Spot',group:'VENUE_SPOT'},
  paprika:{title:'CoinPaprika',group:'GLOBAL_ASSET_USD'},
  cmc:{title:'CoinMarketCap Keyless',group:'GLOBAL_ASSET_USD'},
@@ -20,7 +23,8 @@ const validTime=t=>Number.isSafeInteger(t)&&t>0;
 const validPrice=p=>typeof p==='number'&&Number.isFinite(p)&&p>0;
 const validNow=n=>validTime(n)?n:Date.now();
 export const SOURCE_GROUPS=Object.freeze({
- VENUE_SPOT:'Цена отдельной спотовой биржи (USDT)',
+ VENUE_SPOT:'Котировка отдельной спотовой биржи (USDT)',
+ VISIBLE_ORDER_BOOK:'Ограниченные публичные снимки стаканов',
  GLOBAL_ASSET_USD:'Агрегированная оценка актива (USD)',
  WRAPPED_TOKEN_DEX:'DEX-пул обёрнутого токена (USD)',
  GLOBAL_MOOD:'Настроение всего крипторынка',
@@ -41,17 +45,21 @@ export function reconcileSources(symbol,results={},{
  for(const [key,spec] of Object.entries(SPECS)){
   const r=results?.[key];
   if(!r)continue; // "not queried" must never be counted as offline
-  const observedAt=r?.data?.observedAt??r?.data?.receivedAt??
-   r?.data?.providerObservedAt??null;
+  const providerTime=r?.data?.observedAt??r?.data?.providerObservedAt??null;
+  const localTime=r?.data?.receivedAt??null;
+  const observedAt=providerTime??localTime;
+  const timeOrigin=validTime(providerTime)?'PROVIDER':
+   validTime(localTime)?'LOCAL_CAPTURE':'UNKNOWN';
   const validObservation=validTime(observedAt)&&observedAt<=at+60000;
   const recordedAt=validTime(r?.fetchedAt)?r.fetchedAt:null;
   const state=typeof r?.state==='string'?r.state:'INVALID';
   const usable=state==='OK'&&validObservation;
   entries.push({id:key,title:spec.title,group:spec.group,state,
    observedAt:validObservation?observedAt:null,
-   fetchedAt:recordedAt,usable,
+   fetchedAt:recordedAt,timeOrigin,usable,
    recordStatus:state==='STALE'?'ARCHIVED':
-    state==='OK'?(usable?'TIMESTAMPED':'NO_RELIABLE_TIMESTAMP'):
+    state==='OK'?(usable?(timeOrigin==='LOCAL_CAPTURE'? 'LOCAL_CAPTURE_TIME':'TIMESTAMPED'):
+     'NO_RELIABLE_TIMESTAMP'):
     state==='UNSUPPORTED'?'NOT_APPLICABLE':'UNAVAILABLE',
    source:r?.source==='CACHE'?'CACHE':r?.source==='NETWORK'?'NETWORK':'UNKNOWN'});
  }
