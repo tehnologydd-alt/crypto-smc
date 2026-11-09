@@ -2144,3 +2144,33 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 @media(prefers-reduced-motion:reduce){
  .favorite-card.asset-chip{transition:none!important}
 }
+
+
+/* Asset v3: one-tap contextual tasks immediately before the asset summary. */
+#view-asset .asset-workspace-nav{
+ top:0;z-index:15;margin:9px 0 12px;padding:5px;
+ border:1px solid #3a818a;border-radius:15px;
+ background:#102d38f0;backdrop-filter:blur(16px);
+ -webkit-backdrop-filter:blur(16px)
+}
+#view-asset .asset-workspace-button{
+ display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:4px;min-height:55px;padding:8px 4px;line-height:1.2
+}
+#view-asset .asset-workspace-button span{
+ font-size:12px;font-weight:800;color:inherit
+}
+#view-asset .asset-workspace-button small{
+ display:block;font-size:9px;color:#93bac2;line-height:1.3;
+ font-weight:600;white-space:normal
+}
+#view-asset .asset-workspace-button.is-active small{color:#b2e6d8}
+#view-asset .hero{margin-bottom:11px}
+#view-asset .asset-explain-panel{margin:9px 0 13px}
+#view-asset .asset-explain-panel .asset-explain-copy small{line-height:1.45}
+@media(max-width:360px){
+ #view-asset .asset-workspace-nav{gap:3px;padding:4px}
+ #view-asset .asset-workspace-button{padding:7px 2px;min-height:56px}
+ #view-asset .asset-workspace-button span{font-size:11px}
+ #view-asset .asset-workspace-button small{font-size:8px}
+}
