@@ -7,7 +7,8 @@ export const FREE_POLICY=Object.freeze({
  fear:Object.freeze({daily:3,monthly:80,gapMs:6*3600000,ttlMs:6*3600000,staleMs:3*86400000}),
  dex:Object.freeze({daily:8,monthly:210,gapMs:2*3600000,ttlMs:2*3600000,staleMs:86400000}),
  gecko:Object.freeze({daily:6,monthly:160,gapMs:3*3600000,ttlMs:3*3600000,staleMs:86400000}),
- okx:Object.freeze({daily:12,monthly:300,gapMs:3600000,ttlMs:3600000,staleMs:6*3600000})
+ okx:Object.freeze({daily:12,monthly:300,gapMs:3600000,ttlMs:3600000,staleMs:6*3600000}),
+ paprika:Object.freeze({daily:6,monthly:150,gapMs:3*3600000,ttlMs:3*3600000,staleMs:86400000})
 });
 const KEY='apex9:no-key-budget:v1',CACHE='apex9:no-key-cache:v1:';
 const modes=Object.keys(FREE_POLICY);
