@@ -6,6 +6,7 @@ import {loadEditorialFeed} from './editorial-core.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
+import {fetchScheduledEventReaction} from './macro-event-reaction.mjs';
 const get=id=>document.getElementById(id);
 const node=(tag,cls='',content)=>{
  const x=document.createElement(tag);
@@ -104,10 +105,8 @@ export function initEditorialDashboard(){
    (stale?' · требуется перепроверка':'')+quotaLine(r,'calendar');
   const future=(r.events||[]).filter(e=>Number.isSafeInteger(e.at)&&e.at>Date.now())
    .sort((a,b)=>a.at-b.at).slice(0,10);
-  if(!future.length){
+  if(!future.length)
    list.append(node('p','muted','Ближайших подтверждённых дат в сохранённых данных нет.'));
-   return;
-  }
   for(const event of future){
    const row=node('article','editorial-calendar-event');
    row.append(node('time','',niceTime(event.at)),
@@ -115,6 +114,53 @@ export function initEditorialDashboard(){
     node('span','',stale?'Архив: проверьте актуальный календарь BLS':
      'Плановая публикация · значения ещё не получены'));
    list.append(row);
+  }
+  // A historical BTC comparison does not claim that the scheduled release occurred.
+  const recent=(r.events||[]).filter(e=>
+   e?.source==='BLS_OFFICIAL_CALENDAR'&&
+   e.status==='SCHEDULED_NOT_RELEASED'&&
+   Number.isSafeInteger(e.at)&&e.at+4*3600000<Date.now()&&
+   Date.now()-e.at<48*3600000).sort((a,b)=>b.at-a.at);
+  if(recent.length){
+   const e=recent[0];
+   const box=node('section','macro-reaction-panel');
+   box.append(node('strong','','BTC · цена вокруг времени в календаре'),
+    node('p','muted',e.title+' · '+niceTime(e.at)+
+     '. Не доказано, что движение вызвано этим событием.'));
+   const button=node('button','ghost','Проверить реакцию · M5');
+   button.type='button';
+   const state=node('p','chart-status',
+    'Только вручную · до 6 запросов в сутки · интервал 30 минут');
+   const summary=node('div','macro-reaction-steps');
+   button.addEventListener('click',async()=>{
+    button.disabled=true;
+    state.textContent='Проверяем закрытые M5 и лимит…';
+    summary.replaceChildren();
+    try{
+     const result=await budget.load('eventStudy',async()=>{
+      const evidence=await fetchScheduledEventReaction(e,{symbol:'BTCUSDT'});
+      return evidence.state==='OBSERVED'?{...evidence,state:'OK'}:evidence;
+     },{key:'BTCUSDT:'+e.at});
+     const accepted=['OK','STALE'].includes(result.state)&&
+      Array.isArray(result.observations);
+     state.textContent=(accepted?'Источник: Binance Spot · закрытые M5':
+      'Наблюдение не подтверждено: '+result.state)+quotaLine(result,'eventStudy');
+     if(accepted){
+      for(const item of result.observations){
+       summary.append(node('span','',item.minutes+' мин · '+
+        (item.returnPercent>0?'+':'')+item.returnPercent.toFixed(2)+'%'+
+        ' · диапазон '+item.lowestPercent.toFixed(2)+'%…'+
+        item.highestPercent.toFixed(2)+'%'));
+      }
+     }else summary.append(node('p','muted',
+      result.reason||'Нет непрерывной полной истории M5.'));
+    }catch(err){
+     state.textContent='Не удалось проверить M5';
+     summary.append(node('p','muted',String(err?.message||err).slice(0,120)));
+    }finally{button.disabled=false;}
+   });
+   box.append(button,state,summary);
+   list.append(box);
   }
  }
  async function open(mode,{force=false}={}){
