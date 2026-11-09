@@ -4,12 +4,14 @@
  * Sync is foreground and (when opted-in) via Android WorkManager.
  */
 import {getMobileFavorites,changeMobileFavorite,
- syncMobileFavoriteResearch,getMobileResearchForecasts,getMobileCandles} from './mobile-bridge.mjs';
+ syncMobileFavoriteResearch,getMobileResearchForecasts,getMobileCandles,
+ getMobileCandleArchive} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
+import {planResearchLevels,analyzeResearchLevelSequence} from './research-level-sequence.mjs';
 
 const id=name=>document.getElementById(name);
 const create=(tag,className='',value)=>{
@@ -77,6 +79,135 @@ function timelineForForecast(row){
  panel.append(status);
  return {panel,trace};
 }
+
+const H1_ARCHIVE=new Map(),H1_INFLIGHT=new Map();
+async function sourceH1(asset){
+ const existing=H1_ARCHIVE.get(asset);
+ if(existing&&Date.now()-existing.at<45000)return existing.data;
+ if(H1_INFLIGHT.has(asset))return H1_INFLIGHT.get(asset);
+ const request=getMobileCandleArchive(asset,'1h',{maxRows:4800})
+  .then(data=>{
+   if(data.native&&data.complete&&!data.error)
+    H1_ARCHIVE.set(asset,{at:Date.now(),data});
+   return data;
+  }).finally(()=>H1_INFLIGHT.delete(asset));
+ H1_INFLIGHT.set(asset,request);
+ return request;
+}
+const LEVEL_LABEL={tp1:'TP1',tp2:'TP2',tp3:'TP3',sl:'SL'};
+const LEVEL_STATE={
+ TP1_FIRST:'Первым наблюдался TP1',
+ SL_FIRST:'Первым наблюдался защитный SL',
+ SAME_H1_UNKNOWN:'TP1 и SL в одной H1 · порядок неизвестен',
+ PUBLICATION_HOUR_UNKNOWN:'Касание в первом H1 · время относительно публикации неизвестно',
+ NO_HITS:'Касаний уровней пока нет'
+};
+function renderLevelSequence(row){
+ const container=create('section','forecast-level-study');
+ container.setAttribute('aria-label',
+  'Исторические контрольные уровни и последовательность касаний');
+ const audit=planResearchLevels(row,{now:Date.now()});
+ if(audit.state!=='READY'){
+  container.append(create('p','forecast-level-warning',
+   'Уровни не показаны: '+audit.reason));
+  return container;
+ }
+ const plan=audit.plan;
+ const heading=create('div','forecast-level-heading');
+ heading.append(create('strong','','Контрольные точки · H1'),
+  create('span','forecast-level-origin',
+   plan.origin==='PUBLISHED'?'Сохранены при публикации':'Восстановлены из диапазона'));
+ container.append(heading);
+ const anchor=create('div','forecast-level-reference');
+ anchor.append(create('span','','Опорная цена (не подтверждённый вход)'),
+  create('strong','',fmt(plan.entry)+' USDT'));
+ container.append(anchor);
+ const sides=create('div','forecast-level-sides');
+ for(const [key,label] of [['UP','Условно вверх'],['DOWN','Условно вниз']]){
+  const card=create('div','forecast-level-side');
+  card.append(create('strong','forecast-level-side-title',label));
+  for(const [label,price] of [
+   ['TP1',plan[key].tp1],['TP2',plan[key].tp2],
+   ['TP3',plan[key].tp3],['SL',plan[key].sl]]){
+   const line=create('div','forecast-level-line');
+   line.append(create('span','',label),create('strong','',fmt(price)));
+   if(label==='SL')line.classList.add('is-protective');
+   card.append(line);
+  }
+  sides.append(card);
+ }
+ container.append(sides);
+ const disclaimer=create('p','forecast-level-note',
+  plan.origin==='PUBLISHED'?
+   'Это заранее зафиксированные условные уровни двух направлений, а не '+
+   'торговый сигнал или биржевой ордер.':
+   'Старая гипотеза не содержала TP/SL и направления. Уровни '+
+   'реконструированы задним числом, не считаются результатом прогноза.');
+ container.append(disclaimer);
+ const action=create('button','forecast-level-check','Проверить порядок касаний H1');
+ action.type='button';
+ action.setAttribute('aria-label',
+  'Проверить историческую последовательность уровней '+row.asset);
+ const output=create('div','forecast-level-outcome');
+ output.setAttribute('role','status');
+ output.setAttribute('aria-live','polite');
+ action.addEventListener('click',async()=>{
+  if(action.disabled)return;
+  action.disabled=true;
+  output.replaceChildren(create('p','forecast-level-note',
+   'Сверяем закрытые H1-свечи исходного локального архива…'));
+  try{
+   const archive=await sourceH1(row.asset);
+   if(!container.isConnected)return;
+   output.replaceChildren();
+   if(!archive.native||archive.error||!archive.complete){
+    output.append(create('p','forecast-level-warning',
+     archive.error||'Недоступен полный проверенный архив H1; касания не засчитываются.'));
+    return;
+   }
+   const result=analyzeResearchLevelSequence(plan,archive.candles,{now:Date.now()});
+   if(result.state==='INVALID'||result.state==='NEEDS_DATA'){
+    output.append(create('p','forecast-level-warning',
+     result.reason||'Не удалось проверить всю необходимую H1-историю.'));
+    return;
+   }
+   output.append(create('p','forecast-level-note',
+    'Проверено завершённых H1-часов: '+
+    fmt(result.observedHours,0)+' / 4. '+
+    (result.complete?'Горизонт завершён.':'Наблюдение продолжается.')));
+   for(const branch of result.branches){
+    const display=create('div','forecast-level-path');
+    display.append(create('strong','',
+     (branch.direction==='UP'?'Условно вверх':'Условно вниз')+
+     ' · '+LEVEL_STATE[branch.state]));
+    if(branch.firstTouch){
+     display.append(create('small','',
+      'Первая наблюдаемая H1: №'+branch.firstTouch.bar+
+      ' · '+date(branch.firstTouch.at)));
+    }
+    for(const event of branch.observations){
+     const line=create('div','forecast-level-event');
+     line.append(create('span','','H1 №'+event.bar+' · '+
+      event.levels.map(key=>LEVEL_LABEL[key]).join(' + ')),
+      create('span','',date(event.at)+
+       (event.spansPublication?' · публикация внутри H1':' · закрытая H1')));
+     display.append(line);
+    }
+    display.append(create('small','forecast-level-caution',branch.note));
+    output.append(display);
+   }
+   output.append(create('p','forecast-level-note',result.note));
+  }catch(error){
+   if(container.isConnected){
+    output.replaceChildren(create('p','forecast-level-warning',
+     'История H1 недоступна: '+String(error?.message||error)));
+   }
+  }finally{action.disabled=false;}
+ });
+ container.append(action,output);
+ return container;
+}
+
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  const card=create('article','forecast-record');
  const headActions=create('div','forecast-card-actions');
@@ -117,6 +248,7 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
   rows.append(line);
  }
  card.append(rows);
+ card.append(renderLevelSequence(row));
  const {panel:progress,trace}=timelineForForecast(row);
  card.append(progress);
  if(trace.result){
