@@ -21,6 +21,7 @@ import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
+import {directionalOutcomeLabel} from './directional-scenario.mjs';
 
 const el=(id)=>document.getElementById(id);
 const fmt=(value,digits=8)=>Number.isFinite(value)
@@ -259,6 +260,21 @@ function renderScenarioReplay(scenarios){
   detail=el('scenario-replay-detail');
  clear(steps);clear(detail);
  const selected=scenarios.find(s=>s.id===focusedScenarioId)||scenarios[0];
+ if(selected?.model==='DIRECTIONAL'){
+  root.classList.remove('has-replay');
+  text('scenario-replay-counter','24 H1 · TP / SL');
+  text('scenario-replay-context',selected.asset+' · '+
+   (selected.side==='UP'?'↑ Рост':'↓ Снижение')+
+   ' · оригинальные уровни: TP1 '+fmt(selected.levels.tp1)+
+   ', TP2 '+fmt(selected.levels.tp2)+', TP3 '+fmt(selected.levels.tp3)+
+   ', SL '+fmt(selected.levels.sl));
+  text('scenario-replay-warning',
+   'Старый 4H Replay относится только к архиву диапазонов. '+
+   'Для 24-часового прогноза порядок касаний проверяется в карточке «Сценарии» '+
+   'по реальным H1 и не заменяется четырьмя историческими закрытиями.');
+  candleView.setReplayCursor(null);
+  return;
+ }
  if(!selected){
   text('scenario-replay-counter','0 / 5 закрытий');
   text('scenario-replay-context','Выбери исследование для просмотра его подтверждённой H1-истории.');
@@ -390,7 +406,12 @@ function renderScenarioMap(asset){
    'Показать на графике исследовательский сценарий от '+
    new Date(sc.publishedAt).toLocaleString('ru-RU'));
   const top=create('span','scenario-map-item-heading');
-  const name=sc.stage==='EVALUATED'?'Завершён · итог сохранён':
+  const name=sc.model==='DIRECTIONAL'?
+   (sc.side==='UP'?'↑ РОСТ':'↓ СНИЖЕНИЕ')+
+    (sc.stage==='EVALUATED'?' · завершён':
+     sc.stage==='ACTIVE'?' · TP1 отмечен':
+      sc.stage==='CONFIRMED'?' · опорная цена':' · ожидает входа'):
+   sc.stage==='EVALUATED'?'Завершён · итог сохранён':
    sc.stage==='DUE_UNVERIFIED'?'Горизонт прошёл · итог не проверен':
    sc.stage==='ACTIVE'?'Наблюдается · две H1':
    sc.stage==='CONFIRMED'?'Первое H1 подтверждено':
@@ -399,14 +420,20 @@ function renderScenarioMap(asset){
    create('small','',(sc.tracked?'★ Отмечен':'Исследование')+
      ' · '+sc.milestones.length+' из 4 событий'));
   const middle=create('span','scenario-map-item-range',
-   fmt(sc.bandLow)+' — '+fmt(sc.bandHigh)+' USDT');
+   sc.model==='DIRECTIONAL'?
+    'Вход '+fmt(sc.levels.entry)+' · TP1 '+fmt(sc.levels.tp1)+
+    ' · TP2 '+fmt(sc.levels.tp2)+' · TP3 '+fmt(sc.levels.tp3)+
+    ' · SL '+fmt(sc.levels.sl):
+    fmt(sc.bandLow)+' — '+fmt(sc.bandHigh)+' USDT');
   const detail=create('span','scenario-map-item-time',
    'Опорная свеча: '+new Date(sc.anchorCloseAt).toLocaleString('ru-RU')+
    ' · публикация: '+new Date(sc.publishedAt).toLocaleString('ru-RU'));
   button.append(top,middle,detail);
   if(sc.result)button.append(create('span','scenario-map-item-result',
-   (sc.result.outcome==='WITHIN_RANGE'?
-    'Итог в исходном диапазоне':'Итог за пределами диапазона')+
+   (sc.model==='DIRECTIONAL'?
+    directionalOutcomeLabel(sc.result.outcome):
+    sc.result.outcome==='WITHIN_RANGE'?
+     'Итог в исходном диапазоне':'Итог за пределами диапазона')+
    ' · '+new Date(sc.targetCloseAt).toLocaleString('ru-RU')));
   button.addEventListener('click',()=>{
    focusedScenarioId=sc.id;
