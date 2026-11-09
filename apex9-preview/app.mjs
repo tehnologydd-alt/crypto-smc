@@ -15,7 +15,7 @@ import {initResearchRegimesDashboard} from './research-regimes-dashboard.mjs';
 import {initCrossAssetDashboard} from './cross-asset-dashboard.mjs';
 import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs';
 import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
-import {workspaceArea,researchAreaForTarget,activeDock} from './research-workspace.mjs';
+import {workspaceArea,assetAreaForEntry,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
@@ -191,18 +191,22 @@ function updateTab(view){
  * Keep every analytical DOM node mounted so native Room callbacks and
  * existing panel references keep functioning while areas change.
  */
+let lastAssetArea='chart';
 function setAssetArea(requested){
  const mode=workspaceArea('asset',requested);
  if(!mode)return;
  const panel=el('view-asset');
+ const previousArea=panel.dataset.assetArea;
  panel.dataset.assetArea=mode;
+ lastAssetArea=mode;
  for(const button of document.querySelectorAll('[data-asset-area-button]')){
   const active=button.dataset.assetAreaButton===mode;
   button.classList.toggle('is-active',active);
   button.setAttribute('aria-pressed',String(active));
  }
- if(document.body.dataset.view==='asset'){
+ if(document.body.dataset.view==='asset'&&previousArea!==mode){
   if(mode==='chart')requestAnimationFrame(()=>candleView.resize());
+  if(mode==='structure')void loadCandleHistory(false);
   if(mode==='data')requestAnimationFrame(()=>{
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
@@ -223,7 +227,7 @@ function setQualityArea(requested){
 const editorialDashboard=initEditorialDashboard();
 const radarDashboard=initRadarDashboard({
  getCatalog:()=>catalog,
- onOpenAsset:symbol=>{void investigate(symbol);navigate('asset');}
+ onOpenAsset:symbol=>{void investigate(symbol);navigate('asset','structure');}
 });
 const candleView=new CandleChart(el('candle-canvas'),{
  onSelect(bar){
@@ -675,7 +679,7 @@ const favoriteManager=initFavoriteResearch({
   void investigate(symbol);
   focusedScenarioId=researchId;
   if(researchId)scenarioMode='all';
-  navigate('asset');
+  navigate('asset','chart');
  },
  onForecastStage:()=>navigate('forecasts'),
  onExplainSymbol:symbol=>openAssetExplanation(symbol),
@@ -698,7 +702,6 @@ const researchSynthesisDashboard=initResearchSynthesisDashboard({
  onSummary:report=>renderPassportResearchQuality(report)
 });
 renderPassportResearchQuality(null);
-let matrixLastRunAt=0;
 
 /** The passport can describe only the last completed, asset-matched audit. */
 function renderPassportResearchQuality(report){
@@ -729,19 +732,22 @@ function navigate(view,targetId){
   catalogPage=1;
   renderCatalog();
  }
- if(view==='asset')setAssetArea('chart');
+ if(view==='asset')setAssetArea(assetAreaForEntry(targetId,lastAssetArea));
  if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
  requestAnimationFrame(()=>{
   if(view==='radar')radarDashboard.open();
   if(view==='asset'){
-   candleView.resize();
+   const area=el('view-asset').dataset.assetArea;
+   if(area==='chart')candleView.resize();
+   // Both chart and historical structure use the same completed candle data.
    void loadCandleHistory(false);
    void showAssetScenarios(chosen);
-   void liquidityDashboard.refresh(chosen);
-   void onChainDashboard.refresh(chosen);
-   if(!matrixLastRunAt||Date.now()-matrixLastRunAt>15*60000){
-    matrixLastRunAt=Date.now();void runMarketMatrix();
+   // Native depth and onchain panels are only refreshed when opened.
+   // Multi-TF market comparison remains explicitly user-initiated.
+   if(area==='data'){
+    void liquidityDashboard.refresh(chosen);
+    void onChainDashboard.refresh(chosen);
    }
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
@@ -817,7 +823,7 @@ function renderCatalog(){
   const row=create('div','catalog-row');row.setAttribute('role','listitem');
   const open=create('button','catalog-open',symbol);
   open.type='button';open.setAttribute('aria-label','Исследовать '+symbol);
-  open.addEventListener('click',()=>{void investigate(symbol);navigate('asset');});
+  open.addEventListener('click',()=>{void investigate(symbol);navigate('asset','chart');});
   const chosen=favoriteManager.hasFavorite(symbol);
   const star=create('button','catalog-favorite',chosen?'★':'☆');
   star.type='button';star.setAttribute('aria-pressed',String(chosen));
@@ -1086,7 +1092,7 @@ async function investigate(value){
 el('search-form').addEventListener('submit',(event)=>{
  event.preventDefault();
  void investigate(el('asset-input').value);
- navigate('asset');
+ navigate('asset','chart');
 });
 el('refresh-button').addEventListener('click',()=>void investigate(chosen));
 setInterval(()=>{
