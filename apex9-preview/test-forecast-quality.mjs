@@ -68,6 +68,7 @@ test('final TP3 needs an authentic TP1→TP2→TP3 chain',()=>{
  assert.equal(proof.state,'OBSERVED');
  assert.equal(proof.touched.length,3);
  assert.equal(directionalQualitySummary([row],{now}).all.tp3,1);
+ assert.equal(directionalQualitySummary([row],{now}).all.tp3Outcome,1);
  const forged=scenario('SOLUSDT',{outcome:'TP3',
   points:['TP3'],terminalAt:anchor+5*M});
  assert.equal(verifiedDirectionalEvidence(forged,{now}).state,'INVALID');
