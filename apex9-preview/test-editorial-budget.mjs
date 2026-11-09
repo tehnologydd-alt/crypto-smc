@@ -48,7 +48,7 @@ test('no storage or corrupt ledger fails closed; no network used',async()=>{
  const result=await bad.load('calendar',async()=>{calls++;});
  assert.equal(result.state,'STORAGE_UNAVAILABLE');
  const storage=makeStorage();
- storage.setItem('apex9:public-editorial-budget:v3','not-json');
+ storage.setItem('apex9:public-editorial-budget:v4','not-json');
  const x=await createEditorialBudget({storage,now:()=>epoch})
   .load('news',async()=>{calls++;});
  assert.equal(x.state,'STORAGE_UNAVAILABLE');
@@ -130,4 +130,15 @@ test('BLS numeric data is limited to three attempts per UTC day',async()=>{
  const exceeded=await budget.load('macroData',async()=>{calls++;},{force:true});
  assert.equal(calls,3);
  assert.equal(exceeded.sourceState,'LIMIT_REACHED');
+});
+
+test('event studies have a bounded shared budget and per-event cache',async()=>{
+ const storage=makeStorage();let t=Date.UTC(2026,10,9,12),calls=0;
+ const budget=createEditorialBudget({storage,now:()=>t});
+ const key='BTCUSDT:1794220200000';
+ const run=async()=>{calls++;return {state:'OK',observations:[{minutes:15}]};};
+ assert.equal((await budget.load('eventStudy',run,{key})).source,'NETWORK');
+ assert.equal((await budget.load('eventStudy',run,{key})).source,'CACHE');
+ assert.equal(calls,1);assert.equal(budget.status('eventStudy').remaining,5);
+ assert.equal((await budget.load('eventStudy',run,{key:'INVALID'})).state,'INVALID');
 });
