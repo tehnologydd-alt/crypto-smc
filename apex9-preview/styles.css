@@ -2516,6 +2516,15 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  cursor:pointer;line-height:1.7}
 .macro-compare-history .apex-event-history-row strong{font-size:12px;color:#d6f0eb}
 
+/* One flat compact research summary; not a signal-quality score. */
+.source-reconciliation-list{display:grid;gap:7px;margin:9px 0 15px}
+.source-reconciliation-row{display:flex;flex-wrap:wrap;justify-content:space-between;
+ gap:4px 12px;padding:8px 11px;background:#102833;border:1px solid #37505d;
+ border-radius:10px}
+.source-reconciliation-row strong{font-size:11px;color:#e0f4ed;font-weight:700}
+.source-reconciliation-row small{font-size:10px;line-height:1.45;color:#9ebac5}
+.source-reconciliation-comparison{font-size:11px;line-height:1.55;
+ color:#bedddc;padding:8px 10px;border-left:2px solid #497d82;margin:4px 0}
 /* Independent free no-key API evidence; neutral display, no trade guidance. */
 .free-fear-panel{margin:12px 0}
 .free-fear-inline{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
