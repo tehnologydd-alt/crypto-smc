@@ -60,7 +60,7 @@ test('TP1, TP2 then SL display as source-preserved M5 chronology',()=>{
  assert.equal(timeline.events[3].price,104);
  assert.equal(timeline.events[4].price,98);
  assert.equal(timeline.events[4].terminal,true);
- assert.equal(timeline.label,'Вход → TP1 → TP2 → SL');
+ assert.equal(timeline.label,'Активный · вход → TP1 → TP2 → SL');
  assert.equal(timeline.events[2].at,anchor+3*M);
  assert.equal(timeline.events[4].at,anchor+7*M);
 });
