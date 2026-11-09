@@ -5,7 +5,8 @@ export const FREE_ENDPOINTS=Object.freeze({
  fear:'https://api.alternative.me/fng/?limit=1&format=json',
  dex:'https://api.dexscreener.com',
  gecko:'https://api.geckoterminal.com/api/v2',
- okx:'https://www.okx.com/api/v5/market/ticker'
+ okx:'https://www.okx.com/api/v5/market/ticker',
+ paprika:'https://api.coinpaprika.com/v1/tickers'
 });
 const mapped=Object.freeze({
  ETHUSDT:Object.freeze({chain:'ethereum',geckoNetwork:'eth',
@@ -118,4 +119,32 @@ export async function fetchOkxTicker(symbol,opts={}){
  const url=FREE_ENDPOINTS.okx+'?instId='+encodeURIComponent(instId);
  const r=await getJson(url,opts);
  return r.state==='OK'?parseOkxTicker(r.value,{symbol,now:(opts.now||Date.now)()}):r;
+}
+
+/** CoinPaprika free public ticker. Market context only, never an order price. */
+const paprikaCoins=Object.freeze({
+ BTCUSDT:'btc-bitcoin',ETHUSDT:'eth-ethereum',SOLUSDT:'sol-solana',
+ XRPUSDT:'xrp-xrp',ADAUSDT:'ada-cardano',DOGEUSDT:'doge-dogecoin',
+ BNBUSDT:'bnb-binance-coin',LTCUSDT:'ltc-litecoin'
+});
+export function parsePaprikaTicker(raw,{symbol,now=Date.now()}={}){
+ const id=paprikaCoins[symbol];
+ if(!id)return unsupported();
+ const q=raw?.quotes?.USD;
+ const price=num(q?.price),volume=num(q?.volume_24h),cap=num(q?.market_cap);
+ const timestamp=Date.parse(raw?.last_updated||'');
+ if(raw?.id!==id||!positive(price)||!nonnegative(volume)||
+  !nonnegative(cap)||!Number.isFinite(timestamp)||
+  timestamp>now+60000||now-timestamp>24*3600000)
+  return {state:'INVALID',reason:'Invalid coin identity, price or timestamp'};
+ return {state:'OK',data:{symbol,priceUsd:price,volume24hUsd:volume,
+  marketCapUsd:cap,observedAt:timestamp,provider:'CoinPaprika',
+  scope:'GLOBAL_ASSET_QUOTE_NOT_EXECUTION'}};
+}
+export async function fetchPaprikaTicker(symbol,opts={}){
+ const id=paprikaCoins[symbol];
+ if(!id)return unsupported();
+ const r=await getJson(FREE_ENDPOINTS.paprika+'/'+encodeURIComponent(id),opts);
+ return r.state==='OK'?parsePaprikaTicker(r.value,{
+  symbol,now:(opts.now||Date.now)()}):r;
 }
