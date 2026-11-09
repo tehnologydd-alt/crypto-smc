@@ -42,3 +42,11 @@ Builds use `@capacitor/*` **7.6.10** (patched release). `CapacitorHttp` performs
 ## Web asset staging
 
 `scripts/prepare-web.mjs` copies five preview files and two shared core modules to `dist/` and rewrites **only copied** imports from `../updates/...` to `./updates/...`. The repository's original web preview stays unchanged. All local module imports are verified before packaging.
+
+## APEX 9.1 source budget (news and BLS calendar)
+
+The app now has a local per-installation UTC-day request allowance for on-demand GDELT news (12), GDELT macro (6), individual-asset GDELT searches (8), and the official BLS iCalendar schedule (2). Requests are spaced by 45 min, 2 h, 90 min, and 12 h respectively; successful results are cached. Failed requests count as attempts. UTC midnight resets counts but does not bypass spacing. Stale cached articles are labelled as such. The app does not automatically fetch paid provider APIs.
+
+`provider-scheduler.mjs` is a conservative, **not yet provider-connected** paid API reservation guard: explicit enablement, estimated cents per call, monthly cap, UTC-hour windows, interval between calls and reserved event slots. Its cost accounting is NOT an invoice. Storage loss, changed device time, other devices and provider-side quotas can make local controls insufficient for account-wide billing. API credentials and any payment account must not be embedded in the Android APK. No paid source, in-app purchase or scheduled background-paid collection is enabled.
+
+BLS dates are scheduled releases, **not actual numeric data**. BLS may reject direct mobile requests; such a failure is shown, not replaced by an invented calendar.

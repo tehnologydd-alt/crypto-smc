@@ -100,3 +100,20 @@ test('asset news uses one shared daily allowance with separate per-symbol caches
  assert.equal(calls,2);
  assert.equal(budget.status('assetNews').used,2);
 });
+
+test('UTC daily reset does not bypass minimum provider spacing across midnight',async()=>{
+ const storage=makeStorage();let t=Date.UTC(2026,10,9,23,55);
+ const b=createEditorialBudget({storage,now:()=>t});
+ let count=0;
+ const fn=async()=>{count++;return {state:'OK',articles:[]};};
+ assert.equal((await b.load('news',fn)).source,'NETWORK');
+ t=Date.UTC(2026,10,10,0,2);
+ const blocked=await b.load('news',fn,{force:true});
+ assert.equal(blocked.state,'STALE');
+ assert.equal(blocked.sourceState,'WAIT_INTERVAL');
+ assert.equal(b.status('news').remaining,12);
+ assert.equal(count,1);
+ t+=45*60000;
+ assert.equal((await b.load('news',fn,{force:true})).source,'NETWORK');
+ assert.equal(count,2);
+});

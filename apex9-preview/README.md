@@ -69,3 +69,7 @@ No data gets written to the existing APEX 8.6 local database. The preview stores
 - GDELT DOC 2.0 API: `https://api.gdeltproject.org/api/v2/doc/doc` article-list matching a fixed, nonambiguous name (such as Bitcoin, Ethereum, Toncoin), with HTTPS-only news links.
 
 All adapters use unauthenticated GET, no HTML insertion and **no order-placement functionality**. Context remains separate from the predictive evidence fusion so that new data never artificially boosts directional confidence without chronological validation.
+
+## APEX 9.1 — source budgets and on-demand calendar
+
+GDELT news, macro news, and per-asset mentions now have separate per-device UTC-day request limits and minimum spacing. The official BLS no-key .ics schedule is parsed into planned release events (not actual values or directional signals) with a separate allowance. Results are cached, stale content is labelled, and unavailable sources show their actual state. These budgets apply to the APEX 9.1 flows; they do not constitute provider-wide quotas across devices. Paid API reservation has a generic, disabled-by-default local guard with explicit cost settings and no paid vendor wired into this preview.

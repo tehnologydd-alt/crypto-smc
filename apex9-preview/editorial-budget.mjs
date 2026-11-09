@@ -29,16 +29,19 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
  function counters(at){
   const day=utcBudgetDay(at);
   const raw=read(KEY);
-  if(raw===null||raw.day!==day){
-   if(raw!==null&&(!raw||typeof raw.day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(raw.day)))
-    throw Error('Invalid request ledger');
-   return {day,counts:{news:0,macro:0,calendar:0,assetNews:0},lastAttempt:{news:0,macro:0,calendar:0,assetNews:0}};
-  }
-  if(!raw.counts||!raw.lastAttempt||Object.keys(EDITORIAL_POLICY).some(mode=>
+  if(raw===null)return {day,
+   counts:{news:0,macro:0,calendar:0,assetNews:0},
+   lastAttempt:{news:0,macro:0,calendar:0,assetNews:0}};
+  if(!raw||typeof raw.day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(raw.day)||
+   !raw.counts||!raw.lastAttempt||Object.keys(EDITORIAL_POLICY).some(mode=>
    !Number.isSafeInteger(raw.counts[mode])||
    raw.counts[mode]<0||raw.counts[mode]>EDITORIAL_POLICY[mode].daily||
    !Number.isSafeInteger(raw.lastAttempt[mode])||raw.lastAttempt[mode]<0))
    throw Error('Invalid request ledger');
+  if(raw.day!==day)return {day,
+   counts:{news:0,macro:0,calendar:0,assetNews:0},
+   // Provider spacing must persist across UTC midnight, unlike daily counts.
+   lastAttempt:{...raw.lastAttempt}};
   return raw;
  }
  function quota(mode,at){

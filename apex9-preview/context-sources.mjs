@@ -143,7 +143,7 @@ export async function fetchAssetNews(symbol,{fetchImpl=fetch,now=()=>Date.now(),
  */
 export async function collectContext(symbol,opts={}){
  const keys=['coingecko-global','bitcoin-mempool','gdelt-news'];
- const news=typeof opts.newsGate==='function'?
+ const news=typeof opts.newsGate==='function'&&canonicalContextAsset(symbol)?
   opts.newsGate(symbol,()=>fetchAssetNews(symbol,opts)):
   fetchAssetNews(symbol,opts);
  const settled=await Promise.allSettled([
