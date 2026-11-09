@@ -31,9 +31,10 @@ test('all existing research targets map to the visible flat workspace',()=>{
  assert.equal(researchAreaForTarget('__proto__'),'summary');
 });
 test('quality becomes first-class direct bottom tab',()=>{
- for(const name of ['overview','asset','forecasts','quality','sources'])
+ for(const name of ['overview','radar','asset','forecasts','quality'])
   assert.equal(activeDock(name),name);
- for(const name of ['news','macro'])
+ assert.equal(activeDock('sources'),'quality');
+ for(const name of ['news','macro','catalog'])
   assert.equal(activeDock(name),'overview');
 });
 test('unrelated router input never becomes a shown research section',()=>{
