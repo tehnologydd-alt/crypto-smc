@@ -1,0 +1,55 @@
+name: APEX Cloudflare Pilot Deploy
+# Intentionally manual. A push never publishes to Cloudflare or incurs usage.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_private_pilot:
+        description: "I authorize deployment to my Cloudflare Workers Free account"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apex9-cloudflare-pilot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.ref_name == 'apex-9-evolution' && inputs.confirm_private_pilot }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: apex-cloudflare-pilot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate cloud configuration and run offline tests
+        env:
+          APEX_D1_DATABASE_ID: ${{ vars.APEX_D1_DATABASE_ID }}
+          APEX_WORKER_ORIGIN: ${{ vars.APEX_WORKER_ORIGIN }}
+          APEX_HOSTED_NEWS_ENABLED: "1"
+        run: |
+          set -eu
+          node --test apex9-cloudflare/test-worker.mjs
+          python3 apex9-cloudflare/test-sqlite-quota.py
+          node apex9-cloudflare/prepare.mjs
+          test -f apex9-cloudflare/wrangler.json
+          grep -Fq 'name="apex-news-gateway-mode" content="same-origin"' apex9-cloudflare/public/index.html
+          grep -Fq 'name="apex-news-gateway-mode" content="disabled"' apex9-preview/index.html
+      - name: Deploy only with an explicitly connected Cloudflare account
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APEX_WORKER_ORIGIN: ${{ vars.APEX_WORKER_ORIGIN }}
+        run: |
+          set -eu
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "::error::Missing Cloudflare API token"; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo "::error::Missing Cloudflare account ID"; exit 1; }
+          npx --yes wrangler@4 d1 execute apex9-news --remote --file=apex9-cloudflare/schema.sql --config=apex9-cloudflare/wrangler.json
+          npx --yes wrangler@4 deploy --config=apex9-cloudflare/wrangler.json
+          echo "Check the Worker HTTPS URL in your Cloudflare dashboard."
+          echo "Site credentials and vendor API keys must be added as Cloudflare Secrets by the account owner."
