@@ -85,7 +85,9 @@ test('overview badge is a user-controlled route, not a duplicate radar card',()=
  assert.ok(html.includes('id="radar-focus-panel"'));
  assert.ok(favorite.includes('getFavoriteRadarNotices(favorites,readRadarChanges(storage)'));
  assert.ok(favorite.includes("event.stopPropagation();\n     onOpenRadar?.(symbol,notice.interval)"));
- assert.ok(favorite.includes("if(event.button!==0||event.target.closest('.favorite-explain, .favorite-radar-link'))return;"));
+ const gesture=readFileSync(new URL('./favorite-gesture.mjs',import.meta.url),'utf8');
+ assert.ok(gesture.includes("const ignored='.favorite-explain, .favorite-radar-link'"));
+ assert.ok(gesture.includes("card.addEventListener('touchmove',touchMove,{passive:false})"));
  assert.ok(app.includes("radarDashboard.focus(symbol,interval)"));
  assert.ok(app.includes("navigate('radar','radar-focus-panel')"));
  assert.ok(radar.includes('getFavoriteRadarNotices([focusedSymbol],history'));
