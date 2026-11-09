@@ -16,6 +16,8 @@ import {displayPair,priceText,stagePresentation,
  observedLevelSummary,scenarioCopyText,SIDE_LABEL} from './forecast-card-ux.mjs';
 import {readRadarChanges} from './radar-changes.mjs';
 import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.mjs';
+import {directionalHypothesis} from './directional-scenario.mjs';
+import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
 import {bindFavoriteHoldSwipe} from './favorite-gesture.mjs';
 
 const id=name=>document.getElementById(name);
@@ -235,6 +237,12 @@ async function copyResearchText(value){
 }
 /** Single card; "Отмеченные" and "демо-журнал" are one and the same saved ID set. */
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
+ if(directionalHypothesis(row))
+  return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
+   sourceH1,copyText:copyResearchText});
+ return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
+}
+function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
  const card=create('article','forecast-record forecast-visual');
  const trace=inspectResearchTimeline(row,{now:Date.now()});
  const state=stagePresentation(trace);
