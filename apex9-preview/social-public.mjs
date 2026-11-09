@@ -3,6 +3,7 @@
  * unverified and NOT a trade/sentiment signal or an endorsed source.
  */
 import {canonicalContextAsset} from './context-sources.mjs';
+import {isRestrictedPublicPost} from './discussion-evidence.mjs';
 const BASE='https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts';
 const SEARCH=Object.freeze({
  BTC:'Bitcoin',ETH:'Ethereum',SOL:'Solana',XRP:'XRP',BNB:'BNB',
@@ -27,7 +28,8 @@ export function parseBlueskyPosts(payload,{symbol,receivedAt=Date.now()}={}){
   const stamp=Date.parse(p?.indexedAt||'');
   if(!m||typeof handle!=='string'||!/^[a-zA-Z0-9.-]{3,100}$/.test(handle)||
    !text||!Number.isFinite(stamp)||stamp>receivedAt+60000||
-   receivedAt-stamp>24*3600000||seen.has(uri))continue;
+   receivedAt-stamp>24*3600000||seen.has(uri)||
+   isRestrictedPublicPost(p))continue;
   // This is a search-match, not a vetted fact, source authority or polarity.
   seen.add(uri);
   out.push({author:handle,text,indexedAt:stamp,
