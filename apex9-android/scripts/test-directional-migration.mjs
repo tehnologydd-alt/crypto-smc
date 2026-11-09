@@ -53,3 +53,16 @@ test('old range studies do not occupy the visible forecast list by default',()=>
  assert.ok(page.includes('TP3'));
  assert.ok(page.includes("terminalStates.has(row.evaluation?.outcome)"));
 });
+
+test('forecast alert delivery listens ONLY to immutable closed-M5 stages',()=>{
+ const notifier=readFileSync(new URL('ApexForecastNotifier.kt',native),'utf8');
+ assert.ok(notifier.includes('LIMIT_READY'));
+ for(const stage of ['TP1','TP2','TP3','SL'])
+  assert.ok(notifier.includes('"'+stage+'"'));
+ assert.ok(notifier.includes('ApexM5Evaluation.INTERVAL'));
+ assert.ok(notifier.includes('stage.observedAt < settings.alertsEnabledAt'));
+ assert.ok(notifier.includes('ledger.getBoolean(key, false)'));
+ assert.ok(notifier.includes('notificationPermission')||
+  notifier.includes('POST_NOTIFICATIONS'));
+ assert.ok(auto.includes('ApexForecastNotifier.dispatch(context, unique, dao)'));
+});

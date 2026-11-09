@@ -53,6 +53,10 @@ object ApexAutoForecast {
                         (e.message ?: "Ошибка источника").take(120)))
                 }
             }
+            // Both foreground sync and opt-in WorkManager use this single
+            // deduplicated Room-stage notification pathway.
+            try { ApexForecastNotifier.dispatch(context, unique, dao) }
+            catch (_: Exception) { /* Notifications cannot break research sync. */ }
             reports
         } }
 
