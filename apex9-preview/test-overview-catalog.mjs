@@ -76,7 +76,10 @@ test('overview has market-wide events, while asset data carries separate news an
   assert.equal(html.split('id="'+id+'"').length-1,1,id);
  assert.ok(html.indexOf('id="overview-events-list"')<html.indexOf('id="view-asset"'));
  assert.ok(html.indexOf('id="asset-social-list"')>html.indexOf('id="view-asset"'));
- assert.ok(app.includes('routeAssetNews('));
+ // Asset news is now joined from GDELT plus RSS/personal providers; the
+ // previous single-source routeAssetNews() check became outdated.
+ assert.ok(app.includes('buildAssetNewsContext('));
+ assert.ok(app.includes('assetEventArchive.captureAsset(chosen,{news:n})'));
  assert.ok(app.includes('fetchBlueskyPosts('));
  assert.ok(app.includes('editorialDashboard.openOverview()'));
 });
