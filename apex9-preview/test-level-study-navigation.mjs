@@ -18,7 +18,8 @@ test('every valid forecast card displays reference, conditional TP1-TP3 SL',()=>
 });
 test('source is strictly original Android Room H1, never reconstructed candle path',()=>{
  assert.ok(favorites.includes("getMobileCandleArchive(asset,'1h'"));
- assert.ok(favorites.includes("archive.native&&archive.complete&&!archive.error"));
+ assert.ok(favorites.includes("data.native&&data.complete&&!data.error"));
+ assert.ok(favorites.includes("if(!archive.native||archive.error||!archive.complete)"));
  assert.ok(favorites.includes('analyzeResearchLevelSequence(plan,archive.candles'));
  assert.ok(levels.includes('PUBLICATION_HOUR_UNKNOWN'));
  assert.ok(levels.includes('SAME_H1_UNKNOWN'));
