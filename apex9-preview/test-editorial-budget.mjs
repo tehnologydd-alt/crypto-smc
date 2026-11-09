@@ -55,7 +55,7 @@ test('no storage or corrupt ledger fails closed; no network used',async()=>{
  assert.equal(calls,0);
 });
 test('failed requests consume attempts and do not bypass cache TTL',async()=>{
- const storage=makeStorage();let calls=0,t=epoch;
+ const storage=makeStorage();let calls=0,t=Date.UTC(2026,10,9,0);
  const budget=createEditorialBudget({storage,now:()=>t});
  let r=await budget.load('calendar',async()=>{calls++;return {state:'OFFLINE',events:[]};});
  assert.equal(r.state,'OFFLINE');
