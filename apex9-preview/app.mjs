@@ -1095,6 +1095,7 @@ async function loadAssetSocial(symbol){
  const result=await assetNewsBudget.load('social',
   ()=>fetchBlueskyPosts(symbol),{key:symbol});
  if(symbol!==chosen)return;
+ freeSourceDashboard.setSocial(symbol,result);
  assetEventArchive.captureAsset(symbol,{social:result});
  showAssetEventHistory();
  if(!['OK','EMPTY','STALE'].includes(result.state)){
@@ -1289,6 +1290,8 @@ async function investigate(value){
  clear(el('depth-list'));clear(el('source-list'));clear(el('missing-layers'));
  renderContext(null);
  freeSourceDashboard.setContext(chosen,null);
+ freeSourceDashboard.setSnapshot(chosen,null);
+ freeSourceDashboard.setSocial(chosen,null);
  setNotice('Получаем публичные данные бирж, общий крипторынок, сведения о BTC и новостные упоминания.');
  el('search-button').disabled=true;
  el('refresh-button').disabled=true;
@@ -1303,6 +1306,7 @@ async function investigate(value){
   if(active!==pending)return;
   renderSnapshot(snapshot);
   renderContext(context);
+  freeSourceDashboard.setSnapshot(chosen,snapshot);
   freeSourceDashboard.setContext(chosen,context);
   // Persist only actual successful source observations in the phone's Room DB.
   const persisted=await saveMobileSnapshot(snapshot);
