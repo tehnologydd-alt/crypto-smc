@@ -10,7 +10,15 @@ const MENTIONS=Object.freeze({
  ADA:/\bCardano\b|\bADA\b/,
  BNB:/\bBNB\b|\bBinance Coin\b/i,
  DOGE:/\bDogecoin\b|\bDOGE\b/i,
- LTC:/\bLitecoin\b|\bLTC\b/i
+ LTC:/\bLitecoin\b|\bLTC\b/i,
+ AVAX:/\bAvalanche\b|\bAVAX\b/i,
+ LINK:/\bChainlink\b|\bLINK\b/i,
+ DOT:/\bPolkadot\b|\bDOT\b/i,
+ TRX:/\bTron\b|\bTRX\b/i,
+ SHIB:/\bShiba Inu\b|\bSHIB\b/i,
+ BCH:/\bBitcoin Cash\b|\bBCH\b/i,
+ TON:/\bToncoin\b|\bThe Open Network\b/i,
+ GRAM:/\bToncoin\b|\bThe Open Network\b/i
 });
 const TOPICS=Object.freeze([
  {name:'Регулирование',pattern:/\b(?:regulation|regulator|regulatory|law|laws|bill|legislation|policy|sec|court)\b/i},
