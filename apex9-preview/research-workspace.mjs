@@ -22,6 +22,16 @@ export function workspaceArea(view,requested=null){
  if(!Object.prototype.hasOwnProperty.call(WORKSPACE,view))return null;
  return WORKSPACE[view].includes(requested)?requested:DEFAULT[view];
 }
+/**
+ * A dock return restores the user's last direct asset task.
+ * An explicit entry from Radar, Forecasts or the catalog wins over history;
+ * an unknown deep-link always goes to the chart rather than a stale task.
+ */
+export function assetAreaForEntry(target=null,lastArea='chart'){
+ if(typeof target==='string'&&target.length>0)
+  return workspaceArea('asset',target);
+ return workspaceArea('asset',lastArea);
+}
 export function researchAreaForTarget(target){
  return Object.prototype.hasOwnProperty.call(TARGET,target)?
   TARGET[target]:DEFAULT.quality;
