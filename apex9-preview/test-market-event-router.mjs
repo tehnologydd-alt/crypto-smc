@@ -57,3 +57,18 @@ test('Bluesky public posts are URL-bounded, dated and not classified as signals'
  assert.equal((await fetchBlueskyPosts('NONEUSDT',{fetchImpl:async()=>{
   throw Error('should not call');}})).state,'UNSUPPORTED');
 });
+
+test('normalized GDELT news remains visible in the asset event archive',()=>{
+ const normalized={state:'OK',data:{articles:[
+  {title:'Bitcoin network upgrade details',
+   href:'https://publisher.example/bitcoin-upgrade',observedAt:now-120000,
+   source:'GDELT',timeKind:'INDEXED'},
+  {title:'Ethereum network upgrade details',
+   href:'https://publisher.example/eth-upgrade',observedAt:now-120000}
+ ]}};
+ const events=routeAssetNews('BTCUSDT',normalized);
+ assert.equal(events.length,1);
+ assert.equal(events[0].url,'https://publisher.example/bitcoin-upgrade');
+ assert.equal(events[0].seenAt,now-120000);
+ assert.equal(events[0].scope,'NAME_MATCH_NOT_VERIFIED_IMPACT');
+});
