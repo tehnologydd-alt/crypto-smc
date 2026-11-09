@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local read-only news gateway counters (never commit device/server state)
+.apex-news-gateway-ledger.json*
