@@ -8,6 +8,7 @@ on:
       - 'updates/v90-market-depth.mjs'
       - 'updates/test-v90-market-depth.mjs'
       - 'apex9-preview/**'
+      - 'apex9-android/scripts/**'
       - 'apex9-news-gateway/**'
       - 'apex9-cloudflare/**'
       - '.github/workflows/apex-9-core-tests.yml'
