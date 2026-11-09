@@ -48,7 +48,7 @@ test('no storage or corrupt ledger fails closed; no network used',async()=>{
  const result=await bad.load('calendar',async()=>{calls++;});
  assert.equal(result.state,'STORAGE_UNAVAILABLE');
  const storage=makeStorage();
- storage.setItem('apex9:public-editorial-budget:v1','not-json');
+ storage.setItem('apex9:public-editorial-budget:v2','not-json');
  const x=await createEditorialBudget({storage,now:()=>epoch})
   .load('news',async()=>{calls++;});
  assert.equal(x.state,'STORAGE_UNAVAILABLE');
@@ -82,4 +82,21 @@ test('minimum spacing prevents retry bursts even with force',async()=>{
  assert.equal(second.sourceState,'WAIT_INTERVAL');
  assert.equal(calls,1);
  assert.equal(budget.status('macro').used,1);
+});
+
+test('asset news uses one shared daily allowance with separate per-symbol caches',async()=>{
+ const storage=makeStorage();let t=epoch,calls=0;
+ const budget=createEditorialBudget({storage,now:()=>t});
+ const request=async symbol=>{calls++;return {state:'OK',data:{asset:symbol,articles:[]}};};
+ const btc=await budget.load('assetNews',()=>request('BTCUSDT'),{key:'BTCUSDT'});
+ assert.equal(btc.state,'OK');assert.equal(btc.data.asset,'BTCUSDT');
+ const ethTooSoon=await budget.load('assetNews',()=>request('ETHUSDT'),{key:'ETHUSDT'});
+ assert.equal(ethTooSoon.state,'WAIT_INTERVAL');
+ t+=90*60000;
+ const eth=await budget.load('assetNews',()=>request('ETHUSDT'),{key:'ETHUSDT'});
+ assert.equal(eth.state,'OK');assert.equal(eth.data.asset,'ETHUSDT');
+ const cached=await budget.load('assetNews',()=>request('BTCUSDT'),{key:'BTCUSDT'});
+ assert.equal(cached.source,'CACHE');assert.equal(cached.data.asset,'BTCUSDT');
+ assert.equal(calls,2);
+ assert.equal(budget.status('assetNews').used,2);
 });

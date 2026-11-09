@@ -17,6 +17,7 @@ import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs
 import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
 import {workspaceArea,assetAreaForEntry,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
+import {createEditorialBudget} from './editorial-budget.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
@@ -226,6 +227,10 @@ function setQualityArea(requested){
 }
 
 const editorialDashboard=initEditorialDashboard();
+// The high-frequency price refresh must NEVER generate unbounded GDELT queries.
+let editorialStorage=null;
+try{editorialStorage=window.localStorage;}catch{}
+const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
 const radarDashboard=initRadarDashboard({
  getCatalog:()=>catalog,
  onOpenAsset:symbol=>{void investigate(symbol);navigate('asset','structure');}
@@ -1090,7 +1095,9 @@ async function investigate(value){
  try{
   const [snapshot,context]=await Promise.all([
    collectAsset(chosen,{signal:local.signal,now:()=>Date.now()}),
-   collectContext(chosen,{signal:local.signal,now:()=>Date.now()})
+   collectContext(chosen,{signal:local.signal,now:()=>Date.now(),
+    newsGate:(symbol,fetcher)=>assetNewsBudget.load('assetNews',fetcher,
+     {key:symbol})})
   ]);
   if(active!==pending)return;
   renderSnapshot(snapshot);

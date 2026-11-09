@@ -73,3 +73,24 @@ test('bitcoin network source appears only on bitcoin',async()=>{
  assert.equal(r.sources[1].state,'OK');
  assert.equal(r.sources[1].data.transactionCount,1234);
 });
+
+test('asset news gate keeps normal market polling from bypassing daily quotas',async()=>{
+ let calls=0;
+ const guarded=async (symbol,fetcher)=>{
+  calls++;
+  if(symbol==='BTCUSDT')return {state:'LIMIT_REACHED',
+   data:null,reason:'No further GDELT requests'};
+  return fetcher();
+ };
+ const f=async url=>{
+  if(url.includes('coingecko'))return response(global);
+  if(url.includes('mempool.space'))return response(mempool);
+  if(url.includes('gdelt'))throw Error('GDELT budget was bypassed');
+  return response({});
+ };
+ const result=await collectContext('BTCUSDT',{fetchImpl:f,now:()=>now,
+  newsGate:guarded});
+ assert.equal(calls,1);
+ assert.equal(result.sources[2].state,'LIMIT_REACHED');
+ assert.equal(result.sources[0].state,'OK');
+});

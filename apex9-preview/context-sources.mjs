@@ -143,8 +143,11 @@ export async function fetchAssetNews(symbol,{fetchImpl=fetch,now=()=>Date.now(),
  */
 export async function collectContext(symbol,opts={}){
  const keys=['coingecko-global','bitcoin-mempool','gdelt-news'];
+ const news=typeof opts.newsGate==='function'?
+  opts.newsGate(symbol,()=>fetchAssetNews(symbol,opts)):
+  fetchAssetNews(symbol,opts);
  const settled=await Promise.allSettled([
-  fetchCryptoGlobal(opts),fetchBitcoinMempool(symbol,opts),fetchAssetNews(symbol,opts)
+  fetchCryptoGlobal(opts),fetchBitcoinMempool(symbol,opts),news
  ]);
  const sources=settled.map((r,i)=>{
   const value=r.status==='fulfilled'?r.value:fail('OFFLINE',error(r.reason));

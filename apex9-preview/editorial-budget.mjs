@@ -7,10 +7,11 @@
 export const EDITORIAL_POLICY=Object.freeze({
  news:Object.freeze({daily:12,ttlMs:60*60000,spacingMs:45*60000,staleMs:48*3600000}),
  macro:Object.freeze({daily:6,ttlMs:2*3600000,spacingMs:2*3600000,staleMs:48*3600000}),
+ assetNews:Object.freeze({daily:8,ttlMs:6*3600000,spacingMs:90*60000,staleMs:48*3600000}),
  calendar:Object.freeze({daily:2,ttlMs:12*3600000,spacingMs:12*3600000,staleMs:72*3600000})
 });
-const KEY='apex9:public-editorial-budget:v1';
-const CACHE='apex9:public-editorial-cache:v1:';
+const KEY='apex9:public-editorial-budget:v2';
+const CACHE='apex9:public-editorial-cache:v2:';
 const eligible=r=>r?.state==='OK'||r?.state==='EMPTY';
 const validTime=t=>Number.isSafeInteger(t)&&t>0;
 export const utcBudgetDay=ms=>new Date(ms).toISOString().slice(0,10);
@@ -31,7 +32,7 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
   if(raw===null||raw.day!==day){
    if(raw!==null&&(!raw||typeof raw.day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(raw.day)))
     throw Error('Invalid request ledger');
-   return {day,counts:{news:0,macro:0,calendar:0},lastAttempt:{news:0,macro:0,calendar:0}};
+   return {day,counts:{news:0,macro:0,calendar:0,assetNews:0},lastAttempt:{news:0,macro:0,calendar:0,assetNews:0}};
   }
   if(!raw.counts||!raw.lastAttempt||Object.keys(EDITORIAL_POLICY).some(mode=>
    !Number.isSafeInteger(raw.counts[mode])||
@@ -46,8 +47,8 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
   return {day:c.day,used:c.counts[mode],limit:EDITORIAL_POLICY[mode].daily,
    nextAt,remaining:Math.max(0,EDITORIAL_POLICY[mode].daily-c.counts[mode])};
  }
- function saved(mode,at){
-  const item=read(CACHE+mode);
+ function saved(mode,at,cacheKey=''){
+  const item=read(CACHE+mode+cacheKey);
   if(!item)return null;
   if(!validTime(item.fetchedAt)||item.fetchedAt>at+60000||
    at-item.fetchedAt>EDITORIAL_POLICY[mode].staleMs||
@@ -67,14 +68,18 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
   catch{return {used:0,limit:EDITORIAL_POLICY[mode].daily,
    remaining:0,state:'STORAGE_UNAVAILABLE'};}
  }
- async function load(mode,fetcher,{force=false}={}){
+ async function load(mode,fetcher,{force=false,key=''}={}){
   if(!Object.hasOwn(EDITORIAL_POLICY,mode))
    return failed('INVALID','Unknown source');
-  if(inflight.has(mode))return inflight.get(mode);
+  if(mode==='assetNews'&&!/^[A-Z0-9]{5,20}$/.test(key))
+   return failed('INVALID','Asset news requires a verified market symbol');
+  const cacheKey=mode==='assetNews'?':'+key:'';
+  const inflightKey=mode+cacheKey;
+  if(inflight.has(inflightKey))return inflight.get(inflightKey);
   const task=(async()=>{
    const at=now();
    let ledger,item,remaining;
-   try{ledger=counters(at);item=saved(mode,at);
+   try{ledger=counters(at);item=saved(mode,at,cacheKey);
     remaining=quota(mode,at);}
    catch{return failed('STORAGE_UNAVAILABLE',
     'No safe persistent daily quota is available');}
@@ -106,11 +111,11 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
     result.state||'INVALID');
    const entry={fetchedAt:at,result};
    // Even when cache persistence fails the request ledger remains reserved.
-   try{write(CACHE+mode,entry);}catch{}
+   try{write(CACHE+mode+cacheKey,entry);}catch{}
    return output(result,entry,'NETWORK',remaining);
   })();
-  inflight.set(mode,task);
-  try{return await task;}finally{inflight.delete(mode);}
+  inflight.set(inflightKey,task);
+  try{return await task;}finally{inflight.delete(inflightKey);}
  }
  return {load,status};
 }
