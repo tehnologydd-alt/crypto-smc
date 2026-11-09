@@ -2452,3 +2452,16 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 .apex-settings-alert-types{margin-left:12px;border-left:2px solid #2c6970;padding-left:12px}
 .apex-settings-dialog .apex-settings-alert-types .apex-setting-toggle{margin-top:7px}
 .apex-settings-dialog .apex-setting-toggle:has(input:disabled){opacity:.6}
+
+/* Flat market-wide vs asset-scoped editorial context, no duplicated feeds. */
+.overview-events-panel{margin:15px 0}
+.overview-events-list,.asset-event-list{display:grid;gap:8px;margin:10px 0}
+.overview-event-row,.asset-event-row{border:1px solid #356573;border-radius:12px;
+ background:#102b35;padding:11px 12px;display:grid;gap:5px;min-width:0}
+.overview-event-row a,.asset-event-row a{font-size:12px;line-height:1.55;
+ color:#b9eeea;overflow-wrap:anywhere;text-decoration:none}
+.overview-event-row small,.asset-event-row small{font-size:10px;
+ line-height:1.5;color:#91b1bd}
+.asset-events-panel .section-title{align-items:center}
+.asset-events-panel .section-title h4{font-size:13px;margin:8px 0}
+.asset-events-panel .muted{font-size:11px;line-height:1.6}

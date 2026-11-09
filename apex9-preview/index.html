@@ -93,6 +93,12 @@
         <p id="overview-global-updated" class="overview-global-updated">Время источника пока не получено.</p>
         <p class="footnote">Это состояние всего крипторынка, а не изменение выбранного актива и не прогноз направления.</p>
       </article>
+      <article class="card block overview-events-panel" aria-label="Главные события крипторынка">
+        <div class="section-title"><h3>События для всего рынка</h3><span>Новости · макро · календарь</span></div>
+        <p id="overview-events-status" class="muted" role="status">Проверяем доступные публичные источники…</p>
+        <div id="overview-events-list" class="overview-events-list"></div>
+        <p class="footnote">Подбор по тематике и времени. Значимость и влияние на рынок не доказаны; слухи и старые записи не выдаются за факты.</p>
+      </article>
       <div class="overview-destinations" aria-label="Быстрый переход к исследованиям">
         <button type="button" data-go="forecasts">Сценарии <span aria-hidden="true">›</span></button>
         <button type="button" data-go="quality">Качество исследований <span aria-hidden="true">›</span></button>
@@ -294,6 +300,16 @@
         <p id="structure-summary" class="muted">Недостаточно исторических данных.</p>
         <div id="structure-events" class="structure-events"></div>
         <p class="footnote">BOS и CHoCH — ретроспективные отметки пробоя подтверждённых экстремумов, не сигналы покупки или продажи. Последняя незакрытая свеча в расчёте не участвует.</p>
+      </article>
+      <article class="card block asset-events-panel" data-asset-pane="data">
+        <div class="section-title"><h3>События и обсуждения актива</h3><span>Новости · экономика · соцсети</span></div>
+        <p id="asset-news-state" class="muted">Проверяем привязку новостей к названию актива…</p>
+        <div id="asset-news-list" class="asset-event-list"></div>
+        <p class="muted">Общая макроэкономика важна для контекста рынка, но не считается доказанным фактором движения именно этой монеты. <button type="button" class="ghost" data-go="macro">Макрокалендарь</button></p>
+        <div class="section-title"><h4>Публичные обсуждения</h4><span>Bluesky · по запросу</span></div>
+        <p id="asset-social-state" class="muted">Обсуждения загружаются только при открытии раздела «Данные».</p>
+        <div id="asset-social-list" class="asset-event-list"></div>
+        <p class="footnote">Посты пользователей не проверены и не являются достоверными новостями, настроением рынка или торговыми сигналами. Максимум 6 поисков в сутки на телефон, интервал 2 часа.</p>
       </article>
       <article class="card block" data-asset-pane="data">
         <h3>Рыночные сведения</h3>

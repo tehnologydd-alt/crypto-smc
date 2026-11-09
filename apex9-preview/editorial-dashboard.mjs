@@ -7,6 +7,7 @@ import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
 import {fetchScheduledEventReaction} from './macro-event-reaction.mjs';
+import {routeGlobalEvents} from './market-event-router.mjs';
 const get=id=>document.getElementById(id);
 const node=(tag,cls='',content)=>{
  const x=document.createElement(tag);
@@ -204,8 +205,39 @@ export function initEditorialDashboard(){
    if(seq===active)controller=null;
   }
  }
+ async function openOverview(){
+  const status=get('overview-events-status');
+  const list=get('overview-events-list');
+  if(!status||!list)return;
+  status.textContent='Проверяем публичные источники и сохранённые события…';
+  const [news,macro,calendar]=await Promise.all([
+   budget.load('news',()=>loadEditorialFeed('news')),
+   budget.load('macro',()=>loadEditorialFeed('macro')),
+   budget.load('calendar',()=>loadBlsCalendar())
+  ]);
+  list.replaceChildren();
+  const results=routeGlobalEvents(news,macro,calendar,{now:Date.now(),max:5});
+  const sourceStates=[news,macro,calendar].map(x=>x.state).join(' · ');
+  status.textContent='GDELT / BLS · тематическая подборка, не доказанное влияние · '+
+   sourceStates;
+  if(!results.length){
+   list.append(node('p','muted','Подтверждённых доступных событий пока нет. Источник может быть недоступен или лимит исчерпан.'));
+   return;
+  }
+  for(const event of results){
+   const item=node('article','overview-event-row');
+   const link=node('a','',event.title);
+   link.href=event.href;link.rel='noopener noreferrer';link.target='_blank';
+   item.append(link,node('small','',
+    (event.group==='calendar'?'План BLS · ':
+     event.group==='macro'?'Макроэкономика · ':'Криптоновости · ')+
+    niceTime(event.observedAt)+
+    (event.outdated?' · архивная информация':'')));
+   list.append(item);
+  }
+ }
  for(const mode of ['news','macro'])
   get('editorial-'+mode+'-refresh')?.addEventListener('click',
    ()=>void open(mode,{force:true}));
- return {open};
+ return {open,openOverview};
 }

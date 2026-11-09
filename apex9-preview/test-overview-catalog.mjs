@@ -69,3 +69,14 @@ test('settings expose distinct native-backed limit, TP, SL and keep-awake contro
  assert.ok(app.includes("await setMobileSettings({[key]:requested})"));
  assert.ok(css.includes('.apex-settings-alert-types'));
 });
+
+test('overview has market-wide events, while asset data carries separate news and social feed',()=>{
+ for(const id of ['overview-events-status','overview-events-list',
+  'asset-news-state','asset-news-list','asset-social-state','asset-social-list'])
+  assert.equal(html.split('id="'+id+'"').length-1,1,id);
+ assert.ok(html.indexOf('id="overview-events-list"')<html.indexOf('id="view-asset"'));
+ assert.ok(html.indexOf('id="asset-social-list"')>html.indexOf('id="view-asset"'));
+ assert.ok(app.includes('routeAssetNews('));
+ assert.ok(app.includes('fetchBlueskyPosts('));
+ assert.ok(app.includes('editorialDashboard.openOverview()'));
+});

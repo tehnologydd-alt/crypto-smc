@@ -78,3 +78,16 @@ availability and missing M5 candles. No broker orders or actual trades are invol
 The opt-in keep-screen-on switch is OFF by default, uses the Android activity's
 FLAG_KEEP_SCREEN_ON while APEX is visible, and consumes additional battery.
 It does not wake the screen or keep an Android service running in background.
+
+## Event routing and free public social context
+The overview has one short market-wide events stream from cached, quota-limited
+GDELT news/macro and the official BLS planned release calendar. Editorial topic
+matching is not verified importance or causal price impact. The asset Data pane
+contains only asset-matched GDELT headlines and explicit links to the separate
+common macro calendar; there is no unsupported assertion that macro news
+caused a specific token's movement.
+
+Public Bluesky search is optional and on-demand when the asset Data pane is
+opened: max six attempts per UTC day on this installation, minimum two-hour
+spacing, per-symbol caching. Results are labelled user opinions, not verified
+news or sentiment measurements.

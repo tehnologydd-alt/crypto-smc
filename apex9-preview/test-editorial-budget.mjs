@@ -48,7 +48,7 @@ test('no storage or corrupt ledger fails closed; no network used',async()=>{
  const result=await bad.load('calendar',async()=>{calls++;});
  assert.equal(result.state,'STORAGE_UNAVAILABLE');
  const storage=makeStorage();
- storage.setItem('apex9:public-editorial-budget:v4','not-json');
+ storage.setItem('apex9:public-editorial-budget:v5','not-json');
  const x=await createEditorialBudget({storage,now:()=>epoch})
   .load('news',async()=>{calls++;});
  assert.equal(x.state,'STORAGE_UNAVAILABLE');
@@ -141,4 +141,18 @@ test('event studies have a bounded shared budget and per-event cache',async()=>{
  assert.equal((await budget.load('eventStudy',run,{key})).source,'CACHE');
  assert.equal(calls,1);assert.equal(budget.status('eventStudy').remaining,5);
  assert.equal((await budget.load('eventStudy',run,{key:'INVALID'})).state,'INVALID');
+});
+
+test('social searches respect one shared six-call budget, per-symbol cache and spacing',async()=>{
+ const storage=makeStorage();let t=Date.UTC(2026,10,9,0),n=0;
+ const budget=createEditorialBudget({storage,now:()=>t});
+ const fn=async()=>{n++;return {state:'OK',posts:[{text:'public'}]};};
+ assert.equal((await budget.load('social',fn,{key:'BTCUSDT'})).source,'NETWORK');
+ assert.equal((await budget.load('social',fn,{key:'BTCUSDT'})).source,'CACHE');
+ assert.equal((await budget.load('social',fn,{key:'ETHUSDT'})).state,'WAIT_INTERVAL');
+ assert.equal((await budget.load('social',fn,{key:''})).state,'INVALID');
+ t+=2*3600000;
+ assert.equal((await budget.load('social',fn,{key:'ETHUSDT'})).source,'NETWORK');
+ assert.equal(budget.status('social').used,2);
+ assert.equal(n,2);
 });
