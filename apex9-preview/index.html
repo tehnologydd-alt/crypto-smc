@@ -80,6 +80,57 @@
       </div>
     </section>
 
+
+    <section class="view hidden" id="view-radar" aria-labelledby="radar-title">
+      <div class="radar-heading">
+        <div>
+          <h2 id="radar-title">Радар рынка</h2>
+          <p>Находим заметные изменения, а подробности изучаем на странице актива.</p>
+        </div>
+        <button id="radar-refresh" class="radar-refresh" type="button">↻ Проверить</button>
+      </div>
+      <div class="radar-controls">
+        <div class="radar-control-heading">Таймфрейм <span>Одна проверка — один горизонт</span></div>
+        <div class="radar-frame-tabs" role="group" aria-label="Горизонт рыночного радара">
+          <button type="button" data-radar-frame="15m" aria-pressed="false">M15</button>
+          <button type="button" data-radar-frame="1h" aria-pressed="true" class="active">H1</button>
+          <button type="button" data-radar-frame="4h" aria-pressed="false">H4</button>
+          <button type="button" data-radar-frame="1d" aria-pressed="false">D1</button>
+        </div>
+        <div class="radar-control-heading">Что показать</div>
+        <div class="radar-filter-tabs" role="group" aria-label="Фильтры наблюдений">
+          <button type="button" data-radar-filter="all" class="active" aria-pressed="true">Все</button>
+          <button type="button" data-radar-filter="up" aria-pressed="false">Рост</button>
+          <button type="button" data-radar-filter="down" aria-pressed="false">Снижение</button>
+          <button type="button" data-radar-filter="range" aria-pressed="false">Диапазон</button>
+          <button type="button" data-radar-filter="changing" aria-pressed="false">Направленные</button>
+        </div>
+        <div class="radar-sort-line">
+          <label for="radar-sort">Сортировка</label>
+          <select id="radar-sort">
+            <option value="turnover">Оборот Spot · 24 ч</option>
+            <option value="movement">Скорость движения · модуль</option>
+            <option value="volume">Относительный объём</option>
+          </select>
+        </div>
+      </div>
+      <div class="radar-summary">
+        <span id="radar-coverage">0 проверенных активов</span>
+        <span>Binance Spot · USDT</span>
+      </div>
+      <p id="radar-status" class="radar-status" role="status" aria-live="polite">
+        Откройте радар, чтобы проверить рынок.
+      </p>
+      <div id="radar-results" class="radar-results" role="list" aria-label="Наблюдения за рыночными изменениями">
+        <p class="radar-empty">После проверки здесь появятся активы.</p>
+      </div>
+      <div class="radar-footnotes">
+        <p>Проверяем до 12 пар с наибольшим публичным оборотом за 24 часа, а не весь рынок. Используются только завершённые свечи выбранного таймфрейма.</p>
+        <p>Направление, скорость и режим описывают прошлое движение. Это не прогноз и не торговый сигнал. Для сравнения M15/H1/H4/D1 откройте карточку актива → Структура.</p>
+        <button type="button" class="ghost" data-go="catalog">Открыть полный каталог активов</button>
+      </div>
+    </section>
+
     <section class="view hidden" id="view-catalog" aria-labelledby="catalog-title">
       <div class="section-title"><h2 id="catalog-title">Каталог активов</h2><span>Binance Spot · USDT</span></div>
       <p class="muted">Найдите нужную пару. Звёздочка добавляет её в избранное.</p>
@@ -315,7 +366,8 @@
         <span class="quality-page-marker">ANDROID FIRST · ROOM</span>
       </div>
       <div class="section-title"><h2 id="quality-title">Качество исследований</h2><span>Evidence Lab</span></div>
-      <p class="quality-lead">Один экран — одна исследовательская задача. Выберите раздел ниже: расчёты и источники сохранены, а длинные лаборатории больше не занимают весь экран сразу.</p>
+      <p class="quality-lead">Один экран — одна исследовательская задача. Подробные источники и диагностика доступны отдельно, без повторения их на каждом экране.</p>
+      <button type="button" class="ghost quality-sources-link" data-go="sources">Источники и состояние Android ›</button>
       <div id="quality-workspace-anchor" class="quality-workspace-top">
         <label for="evidence-asset">Исследуемый актив
           <select id="evidence-asset" aria-label="Актив для аудита и исследований"></select>
@@ -438,7 +490,7 @@
     </section>
 
     <section class="view hidden" id="view-sources" aria-labelledby="sources-title">
-      <div class="section-title"><h2 id="sources-title">Источники и достоверность</h2><span>Наблюдаемое состояние</span></div>
+      <div class="section-title"><h2 id="sources-title">Источники и достоверность</h2><button class="ghost" data-go="quality" type="button">‹ Исследования</button></div>
       <article class="card block">
         <h3>Подключённые публичные API</h3>
         <div id="source-list" class="stack"><p class="muted">Статусы станут доступны после запроса.</p></div>
@@ -510,10 +562,10 @@
   <footer class="footer">APEX 9.0 · Research Preview · Проверяемые публичные сведения</footer>
   <nav class="tabs bottom-dock" aria-label="Главная навигация APEX 9.0">
     <button class="tab active" data-tab="overview" type="button" aria-current="page"><span class="dock-icon" aria-hidden="true">⌂</span><span>Обзор</span></button>
+    <button class="tab" data-tab="radar" type="button"><span class="dock-icon" aria-hidden="true">◎</span><span>Радар</span></button>
     <button class="tab" data-tab="asset" type="button"><span class="dock-icon" aria-hidden="true">◈</span><span>Актив</span></button>
-    <button class="tab" data-tab="forecasts" type="button"><span class="dock-icon" aria-hidden="true">◎</span><span>Сценарии</span></button>
+    <button class="tab" data-tab="forecasts" type="button"><span class="dock-icon" aria-hidden="true">▤</span><span>Сценарии</span></button>
     <button class="tab" data-tab="quality" type="button"><span class="dock-icon" aria-hidden="true">◇</span><span>Исследования</span></button>
-    <button class="tab" data-tab="sources" type="button"><span class="dock-icon" aria-hidden="true">☷</span><span>Источники</span></button>
   </nav>
 </div>
 </body>
