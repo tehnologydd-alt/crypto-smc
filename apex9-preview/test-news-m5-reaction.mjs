@@ -12,7 +12,10 @@ const now=at+6*3600000;
 function makeBars(atEvent,clock){
  const base=Math.floor(atEvent/FIVE)*FIVE;
  const start=base-13*FIVE;
- const last=Math.min(base+48*FIVE,Math.floor(clock/FIVE)*FIVE-FIVE);
+ // Match the production selector: the last complete five-minute bar whose
+ // close reaches the 240-minute horizon from the actual publication time.
+ const fullHorizon=Math.ceil((atEvent+240*60000-FIVE)/FIVE)*FIVE;
+ const last=Math.min(fullHorizon,Math.floor(clock/FIVE)*FIVE-FIVE);
  return Array.from({length:(last-start)/FIVE+1},(_,i)=>{
   const t=start+i*FIVE;
   const price=100+i*.01;
