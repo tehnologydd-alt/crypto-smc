@@ -48,7 +48,7 @@ test('no storage or corrupt ledger fails closed; no network used',async()=>{
  const result=await bad.load('calendar',async()=>{calls++;});
  assert.equal(result.state,'STORAGE_UNAVAILABLE');
  const storage=makeStorage();
- storage.setItem('apex9:public-editorial-budget:v2','not-json');
+ storage.setItem('apex9:public-editorial-budget:v3','not-json');
  const x=await createEditorialBudget({storage,now:()=>epoch})
   .load('news',async()=>{calls++;});
  assert.equal(x.state,'STORAGE_UNAVAILABLE');
@@ -116,4 +116,18 @@ test('UTC daily reset does not bypass minimum provider spacing across midnight',
  t+=45*60000;
  assert.equal((await b.load('news',fn,{force:true})).source,'NETWORK');
  assert.equal(count,2);
+});
+
+test('BLS numeric data is limited to three attempts per UTC day',async()=>{
+ const storage=makeStorage();let t=Date.UTC(2026,10,9,0),calls=0;
+ const budget=createEditorialBudget({storage,now:()=>t});
+ for(let i=0;i<3;i++){
+  assert.equal((await budget.load('macroData',async()=>{
+   calls++;return {state:'OK',indicators:[{value:3}]};
+  },{force:true})).state,'OK');
+  t+=8*3600000;
+ }
+ const exceeded=await budget.load('macroData',async()=>{calls++;},{force:true});
+ assert.equal(calls,3);
+ assert.equal(exceeded.sourceState,'LIMIT_REACHED');
 });

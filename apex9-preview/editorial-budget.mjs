@@ -8,10 +8,11 @@ export const EDITORIAL_POLICY=Object.freeze({
  news:Object.freeze({daily:12,ttlMs:60*60000,spacingMs:45*60000,staleMs:48*3600000}),
  macro:Object.freeze({daily:6,ttlMs:2*3600000,spacingMs:2*3600000,staleMs:48*3600000}),
  assetNews:Object.freeze({daily:8,ttlMs:6*3600000,spacingMs:90*60000,staleMs:48*3600000}),
- calendar:Object.freeze({daily:2,ttlMs:12*3600000,spacingMs:12*3600000,staleMs:72*3600000})
+ calendar:Object.freeze({daily:2,ttlMs:12*3600000,spacingMs:12*3600000,staleMs:72*3600000}),
+ macroData:Object.freeze({daily:3,ttlMs:8*3600000,spacingMs:8*3600000,staleMs:72*3600000})
 });
-const KEY='apex9:public-editorial-budget:v2';
-const CACHE='apex9:public-editorial-cache:v2:';
+const KEY='apex9:public-editorial-budget:v3';
+const CACHE='apex9:public-editorial-cache:v3:';
 const eligible=r=>r?.state==='OK'||r?.state==='EMPTY';
 const validTime=t=>Number.isSafeInteger(t)&&t>0;
 export const utcBudgetDay=ms=>new Date(ms).toISOString().slice(0,10);
@@ -30,8 +31,8 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
   const day=utcBudgetDay(at);
   const raw=read(KEY);
   if(raw===null)return {day,
-   counts:{news:0,macro:0,calendar:0,assetNews:0},
-   lastAttempt:{news:0,macro:0,calendar:0,assetNews:0}};
+   counts:{news:0,macro:0,calendar:0,assetNews:0,macroData:0},
+   lastAttempt:{news:0,macro:0,calendar:0,assetNews:0,macroData:0}};
   if(!raw||typeof raw.day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(raw.day)||
    !raw.counts||!raw.lastAttempt||Object.keys(EDITORIAL_POLICY).some(mode=>
    !Number.isSafeInteger(raw.counts[mode])||
@@ -39,7 +40,7 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
    !Number.isSafeInteger(raw.lastAttempt[mode])||raw.lastAttempt[mode]<0))
    throw Error('Invalid request ledger');
   if(raw.day!==day)return {day,
-   counts:{news:0,macro:0,calendar:0,assetNews:0},
+   counts:{news:0,macro:0,calendar:0,assetNews:0,macroData:0},
    // Provider spacing must persist across UTC midnight, unlike daily counts.
    lastAttempt:{...raw.lastAttempt}};
   return raw;
