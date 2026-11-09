@@ -18,6 +18,7 @@ import {planAssetExplanation,describeResearchQuality} from './research-quality-r
 import {workspaceArea,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
+import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
 
@@ -180,7 +181,7 @@ function updateTab(view){
   if(active)tab.setAttribute('aria-current','page');
   else tab.removeAttribute('aria-current');
  }
- for(const name of ['overview','catalog','asset','forecasts','sources','news','macro','quality'])
+ for(const name of ['overview','catalog','asset','forecasts','sources','news','macro','quality','radar'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
 
@@ -220,6 +221,10 @@ function setQualityArea(requested){
 }
 
 const editorialDashboard=initEditorialDashboard();
+const radarDashboard=initRadarDashboard({
+ getCatalog:()=>catalog,
+ onOpenAsset:symbol=>{void investigate(symbol);navigate('asset');}
+});
 const candleView=new CandleChart(el('candle-canvas'),{
  onSelect(bar){
   const stamp=new Date(bar.t).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',
@@ -715,6 +720,7 @@ function openAssetExplanation(value){
 }
 
 function navigate(view,targetId){
+ if(view!=='radar')radarDashboard.close();
  if(view==='catalog'){
   el('asset-input').value='';
   catalogPage=1;
@@ -724,6 +730,7 @@ function navigate(view,targetId){
  if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
  requestAnimationFrame(()=>{
+  if(view==='radar')radarDashboard.open();
   if(view==='asset'){
    candleView.resize();
    void loadCandleHistory(false);
@@ -832,6 +839,7 @@ async function loadCatalog(){
   });
   if(result.state==='OK'){
    catalog=result.symbols;
+   radarDashboard.catalogChanged();
    text('catalog-status','Каталог Binance Spot/USDT: '+fmt(catalog.length,0)+
     ' доступных пар. Можно вводить сокращение, например GRAM.');
    suggestions(el('asset-input').value);
