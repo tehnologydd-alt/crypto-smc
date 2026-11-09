@@ -28,10 +28,13 @@ export function createNewsM5Budget({storage,now=()=>Date.now()}={}){
  }
  function quota(x){return {used:x.used,limit:MAX_PER_UTC_DAY,
   remaining:MAX_PER_UTC_DAY-x.used,nextAt:x.lastAttempt+MIN_INTERVAL};}
- async function load(symbol,eventAt,fetcher){
-  if(!validKey(symbol,eventAt)||typeof fetcher!=='function')
+ async function load(symbol,eventAt,fetcher,{variant='reaction'}={}){
+  if(!validKey(symbol,eventAt)||typeof fetcher!=='function'||
+   !['reaction','baseline'].includes(variant))
    return {state:'INVALID',reason:'Invalid M5 request'};
-  const key=symbol+':'+eventAt;
+  // The two studies use different query windows, so they must never
+  // reuse each other's cached result or concurrent request.
+  const key=symbol+':'+eventAt+':'+variant;
   if(inflight.has(key))return inflight.get(key);
   const task=(async()=>{
    const at=now();
