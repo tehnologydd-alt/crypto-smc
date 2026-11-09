@@ -11,7 +11,7 @@ function valid(entry,now){
  return entry?.version===COMPARE_VERSION&&SYMBOLS.has(entry.symbol)&&
  Number.isSafeInteger(entry.eventAt)&&entry.eventAt>0&&
  Number.isSafeInteger(entry.savedAt)&&entry.savedAt>entry.eventAt+FOUR&&
- entry.savedAt<=now+60000&&entry.eventAt>now-AGE&&
+ entry.savedAt<=now+60000&&
  typeof entry.title==='string'&&entry.title.length>4&&entry.title.length<=200&&
  Array.isArray(entry.comparison)&&entry.comparison.length===3&&
  entry.comparison.every((item,i)=>item?.minutes===[15,60,240][i]&&
@@ -29,7 +29,7 @@ export function createBlsComparisonHistory({storage,now=()=>Date.now()}={}){
   if(!parsed||parsed.version!==1||!Array.isArray(parsed.entries)||
    parsed.entries.length>LIMIT||!parsed.entries.every(x=>valid(x,now())))
    throw Error('Invalid comparison archive');
-  return parsed.entries;
+  return parsed.entries.filter(x=>x.eventAt>now()-AGE);
  }
  function save(report){
   let rows;try{rows=read();}

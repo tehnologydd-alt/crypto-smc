@@ -41,3 +41,18 @@ test('corrupt local data and unavailable persistent storage fail closed',()=>{
  const h=createBlsComparisonHistory({storage:s,now:()=>now});
  assert.equal(h.list().state,'STORAGE_UNAVAILABLE');
 });
+
+test('90-day retention never leaves an unreadable comparison archive',()=>{
+ const s=storage();let clock=now;
+ const h=createBlsComparisonHistory({storage:s,now:()=>clock});
+ const r=compareBlsScheduledM5(e,bars,{now});
+ assert.equal(h.save(r).state,'OK');
+ clock+=91*86400000;
+ const expired=h.list();
+ assert.equal(expired.state,'OK');
+ assert.equal(expired.total,0);
+ const newAt=clock-6*3600000;
+ const newResult={...r,eventAt:newAt};
+ assert.equal(h.save(newResult).state,'OK');
+ assert.equal(h.list().total,1);
+});

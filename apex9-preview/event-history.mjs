@@ -18,7 +18,7 @@ const clean=s=>typeof s==='string'?s.trim().slice(0,240):'';
 const goodRow=(row,at)=>row&&typeof row.id==='string'&&row.id.length<=540&&
  /^[A-Z]+:/.test(row.id)&&TIMED.has(row.kind)&&
  typeof row.title==='string'&&row.title.length>8&&row.title.length<=240&&
- validUrl(row.href)&&reasonable(row.eventAt,at)&&
+ validUrl(row.href)&&validTime(row.eventAt)&&row.eventAt<=at+72*3600000&&
  validTime(row.firstCapturedAt)&&row.firstCapturedAt<=at+60000&&
  validTime(row.lastCapturedAt)&&row.lastCapturedAt<=at+60000&&
  row.firstCapturedAt<=row.lastCapturedAt&&

@@ -115,3 +115,17 @@ test('independent asset groups use real M5 stages and exclude archival H1 record
   {now,selectedIds:[eth.id]});
  assert.deepEqual(tracked.assets.map(x=>x.symbol),['ETHUSDT']);
 });
+
+test('expired event rows are pruned without corrupting the remaining archive',()=>{
+ const s=mem();let clock=at;
+ const h=createEventHistory({storage:s,now:()=>clock});
+ assert.equal(h.captureGlobal({news:general}).added,1);
+ clock+=91*86400000;
+ assert.equal(h.list().state,'OK');
+ assert.equal(h.list().total,0);
+ const latest={state:'OK',fetchedAt:clock,articles:[{
+  title:'Bitcoin ETF new regulation update',
+  href:'https://example.org/recent',observedAt:clock-60000}]};
+ assert.equal(h.captureGlobal({news:latest}).state,'OK');
+ assert.equal(h.list().total,1);
+});
