@@ -13,7 +13,7 @@ const outcomeStage=Object.freeze({
  NOT_ENTERED:'NO_ENTRY',HORIZON:'TIMEOUT'
 });
 const titles=Object.freeze({
- PUBLISHED:'Прогноз',CONFIRMED:'Вход',
+ PUBLISHED:'Прогноз · лимитный',CONFIRMED:'Активный · вход',
  TP1:'TP1',TP2:'TP2',TP3:'TP3',SL:'SL',
  ORDER_UNKNOWN:'Порядок неизвестен',
  NO_ENTRY:'Без входа',TIMEOUT:'Срок истёк'

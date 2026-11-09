@@ -409,8 +409,8 @@ function renderScenarioMap(asset){
   const name=sc.model==='DIRECTIONAL'?
    (sc.side==='UP'?'↑ РОСТ':'↓ СНИЖЕНИЕ')+
     (sc.stage==='EVALUATED'?' · завершён':
-     sc.stage==='ACTIVE'?' · TP1 отмечен':
-      sc.stage==='CONFIRMED'?' · опорная цена':' · ожидает входа'):
+     sc.stage==='ACTIVE'?' · активный · TP1':
+      sc.stage==='CONFIRMED'?' · активный · вход':' · лимитный · ожидает входа'):
    sc.stage==='EVALUATED'?'Завершён · итог сохранён':
    sc.stage==='DUE_UNVERIFIED'?'Горизонт прошёл · итог не проверен':
    sc.stage==='ACTIVE'?'Наблюдается · две H1':

@@ -72,7 +72,8 @@ export function directionalForecastCard(row,{
  const isM5=plan?.evaluationInterval==='5m';
  const sourceFrame=isM5?'M5':'H1';
  const timeline=buildForecastEventTimeline(row,{now:Date.now()});
- const finishedNative=forecastStage(row)==='COMPLETED'&&
+ const visibleStage=forecastStage(row);
+ const finishedNative=visibleStage==='COMPLETED'&&
   terminalStates.has(row.evaluation?.outcome);
  const card=create('article','forecast-record forecast-visual forecast-directional'+
   (finishedNative?' is-completed':''));
@@ -82,7 +83,7 @@ export function directionalForecastCard(row,{
   create('small','',plan?'H1 · '+labelForSide(plan.side):
    'Сценарий · проверка целостности'));
  const state=create('span','forecast-visual-state '+(finishedNative?'finished':'active'),
-  finishedNative?'Завершено':'Ожидает проверки');
+  finishedNative?'Завершено':visibleStage==='ACTIVE'?'Активный':'Лимитный');
  top.append(names,state);card.append(top);
  if(verified.state!=='READY'){
   card.append(create('p','forecast-level-warning',
@@ -95,14 +96,16 @@ export function directionalForecastCard(row,{
   'Направление формируется по H1; контроль уровней — по '+sourceFrame+'. '+
   'Касание цены не означает исполненной сделки.'));
  const steps=create('div','forecast-step-strip');
- const stageNodes=['Создан','Вход','Итог'].map((title,i)=>{
-  const node=create('span','forecast-step '+(i===0?'is-done':'is-pending'),
-   (i===0?'✓ ':'· ')+title);steps.append(node);return node;
+ const stageTitles=['Создан','Лимитный','Активный','Итог'];
+ const stageNodes=stageTitles.map((title,i)=>{
+  const node=create('span','forecast-step '+(i<=1?'is-done':'is-pending'),
+   (i<=1?'✓ ':'· ')+title);steps.append(node);return node;
  });
  card.append(steps);
  const status=create('p','forecast-visual-horizon',
   finishedNative?'Итог записан · проверяем историю касаний':
-   'Ожидаем проверенных '+sourceFrame+'-свечей после публикации.');
+   visibleStage==='ACTIVE'?'Активный · вход отмечен, проверяем TP и SL':
+   'Лимитный · ожидаем касания входа на закрытой '+sourceFrame+'.');
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');
  card.append(status);
  const levels=create('div','forecast-visual-levels');
@@ -122,7 +125,7 @@ export function directionalForecastCard(row,{
   box.append(control);
   return box;
  }
- first.append(level('Опорная цена · вход H1','entry'),
+ first.append(level('Опорная цена · лимитный H1','entry'),
   level('Защитный уровень SL','sl',true));
  levels.append(first);
  const grid=create('div','forecast-target-grid'),cells={};
@@ -188,10 +191,10 @@ export function directionalForecastCard(row,{
  card.append(replayStatus);
  if(timeline.state==='VERIFIED'){
   for(const [i,observed] of [
-   true,timeline.entered,timeline.finished
+   true,true,timeline.entered,timeline.finished
   ].entries()){
    stageNodes[i].className='forecast-step '+(observed?'is-done':'is-pending');
-   stageNodes[i].textContent=(observed?'✓ ':'· ')+['Создан','Вход','Итог'][i];
+   stageNodes[i].textContent=(observed?'✓ ':'· ')+stageTitles[i];
   }
   const roomTouches=new Set(timeline.events.map(mark=>mark.stage));
   for(const [i,key] of ['tp1','tp2','tp3'].entries()){
@@ -209,8 +212,9 @@ export function directionalForecastCard(row,{
    status.textContent=directionalOutcomeLabel(timeline.outcome)+
     ' · подтверждено событиями Room';
   }else if(timeline.entered){
-   state.textContent='Вход отмечен · '+sourceFrame;
-   status.textContent='Вход подтверждён. Отслеживаем контрольные точки '+sourceFrame+'.';
+   state.textContent='Активный · '+sourceFrame;
+   status.textContent='Касание входа зафиксировано по '+sourceFrame+
+    '. Следим за TP1–TP3/SL, это не исполненный ордер.';
   }
  }
  const actions=create('div','forecast-visual-actions');
@@ -273,10 +277,10 @@ export function directionalForecastCard(row,{
   const finished=audit.finished;
   card.classList.toggle('is-completed',finished||finishedNative);
   state.className='forecast-visual-state '+(finished||finishedNative?'finished':'active');
-  state.textContent=finished?'Завершено':audit.entryAt?'Опорная цена отмечена':'Ожидает входа';
-  for(const [i,observed] of [true,Boolean(audit.entryAt),finished].entries()){
+  state.textContent=finished?'Завершено':audit.entryAt?'Активный':'Лимитный';
+  for(const [i,observed] of [true,true,Boolean(audit.entryAt),finished].entries()){
    stageNodes[i].className='forecast-step '+(observed?'is-done':'is-pending');
-   stageNodes[i].textContent=(observed?'✓ ':'· ')+['Создан','Вход','Итог'][i];
+   stageNodes[i].textContent=(observed?'✓ ':'· ')+stageTitles[i];
   }
   const hitSet=new Set(audit.hits.map(x=>x.key));
   for(const [i,key] of ['tp1','tp2','tp3'].entries()){
