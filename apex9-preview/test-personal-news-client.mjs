@@ -109,3 +109,20 @@ test('empty valid response means connection succeeded but does not invent articl
  assert.equal(r.articleCount,0);
  assert.match(personalNewsDiagnosticLabel(r),/Ответ получен/);
 });
+
+test('news and overview share one per-provider native request in flight',async()=>{
+ const counts=[],resolvers=[];
+ const plugin={fetchPersonalNews:async args=>{
+  counts.push(args.provider);
+  await new Promise(resolve=>resolvers.push(resolve));
+  return {state:'OK',raw:args.provider==='newsdata'?data:crypto};
+ }};
+ const first=fetchPersonalNewsBundle('BTC',{plugin,now:()=>at});
+ const second=fetchPersonalNewsBundle('BTC',{plugin,now:()=>at});
+ assert.equal(counts.length,2);
+ for(const resolve of resolvers)resolve();
+ const [a,b]=await Promise.all([first,second]);
+ assert.equal(a.state,'OK');
+ assert.deepEqual(a,b);
+ assert.deepEqual(counts.sort(),['cryptopanic','newsdata']);
+});
