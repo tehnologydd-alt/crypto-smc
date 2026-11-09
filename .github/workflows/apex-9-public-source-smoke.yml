@@ -1,0 +1,23 @@
+name: APEX 9 — public-source live smoke (GitHub only)
+on:
+  push:
+    branches: [apex-9-evolution]
+    paths:
+      - '.github/scripts/check-apex-public-sources.mjs'
+      - '.github/workflows/apex-9-public-source-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate source-check code
+        run: node --check .github/scripts/check-apex-public-sources.mjs
+      - name: Check real public JSON and RSS without API keys
+        run: node .github/scripts/check-apex-public-sources.mjs
