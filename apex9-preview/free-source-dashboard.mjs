@@ -32,7 +32,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const budget=createFreeSourceBudget({storage});
  const latest=new Map();
  let assetSeq=0,globalSeq=0;
- let assetMeasurements=null,contextMeasurements=null;
+ let assetMeasurements=null,contextMeasurements=null,marketMeasurements=null;
  function annotate(mode,r){
   latest.set(mode,r?.state||'UNKNOWN');
   refreshCenter();
@@ -144,7 +144,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    Object.fromEntries((contextMeasurements.sources||[]).map(x=>[x.id,x])):{};
   const assetResults=assetMeasurements?.symbol===symbol?
    assetMeasurements.results:{};
-  const observations={...context,...assetResults};
+  const market=marketMeasurements?.symbol===symbol?
+   Object.fromEntries((marketMeasurements.sources||[]).map(x=>[x.id,x])):{};
+  const observations={...market,...context,...assetResults};
   const report=reconcileSources(symbol,observations);
   status.textContent='Проверено '+report.checked+' источников · '+report.usable+
    ' со временем наблюдения · без искусственного рейтинга точности.';
@@ -169,6 +171,11 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     ' · оценки близки')+
    '. Это не биржевой спред и не независимое подтверждение.';
   list.append(compare);
+ }
+ function setSnapshot(symbol,snapshot){
+  if(getSymbol?.()!==symbol)return;
+  marketMeasurements=snapshot&&snapshot.symbol===symbol?snapshot:null;
+  renderReconciliation(symbol);
  }
  function setContext(symbol,context){
   if(getSymbol?.()!==symbol)return;
@@ -219,5 +226,5 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  el('free-asset-market-refresh')?.addEventListener('click',
   ()=>void openAsset(getSymbol?.()));
  refreshCenter();
- return {openOverview,openAsset,refreshCenter,setContext};
+ return {openOverview,openAsset,refreshCenter,setContext,setSnapshot};
 }
