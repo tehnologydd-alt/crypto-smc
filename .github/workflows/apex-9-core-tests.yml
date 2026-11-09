@@ -31,7 +31,7 @@ jobs:
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/prepare-web.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
-          node --test apex9-news-gateway/test-news-gateway.mjs apex9-news-gateway/test-hosted-tools.mjs
+          node --test apex9-news-gateway/test-news-gateway.mjs apex9-news-gateway/test-hosted-tools.mjs apex9-news-gateway/test-news-bridge.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/favorite-dashboard.mjs
