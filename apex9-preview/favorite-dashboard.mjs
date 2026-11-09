@@ -642,18 +642,30 @@ export function initFavoriteResearch({
    selectedIds:chosen,totalPublished:lastTotal,now
   });
   const quality=directionalQualitySummary(lastRows,{selectedIds:chosen,now});
-  const comparisons=compareScenarioConditions(lastRows,{now});
+  const scopedRows=journalMode==='tracked'?
+   lastRows.filter(row=>selected.has(row.id)):lastRows;
+  const comparisons=compareScenarioConditions(scopedRows,{now});
+  id('forecast-quality-current-scope').textContent=
+   journalMode==='tracked'?'Отмеченные':'Все прогнозы';
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
    const slot=id('forecast-stat-'+name);slot.replaceChildren();
+   slot.hidden=name!==journalMode;
+   if(name!==journalMode)continue;
    const q=name==='all'?quality.all:quality.tracked;
-   slot.append(create('h4','',
-    name==='all'?'Все наблюдения':'Отмеченные пользователем'));
    const study=create('section','forecast-quality-summary');
    study.setAttribute('aria-label','Качество прогнозов · H1 → M5');
    const heading=create('div','forecast-quality-heading');
    heading.append(create('strong','','Качество прогнозов · H1 → M5'),
-    create('small','','Только исходные записи Room'));
+    create('small','',name==='tracked'?'Отмеченные · Room':'Все · Room'));
    study.append(heading);
+   const unavailable=q.invalid+q.unverified;
+   const evidenceLabel=stats.truncated?'Частичный журнал':
+    unavailable?'Есть записи без полной проверки':
+    !q.finished?'Нет завершённых M5':
+    q.finished<12?'Мало завершённых наблюдений':
+    'Описательная статистика M5';
+   study.append(create('p','forecast-quality-coverage',
+    evidenceLabel+' · без оценки вероятности или доходности'));
    if(!q.published){
     study.append(create('p','forecast-quality-empty',
      'Пока нет подтверждённых исследований по M5. Новые наблюдения появятся '+
@@ -661,7 +673,7 @@ export function initFavoriteResearch({
    }
    const basics=create('div','forecast-quality-kpis');
    for(const [label,count] of [
-    ['Сценариев M5',q.published],['Активный · вход',q.entered],
+    ['Опубликовано',q.published],['С входом',q.entered],
     ['Завершено',q.finished],['В наблюдении',q.awaiting]]){
     const metric=create('div','forecast-quality-kpi');
     metric.append(create('span','',label),
@@ -688,6 +700,14 @@ export function initFavoriteResearch({
     'Число касаний / число сценариев с подтверждённой опорной ценой. '+
     'Достижение TP не означает, что сценарий завершился на TP.'));
    study.append(levels);
+   const quick=create('p','forecast-quality-resolution');
+   quick.append(create('span','','Завершения:'),
+    create('strong','','TP3 '+fmt(q.tp3Outcome,0)),
+    create('strong','','SL '+fmt(q.stop,0)),
+    create('span','','Другие '+fmt(q.ambiguous+q.notEntered+q.expired,0)));
+   study.append(quick);
+   const details=create('details','forecast-quality-details');
+   details.append(create('summary','','Подробнее: исходы, сравнение, архив'));
    const outcomes=create('div','forecast-quality-outcomes');
    outcomes.append(create('strong','forecast-quality-subtitle',
     'Итоги завершённых наблюдений'));
@@ -704,7 +724,7 @@ export function initFavoriteResearch({
    outcomes.append(create('p','forecast-quality-note',
     'TP3 и SL — разные конечные исходы. TP1–TP2 могут быть достигнуты '+
     'раньше SL; неопределённый порядок не считается успехом.'));
-   study.append(outcomes);
+   details.append(outcomes);
    if(q.invalid||q.unverified){
     study.append(create('p','forecast-quality-warning',
      'Не включены в расчёт: несогласованные записи · '+q.invalid+
@@ -714,13 +734,13 @@ export function initFavoriteResearch({
     study.append(create('p','forecast-quality-note',
      'Направленных сценариев со старой проверкой H1: '+
      quality.archivedH1+'. Они не смешиваются со статистикой M5.'));
-   study.append(create('p','forecast-quality-method',
+   details.append(create('p','forecast-quality-method',
     'Исследовательские наблюдения, а не исполненные ордера. '+
     'Оценка по сохранённым событиям закрытых M5; '+
     'при пропусках данных исход не засчитывается.'));
    // Compare cohorts with verified, immutable M5 evidence and only
    // H1 characteristics recorded before later outcomes.
-   if(name==='all'){
+   {
     const panel=create('section','forecast-condition-comparison');
     panel.append(create('strong','forecast-quality-subtitle',
      'Сравнение условий формирования · H1 → M5'));
@@ -748,11 +768,12 @@ export function initFavoriteResearch({
     }
     if(comparisons.excluded)panel.append(create('p','forecast-quality-warning',
      'Записи без полной проверки не включены: '+comparisons.excluded+'.'));
-    study.append(panel);
+    details.append(panel);
    }
    slot.append(study);
-   const archived=create('details','forecast-quality-archive');
-   archived.append(create('summary','','Общий журнал и архивные исследования'));
+   const archived=create('section','forecast-quality-archive');
+   archived.append(create('strong','forecast-quality-subtitle',
+    'Общий журнал и архивные исследования'));
    const line=create('div','forecast-stat-line');
    for(const [label,count] of [
     ['Всего',value.total],
@@ -766,7 +787,8 @@ export function initFavoriteResearch({
     metric.append(create('span','',label),create('strong','',fmt(count,0)));
     line.append(metric);
    }
-   archived.append(line);slot.append(archived);
+   archived.append(line);details.append(archived);
+   slot.append(details);
    if(stats.truncated)slot.append(create('p','forecast-quality-warning',
     'Показатели рассчитаны только по загруженным '+lastRows.length+
     ' из '+lastTotal+' записей. Общая история больше открытой выборки.'));

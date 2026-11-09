@@ -207,3 +207,17 @@ test('formation conditions compare only coherent M5, not H1 or forged events',()
  assert.equal(comparison.dimensions[1].groups[1].published,1);
  assert.equal(comparison.dimensions[0].sufficient,false);
 });
+
+test('mobile stats show one scope and keep drill-down collapsed',()=>{
+ const ui=readFileSync(new URL('./favorite-dashboard.mjs',import.meta.url),'utf8');
+ const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+ const css=readFileSync(new URL('./styles.css',import.meta.url),'utf8');
+ assert.ok(ui.includes("slot.hidden=name!==journalMode"));
+ assert.ok(ui.includes("if(name!==journalMode)continue"));
+ assert.ok(ui.includes("compareScenarioConditions(scopedRows"));
+ assert.ok(ui.includes("create('details','forecast-quality-details')"));
+ assert.ok(ui.includes("'TP3 '+fmt(q.tp3Outcome"));
+ assert.ok(ui.includes("'SL '+fmt(q.stop"));
+ assert.ok(html.includes('id="forecast-quality-current-scope"'));
+ assert.ok(css.includes('.forecast-observation-stat[hidden]'));
+});
