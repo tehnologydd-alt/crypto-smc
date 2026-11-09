@@ -45,7 +45,9 @@ export function normalizeProviderNews(provider,raw,now=Date.now()){
  const articles=[];
  for(const entry of entries.slice(0,60)){
   const title=String(entry?.title||'').trim().slice(0,220);
-  const href=String(entry?.url||entry?.link||'');
+  // Link to the original publisher, not the aggregator's copy, when supplied.
+  const href=String(provider==='cryptopanic'?
+   (entry?.original_url||entry?.url||''):(entry?.link||entry?.url||''));
   const timestamp=Date.parse(provider==='cryptopanic'?entry?.published_at:
    entry?.pubDate);
   let url;
