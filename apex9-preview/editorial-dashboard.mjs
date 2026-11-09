@@ -344,8 +344,6 @@ export function initEditorialDashboard({getSymbol}={}){
      ' · отсутствие статей не означает отсутствие событий';
     archive.captureGlobal({news:merged});
    }else showFeed(mode,results[0]);
-    archive.captureGlobal({news:results[0]});
-   }else showFeed(mode,results[0]);
    if(mode==='macro'){
     archive.captureGlobal({macro:results[0],calendar:results[2]});
     showEventHistory();
