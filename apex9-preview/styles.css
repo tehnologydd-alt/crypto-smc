@@ -2174,3 +2174,35 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  #view-asset .asset-workspace-button span{font-size:11px}
  #view-asset .asset-workspace-button small{font-size:8px}
 }
+
+/* Directional forecast cards: one side and immutable levels; grey means closed,
+   not necessarily a successful observation. */
+.forecast-record.forecast-visual.is-completed{
+ background:linear-gradient(145deg,#292d35,#1a202a 65%,#161a21)!important;
+ border-color:#5a646e!important;box-shadow:none!important;
+}
+.forecast-visual.is-completed .forecast-visual-identity strong,
+.forecast-visual.is-completed .forecast-price-value,
+.forecast-visual.is-completed .forecast-target-price{color:#c4cbd3!important}
+.forecast-visual.is-completed .forecast-target.is-hit{
+ background:#30463d!important;border-color:#657b6c!important
+}
+.forecast-visual.is-completed .forecast-target.is-hit .forecast-target-mark{color:#b5d2c1}
+.forecast-visual.is-completed .forecast-visual-state.finished{
+ color:#e0e2e5;background:#454b54;border-color:#67717b
+}
+.forecast-legacy .forecast-visual-identity small{color:#a5afbb}
+.forecast-directional-history{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 2px}
+.forecast-directional-event{font-size:10px;line-height:1.4;color:#b6dfd7;
+ background:#193942;border:1px solid #3b716b;padding:7px 9px;
+ border-radius:10px;margin:0}
+.forecast-visual.is-completed .forecast-directional-event{
+ color:#c7d0d4;background:#283440;border-color:#4d5965
+}
+.forecast-directional-history .forecast-level-warning{width:100%;font-size:11px}
+.forecast-directional-stats{margin-top:12px;padding:12px;border:1px solid #345f6c;
+ border-radius:13px;background:#112b36}
+.forecast-directional-stats>strong{font-size:12px;color:#c7f0e7}
+.forecast-directional-counts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.forecast-directional-counts>span{padding:7px 9px;background:#1b3440;
+ border:1px solid #385562;border-radius:8px;color:#bed9db;font-size:10px}
