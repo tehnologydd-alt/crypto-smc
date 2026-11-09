@@ -7,6 +7,7 @@ import {consolidateArticles} from './news-source-fusion.mjs';
 const COINS=new Set(['BTC','ETH','SOL','XRP','ADA','BNB','DOGE','LTC']);
 const PROVIDERS=['cryptopanic','newsdata'];
 const native=()=>globalThis.window?.Capacitor?.Plugins?.ApexNative||null;
+const pendingBundles=new WeakMap();
 export function personalNewsCapable(){const n=native();
  return Boolean(n?.getPersonalNewsStatus&&n?.fetchPersonalNews&&
   n?.setPersonalNewsKey&&n?.removePersonalNewsKey);
@@ -129,6 +130,10 @@ export async function fetchPersonalNewsBundle(coin,{
 }={}){
  if(!COINS.has(coin))return {state:'UNSUPPORTED',articles:[],providers:{}};
  if(!plugin?.fetchPersonalNews)return {state:'ANDROID_ONLY',articles:[],providers:{}};
+ let inflight=pendingBundles.get(plugin);
+ if(!inflight){inflight=new Map();pendingBundles.set(plugin,inflight);}
+ if(inflight.has(coin))return inflight.get(coin);
+ const task=(async()=>{
  const results=await Promise.all(PROVIDERS.map(async provider=>{
   try{
    const response=await plugin.fetchPersonalNews({provider,coin});
@@ -142,4 +147,7 @@ export async function fetchPersonalNewsBundle(coin,{
   {limit:18,perDomain:2});
  return {coin,state:articles.length?'OK':'NO_VERIFIED_NEWS',
   providers,articles,scope:'NEWS_CONTEXT_ONLY_NOT_TRADE_SIGNAL'};
+ })();
+ inflight.set(coin,task);
+ try{return await task;}finally{inflight.delete(coin);}
 }
