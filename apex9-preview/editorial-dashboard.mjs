@@ -10,6 +10,7 @@ import {composeLiveNews,sourceStatusLine} from './live-news-collection.mjs';
 import {consolidateArticles} from './news-source-fusion.mjs';
 import {describeNewsEvidence} from './news-evidence.mjs';
 import {auditDisplayedNews,formatDisplayedNewsAudit} from './news-coverage.mjs';
+import {analyzeNewsCollection,formatNewsCollectionAnalysis} from './news-research-analysis.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
@@ -52,6 +53,9 @@ export function initEditorialDashboard({getSymbol}={}){
    const quality=get('editorial-news-quality');
    if(quality)quality.textContent=formatDisplayedNewsAudit(
     auditDisplayedNews(r?.articles||[],{asset,now:Date.now()}),asset);
+   const analysis=get('editorial-news-analysis');
+   if(analysis)analysis.textContent=formatNewsCollectionAnalysis(
+    analyzeNewsCollection(r?.articles||[],{asset,now:Date.now()}),asset);
   }
   const available=['OK','EMPTY','STALE'].includes(r?.state);
   if(!available){
