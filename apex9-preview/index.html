@@ -630,6 +630,7 @@
             <div class="personal-news-inputs">
               <input id="personal-newsdata-key" type="password" minlength="12" maxlength="300" autocomplete="off" spellcheck="false" placeholder="Вставить ключ" aria-label="NewsData.io API-ключ">
               <button type="submit" class="ghost">Сохранить</button>
+              <button id="personal-newsdata-test" type="button" class="ghost">Проверить API</button>
               <button id="personal-newsdata-clear" type="button" class="ghost">Удалить</button>
             </div>
             <small id="personal-newsdata-state">Не проверено</small>
@@ -639,11 +640,12 @@
             <div class="personal-news-inputs">
               <input id="personal-cryptopanic-key" type="password" minlength="12" maxlength="300" autocomplete="off" spellcheck="false" placeholder="Вставить токен" aria-label="CryptoPanic API-токен">
               <button type="submit" class="ghost">Сохранить</button>
+              <button id="personal-cryptopanic-test" type="button" class="ghost">Проверить API</button>
               <button id="personal-cryptopanic-clear" type="button" class="ghost">Удалить</button>
             </div>
             <small id="personal-cryptopanic-state">Не проверено</small>
           </form>
-          <p class="footnote">После сохранения открой «Новости» и нажми «Обновить». Приложение проверит реальный ответ API. Лимиты поставщика имеют приоритет.</p>
+          <p class="footnote">Кнопка «Проверить API» выполняет запрос только к выбранному сервису и расходует одну попытку при отсутствии свежего кеша. Затем открой «Новости», чтобы увидеть публикации. Лимиты сервиса имеют приоритет.</p>
         </section>
         <p class="footnote">Остатки считаются только на этом телефоне. Общие IP-квоты и условия провайдеров имеют приоритет; ошибки сети, CORS и ограничения отображаются без выдуманных результатов. Личные бесплатные ключи NewsData.io и CryptoPanic можно сохранить в Android Keystore ниже. Это не включает платные тарифы и не требует облака.</p>
       </article>
