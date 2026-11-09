@@ -118,3 +118,16 @@ accounts, tokens or order execution. Failures count as attempts; cached
 results carry observed/cached timestamps and are labelled stale if necessary.
 CoinPaprika and key-required providers are not embedded in the distributed APK
 pending confirmation of access and acceptable redistribution/licensing terms.
+
+## Personal free news APIs without hosting (Android)
+
+APEX can query NewsData.io and CryptoPanic directly from the Android app, **without a Cloudflare server**. Go to **Источники → Бесплатные API · лимиты → Личные бесплатные API** and enter the key issued by the provider; then open **Новости → Обновить** to check real availability. Keys are encrypted with Android Keystore, are never in the committed code, are not returned to JavaScript after saving, and can be deleted from the same panel. No sign-up, payment, or account keys are embedded in this APK.
+
+- **NewsData.io**: official $0 plan has 200 credits per day but approximately 12-hour delayed news. The on-device internal cap is 180/day, 5,580/month, minimum 10 minutes between requests, and up to 6 hours of sanitized per-asset cache. Its actual server-side allowance always takes priority.
+- **CryptoPanic**: mobile calls are documented, but plan entitlement is account-specific and cannot be manufactured. The cautious on-device limit is 4/day, 100/month with a 6-hour interval until confirmed; provide your own entitled token.
+- **Reddit**: the official external Data API requires approval and application registration. Reddit announced no new public API access requests after October 31, 2026 and retirement of RSS on November 13, 2026; this APK deliberately does not scrape or bypass those controls. It keeps approved-input validation disabled until access is available.
+- Device backup/restore may make old Keystore ciphertext unreadable on a different phone; re-enter the provider key in the app if necessary.
+- If a provider blocks the phone, rejects credentials, or has no recent articles, APEX reports the actual source state; no fake articles are generated.
+- **Security**: type keys only into the Android APK, not into chat messages or untrusted links. All private provider calls use fixed HTTPS hosts with redirects disabled and deliberately omit request URLs from error text.
+
+This is an optional user-configured research feature. Existing GDELT, Bluesky, spot-market and on-chain adapters remain independent and do not need this setup.
