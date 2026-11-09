@@ -58,6 +58,10 @@ jobs:
 
       - name: Test source adapters and parsing
         run: |
+          # Catch malformed or duplicated ESM source even when it is not imported by tests.
+          for module in apex9-preview/*.mjs apex9-news-gateway/*.mjs; do
+            node --check "$module"
+          done
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
