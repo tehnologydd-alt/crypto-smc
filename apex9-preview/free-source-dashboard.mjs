@@ -5,6 +5,8 @@ import {createFreeSourceBudget,FREE_POLICY} from './free-source-budget.mjs';
 import {fetchFearGreed,fetchDexPairs,fetchGeckoPools,
  fetchOkxTicker,dexTokenReference,fetchPaprikaTicker} from './free-source-adapters.mjs';
 import {KEYED_NEWS_PROVIDERS} from './news-source-fusion.mjs';
+import {fetchCmcKeyless} from './cmc-keyless.mjs';
+import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
  const node=document.createElement(tag);
@@ -30,6 +32,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const budget=createFreeSourceBudget({storage});
  const latest=new Map();
  let assetSeq=0,globalSeq=0;
+ let assetMeasurements=null,contextMeasurements=null;
  function annotate(mode,r){
   latest.set(mode,r?.state||'UNKNOWN');
   refreshCenter();
@@ -44,9 +47,10 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    dex:'DEX Screener · WETH / WSOL',
    gecko:'GeckoTerminal · WETH / WSOL',
    okx:'OKX · Spot ticker',
-   paprika:'CoinPaprika · рыночная сводка'
+   paprika:'CoinPaprika · рыночная сводка',
+   cmc:'CoinMarketCap · публичная USD-оценка'
   };
-  for(const mode of ['fear','dex','gecko','okx','paprika']){
+  for(const mode of ['fear','dex','gecko','okx','paprika','cmc']){
    const q=budget.status(mode),name=names[mode],last=latest.get(mode)||'НЕ ПРОВЕРЯЛСЯ';
    const row=div('article','free-source-center-row');
    row.append(div('strong','',name),
@@ -78,7 +82,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     div('small','',access+' · '+p.state));
    container.append(row);
   }
-  timeStatus.textContent=ok+' из 5 источников дали корректный ответ в этой сессии. '+
+  timeStatus.textContent=ok+' из 6 источников дали корректный ответ в этой сессии. '+
    'Ещё 3 источника требуют отдельного доступа. Прямые бесплатные источники работают независимо от нашего облака.';
  }
  function showFear(r){
@@ -97,7 +101,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  }
  function cardResult(mode,result,symbol){
   const outer=div('article','free-source-result');
-  const label={okx:'OKX Spot',dex:'DEX Screener',gecko:'GeckoTerminal',paprika:'CoinPaprika'}[mode];
+  const label={okx:'OKX Spot',dex:'DEX Screener',gecko:'GeckoTerminal',
+   paprika:'CoinPaprika',cmc:'CoinMarketCap Keyless'}[mode];
   outer.append(div('strong','',label));
   if(!isPresent(result)||!result.data){
    const reason=(mode==='dex'||mode==='gecko')&&!dexTokenReference(symbol)?
@@ -112,7 +117,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     'Spot: '+fmt(data.price,7)+' USDT'),
     div('small','',
      'Bid '+fmt(data.bid,7)+' · Ask '+fmt(data.ask,7)));
-  }else if(mode==='paprika'){
+  }else if(mode==='paprika'||mode==='cmc'){
    outer.append(div('span','free-source-figure',
     'Цена: '+fmt(data.priceUsd,7)+' USD'),
     div('small','',
@@ -129,6 +134,45 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    'Получено '+nice(result.fetchedAt)+
    (result.state==='STALE'?' · архив':'')+caps(mode,result)));
   return outer;
+ }
+ function renderReconciliation(symbol){
+  const status=el('source-reconciliation-status');
+  const list=el('source-reconciliation-list');
+  if(!status||!list||getSymbol?.()!==symbol)return;
+  list.replaceChildren();
+  const context=contextMeasurements?.symbol===symbol?
+   Object.fromEntries((contextMeasurements.sources||[]).map(x=>[x.id,x])):{};
+  const observations={...context,...assetMeasurements?.symbol===symbol?
+   assetMeasurements.results:{}};
+  const report=reconcileSources(symbol,observations);
+  status.textContent='Проверено '+report.checked+' источников · '+report.usable+
+   ' со временем наблюдения · без искусственного рейтинга точности.';
+  const groups=Object.entries(report.byGroup);
+  if(!groups.length){
+   list.append(div('small','','Сведения появятся после проверки публичных API.'));
+   return;
+  }
+  for(const [key,count] of groups){
+   const row=div('article','source-reconciliation-row');
+   row.append(div('strong','',SOURCE_GROUPS[key]||key),
+    div('small','',count.valid+'/'+count.checked+
+     ' подтверждены по формату и времени наблюдения'));
+   list.append(row);
+  }
+  const compare=div('p','source-reconciliation-comparison');
+  if(report.comparison.state==='INSUFFICIENT')
+   compare.textContent='Сравнение двух USD-агрегаторов пока недоступно.';
+  else compare.textContent='CoinPaprika / CoinMarketCap: расхождение '+
+   report.comparison.deltaPercent.toFixed(3)+'%'+
+   (report.comparison.state==='DIFFERENT'?' · оценки заметно различаются':
+    ' · оценки близки')+
+   '. Это не биржевой спред и не независимое подтверждение.';
+  list.append(compare);
+ }
+ function setContext(symbol,context){
+  if(getSymbol?.()!==symbol)return;
+  contextMeasurements=context&&context.symbol===symbol?context:null;
+  renderReconciliation(symbol);
  }
  async function openOverview(){
   const seq=++globalSeq;
@@ -149,6 +193,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   const sourceCalls=[
    budget.load('okx',()=>fetchOkxTicker(symbol),{key:symbol}),
    budget.load('paprika',()=>fetchPaprikaTicker(symbol),{key:symbol}),
+   budget.load('cmc',()=>fetchCmcKeyless(symbol),{key:symbol}),
    supportsDex?budget.load('dex',()=>fetchDexPairs(symbol),{key:symbol}):
     Promise.resolve({state:'UNSUPPORTED'}),
    supportsDex?budget.load('gecko',()=>fetchGeckoPools(symbol),{key:symbol}):
@@ -156,19 +201,22 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   ];
   const responses=await Promise.all(sourceCalls);
   if(seq!==assetSeq||getSymbol?.()!==symbol)return;
-  for(const [i,mode] of ['okx','paprika','dex','gecko'].entries()){
+  const modes=['okx','paprika','cmc','dex','gecko'];
+  assetMeasurements={symbol,results:Object.fromEntries(modes.map((k,i)=>[k,responses[i]]))};
+  for(const [i,mode] of modes.entries()){
    const r=responses[i];
    list.append(cardResult(mode,r,symbol));
-   if(supportsDex||mode==='okx'||mode==='paprika')annotate(mode,r);
+   if(supportsDex||['okx','paprika','cmc'].includes(mode))annotate(mode,r);
   }
   const good=responses.filter(x=>x.state==='OK').length;
-  status.textContent=symbol+' · проверено '+good+'/4 источников'+
+  status.textContent=symbol+' · проверено '+good+'/5 источников'+
    (!supportsDex?' · без DEX: нет надёжного контракта':'')+
    '. DEX-цены обёрнутых токенов не равны ценам нативных активов.';
+  renderReconciliation(symbol);
  }
  el('free-fear-refresh')?.addEventListener('click',()=>void openOverview());
  el('free-asset-market-refresh')?.addEventListener('click',
   ()=>void openAsset(getSymbol?.()));
  refreshCenter();
- return {openOverview,openAsset,refreshCenter};
+ return {openOverview,openAsset,refreshCenter,setContext};
 }
