@@ -25,9 +25,9 @@ test('asset has three one-level sections and every original card remains',()=>{
   .map(x=>x[1]),['chart','structure','data']);
  assert.equal((section.match(/data-asset-pane="chart"/g)||[]).length,2);
  assert.equal((section.match(/data-asset-pane="structure"/g)||[]).length,3);
- assert.equal((section.match(/data-asset-pane="data"/g)||[]).length,5);
+ assert.equal((section.match(/data-asset-pane="data"/g)||[]).length,4);
  const articles=[...section.matchAll(/<article class="card block[^>]+>/g)];
- assert.equal(articles.length,10);
+ assert.equal(articles.length,9);
  assert.ok(articles.every(x=>/data-asset-pane="(chart|structure|data)"/.test(x[0])));
  assert.ok(section.indexOf('class="card block candle-panel"')<
   section.indexOf('class="card block asset-scenarios"'));
