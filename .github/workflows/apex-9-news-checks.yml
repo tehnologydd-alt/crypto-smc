@@ -1,0 +1,44 @@
+name: APEX 9 — news and asset research checks
+
+on:
+  push:
+    branches: [apex-9-evolution]
+    paths:
+      - 'apex9-preview/**'
+      - '.github/workflows/apex-9-news-checks.yml'
+  pull_request:
+    paths:
+      - 'apex9-preview/**'
+      - '.github/workflows/apex-9-news-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-news:
+    name: Node 22 news regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JS module syntax
+        run: |
+          node --check apex9-preview/app.mjs
+          node --check apex9-preview/editorial-dashboard.mjs
+          node --check apex9-preview/asset-news-context.mjs
+          node --check apex9-preview/news-research-analysis.mjs
+          node --check apex9-preview/news-evidence.mjs
+      - name: News and asset attribution regression tests
+        run: |
+          node --test \
+            apex9-preview/test-asset-news-context.mjs \
+            apex9-preview/test-news-research-analysis.mjs \
+            apex9-preview/test-news-coverage.mjs \
+            apex9-preview/test-news-evidence.mjs \
+            apex9-preview/test-news-source-fusion.mjs \
+            apex9-preview/test-market-event-router.mjs \
+            apex9-preview/test-personal-news-client.mjs
