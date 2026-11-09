@@ -64,10 +64,12 @@ export function legacyRangeCard(row,options={}){
  return card;
 }
 export function directionalForecastCard(row,{
- tracked,onToggle,onOpen,sourceH1,copyText
+ tracked,onToggle,onOpen,sourceH1,sourceM5,copyText
 }={}){
  const verified=planDirectionalScenario(row,{now:Date.now()});
  const plan=verified.plan;
+ const isM5=plan?.evaluationInterval==='5m';
+ const sourceFrame=isM5?'M5':'H1';
  const finishedNative=forecastStage(row)==='COMPLETED'&&
   terminalStates.has(row.evaluation?.outcome);
  const card=create('article','forecast-record forecast-visual forecast-directional'+
@@ -88,6 +90,7 @@ export function directionalForecastCard(row,{
  }
  card.append(create('p','forecast-visual-provenance',
   'Одно направление и все контрольные уровни сохранены при публикации в Room. '+
+  'Направление формируется по H1; контроль уровней — по '+sourceFrame+'. '+
   'Касание цены не означает исполненной сделки.'));
  const steps=create('div','forecast-step-strip');
  const stageNodes=['Создан','Вход','Итог'].map((title,i)=>{
@@ -97,7 +100,7 @@ export function directionalForecastCard(row,{
  card.append(steps);
  const status=create('p','forecast-visual-horizon',
   finishedNative?'Итог записан · проверяем историю касаний':
-   'Ожидаем проверенных H1-свечей после публикации.');
+   'Ожидаем проверенных '+sourceFrame+'-свечей после публикации.');
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');
  card.append(status);
  const levels=create('div','forecast-visual-levels');
@@ -133,7 +136,7 @@ export function directionalForecastCard(row,{
  levels.append(grid);
  const progress=create('div','forecast-observation-progress');
  const summary=create('p','forecast-observation-summary',
-  'Проверяем вход, TP1–TP3 и SL в хронологическом порядке.');
+  'Проверяем вход, TP1–TP3 и SL по закрытым '+sourceFrame+' в хронологическом порядке.');
  const bars=create('div','forecast-progress-track');
  const parts=['tp1','tp2','tp3'].map(k=>{
   const bar=create('span','forecast-progress-step');
@@ -142,7 +145,7 @@ export function directionalForecastCard(row,{
  });
  progress.append(summary,bars);levels.append(progress);card.append(levels,copied);
  const events=create('div','forecast-directional-history');
- events.append(create('p','muted','История касаний загружается из Room H1.'));
+ events.append(create('p','muted','История касаний загружается из Room '+sourceFrame+'.'));
  card.append(events);
  const actions=create('div','forecast-visual-actions');
  actions.append(
@@ -154,18 +157,19 @@ export function directionalForecastCard(row,{
    'Опорная цена: '+priceText(plan.entry),
    'TP1 '+priceText(plan.tp1),'TP2 '+priceText(plan.tp2),
    'TP3 '+priceText(plan.tp3),'SL '+priceText(plan.sl),
-   'Наблюдение по закрытым H1 · не биржевой ордер'
+   'Направление H1 · контроль по закрытым '+sourceFrame+' · не биржевой ордер'
   ].join('\n')))
  );
  card.append(actions);
  const open=btn('forecast-open','Открыть актив',()=>onOpen?.(row.asset,row.id));
  const bottom=create('div','forecast-card-actions');
  bottom.append(open);card.append(bottom);
- if(typeof sourceH1!=='function')return card;
- void sourceH1(row.asset).then(archive=>{
+ const reader=isM5?sourceM5:sourceH1;
+ if(typeof reader!=='function')return card;
+ void (isM5?reader(plan):reader(row.asset)).then(archive=>{
   if(!card.isConnected)return;
   if(!archive.native||archive.error||!archive.complete){
-   status.textContent='Полный проверенный H1-архив недоступен. Результат уровней неизвестен.';
+   status.textContent='Проверенный архив '+sourceFrame+' недоступен. Результат уровней неизвестен.';
    return;
   }
   const audit=auditDirectionalScenario(plan,archive.candles,{now:Date.now()});
@@ -185,13 +189,13 @@ export function directionalForecastCard(row,{
   for(const [i,key] of ['tp1','tp2','tp3'].entries()){
    const hit=hitSet.has(key);
    cells[key].tile.classList.toggle('is-hit',hit);
-   cells[key].info.textContent=hit?'✓ Касание H1':'Не достигнут';
+   cells[key].info.textContent=hit?'✓ Касание '+sourceFrame:'Не достигнут';
    parts[i].classList.toggle('is-hit',hit);
    parts[i].setAttribute('aria-label',key.toUpperCase()+(hit?' · наблюдался':' · не достигнут'));
   }
   status.textContent=directionalOutcomeLabel(audit.outcome)+
    (finished?' · '+date(audit.terminalAt):' · проверка до '+date(plan.targetCloseAt));
-  summary.textContent='Проверено '+audit.observedHours+'/24 H1 · TP: '+
+  summary.textContent='Проверено '+(isM5?audit.observedBars+'/288 M5':audit.observedHours+'/24 H1')+' · TP: '+
    audit.hits.length+'/3. '+(audit.reason||audit.note);
   events.replaceChildren();
   if(audit.entryAt)events.append(create('p','forecast-directional-event',
@@ -202,7 +206,7 @@ export function directionalForecastCard(row,{
    directionalOutcomeLabel(audit.outcome)+' · '+date(audit.terminalAt)));
   if(audit.reason)events.append(create('p','forecast-level-warning',audit.reason));
  }).catch(()=>{
-  if(card.isConnected)status.textContent='Архив H1 недоступен для независимой проверки.';
+  if(card.isConnected)status.textContent='Архив '+sourceFrame+' недоступен для независимой проверки.';
  });
  return card;
 }
