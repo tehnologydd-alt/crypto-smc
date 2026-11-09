@@ -1,4 +1,4 @@
-import {collectAsset,fetchSpotCatalog,normalizeSymbol} from './research.mjs';
+import {collectAsset,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {collectContext} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts} from './mobile-bridge.mjs';
@@ -45,6 +45,7 @@ const assessmentNames={
  DOWNWARD_CONTEXT:'Отрицательный исторический контекст'
 };
 let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=0;
+let fastTickerAt=0,fastTickerBusy=false;
 try{chosen=normalizeSymbol(localStorage.getItem('apex9_preview_asset'))||chosen;}catch{}
 el('asset-input').value=chosen;
 el('asset-name').textContent=chosen;
@@ -1058,6 +1059,7 @@ async function investigate(value){
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
+ if(changed)fastTickerAt=0;
  if(changed){
   scenarioRequest++;
   drawnCandleAsset='';drawnCandleInterval='';
@@ -1129,14 +1131,42 @@ el('search-form').addEventListener('submit',(event)=>{
  navigate('asset','chart');
 });
 el('refresh-button').addEventListener('click',()=>void investigate(chosen));
+// Foreground lightweight quote cadence; no high-rate book/news/on-chain polling.
+async function refreshVisibleQuote(){
+ if(document.hidden||fastTickerBusy||controller||!chosen||
+  Date.now()-fastTickerAt<30000)return;
+ const symbol=chosen;
+ fastTickerAt=Date.now();
+ fastTickerBusy=true;
+ try{
+  const result=await fetchSpotTicker(symbol,{now:()=>Date.now()});
+  if(document.hidden||symbol!==chosen)return;
+  if(result.state!=='OK'||!result.data)return;
+  const ticker=result.data;
+  text('market-price',fmt(ticker.price)+' USDT');
+  text('market-change','24 ч: '+(ticker.changePercent>0?'+':'')+
+   fmt(ticker.changePercent,2)+'%');
+  el('market-change').className='delta'+
+   (ticker.changePercent>0?' positive':
+    ticker.changePercent<0?' negative':'');
+  text('ticker-time',time(ticker.observedAt));
+  text('updated-at','Цена: '+time(ticker.observedAt)+' · публичный Spot');
+ }catch{
+  // A failed refresh never erases the last verified displayed quote.
+ }finally{fastTickerBusy=false;}
+}
 setInterval(()=>{
- if(!document.hidden&&!controller&&lastLoad&&Date.now()-lastLoad>60000)
-  void investigate(chosen);
+ if(document.hidden)return;
+ if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
+  void investigate(chosen); // Includes slower books and contextual sources.
+ else void refreshVisibleQuote();
 },15000);
 document.addEventListener('visibilitychange',()=>{
- if(!document.hidden&&!controller&&lastLoad&&Date.now()-lastLoad>90000)
+ if(document.hidden)return;
+ if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
   void investigate(chosen);
- if(!document.hidden)favoriteManager.resume();
+ else void refreshVisibleQuote();
+ favoriteManager.resume();
 });
 void loadCatalog().catch(()=>{
  text('catalog-status','Каталог временно недоступен. Введите известный символ вручную.');

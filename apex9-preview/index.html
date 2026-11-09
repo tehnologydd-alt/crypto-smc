@@ -271,7 +271,7 @@
         <h3>Рыночные сведения</h3>
         <div class="data-row"><span>Объём котируемой валюты, 24 ч</span><strong id="quote-volume">—</strong></div>
         <div class="data-row"><span>Время рыночного наблюдения</span><strong id="ticker-time">—</strong></div>
-        <p class="footnote">Изменение цены за 24 часа не предсказывает направление следующей свечи.</p>
+        <p class="footnote">Пока приложение открыто, котировка проверяется примерно каждые 30 секунд; полный набор данных — примерно раз в 10 минут. Это опрос API, а не поток всех сделок. Изменение цены за 24 часа не предсказывает следующую свечу.</p>
       </article>
       <article class="card block" data-asset-pane="data">
         <h3>Стаканы разных площадок</h3>
@@ -557,7 +557,7 @@
         <div class="data-row"><span>История прогнозов</span><strong id="native-forecast-count">—</strong></div>
         <label class="native-setting">
           <input type="checkbox" id="native-background-sync" disabled>
-          <span>Фоновая синхронизация выбранного актива <small>Разрешить Android периодически проверять публичную цену (примерно раз в час, время не гарантируется)</small></span>
+          <span>Фоновая синхронизация выбранного актива <small>Android WorkManager: запрос приблизительно раз в 15 минут, время не гарантируется</small></span>
         </label>
         <div class="update-controls">
           <button id="native-show-history" class="ghost" type="button">Показать локальную историю</button>

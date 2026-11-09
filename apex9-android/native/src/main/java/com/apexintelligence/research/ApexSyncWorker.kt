@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Opt-in periodic refresh: public Binance spot 24h price only for one selected
- * asset. Android chooses execution time; this is not a live monitoring service.
+ * asset. Min-periodic WorkManager = 15 min; Doze may delay. Not live.
  */
 class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -101,7 +101,7 @@ object ApexSyncScheduler {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .setRequiresBatteryNotLow(true)
             .build()
-        val request = PeriodicWorkRequestBuilder<ApexSyncWorker>(60, TimeUnit.MINUTES)
+        val request = PeriodicWorkRequestBuilder<ApexSyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
         manager.enqueueUniquePeriodicWork(

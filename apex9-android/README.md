@@ -50,3 +50,17 @@ The app now has a local per-installation UTC-day request allowance for on-demand
 `provider-scheduler.mjs` is a conservative, **not yet provider-connected** paid API reservation guard: explicit enablement, estimated cents per call, monthly cap, UTC-hour windows, interval between calls and reserved event slots. Its cost accounting is NOT an invoice. Storage loss, changed device time, other devices and provider-side quotas can make local controls insufficient for account-wide billing. API credentials and any payment account must not be embedded in the Android APK. No paid source, in-app purchase or scheduled background-paid collection is enabled.
 
 BLS dates are scheduled releases, **not actual numeric data**. BLS may reject direct mobile requests; such a failure is shown, not replaced by an invented calendar.
+
+## Visible and background market updates
+A visible APEX WebView checks the selected Spot quote around every 30s using public
+Binance REST. A full asset research refresh remains around every 10 minutes,
+so changing quotes do not repeatedly fetch news, chain context or all books.
+The light quote is displayed, but is not recorded as a fabricated closed candle.
+
+With the existing opt-in background sync enabled, Android WorkManager requests
+a run at its minimum 15-minute periodic interval. Actual execution can be
+delayed by Doze, network constraints, battery optimization and app standby.
+Turning it off cancels the unique periodic job. The worker stores a verified
+public market observation and maintains native favorite research; it never
+places trades. Faster guaranteed background execution requires a separate
+foreground-service design and is intentionally not enabled.
