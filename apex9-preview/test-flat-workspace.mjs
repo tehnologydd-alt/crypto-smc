@@ -14,7 +14,7 @@ function segment(start,end){
 test('five primary destinations include a direct research screen',()=>{
  const dock=segment('<nav class="tabs bottom-dock"','</nav>');
  const tabs=[...dock.matchAll(/data-tab="([^"]+)"/g)].map(x=>x[1]);
- assert.deepEqual(tabs,['overview','asset','forecasts','quality','sources']);
+ assert.deepEqual(tabs,['overview','radar','asset','forecasts','quality']);
  assert.equal(tabs.filter(x=>x==='quality').length,1);
  assert.ok(app.includes('tab.dataset.tab===activeDock(view)'));
  assert.ok(css.includes('grid-template-columns:repeat(5,minmax(0,1fr))'));
