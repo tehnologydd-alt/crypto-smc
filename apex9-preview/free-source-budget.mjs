@@ -8,7 +8,8 @@ export const FREE_POLICY=Object.freeze({
  dex:Object.freeze({daily:8,monthly:210,gapMs:2*3600000,ttlMs:2*3600000,staleMs:86400000}),
  gecko:Object.freeze({daily:6,monthly:160,gapMs:3*3600000,ttlMs:3*3600000,staleMs:86400000}),
  okx:Object.freeze({daily:12,monthly:300,gapMs:3600000,ttlMs:3600000,staleMs:6*3600000}),
- paprika:Object.freeze({daily:6,monthly:150,gapMs:3*3600000,ttlMs:3*3600000,staleMs:86400000})
+ paprika:Object.freeze({daily:6,monthly:150,gapMs:3*3600000,ttlMs:3*3600000,staleMs:86400000}),
+ cmc:Object.freeze({daily:6,monthly:160,gapMs:3*3600000,ttlMs:3*3600000,staleMs:86400000})
 });
 const KEY='apex9:no-key-budget:v1',CACHE='apex9:no-key-cache:v1:';
 const modes=Object.keys(FREE_POLICY);
@@ -31,6 +32,12 @@ export function createFreeSourceBudget({storage,now=()=>Date.now()}={}){
  function ledger(at){
   const x=read(KEY);
   if(x===null)return fresh(at);
+  // Additive migration: preserve legacy quota counters and cached market data.
+  if(x&&typeof x==='object'&&x.daily&&x.monthly&&x.last&&
+     !Object.hasOwn(x.daily,'cmc')&&!Object.hasOwn(x.monthly,'cmc')&&
+     !Object.hasOwn(x.last,'cmc')){
+   x.daily.cmc=0;x.monthly.cmc=0;x.last.cmc=0;
+  }
   if(!x||!/^\d{4}-\d{2}-\d{2}$/.test(x.day||'')||
    !/^\d{4}-\d{2}$/.test(x.month||'')||modes.some(k=>
     !Number.isSafeInteger(x.daily?.[k])||x.daily[k]<0||
