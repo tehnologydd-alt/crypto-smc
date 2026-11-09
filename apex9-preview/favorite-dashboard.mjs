@@ -16,6 +16,7 @@ import {displayPair,priceText,stagePresentation,
  observedLevelSummary,scenarioCopyText,SIDE_LABEL} from './forecast-card-ux.mjs';
 import {readRadarChanges} from './radar-changes.mjs';
 import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.mjs';
+import {bindFavoriteHoldSwipe} from './favorite-gesture.mjs';
 
 const id=name=>document.getElementById(name);
 const create=(tag,className='',value)=>{
@@ -486,45 +487,22 @@ export function initFavoriteResearch({
   if(symbol)void updateFavorite(symbol,true);
  });
  function enableSwipeRemoval(card,symbol){
-  let startX=0,startY=0,armed=false,tracking=false,timer=0,blockClick=false;
-  const reset=()=>{
-   clearTimeout(timer);tracking=false;armed=false;
-   card.classList.remove('favorite-armed');card.style.transform='';
-  };
-  card.addEventListener('pointerdown',event=>{
-   if(event.button!==0||event.target.closest('.favorite-explain, .favorite-radar-link'))return;
-   startX=event.clientX;startY=event.clientY;tracking=true;armed=false;
-   timer=setTimeout(()=>{
-    if(tracking){armed=true;blockClick=true;card.classList.add('favorite-armed');}
-   },480);
-  });
-  card.addEventListener('pointermove',event=>{
-   if(!tracking)return;
-   const dx=event.clientX-startX,dy=event.clientY-startY;
-   if(!armed){if(Math.hypot(dx,dy)>14)reset();return;}
-   card.style.transform='translateY('+Math.max(-80,Math.min(0,dy))+'px)';
-  });
-  card.addEventListener('pointerup',event=>{
-   const remove=tracking&&armed&&(event.clientY-startY < -65);
-   reset();
-   if(remove)void updateFavorite(symbol,false);
-   if(blockClick)setTimeout(()=>{blockClick=false;},400);
-  });
-  card.addEventListener('pointercancel',reset);
-  card.addEventListener('click',event=>{
-   if(!blockClick)return;
-   event.preventDefault();event.stopImmediatePropagation();
-  },true);
-  card.addEventListener('keydown',event=>{
-   if(event.target!==card)return;
-   if(event.key==='Delete'||event.key==='Backspace'){
-    event.preventDefault();void updateFavorite(symbol,false);
-   }else if(event.key==='Enter'){event.preventDefault();onSelectSymbol(symbol);}
+  return bindFavoriteHoldSwipe(card,{
+   onRemove:()=>void updateFavorite(symbol,false),
+   onOpen:()=>onSelectSymbol(symbol)
   });
  }
 
  function renderFavorites(){
-  const rail=id('favorite-rail');clear(rail);
+  const rail=id('favorite-rail');
+  const previousScrollLeft=rail.scrollLeft;
+  const focused=document.activeElement;
+  const focusedCard=focused?.closest?.('.favorite-card');
+  const focusedSymbol=focusedCard?.dataset.symbol;
+  const focusedRole=focused?.classList?.contains('favorite-radar-link')?
+   'radar':focused?.classList?.contains('favorite-open')?'open':
+    focused?.classList?.contains('favorite-explain')?'explain':'card';
+  clear(rail);
   const notices=radarNotices();
   const bySymbol=new Map(notices.map(x=>[x.symbol,x]));
   renderRadarSummary(notices);
@@ -536,6 +514,7 @@ export function initFavoriteResearch({
     :'Избранное хранится в Android-приложении.'));
   }else for(const symbol of favorites){
    const wrapper=create('div','asset-chip favorite-card');
+   wrapper.dataset.symbol=symbol;
    wrapper.setAttribute('role','listitem');
    wrapper.tabIndex=0;
    wrapper.setAttribute('aria-label',symbol+' · открыть Enter; удалить удержанием и свайпом вверх либо Delete');
@@ -583,6 +562,18 @@ export function initFavoriteResearch({
     wrapper.append(radar);
    }
    rail.append(wrapper);
+  }
+  // Rebuilding a card for a refreshed badge must not jump the carousel to BTC.
+  rail.scrollLeft=previousScrollLeft;
+  if(focusedSymbol&&document.body.dataset.view==='overview'){
+   for(const item of rail.children){
+    if(item.dataset.symbol!==focusedSymbol)continue;
+    const target=focusedRole==='radar'?item.querySelector('.favorite-radar-link'):
+     focusedRole==='open'?item.querySelector('.favorite-open'):
+      focusedRole==='explain'?item.querySelector('.favorite-explain'):item;
+    if(target?.focus)target.focus({preventScroll:true});
+    break;
+   }
   }
   const selected=favorites.includes(getSelectedSymbol());
   const toggle=id('favorite-toggle');
