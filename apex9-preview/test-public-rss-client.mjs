@@ -43,3 +43,19 @@ test('HTTP 200 with no qualifying RSS items is EMPTY, not connected content',()=
  assert.equal(r.state,'EMPTY');assert.equal(r.articles.length,0);
  assert.equal(r.sources['Decrypt RSS'].state,'EMPTY');
 });
+
+test('two overview consumers share one live native RSS request',async()=>{
+ let calls=0,release;
+ const plugin={fetchPublicRssNews:async()=>{
+  calls++;await new Promise(resolve=>{release=resolve;});
+  return {state:'OK',articles:[story],fetchedAt:now,cached:false};
+ }};
+ const a=fetchPublicRssNews({plugin,now:()=>now});
+ const b=fetchPublicRssNews({plugin,now:()=>now});
+ assert.equal(calls,1);
+ release();
+ const [first,second]=await Promise.all([a,b]);
+ assert.equal(first.state,'OK');
+ assert.deepEqual(first,second);
+ assert.equal(calls,1);
+});
