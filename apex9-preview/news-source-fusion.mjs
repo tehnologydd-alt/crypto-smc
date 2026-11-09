@@ -28,7 +28,7 @@ export function consolidateArticles(input,{limit=18,perDomain=2}={}){
   const href=cleanArticleUrl(x?.href||x?.url);
   const title=String(x?.title||'').trim().slice(0,220);
   const observedAt=x?.observedAt??x?.seenAt;
-  if(!href||title.length<10||!Number.isSafeInteger(observedAt)||
+  if(!href||title.length<2||!Number.isSafeInteger(observedAt)||
    observedAt<=0)continue;
   const domain=new URL(href).hostname.toLowerCase();
   const source=String(x?.source||x?.provider||'GDELT').slice(0,50);
