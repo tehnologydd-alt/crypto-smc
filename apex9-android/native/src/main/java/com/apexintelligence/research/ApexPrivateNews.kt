@@ -7,6 +7,7 @@ import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
+import java.io.ByteArrayOutputStream
 import javax.net.ssl.HttpsURLConnection
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -124,6 +125,11 @@ object ApexPrivateNews {
             val used = if (previous == day) shared.getInt("used:$provider", 0) else 0
             val cap = if (provider == "newsdata") 180 else 4
             if (used >= cap) return JSONObject().put("state", "DAILY_LIMIT")
+            val month = day.substring(0, 7)
+            val monthUsed = if (shared.getString("month:$provider", "") == month)
+                shared.getInt("monthUsed:$provider", 0) else 0
+            if (monthUsed >= if (provider == "newsdata") 5580 else 100)
+                return JSONObject().put("state", "MONTHLY_LIMIT")
             val gap = if (provider == "newsdata") 10L * 60_000L else 6L * 3_600_000L
             val last = shared.getLong("last:$provider", 0L)
             if (last > now + 60_000L) return JSONObject().put("state", "CLOCK_ERROR")
@@ -132,6 +138,8 @@ object ApexPrivateNews {
             // Reserve attempt BEFORE the HTTP call, including failed requests.
             if (!shared.edit().putString("bucket:$provider", day)
                     .putInt("used:$provider", used + 1)
+                    .putString("month:$provider", month)
+                    .putInt("monthUsed:$provider", monthUsed + 1)
                     .putLong("last:$provider", now).commit())
                 return JSONObject().put("state", "STORAGE_UNAVAILABLE")
         }
@@ -150,9 +158,16 @@ object ApexPrivateNews {
             if (code == 429) return JSONObject().put("state", "RATE_LIMITED")
             if (code != 200) return JSONObject().put("state", "OFFLINE")
             val data = conn.inputStream.use { stream ->
-                val bytes = stream.readNBytes(196_609)
-                if (bytes.size > 196_608) throw IllegalArgumentException("Oversized provider response")
-                JSONObject(String(bytes, Charsets.UTF_8))
+                val out = ByteArrayOutputStream()
+                val chunk = ByteArray(4096)
+                while (true) {
+                    val n = stream.read(chunk)
+                    if (n < 0) break
+                    if (out.size() + n > 196_608)
+                        throw IllegalArgumentException("Oversized provider response")
+                    out.write(chunk, 0, n)
+                }
+                JSONObject(String(out.toByteArray(), Charsets.UTF_8))
             }
             val input = data.optJSONArray("results")
                 ?: return JSONObject().put("state", "INVALID")
