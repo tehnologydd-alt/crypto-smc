@@ -3,7 +3,7 @@
  */
 import {createFreeSourceBudget,FREE_POLICY} from './free-source-budget.mjs';
 import {fetchFearGreed,fetchDexPairs,fetchGeckoPools,
- fetchOkxTicker,dexTokenReference} from './free-source-adapters.mjs';
+ fetchOkxTicker,dexTokenReference,fetchPaprikaTicker} from './free-source-adapters.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
  const node=document.createElement(tag);
@@ -42,9 +42,10 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    fear:'Alternative.me · Fear & Greed',
    dex:'DEX Screener · WETH / WSOL',
    gecko:'GeckoTerminal · WETH / WSOL',
-   okx:'OKX · Spot ticker'
+   okx:'OKX · Spot ticker',
+   paprika:'CoinPaprika · рыночная сводка'
   };
-  for(const mode of ['fear','dex','gecko','okx']){
+  for(const mode of ['fear','dex','gecko','okx','paprika']){
    const q=budget.status(mode),name=names[mode],last=latest.get(mode)||'НЕ ПРОВЕРЯЛСЯ';
    const row=div('article','free-source-center-row');
    row.append(div('strong','',name),
@@ -57,7 +58,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    container.append(row);
    if(last==='OK')ok++;
   }
-  timeStatus.textContent=ok+' из 4 источников дали корректный ответ в этой сессии. '+
+  timeStatus.textContent=ok+' из 5 источников дали корректный ответ в этой сессии. '+
    'Все квоты локальные; IP-лимиты поставщиков действуют отдельно.';
  }
  function showFear(r){
@@ -76,7 +77,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  }
  function cardResult(mode,result,symbol){
   const outer=div('article','free-source-result');
-  const label={okx:'OKX Spot',dex:'DEX Screener',gecko:'GeckoTerminal'}[mode];
+  const label={okx:'OKX Spot',dex:'DEX Screener',gecko:'GeckoTerminal',paprika:'CoinPaprika'}[mode];
   outer.append(div('strong','',label));
   if(!isPresent(result)||!result.data){
    const reason=mode!=='okx'&&!dexTokenReference(symbol)?
@@ -91,6 +92,115 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     'Spot: '+fmt(data.price,7)+' USDT'),
     div('small','',
      'Bid '+fmt(data.bid,7)+' · Ask '+fmt(data.ask,7)));
+  }else if(mode==='paprika'){
+   outer.append(div('span','free-source-figure',
+    'Цена: '+fmt(data.priceUsd,7)+' USD'),
+    div('small','',
+     'Капитализация +' · '+fmt(data.priceUsd,7)+' USD'),
+    div('small','',
+     'DEX-пул · ликвидность $'+fmt(data.liquidityUsd,0)+
+     ' · объём 24 ч $'+fmt(data.volume24hUsd,0)));
+  }
+  outer.append(div('small','',
+   'Получено '+nice(result.fetchedAt)+
+   (result.state==='STALE'?' · архив':'')+caps(mode,result)));
+  return outer;
+ }
+ async function openOverview(){
+  const seq=++globalSeq;
+  const status=el('free-fear-status');
+  if(status)status.textContent='Проверяем Alternative.me и кеш…';
+  const r=await budget.load('fear',()=>fetchFearGreed());
+  if(seq!==globalSeq)return;
+  showFear(r);annotate('fear',r);
+ }
+ async function openAsset(symbol=getSymbol?.()){
+  const seq=++assetSeq;
+  const list=el('free-asset-market-results');
+  const status=el('free-asset-market-status');
+  if(!list||!status)return;
+  list.replaceChildren();
+  status.textContent='Проверяем бесплатные источники и суточные лимиты…';
+  const supportsDex=Boolean(dexTokenReference(symbol));
+  const sourceCalls=[
+   budget.load('okx',()=>fetchOkxTicker(symbol),{key:symbol}),
+   budget.load('paprika',()=>fetchPaprikaTicker(symbol),{key:symbol}),
+   supportsDex?budget.load('dex',()=>fetchDexPairs(symbol),{key:symbol}):
+    Promise.resolve({state:'UNSUPPORTED'}),
+   supportsDex?budget.load('gecko',()=>fetchGeckoPools(symbol),{key:symbol}):
+    Promise.resolve({state:'UNSUPPORTED'})
+  ];
+  const responses=await Promise.all(sourceCalls);
+  if(seq!==assetSeq||getSymbol?.()!==symbol)return;
+  for(const [i,mode] of ['okx','paprika','dex','gecko'].entries()){
+   const r=responses[i];
+   list.append(cardResult(mode,r,symbol));
+   if(supportsDex||mode==='okx'||mode==='paprika')annotate(mode,r);
+  }
+  const good=responses.filter(x=>x.state==='OK').length;
+  status.textContent=symbol+' · проверено '+good+'/4 источников'+
+   (!supportsDex?' · без DEX: нет надёжного контракта':'')+
+   '. DEX-цены обёрнутых токенов не равны ценам нативных активов.';
+ }
+ el('free-fear-refresh')?.addEventListener('click',()=>void openOverview());
+ el('free-asset-market-refresh')?.addEventListener('click',
+  ()=>void openAsset(getSymbol?.()));
+ refreshCenter();
+ return {openOverview,openAsset,refreshCenter};
+}
++fmt(data.marketCapUsd,0)+
+     ' · объём 24 ч +' · '+fmt(data.priceUsd,7)+' USD'),
+    div('small','',
+     'DEX-пул · ликвидность $'+fmt(data.liquidityUsd,0)+
+     ' · объём 24 ч $'+fmt(data.volume24hUsd,0)));
+  }
+  outer.append(div('small','',
+   'Получено '+nice(result.fetchedAt)+
+   (result.state==='STALE'?' · архив':'')+caps(mode,result)));
+  return outer;
+ }
+ async function openOverview(){
+  const seq=++globalSeq;
+  const status=el('free-fear-status');
+  if(status)status.textContent='Проверяем Alternative.me и кеш…';
+  const r=await budget.load('fear',()=>fetchFearGreed());
+  if(seq!==globalSeq)return;
+  showFear(r);annotate('fear',r);
+ }
+ async function openAsset(symbol=getSymbol?.()){
+  const seq=++assetSeq;
+  const list=el('free-asset-market-results');
+  const status=el('free-asset-market-status');
+  if(!list||!status)return;
+  list.replaceChildren();
+  status.textContent='Проверяем бесплатные источники и суточные лимиты…';
+  const supportsDex=Boolean(dexTokenReference(symbol));
+  const sourceCalls=[
+   budget.load('okx',()=>fetchOkxTicker(symbol),{key:symbol}),
+   supportsDex?budget.load('dex',()=>fetchDexPairs(symbol),{key:symbol}):
+    Promise.resolve({state:'UNSUPPORTED'}),
+   supportsDex?budget.load('gecko',()=>fetchGeckoPools(symbol),{key:symbol}):
+    Promise.resolve({state:'UNSUPPORTED'})
+  ];
+  const responses=await Promise.all(sourceCalls);
+  if(seq!==assetSeq||getSymbol?.()!==symbol)return;
+  for(const [i,mode] of ['okx','dex','gecko'].entries()){
+   const r=responses[i];
+   list.append(cardResult(mode,r,symbol));
+   if(supportsDex||mode==='okx')annotate(mode,r);
+  }
+  const good=responses.filter(x=>x.state==='OK').length;
+  status.textContent=symbol+' · проверено '+good+'/3 источников'+
+   (!supportsDex?' · без DEX: нет надёжного контракта':'')+
+   '. DEX-цены обёрнутых токенов не равны ценам нативных активов.';
+ }
+ el('free-fear-refresh')?.addEventListener('click',()=>void openOverview());
+ el('free-asset-market-refresh')?.addEventListener('click',
+  ()=>void openAsset(getSymbol?.()));
+ refreshCenter();
+ return {openOverview,openAsset,refreshCenter};
+}
++fmt(data.volume24hUsd,0)));
   }else{
    outer.append(div('span','free-source-figure',
     data.tokenLabel+' · '+fmt(data.priceUsd,7)+' USD'),
