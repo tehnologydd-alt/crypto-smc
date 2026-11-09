@@ -7,6 +7,7 @@ const allowed=new Set(['Cointelegraph RSS','Decrypt RSS','CoinDesk RSS']);
 const states=new Set(['OK','EMPTY','STALE','WAIT_INTERVAL','DAILY_LIMIT','CLOCK_ERROR',
  'STORAGE_UNAVAILABLE','OFFLINE']);
 const native=()=>globalThis.window?.Capacitor?.Plugins?.ApexNative||null;
+const pending=new WeakMap();
 export function parsePublicRssResponse(raw,{now=Date.now()}={}){
  const state=raw?.state;
  const sources={};
@@ -51,7 +52,12 @@ export function parsePublicRssResponse(raw,{now=Date.now()}={}){
 export async function fetchPublicRssNews({plugin=native(),now=()=>Date.now()}={}){
  if(!plugin?.fetchPublicRssNews)
   return {state:'ANDROID_ONLY',provider:'PUBLIC_RSS',articles:[]};
- try{return parsePublicRssResponse(await plugin.fetchPublicRssNews(),
-  {now:now()});}
- catch{return {state:'OFFLINE',provider:'PUBLIC_RSS',articles:[]};}
+ if(pending.has(plugin))return pending.get(plugin);
+ const task=(async()=>{
+  try{return parsePublicRssResponse(await plugin.fetchPublicRssNews(),
+   {now:now()});}
+  catch{return {state:'OFFLINE',provider:'PUBLIC_RSS',articles:[]};}
+ })();
+ pending.set(plugin,task);
+ try{return await task;}finally{pending.delete(plugin);}
 }
