@@ -628,6 +628,19 @@ export function initFavoriteResearch({
     node.append(create('span','',label),create('strong','',fmt(n,0)));line.append(node);
    }
    slot.append(create('h4','',name==='all'?'Все наблюдения':'Отмеченные пользователем'),line);
+   const directional=value.directional;
+   const study=create('div','forecast-directional-stats');
+   study.append(create('strong','', 'Односторонние сценарии · TP / SL'));
+   const items=create('div','forecast-directional-counts');
+   for(const [label,num] of [
+    ['Опубликовано',directional.published],['TP3',directional.tp3],
+    ['SL',directional.stop],['Порядок неизвестен',directional.ambiguous],
+    ['Без входа',directional.notEntered],['Срок истёк',directional.horizon],
+    ['В наблюдении',directional.pending]]){
+    const box=create('span','',''+label+': '+num);
+    items.append(box);
+   }
+   study.append(items);slot.append(study);
    if(stats.truncated)slot.append(create('p','muted',
      'Общий архив больше открытых 75 записей: эта сводка относится только к загруженной части журнала.'));
    else slot.append(create('p','muted',
