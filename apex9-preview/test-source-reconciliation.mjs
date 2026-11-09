@@ -42,3 +42,26 @@ test('provider response without validated timestamp cannot count as fresh',()=>{
  assert.equal(r.usable,0);
  assert.equal(r.entries[0].recordStatus,'NO_RELIABLE_TIMESTAMP');
 });
+
+test('successful API response is not fresh if its observation is too old',()=>{
+ const r=reconcileSources('BTCUSDT',{
+  cmc:source(70000,now-3*3600000),
+  'binance-ticker':{state:'OK',data:{observedAt:now-22*60000}},
+  'binance-depth':{state:'OK',data:{receivedAt:now-2000}},
+  'bybit-depth':{state:'OFFLINE',data:null}
+ },{now});
+ assert.equal(r.comparison.state,'INSUFFICIENT');
+ assert.equal(r.usable,1);
+ assert.equal(r.entries.find(x=>x.id==='cmc').recordStatus,'OUTDATED_OBSERVATION');
+ assert.equal(r.entries.find(x=>x.id==='binance-ticker').usable,false);
+ assert.equal(r.entries.find(x=>x.id==='binance-depth').timeOrigin,'LOCAL_CAPTURE');
+ assert.equal(r.entries.find(x=>x.id==='binance-depth').recordStatus,'LOCAL_CAPTURE_TIME');
+ assert.equal(r.byGroup.VISIBLE_ORDER_BOOK.checked,2);
+});
+test('timestamps of discussion posts do not imply verified facts',()=>{
+ const r=reconcileSources('BTCUSDT',{bluesky:{
+  state:'OK',data:{observedAt:now-1000}
+ }},{now});
+ assert.equal(r.usable,0);
+ assert.equal(r.entries[0].recordStatus,'UNVERIFIED_USER_POST');
+});
