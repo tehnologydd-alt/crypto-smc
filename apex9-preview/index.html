@@ -19,50 +19,20 @@
         <div class="brand-sub">MARKET INTELLIGENCE</div>
       </div>
     </div>
+    <button type="button" class="header-catalog-button" data-go="catalog" aria-label="Открыть каталог активов">⌕ <span>Каталог</span></button>
     <span class="top-status" id="top-status" aria-live="polite">Источники не проверены</span>
   </header>
 
   <main class="content">
-    <section class="intro overview-only">
-      <div class="eyebrow">APEX / INTELLIGENCE</div>
-      <h1>Понимать рынок <em>глубже.</em></h1>
-      <p>Многослойные исследования активов — от биржевой ликвидности до событий и новостей.</p>
+    <section class="asset-shortcuts overview-only" aria-label="Избранные активы">
+      <div class="section-title"><h2>Избранное</h2><div class="favorites-heading-actions"><span id="favorites-count">0 / 10</span><button type="button" class="ghost" data-go="catalog">＋ Каталог</button></div></div>
+      <div id="favorite-rail" class="asset-rail" role="list" aria-label="Горизонтально прокручиваемое избранное">
+        <p class="muted" id="favorites-empty">Откройте каталог и добавьте первый актив.</p>
+      </div>
+      <p class="favorites-hint">Листайте карточки. Чтобы убрать актив, удерживайте карточку и смахните вверх.</p>
     </section>
 
-    <section class="hero card overview-only" aria-labelledby="asset-name">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow">РЫНОЧНЫЙ ПАСПОРТ · PUBLIC SPOT</div>
-          <h2 id="asset-name">BTCUSDT</h2>
-        </div>
-        <button class="ghost" id="refresh-button" type="button" title="Обновить данные">↻ Обновить</button>
-      </div>
-      <div class="hero-price">
-        <strong id="market-price">—</strong>
-        <span id="market-change" class="delta">24 ч: —</span>
-      </div>
-      <div class="hero-bottom">
-        <span id="updated-at">Нет проверенных данных</span>
-        <span class="pill" id="hero-coverage">Покрытие: ожидание данных</span>
-      </div>
-    </section>
-
-    <form id="search-form" class="search-box overview-only" autocomplete="off">
-      <label for="asset-input">Поиск актива</label>
-      <div class="search-row">
-        <input id="asset-input" name="asset" list="asset-options" value="BTCUSDT"
-               maxlength="20" spellcheck="false" autocapitalize="characters"
-               aria-describedby="catalog-status" placeholder="BTC, GRAM, ETH, SOL…">
-        <datalist id="asset-options"></datalist>
-        <button type="submit" id="search-button" aria-label="Открыть паспорт выбранного актива">Открыть</button>
-      </div>
-      <details class="search-help"><summary>Каталог и подсказки</summary><div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div></details>
-      <div class="favorites-toolbar">
-        <button id="favorite-toggle" class="favorite-toggle" type="button" disabled>☆ Добавить в избранное</button>
-        <span id="favorite-selection-status" class="microcopy" aria-live="polite">Избранное хранится на телефоне, максимум 10 активов.</span>
-      </div>
-    </form>
-
+    <div id="favorites-toast" class="favorites-toast" hidden role="status" aria-live="polite"><span id="favorites-toast-text">Актив удалён</span><button id="favorites-undo" type="button">Отменить</button></div>
 
     <section class="home-actions overview-only" aria-label="Быстрые новости и макроэкономика">
       <div class="section-title"><h2>Исследовать</h2><span>Актуальные события</span></div>
@@ -76,20 +46,8 @@
       </div>
     </section>
 
-    <section class="asset-shortcuts overview-only" aria-label="Избранные активы">
-      <div class="section-title"><h2>Избранные активы</h2><span id="favorites-count">0 / 10</span></div>
-      <div id="favorite-rail" class="asset-rail" role="list" aria-label="Горизонтально прокручиваемое избранное">
-        <p class="muted" id="favorites-empty">Выберите актив через поиск и добавьте его в избранное — он появится здесь.</p>
-      </div>
-      <p class="favorites-hint">Листайте карточки влево и вправо. Прогнозы автоматически исследуются по вашему избранному.</p>
-    </section>
-
-    <div id="load-message" class="notice overview-only" role="status" aria-live="polite">
-      Выберите актив, чтобы загрузить проверяемые данные.
-    </div>
-
     <section class="view" id="view-overview" aria-labelledby="overview-title">
-      <div class="section-title"><h2 id="overview-title">Обзор исследований</h2><span>Данные с источниками</span></div>
+      <div class="section-title"><h2 id="overview-title">Рынок сейчас</h2><span>Краткая картина</span></div>
       <div class="metrics">
         <article class="metric card"><div class="metric-label">Источники онлайн</div><div class="metric-value" id="active-sources">—</div><div class="metric-sub">из 3 доступных адаптеров</div></article>
         <article class="metric card"><div class="metric-label">Изменение за 24 ч</div><div class="metric-value" id="daily-change">—</div><div class="metric-sub">историческая динамика цены</div></article>
@@ -128,9 +86,53 @@
 
     </section>
 
+    <section class="view hidden" id="view-catalog" aria-labelledby="catalog-title">
+      <div class="section-title"><h2 id="catalog-title">Каталог активов</h2><span>Binance Spot · USDT</span></div>
+      <p class="muted">Найдите нужную пару. Звёздочка добавляет её в избранное.</p>
+    <form id="search-form" class="search-box catalog-search" autocomplete="off">
+      <label for="asset-input">Поиск по всем торговым парам</label>
+      <div class="search-row">
+        <input id="asset-input" name="asset" list="asset-options" value="BTCUSDT"
+               maxlength="20" spellcheck="false" autocapitalize="characters"
+               aria-describedby="catalog-status" placeholder="BTC, GRAM, ETH, SOL…">
+        <datalist id="asset-options"></datalist>
+        <button type="submit" id="search-button" aria-label="Открыть выбранный актив">Открыть</button>
+      </div>
+      <details class="search-help"><summary>Источник каталога и подсказки</summary><div id="catalog-status" class="microcopy">Каталог Binance Spot USDT загружается…</div></details>
+      <div class="favorites-toolbar">
+        <button id="favorite-toggle" class="favorite-toggle" type="button" disabled>☆ Добавить в избранное</button>
+        <span id="favorite-selection-status" class="microcopy" aria-live="polite">Избранное хранится на телефоне, максимум 10 активов.</span>
+      </div>
+    </form>
+
+
+      <div class="section-title catalog-heading"><h3>Доступные пары</h3><span id="catalog-result-count">Загрузка…</span></div>
+      <div id="catalog-results" class="catalog-results" role="list" aria-live="polite"></div>
+      <button id="catalog-show-more" type="button" class="ghost catalog-more" hidden>Показать ещё</button>
+    </section>
+
     <section class="view hidden" id="view-asset" data-asset-area="chart" aria-labelledby="asset-title">
       <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span id="asset-passport-name">BTCUSDT · автоматически</span></div>
       <p class="asset-auto-note">Рыночные показатели, структура, сеть и исторические сценарии проверяются автоматически при открытии раздела. При недоступном источнике сохраняется честная пометка о локальных данных.</p>
+    <section class="hero card" aria-labelledby="asset-name">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow">РЫНОЧНЫЙ ПАСПОРТ · PUBLIC SPOT</div>
+          <h2 id="asset-name">BTCUSDT</h2>
+        </div>
+        <button class="ghost" id="refresh-button" type="button" title="Обновить данные">↻ Обновить</button>
+      </div>
+      <div class="hero-price">
+        <strong id="market-price">—</strong>
+        <span id="market-change" class="delta">24 ч: —</span>
+      </div>
+      <div class="hero-bottom">
+        <span id="updated-at">Нет проверенных данных</span>
+        <span class="pill" id="hero-coverage">Покрытие: ожидание данных</span>
+      </div>
+    </section>
+
+      <div id="load-message" class="notice" role="status" aria-live="polite">Проверяем данные выбранного актива.</div>
       <section class="asset-explain-panel" aria-label="Проверка объяснений выбранного актива">
         <div class="asset-explain-copy">
           <strong>Почему APEX пришёл к этим наблюдениям?</strong>
