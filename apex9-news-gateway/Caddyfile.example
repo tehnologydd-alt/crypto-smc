@@ -1,0 +1,31 @@
+# Example HTTPS deployment for the WEB edition only. NOT an APK connection.
+# Set APEX_PUBLIC_DOMAIN, APEX_AUTH_USER and APEX_AUTH_PASSWORD_HASH on Caddy.
+# Keep Node bound to 127.0.0.1:8787, never expose that HTTP port.
+{$APEX_PUBLIC_DOMAIN} {
+ encode zstd gzip
+ header {
+  Strict-Transport-Security "max-age=31536000"
+  X-Content-Type-Options "nosniff"
+  Referrer-Policy "no-referrer"
+ }
+ # Protect ALL content and API requests with HTTPS Basic Auth.
+ # Create a hash using: caddy hash-password
+ basic_auth {
+  {$APEX_AUTH_USER} {$APEX_AUTH_PASSWORD_HASH}
+ }
+ @apexNews path /v1/status /v1/news /v1/bundle
+ handle @apexNews {
+  reverse_proxy 127.0.0.1:8787 {
+   # Required by localhost gateway Host validation.
+   header_up Host 127.0.0.1:8787
+   # Caddy authenticated the user; do not forward browser secrets.
+   header_up -Authorization
+   header_up -Cookie
+   # Preserve Origin and Sec-Fetch-Site for the gateway's own CSRF gate.
+  }
+ }
+ handle {
+  root * /srv/apex9/public
+  file_server
+ }
+}
