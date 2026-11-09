@@ -7,10 +7,14 @@ const valid=new Set(['OK','EMPTY','STALE']);
 const stateOf=x=>typeof x?.state==='string'?x.state:'NOT_QUERIED';
 export function composeLiveNews({gdelt,rss,personal}={}, {now=Date.now(),limit=18}={}){
  const sources={
-  gdelt:stateOf(gdelt),rss:stateOf(rss),
-  cryptopanic:personal?.providers?.cryptopanic||'NOT_CONFIGURED',
-  newsdata:personal?.providers?.newsdata||'NOT_CONFIGURED'
+  GDELT:stateOf(gdelt),RSS:stateOf(rss),
+  CryptoPanic:personal?.providers?.cryptopanic||'NOT_CONFIGURED',
+  'NewsData.io':personal?.providers?.newsdata||'NOT_CONFIGURED'
  };
+ for(const [name,detail] of Object.entries(rss?.sources||{})){
+  if(detail?.state&&typeof detail.state==='string')
+   sources[name]={state:detail.state,count:detail.count};
+ }
  const inputs=[['GDELT',gdelt],['RSS',rss],['PERSONAL',personal]];
  const candidates=[];
  for(const [id,result] of inputs){
@@ -30,7 +34,10 @@ export function composeLiveNews({gdelt,rss,personal}={}, {now=Date.now(),limit=1
  const state=articles.length?
   (articles.some(a=>!a.outdated)?'OK':'STALE'):
   anyUsable?'EMPTY':hasStale?'STALE':'UNAVAILABLE';
- return {state,articles,sources,latestArticleAt:newest,
+ const stamps=[gdelt?.fetchedAt,rss?.fetchedAt].filter(v=>
+  Number.isSafeInteger(v)&&v>0&&v<=now+60000);
+ const fetchedAt=stamps.length?Math.max(...stamps):null;
+ return {state,articles,sources,latestArticleAt:newest,fetchedAt,
   checkedSources:inputs.filter(([,r])=>r&&r.state!=='ANDROID_ONLY'&&
    r.state!=='NOT_CONFIGURED').length,
   source:'MIXED',scope:'HEADLINE_OBSERVATIONS_NOT_VERIFIED_CAUSALITY'};
@@ -45,8 +52,16 @@ export function sourceStatusLine(sources={}){
   NOT_CONFIGURED:'ключ не настроен',ANDROID_ONLY:'нужна новая Android APK',
   UNAVAILABLE:'не удалось получить',NOT_QUERIED:'не запрашивался',
   FORBIDDEN_OR_LIMITED:'нет доступа по тарифу',
-  INVALID_CREDENTIALS:'ключ отклонён'
+  INVALID_CREDENTIALS:'ключ отклонён',TIMEOUT:'время ожидания истекло',
+  NETWORK_OR_FORMAT_ERROR:'ошибка сети или формата',
+  OVERSIZED:'ответ слишком большой'
  };
- return Object.entries(sources).map(([source,state])=>
-  source+': '+(labels[state]||state)).join(' · ');
+ return Object.entries(sources).map(([source,raw])=>{
+  const state=typeof raw==='string'?raw:raw?.state;
+  const count=Number.isSafeInteger(raw?.count)&&raw.count>0?
+   ' ('+raw.count+' записей)':'';
+  const human=/^HTTP_\d{3}$/.test(state)?'HTTP '+state.slice(5):
+   (labels[state]||String(state||'неизвестно'));
+  return source+': '+human+count;
+ }).join(' · ');
 }
