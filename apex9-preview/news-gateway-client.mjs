@@ -6,7 +6,6 @@
  */
 import {consolidateArticles} from './news-source-fusion.mjs';
 const COINS=new Set(['BTC','ETH','SOL','XRP','ADA','BNB','DOGE','LTC']);
-const GOOD=new Set(['OK','EMPTY','CACHE']);
 export function parseNewsBundle(payload,{coin,now=Date.now()}={}){
  if(!COINS.has(coin)||payload?.coin!==coin||
   payload?.sourceScope!=='NEWS_CONTEXT_ONLY_NOT_TRADE_SIGNAL'||
