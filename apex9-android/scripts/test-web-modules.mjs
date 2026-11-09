@@ -47,3 +47,12 @@ test('Android asset manifest includes the formerly missing directional module',(
  assert.ok(script.includes('verifyWebModuleGraph(dist,'));
  assert.ok(script.includes('graph.modules'));
 });
+
+test('Android and hosted packaging both include news M5 transitive modules',()=>{
+ const script=readFileSync(new URL('./prepare-web.mjs',import.meta.url),'utf8');
+ for(const asset of ['asset-news-context.mjs','news-research-analysis.mjs',
+  'news-m5-reaction.mjs','news-m5-baseline.mjs','news-m5-budget.mjs',
+  'news-m5-panel.mjs']){
+  assert.ok(script.includes("'"+asset+"'"),asset+' must ship in the WebView');
+ }
+});
