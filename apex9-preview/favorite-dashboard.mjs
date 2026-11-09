@@ -12,6 +12,8 @@ import {attachSparkline} from './sparkline.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {planResearchLevels,analyzeResearchLevelSequence} from './research-level-sequence.mjs';
+import {displayPair,priceText,stagePresentation,
+ observedLevelSummary,scenarioCopyText,SIDE_LABEL} from './forecast-card-ux.mjs';
 
 const id=name=>document.getElementById(name);
 const create=(tag,className='',value)=>{
@@ -208,56 +210,218 @@ function renderLevelSequence(row){
  return container;
 }
 
+
+/** Clipboard is user-initiated; never copied silently or sent to an exchange. */
+async function copyResearchText(value){
+ const content=String(value);
+ try{
+  if(globalThis.navigator?.clipboard?.writeText){
+   await navigator.clipboard.writeText(content);
+   return true;
+  }
+ }catch{ /* Android WebView may block Clipboard API: try editable fallback. */ }
+ const input=create('textarea');
+ input.value=content;input.setAttribute('aria-hidden','true');
+ input.style.position='fixed';input.style.opacity='0';input.style.pointerEvents='none';
+ document.body.append(input);
+ input.focus();input.select();
+ let ok=false;
+ try{ok=Boolean(document.execCommand('copy'));}catch{}
+ input.remove();
+ return ok;
+}
+/** Single card; "Отмеченные" and "демо-журнал" are one and the same saved ID set. */
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
- const card=create('article','forecast-record');
- const headActions=create('div','forecast-card-actions');
- const follow=create('button','forecast-follow',tracked?'★ Отмечен':'☆ Наблюдать');
- follow.type='button';follow.setAttribute('aria-pressed',tracked?'true':'false');
- follow.addEventListener('click',()=>onToggle?.(row.id));
- const open=create('button','forecast-open','Паспорт '+row.asset);
+ const card=create('article','forecast-record forecast-visual');
+ const trace=inspectResearchTimeline(row,{now:Date.now()});
+ const state=stagePresentation(trace);
+ const audit=planResearchLevels(row,{now:Date.now()});
+ const head=create('div','forecast-visual-head');
+ const headText=create('div','forecast-visual-identity');
+ headText.append(create('strong','',displayPair(row.asset)),
+  create('small','','H1 · Исследование диапазона'));
+ const pill=create('span','forecast-visual-state '+state.tone,state.name);
+ head.append(headText,pill);card.append(head);
+ const source=create('div','forecast-visual-meta');
+ source.append(create('span','','Binance Spot · закрытые H1'),
+  create('span','','Источники: проверяемые данные'));
+ card.append(source);
+ const stages=create('div','forecast-step-strip');
+ stages.setAttribute('aria-label','Этапы исследовательского сценария');
+ for(const [index,label] of ['Создан','Наблюдение','Итог'].entries()){
+  const observed=index===0?trace.state!=='INVALID':
+   index===1?trace.steps?.some(step=>step.key==='CONFIRMED'&&step.observed):
+   Boolean(trace.result);
+  const segment=create('span','forecast-step '+(observed?'is-done':'is-pending'),
+   (observed?'✓ ':'· ')+label);
+  stages.append(segment);
+ }
+ card.append(stages);
+ const when=create('div','forecast-visual-horizon');
+ when.textContent=trace.state==='EVALUATED'
+  ?'Итог проверен · '+date(trace.result.evaluatedAt)
+  :trace.state==='DUE_UNVERIFIED'
+   ?'Срок проверки прошёл; подтверждённого итога ещё нет'
+   :trace.state==='INVALID'||trace.state==='INCONSISTENT_RESULT'
+    ?'Запись требует проверки источника и времени'
+    :'Осталось до исследовательского горизонта: '+formatRemaining(trace.remainingMs);
+ card.append(when);
+ if(audit.state!=='READY'){
+  card.append(create('p','forecast-level-warning',
+   'Контрольные уровни пока недоступны: '+audit.reason));
+ }else{
+  const plan=audit.plan;
+  const provenance=create('p','forecast-visual-provenance',
+   plan.origin==='PUBLISHED'
+    ?'Контрольные уровни сохранены вместе с гипотезой.'
+    :'Уровни восстановлены задним числом для старой гипотезы; в точность прогнозов не входят.');
+  card.append(provenance);
+  const branches=create('div','forecast-side-tabs');
+  branches.setAttribute('role','group');
+  branches.setAttribute('aria-label','Условные варианты исследования');
+  const up=create('button','forecast-side-tab is-active','↑ Вверх');
+  const down=create('button','forecast-side-tab','↓ Вниз');
+  up.type='button';down.type='button';branches.append(up,down);card.append(branches);
+  let direction='UP',lastAudit=null;
+  const boxes=create('div','forecast-visual-levels');
+  const baseRow=create('div','forecast-baseline-row');
+  const entry=create('div','forecast-price-box');
+  entry.append(create('span','forecast-price-label','Опорная цена · не вход'));
+  const price=create('strong','forecast-price-value',priceText(plan.entry));
+  const copyPrice=create('button','forecast-copy','▢');
+  copyPrice.type='button';copyPrice.setAttribute('aria-label','Копировать опорную цену');
+  entry.append(price,copyPrice);
+  const sl=create('div','forecast-price-box protective');
+  sl.append(create('span','forecast-price-label','Защитный уровень · условно'));
+  const slPrice=create('strong','forecast-price-value');
+  const copySL=create('button','forecast-copy','▢');
+  copySL.type='button';copySL.setAttribute('aria-label','Копировать защитный уровень');
+  sl.append(slPrice,copySL);
+  baseRow.append(entry,sl);boxes.append(baseRow);
+  const targets=create('div','forecast-target-grid');
+  const targetInfo=[];
+  for(const key of ['tp1','tp2','tp3']){
+   const tile=create('div','forecast-target');
+   const label=create('span','forecast-target-name',key.toUpperCase());
+   const amount=create('strong','forecast-target-price');
+   const copy=create('button','forecast-copy','▢');
+   copy.type='button';copy.setAttribute('aria-label','Копировать '+key.toUpperCase());
+   const info=create('small','forecast-target-mark');
+   tile.append(label,amount,copy,info);
+   targets.append(tile);targetInfo.push({key,tile,amount,copy,info});
+  }
+  boxes.append(targets);
+  const tracking=create('div','forecast-observation-progress');
+  const trackingTitle=create('p','forecast-observation-summary');
+  const bars=create('div','forecast-progress-track');
+  const barElements=['TP1','TP2','TP3'].map(label=>{
+   const node=create('span','forecast-progress-step');
+   node.setAttribute('aria-label',label+' ещё не проверен');
+   bars.append(node);return node;
+  });
+  tracking.append(trackingTitle,bars);
+  boxes.append(tracking);card.append(boxes);
+  const copyStatus=create('p','forecast-copy-feedback');
+  copyStatus.setAttribute('role','status');copyStatus.setAttribute('aria-live','polite');
+  card.append(copyStatus);
+  const doCopy=async value=>{
+   const ok=await copyResearchText(value);
+   copyStatus.textContent=ok?'Скопировано в буфер обмена.':
+    'Не удалось скопировать. Выделите значение вручную.';
+  };
+  copyPrice.addEventListener('click',()=>void doCopy(priceText(plan.entry)));
+  copySL.addEventListener('click',()=>void doCopy(priceText(plan[direction].sl)));
+  for(const item of targetInfo)
+   item.copy.addEventListener('click',()=>void doCopy(priceText(plan[direction][item.key])));
+  function redraw(){
+   up.classList.toggle('is-active',direction==='UP');
+   down.classList.toggle('is-active',direction==='DOWN');
+   up.setAttribute('aria-pressed',String(direction==='UP'));
+   down.setAttribute('aria-pressed',String(direction==='DOWN'));
+   slPrice.textContent=priceText(plan[direction].sl);
+   const branch=lastAudit?.branches?.find(x=>x.direction===direction);
+   const info=observedLevelSummary(branch);
+   for(const [i,item] of targetInfo.entries()){
+    item.amount.textContent=priceText(plan[direction][item.key]);
+    const touched=info.hitKeys.includes(item.key);
+    item.tile.classList.toggle('is-hit',touched&&!info.ambiguous);
+    item.tile.classList.toggle('is-uncertain',touched&&info.ambiguous);
+    item.info.textContent=touched?(info.ambiguous?'Касание · порядок ?':'Касание H1'):
+     'Не подтверждено';
+    barElements[i].classList.toggle('is-hit',touched&&!info.ambiguous);
+    barElements[i].classList.toggle('is-uncertain',touched&&info.ambiguous);
+    barElements[i].setAttribute('aria-label',item.key.toUpperCase()+' · '+item.info.textContent);
+   }
+   trackingTitle.textContent=info.label+
+    (lastAudit?.state==='COMPLETE'?' · 4/4 H1':
+     lastAudit?.state==='PARTIAL'?' · '+lastAudit.observedHours+'/4 H1':'');
+  }
+  up.addEventListener('click',()=>{direction='UP';redraw();});
+  down.addEventListener('click',()=>{direction='DOWN';redraw();});
+  const actionBar=create('div','forecast-visual-actions');
+  const follow=create('button','forecast-follow',tracked?
+   '✓ В отмеченных':'☆ Добавить в отмеченные');
+  follow.type='button';follow.setAttribute('aria-pressed',String(tracked));
+  follow.addEventListener('click',()=>onToggle?.(row.id));
+  const copyAll=create('button','forecast-copy-all','▢ Скопировать уровни');
+  copyAll.type='button';
+  copyAll.addEventListener('click',()=>void doCopy(scenarioCopyText(row,plan,direction)));
+  actionBar.append(follow,copyAll);card.append(actionBar);
+  redraw();
+  // Only source-complete, originally stored Room H1 may mark touched levels.
+  // Missing or ambiguous bars must never become "wins".
+  void sourceH1(row.asset).then(archive=>{
+   if(!card.isConnected)return;
+   if(!archive.native||archive.error||!archive.complete){
+    trackingTitle.textContent='Проверенных данных для касаний пока нет.';
+    return;
+   }
+   const result=analyzeResearchLevelSequence(plan,archive.candles,{now:Date.now()});
+   if(result.state==='COMPLETE'||result.state==='PARTIAL'){
+    lastAudit=result;redraw();
+   }else trackingTitle.textContent='Не удалось проверить исходные H1: '+result.reason;
+  }).catch(()=>{
+   if(card.isConnected)trackingTitle.textContent='Локальная история H1 недоступна.';
+  });
+ }
+ const tools=create('div','forecast-card-actions');
+ const open=create('button','forecast-open','Открыть актив');
  open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset,row.id));
- headActions.append(follow,open);
- const stage=forecastStage(row);
- let data=null;
- try{data=JSON.parse(row.hypothesis);}catch{}
- const head=create('div','forecast-record-head');
- const heading=create('div');
- heading.append(create('strong','',row.asset+' · H1'),
-  create('small','', 'Наблюдение по эмпирическому диапазону'));
- head.append(heading,create('span','forecast-state '+stage.toLowerCase(),
-  FORECAST_STAGE_LABELS[stage]));
- card.append(head,headActions);
+ tools.append(open);
+ const details=create('details','forecast-record-details');
+ const summary=create('summary','','Источники, график и подробный H1-аудит');
+ details.append(summary);
  const chart=create('div','forecast-mini-chart');
  chart.dataset.sparkSymbol=row.asset;
- card.append(chart);
- getMini?.(row.asset,chart);
- if(!data||typeof data.bandLow!=='number'||typeof data.bandHigh!=='number'){
-  card.append(create('p','muted','Исходная запись требует проверки формата.'));
-  return card;
- }
- card.append(create('div','forecast-band',
-  fmt(data.bandLow)+' — '+fmt(data.bandHigh)+' USDT'));
+ details.append(chart);getMini?.(row.asset,chart);
  const rows=create('div','forecast-info');
+ let data=null;
+ try{data=typeof row.hypothesis==='string'?JSON.parse(row.hypothesis):row.hypothesis;}
+ catch{}
+ if(data&&typeof data.bandLow==='number'&&typeof data.bandHigh==='number'){
+  rows.append(create('div','forecast-band',
+   priceText(data.bandLow)+' — '+priceText(data.bandHigh)+' USDT'));
+ }
  for(const [label,value] of [
   ['Опубликован',date(row.publishedAt)],
-  ['Начальная цена',fmt(data.anchorClose)+' USDT'],
-  ['Срок проверки',date(data.targetCloseAt)],
+  ['Срок проверки',date(trace.targetCloseAt)],
   ['Источник','Binance Spot · закрытые H1']]){
   const line=create('div','data-row');
   line.append(create('span','',label),create('strong','',value));
   rows.append(line);
  }
- card.append(rows);
- card.append(renderLevelSequence(row));
- const {panel:progress,trace}=timelineForForecast(row);
- card.append(progress);
+ details.append(rows);
+ details.append(renderLevelSequence(row));
+ const {panel:progress}=timelineForForecast(row);
+ details.append(progress);
  if(trace.result){
-  card.append(create('div','forecast-result',
+  details.append(create('div','forecast-result',
    (trace.result.outcome==='WITHIN_RANGE'?
-    'Итоговое закрытие внутри опубликованного диапазона':
-    'Итоговое закрытие вне опубликованного диапазона')+
-   ' · '+fmt(trace.result.actualClose)+' USDT · '+date(trace.result.evaluatedAt)));
+    'Итоговое закрытие внутри исходного диапазона':
+    'Итоговое закрытие вне исходного диапазона')+
+   ' · '+priceText(trace.result.actualClose)+' USDT · '+date(trace.result.evaluatedAt)));
  }
+ card.append(tools,details);
  return card;
 }
 export function initFavoriteResearch({
