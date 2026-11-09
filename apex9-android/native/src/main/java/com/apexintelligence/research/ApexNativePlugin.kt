@@ -201,7 +201,7 @@ class ApexNativePlugin : Plugin() {
     }
 
     private val intervals = mapOf(
-        "15m" to 900_000L, "1h" to 3_600_000L,
+        "5m" to 300_000L, "15m" to 900_000L, "1h" to 3_600_000L,
         "4h" to 14_400_000L, "1d" to 86_400_000L
     )
 
@@ -327,6 +327,49 @@ class ApexNativePlugin : Plugin() {
                 call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Could not load cached candles: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    /**
+     * Bounded, asset-scoped and range-scoped read of real cached M5 candles.
+     * Missing bars are returned as gaps: never interpolate source OHLC.
+     */
+    @PluginMethod
+    fun getCandlesWindow(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val interval = call.getString("interval") ?: ""
+        val step = intervals[interval]
+        val startTime = call.data.optLong("startTime", -1L)
+        val endExclusive = call.data.optLong("endExclusive", -1L)
+        if (!assetRegex.matches(asset) || interval != "5m" || step == null ||
+            startTime <= 0 || startTime % step != 0L ||
+            endExclusive <= startTime || endExclusive % step != 0L ||
+            endExclusive - startTime > 290L * step ||
+            endExclusive > System.currentTimeMillis() + step) {
+            call.reject("Invalid M5 candle window")
+            return
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context).researchDao()
+                val candles = dao.candlesInRange(asset, interval, startTime, endExclusive)
+                val items = JSArray()
+                for (bar in candles) {
+                    if (bar.closeTime >= System.currentTimeMillis()) continue
+                    items.put(JSObject()
+                        .put("t", bar.openTime).put("closeAt", bar.closeTime)
+                        .put("open", bar.open).put("high", bar.high)
+                        .put("low", bar.low).put("close", bar.close)
+                        .put("volume", bar.volume).put("closed", true)
+                        .put("recordedAt", bar.recordedAt))
+                }
+                call.resolve(JSObject().put("asset", asset)
+                    .put("interval", interval)
+                    .put("startTime", startTime).put("endExclusive", endExclusive)
+                    .put("candles", items).put("source", "LOCAL_ROOM_CACHE"))
+            } catch (e: Exception) {
+                call.reject("M5 window unavailable: " + (e.message ?: "unknown"))
             }
         }
     }
