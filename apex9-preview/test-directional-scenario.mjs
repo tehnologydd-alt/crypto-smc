@@ -64,8 +64,8 @@ test('no entry means no TP credit even when a later bar touches TP',()=>{
 test('TP1, TP2 and TP3 are counted in chronological order after entry',()=>{
  const plan=planDirectionalScenario(source(),{now:date}).plan;
  const candles=fixture([...base(),bar(3,{high:102.3,low:100,close:101}),
-  bar(4,{high:104.5,low:101,close:103}),
-  bar(5,{high:106.2,low:103,close:105})]);
+  bar(4,{open:102,high:104.5,low:101,close:103}),
+  bar(5,{open:104,high:106.2,low:103,close:105})]);
  const result=auditDirectionalScenario(plan,candles,{now:anchor+5*H+10000});
  assert.equal(result.outcome,'TP3');
  assert.equal(result.state,'COMPLETED');
