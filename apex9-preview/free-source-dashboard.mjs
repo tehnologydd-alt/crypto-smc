@@ -60,20 +60,26 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    if(last==='OK')ok++;
   }
   const keyed=[
-   ['cryptopanic','CryptoPanic · новости'],
-   ['newsdata','NewsData.io · новости'],
-   ['reddit','Reddit · обсуждения']
+   ['cryptopanic','CryptoPanic · новости',
+    'Тариф и доступ конкретного API-ключа не проверены',
+    'Нужны действующий доступ и безопасная настройка ключа'],
+   ['newsdata','NewsData.io · новости',
+    'Free: 200 кредитов/сутки · публикации задержаны примерно на 12 часов',
+    'В APEX внутренний предел 180/сутки; серверный ключ ещё не настроен'],
+   ['reddit','Reddit · обсуждения',
+    'До 100 запросов/мин для одобренного OAuth-клиента',
+    'Требуется одобрение доступа и OAuth; прямое мобильное подключение не реализовано']
   ];
-  for(const [id,name] of keyed){
+  for(const [id,name,terms,access] of keyed){
    const p=KEYED_NEWS_PROVIDERS[id];
    const row=div('article','free-source-center-row');
    row.append(div('strong','',name),
-    div('span','','Подключение ожидает безопасной настройки'),
-    div('small','',p.state+' · ключи не хранятся в APK'));
+    div('span','',terms),
+    div('small','',access+' · '+p.state));
    container.append(row);
   }
   timeStatus.textContent=ok+' из 5 источников дали корректный ответ в этой сессии. '+
-   'Ещё 3 защищённых источника ожидают настройки. Локальные квоты не заменяют лимиты поставщиков.';
+   'Ещё 3 источника требуют отдельного доступа. Прямые бесплатные источники работают независимо от нашего облака.';
  }
  function showFear(r){
   const status=el('free-fear-status'),value=el('free-fear-value');
