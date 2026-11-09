@@ -160,6 +160,15 @@ interface ResearchDao {
     @Query("SELECT * FROM research_forecasts WHERE asset=:asset ORDER BY publishedAt DESC LIMIT 1")
     suspend fun latestResearchForecast(asset: String): ResearchForecast?
 
+    /** V2 research is independent of legacy V1 range observations.
+     * Keep both models in the existing Room journal; no data migration.
+     */
+    @Query("SELECT * FROM research_forecasts WHERE asset=:asset AND id LIKE 'direction2:%' ORDER BY publishedAt DESC LIMIT 1")
+    suspend fun latestDirectionalForecast(asset: String): ResearchForecast?
+
+    @Query("SELECT * FROM research_forecasts WHERE asset=:asset AND id LIKE 'range1:%' ORDER BY publishedAt DESC LIMIT 1")
+    suspend fun latestLegacyRangeForecast(asset: String): ResearchForecast?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun appendResearchStage(row: ResearchForecastStage): Long
 
