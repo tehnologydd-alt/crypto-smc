@@ -4,7 +4,9 @@
  * One timeframe and at most 12 pairs / 3 concurrent candle requests.
  */
 import {fetchCandles} from './candles.mjs';
-import {analyzeMarketFrame} from './market-core.mjs';
+import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
+import {readRadarChanges,saveRadarChanges,mergeRadarObservation,
+ createRadarObservation,radarChangeCount} from './radar-changes.mjs';
 import {fetchRadarUniverse,describeRadarFrame,filterRadarRows,
  RADAR_LIMIT,validRadarInterval} from './radar-core.mjs';
 
@@ -28,11 +30,84 @@ const DIRECTION=Object.freeze({UP:'↑ Рост',DOWN:'↓ Снижение',FLA
 const MODE=Object.freeze({DIRECTIONAL:'Направленный участок',RANGE:'Диапазон',MIXED:'Смешанный',UNKNOWN:'—'});
 const FRAME=Object.freeze({'15m':'M15','1h':'H1','4h':'H4','1d':'D1'});
 const REFRESH_MS=3*60000,UNIVERSE_MS=8*60000;
+const ALIGNMENT_STATE=Object.freeze({
+ INSUFFICIENT:'Недостаточно подтверждений',DIVERGENT:'Разнонаправленные таймфреймы',
+ UP_CONTEXT:'Преобладает наблюдаемый рост',
+ DOWN_CONTEXT:'Преобладает наблюдаемое снижение',
+ MIXED:'Смешанное движение'
+});
+const FRAME_STATUS=Object.freeze({
+ OK:'Подтверждено',STALE:'Устарело',GAP:'Пропуски',
+ INVALID:'Ошибка данных',OFFLINE:'Нет сети',RATE_LIMITED:'Лимит API',
+ INSUFFICIENT:'Мало свечей',MISSING:'Нет данных'
+});
+const DIRECTION_FULL=Object.freeze({UP:'Рост',DOWN:'Снижение',FLAT:'Боковое',UNKNOWN:'—'});
+const EVENT_TEXT=Object.freeze({
+ DIRECTION:'Смена направления',MODE:'Смена режима',
+ SPEED_UP:'Усиление движения',SPEED_DOWN:'Ослабление движения',
+ VOLUME_UP:'Рост относительного объёма',VOLUME_DOWN:'Снижение относительного объёма'
+});
 
 export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
  let interval='1h',filter='all',sort='turnover',request=0,controller=null,
   active=false,rows=[],lastScanAt=0,lastInterval=null,
   universe=null,universeAt=0,failures=0,total=0;
+ const storage=(()=>{try{return globalThis.localStorage||null;}catch{return null;}})();
+ const history=readRadarChanges(storage);
+ const alignment=new Map();
+ let alignmentController=null,alignmentGeneration=0,alignmentSymbol=null;
+ function cancelAlignment(){
+  if(alignmentController){alignmentController.abort();alignmentController=null;}
+  alignmentGeneration++;
+  if(alignmentSymbol&&alignment.get(alignmentSymbol)?.state==='LOADING')
+   alignment.set(alignmentSymbol,{state:'CANCELLED'});
+  alignmentSymbol=null;
+ }
+ async function inspectAlignment(symbol){
+  if(!active||!rows.some(row=>row.symbol===symbol))return;
+  cancelAlignment();
+  const generation=alignmentGeneration,local=new AbortController();
+  alignmentController=local;alignmentSymbol=symbol;
+  const frameResults={};
+  alignment.set(symbol,{state:'LOADING',checked:0});render();
+  let limited=false;
+  try{
+   // On-demand and sequential: four genuine, fresh closed-bar histories, not 48 automatic requests.
+   for(const frame of MARKET_FRAMES){
+    if(local.signal.aborted||generation!==alignmentGeneration)break;
+    const result=await fetchCandles(symbol,frame,{signal:local.signal,limit:64});
+    if(local.signal.aborted||generation!==alignmentGeneration)break;
+    let state=result.state;
+    let summary=null;
+    if(result.state==='OK'){
+     summary=analyzeMarketFrame(result.candles,frame,{
+      now:result.receivedAt,source:'Binance Spot'
+     });
+     state=summary.status;
+    }
+    frameResults[frame]={asset:symbol,interval:frame,state,
+     summary:state==='OK'?summary:null};
+    if(state==='RATE_LIMITED')limited=true;
+    alignment.set(symbol,{state:'LOADING',checked:Object.keys(frameResults).length});
+    render();
+    if(limited)break;
+   }
+   if(local.signal.aborted||generation!==alignmentGeneration)return;
+   const checked=compareMarketFrames(frameResults,{asset:symbol});
+   alignment.set(symbol,{state:'COMPLETE',checked,limited});
+   render();
+  }catch(error){
+   if(local.signal.aborted||generation!==alignmentGeneration)return;
+   alignment.set(symbol,{state:'ERROR',
+    reason:'Не удалось сверить таймфреймы: '+String(error?.message||error).slice(0,120)});
+   render();
+  }finally{
+   if(generation===alignmentGeneration){
+    alignmentController=null;alignmentSymbol=null;
+   }
+  }
+ }
+
  const status=(msg,warning=false)=>{
   const node=id('radar-status');node.textContent=msg;
   node.dataset.state=warning?'warning':'normal';
@@ -55,10 +130,13 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
   const root=id('radar-results');root.replaceChildren();
   const valid=rows.filter(row=>row.analysis?.state==='OK');
   id('radar-coverage').textContent=valid.length+' из '+total+' проверенных активов';
+  id('radar-change-count').textContent=radarChangeCount(rows)+' с изменениями';
   const sorted=filterRadarRows(rows,{filter,sort});
   if(!sorted.length){
    root.append(create('p','radar-empty',rows.length?
-    'По выбранному фильтру нет подтверждённых наблюдений.':
+    filter==='events'?
+     'Между проверенными свечами пока не обнаружено значимых изменений.':
+     'По выбранному фильтру нет подтверждённых наблюдений.':
     'После проверки рыночных данных здесь появятся активы.'));
    return;
   }
@@ -75,7 +153,9 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
    const items=[
     ['Режим',MODE[row.analysis.mode]||'—'],
     ['Скорость · %/свеча',(row.analysis.movement>0?'+':'')+fmt(row.analysis.movement,3)+'%'],
-    ['Объём / медиана',fmt(row.analysis.volumeRatio,2)+'×'],
+    ['Ускорение · п.п./свеча²',row.analysis.acceleration===null?'—':
+      (row.analysis.acceleration>0?'+':'')+fmt(row.analysis.acceleration,4)],
+    ['Объём / медиана',row.analysis.volumeRatio===null?'—':fmt(row.analysis.volumeRatio,2)+'×'],
     ['Оборот · 24 ч',shortMoney(row.quoteVolume)]
    ];
    for(const [label,value] of items){
@@ -89,6 +169,62 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
     create('small','','Изменение тикера 24 ч: '+
      (row.change24h>0?'+':'')+fmt(row.change24h,2)+'%'));
    card.append(meta);
+   const changeBox=create('div','radar-change-box');
+   const compare=row.change;
+   if(compare?.state==='CHANGED'){
+    changeBox.classList.add('has-changes');
+    changeBox.append(create('strong','radar-change-title',
+     'Изменения между закрытыми свечами: '+date(compare.beforeAt)+
+     ' → '+date(compare.afterAt)));
+    const tags=create('div','radar-change-tags');
+    for(const item of compare.events){
+     const tag=create('span','radar-change-tag change-'+item.kind.toLowerCase(),
+      EVENT_TEXT[item.kind]||item.description);
+     tag.title=item.description;tags.append(tag);
+    }
+    changeBox.append(tags);
+   }else{
+    changeBox.append(create('span','radar-no-change',
+     compare?.reason||'Изменения ещё не проверены'));
+   }
+   card.append(changeBox);
+   const compareBtn=create('button','radar-align-button','Сверить M15 · H1 · H4 · D1');
+   compareBtn.type='button';
+   compareBtn.setAttribute('aria-label','Сверить четыре таймфрейма '+nicePair(row.symbol));
+   compareBtn.disabled=alignment.get(row.symbol)?.state==='LOADING';
+   compareBtn.addEventListener('click',()=>void inspectAlignment(row.symbol));
+   card.append(compareBtn);
+   const inspected=alignment.get(row.symbol);
+   if(inspected){
+    const panel=create('div','radar-alignment-result');
+    if(inspected.state==='LOADING'){
+     panel.append(create('p','radar-alignment-status',
+      'Сверяем закрытые свечи: '+inspected.checked+' из 4 таймфреймов'));
+    }else if(inspected.state==='COMPLETE'){
+     const result=inspected.checked;
+     panel.append(create('strong','radar-alignment-status',
+      (ALIGNMENT_STATE[result.state]||'Не определено')+
+      ' · проверено '+result.available+' из 4'));
+     const frames=create('div','radar-alignment-frames');
+     for(const frame of result.frames){
+      const item=create('div','radar-alignment-frame'+(frame.status==='OK'?' is-ok':''));
+      item.append(create('b','',FRAME[frame.interval]||frame.interval),
+       create('span','',frame.status==='OK'?
+        DIRECTION_FULL[frame.direction]:FRAME_STATUS[frame.status]||frame.status));
+      frames.append(item);
+     }
+     panel.append(frames);
+     if(inspected.limited)panel.append(create('p','radar-alignment-note',
+      'Биржа ограничила запросы: часть горизонтов не проверена.'));
+     panel.append(create('p','radar-alignment-note',
+      'Согласованность прошлых свечей не является вероятностью прогноза.'));
+    }else{
+     panel.append(create('p','radar-alignment-status',
+      inspected.state==='CANCELLED'?'Проверка прервана':
+       inspected.reason||'Проверка недоступна'));
+    }
+    card.append(panel);
+   }
    const open=create('button','radar-open','Открыть подробный анализ');
    open.type='button';open.setAttribute('aria-label','Анализ актива '+nicePair(row.symbol));
    open.addEventListener('click',()=>onOpenAsset(row.symbol));
@@ -97,6 +233,7 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
  }
  function clearRun(){
   if(controller){controller.abort();controller=null;}
+  cancelAlignment();
   request++;
   id('radar-refresh').disabled=false;
  }
@@ -108,6 +245,7 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
   const generation=request,chosen=interval;
   const local=new AbortController();
   controller=local;rows=[];failures=0;total=0;
+  alignment.clear();
   lastScanAt=0;lastInterval=null;
   render();id('radar-refresh').disabled=true;
   status('Запрашиваем публичный список торговых пар…');
@@ -152,7 +290,11 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
     for(const item of received){
      if(item.state==='RATE_LIMITED')stopForLimit=true;
      if(item.state!=='OK'){failures++;continue;}
-     rows.push({...item.ticker,analysis:item.analysis});
+     const next={...item.ticker,analysis:item.analysis};
+     const record=createRadarObservation(next,chosen,{now:Date.now()});
+     next.change=record?mergeRadarObservation(history,record):
+      {state:'INVALID',events:[],reason:'Снимок не прошёл проверку истории'};
+     rows.push(next);
     }
     render();
     status('Проверено '+Math.min(offset+batch.length,total)+' из '+total+
@@ -161,6 +303,7 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
     if(stopForLimit)break;
    }
    if(generation!==request||local.signal.aborted)return;
+   saveRadarChanges(storage,history);
    lastScanAt=Date.now();lastInterval=chosen;
    status('Сканирование завершено · '+rows.length+' из '+total+
     ' активов с актуальными свечами'+
@@ -195,7 +338,10 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
  render();
  return {
   open(){active=true;void scan();},
-  close(){active=false;if(controller)clearRun();},
+  close(){active=false;
+   if(controller)clearRun();
+   else cancelAlignment();
+  },
   catalogChanged(){if(active&&!controller&&!rows.length)void scan();}
  };
 }
