@@ -3,6 +3,8 @@
  * hypotheses and recorded source-time H1 stages. Never implies orders or fills.
  */
 import {inspectResearchTimeline} from './research-timeline.mjs';
+import {directionalHypothesis,planDirectionalScenario} from './directional-scenario.mjs';
+import {forecastStage} from './favorite-logic.mjs';
 const STEP=3600000;
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const assetOK=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
@@ -20,6 +22,37 @@ export function buildScenarioMap(rows,{asset,selectedIds=[],mode='all',
  for(const row of rows){
   if(row?.asset!==asset)continue;
   if(mode==='tracked'&&!selected.has(row.id))continue;
+  if(directionalHypothesis(row)){
+   const result=planDirectionalScenario(row,{now});
+   if(result.state!=='READY')continue;
+   const plan=result.plan;
+   const stage=forecastStage(row);
+   const milestones=[{key:'PUBLISHED',label:'Публикация',
+    observedAt:row.publishedAt,recordedAt:row.publishedAt}];
+   for(const event of Array.isArray(row.stageEvents)?row.stageEvents:[]){
+    if(!['CONFIRMED','ACTIVE','COMPLETED'].includes(event.stage)||
+     !time(event.observedAt)||event.observedAt<=row.publishedAt||
+     event.observedAt>plan.targetCloseAt||event.recordedAt<event.observedAt)continue;
+    milestones.push({key:event.stage==='COMPLETED'?'EVALUATED':event.stage,
+     label:event.stage==='CONFIRMED'?'Касание опорной цены':
+      event.stage==='ACTIVE'?'TP1':'Завершено',
+     observedAt:event.observedAt,recordedAt:event.recordedAt});
+   }
+   eligible.push({
+    id:row.id,asset,model:'DIRECTIONAL',side:plan.side,
+    levels:{entry:plan.entry,tp1:plan.tp1,tp2:plan.tp2,
+     tp3:plan.tp3,sl:plan.sl},
+    tracked:selected.has(row.id),focused:row.id===focusId,
+    stage:stage==='COMPLETED'?'EVALUATED':stage,
+    anchorCloseAt:plan.anchorCloseAt,anchorClose:plan.entry,
+    targetCloseAt:plan.targetCloseAt,
+    bandLow:Math.min(plan.sl,plan.tp3),
+    bandHigh:Math.max(plan.sl,plan.tp3),
+    publishedAt:plan.publishedAt,
+    milestones,result:row.evaluation||null
+   });
+   continue;
+  }
   const trace=inspectResearchTimeline(row,{now});
   if(trace.state==='INVALID')continue;
   // The original anchor close is immutable research data. Expose it only
