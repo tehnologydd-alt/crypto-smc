@@ -2,7 +2,7 @@
 import {personalNewsCapable,personalNewsStatus,
  changePersonalNewsKey,removePersonalNewsKey} from './personal-news-client.mjs';
 export function initPersonalNewsControls({
- doc=globalThis.document
+ doc=globalThis.document,onChange=()=>{}
 }={}){
  const root=doc?.getElementById?.('personal-news-keys');
  if(!root)return {refresh:async()=>{}};
