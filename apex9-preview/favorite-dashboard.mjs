@@ -11,6 +11,7 @@ import {sanitizeFavorites,journalCounts,forecastStage,
 import {attachSparkline} from './sparkline.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {directionalQualitySummary} from './forecast-quality.mjs';
+import {compareScenarioConditions} from './scenario-condition-compare.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {planResearchLevels,analyzeResearchLevelSequence} from './research-level-sequence.mjs';
 import {displayPair,priceText,stagePresentation,
@@ -641,6 +642,7 @@ export function initFavoriteResearch({
    selectedIds:chosen,totalPublished:lastTotal,now
   });
   const quality=directionalQualitySummary(lastRows,{selectedIds:chosen,now});
+  const comparisons=compareScenarioConditions(lastRows,{now});
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
    const slot=id('forecast-stat-'+name);slot.replaceChildren();
    const q=name==='all'?quality.all:quality.tracked;
@@ -659,7 +661,7 @@ export function initFavoriteResearch({
    }
    const basics=create('div','forecast-quality-kpis');
    for(const [label,count] of [
-    ['Сценариев M5',q.published],['Подтверждён вход',q.entered],
+    ['Сценариев M5',q.published],['Активный · вход',q.entered],
     ['Завершено',q.finished],['В наблюдении',q.awaiting]]){
     const metric=create('div','forecast-quality-kpi');
     metric.append(create('span','',label),
@@ -716,6 +718,38 @@ export function initFavoriteResearch({
     'Исследовательские наблюдения, а не исполненные ордера. '+
     'Оценка по сохранённым событиям закрытых M5; '+
     'при пропусках данных исход не засчитывается.'));
+   // Compare cohorts with verified, immutable M5 evidence and only
+   // H1 characteristics recorded before later outcomes.
+   if(name==='all'){
+    const panel=create('section','forecast-condition-comparison');
+    panel.append(create('strong','forecast-quality-subtitle',
+     'Сравнение условий формирования · H1 → M5'));
+    panel.append(create('p','forecast-quality-note',
+     'Группы по направлению H1 и ширине диапазона при публикации. '+
+     'TP и SL здесь — наблюдения, не исполненные сделки.'));
+    if(!comparisons.included)panel.append(create('p','forecast-quality-empty',
+     'Проверенных сценариев M5 пока нет.'));
+    for(const comparison of comparisons.dimensions){
+     panel.append(create('h5','forecast-condition-group-title',
+      comparison.title+(comparison.note?' · '+comparison.note:'')));
+     const groups=create('div','forecast-condition-groups');
+     for(const x of comparison.groups){
+      const group=create('div','forecast-condition-group');
+      group.append(create('strong','',x.label),
+       create('small','','Завершено '+x.finished+' / '+x.published),
+       create('span','','Активных '+x.entered+' · TP1 '+x.tp1),
+       create('span','','TP3 '+x.tp3+' · SL '+x.stop+' · ? '+x.ambiguous));
+      groups.append(group);
+     }
+     panel.append(groups);
+     if(!comparison.sufficient)panel.append(create('p','forecast-quality-note',
+      'Недостаточно завершённых активных наблюдений для сравнения долей: '+
+      'от '+comparisons.minPerGroup+' в каждой группе.'));
+    }
+    if(comparisons.excluded)panel.append(create('p','forecast-quality-warning',
+     'Записи без полной проверки не включены: '+comparisons.excluded+'.'));
+    study.append(panel);
+   }
    slot.append(study);
    const archived=create('details','forecast-quality-archive');
    archived.append(create('summary','','Общий журнал и архивные исследования'));

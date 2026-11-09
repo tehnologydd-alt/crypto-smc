@@ -4,12 +4,14 @@ import {readFileSync} from 'node:fs';
 import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {verifiedDirectionalEvidence,directionalQualitySummary} from './forecast-quality.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
+import {forecastStage} from './favorite-logic.mjs';
+import {compareScenarioConditions} from './scenario-condition-compare.mjs';
 
 const H=3600000,M=300000,anchor=1800003599999;
 const publication=anchor+1000,now=anchor+26*H;
 function scenario(symbol,{method='5m',side='UP',outcome=null,
- points=[],entryAt=anchor+2*M,terminalAt=anchor+7*M}={}){
- const low=94,high=106,price=100;
+ points=[],entryAt=anchor+2*M,terminalAt=anchor+7*M,spread=6}={}){
+ const low=100-spread,high=100+spread,price=100;
  const p=computeReferenceLevels(price,low,high)[side];
  const hypothesis={model:'EMPIRICAL_DIRECTION_LEVELS_V2',
   decisionMethod:'SIX_BAR_EFFICIENCY_V1',direction:side,
@@ -147,4 +149,36 @@ test('all source summaries remain non-trading, bounded and explain denominators'
  assert.ok(css.includes('.forecast-quality-summary'));
  // Existing journal stats still support the legacy archival subset.
  assert.ok(typeof journalObservedStats==='function');
+});
+
+test('new labels follow published limit and native observed entry, preserving Room',()=>{
+ const limit=scenario('BTCUSDT',{entryAt:null});
+ assert.equal(forecastStage(limit,{now}),'CONFIRMED');
+ const entered=scenario('ETHUSDT');
+ entered.status='CONFIRMED'; // historical Room stage is a touched entry
+ assert.equal(forecastStage(entered,{now}),'ACTIVE');
+ const finished=scenario('SOLUSDT',{outcome:'STOP'});
+ assert.equal(forecastStage(finished,{now}),'COMPLETED');
+ const wrong=scenario('BNBUSDT',{entryAt:null});
+ wrong.stageEvents=[{stage:'CONFIRMED',observedAt:anchor+2000,recordedAt:anchor+5000}];
+ assert.equal(forecastStage(wrong,{now}),'CONFIRMED');
+});
+test('formation conditions compare only coherent M5, not H1 or forged events',()=>{
+ const up=scenario('BTCUSDT',{outcome:'STOP',points:['TP1'],spread:4});
+ const down=scenario('ETHUSDT',{side:'DOWN',outcome:'TP3',
+  points:['TP1','TP2','TP3'],terminalAt:anchor+5*M,spread:12});
+ const awaiting=scenario('LTCUSDT',{entryAt:null,spread:8});
+ const forged=scenario('SOLUSDT',{outcome:'STOP',spread:9});
+ forged.stageEvents=null;
+ const archived=scenario('XRPUSDT',{method:'1h',
+  entryAt:anchor+2*H,spread:11});
+ const comparison=compareScenarioConditions([up,down,awaiting,forged,archived],{now});
+ assert.equal(comparison.included,3);
+ assert.equal(comparison.excluded,1);
+ assert.equal(comparison.dimensions.length,2);
+ assert.equal(comparison.dimensions[0].groups[0].stop,1);
+ assert.equal(comparison.dimensions[0].groups[1].tp3,1);
+ assert.equal(comparison.dimensions[1].groups[0].published,2);
+ assert.equal(comparison.dimensions[1].groups[1].published,1);
+ assert.equal(comparison.dimensions[0].sufficient,false);
 });

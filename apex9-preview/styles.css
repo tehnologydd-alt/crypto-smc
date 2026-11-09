@@ -2336,3 +2336,19 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .forecast-event-item{padding:8px 6px}
  .forecast-event-item-time{font-size:11px}
 }
+
+/* H1 formation conditions vs verified M5 results, with narrow-phone layout. */
+.forecast-condition-comparison{margin-top:16px;padding-top:13px;
+ border-top:1px solid #355c67}
+.forecast-condition-group-title{font-size:11px;font-weight:760;
+ color:#bbdfda;margin:14px 0 9px;line-height:1.4}
+.forecast-condition-groups{display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.forecast-condition-group{display:flex;flex-direction:column;gap:7px;
+ min-width:0;background:#102b35;border:1px solid #3b6270;
+ border-radius:11px;padding:11px 9px}
+.forecast-condition-group strong{color:#c9eee9;font-size:12px}
+.forecast-condition-group small{font-size:10px;color:#95b6c0}
+.forecast-condition-group span{font-size:10px;color:#b8d2d9;line-height:1.35}
+@media(max-width:360px){.forecast-condition-group{padding:9px 7px}
+.forecast-condition-group span{font-size:9px}}
