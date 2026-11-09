@@ -4,6 +4,7 @@
  */
 import {loadEditorialFeed} from './editorial-core.mjs';
 import {fetchNewsBundle} from './news-gateway-client.mjs';
+import {fetchPersonalNewsBundle} from './personal-news-client.mjs';
 import {consolidateArticles} from './news-source-fusion.mjs';
 import {describeNewsEvidence} from './news-evidence.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
@@ -306,8 +307,9 @@ export function initEditorialDashboard({getSymbol}={}){
    if(mode==='news'){
     const symbol=String(getSymbol?.()||'BTCUSDT');
     const coin=symbol.endsWith('USDT')?symbol.slice(0,-4):'';
-    queries.push(fetchNewsBundle(coin,{
-     enabled:gatewayEnabled,location:window.location,signal:current.signal}));
+    queries.push(gatewayEnabled?fetchNewsBundle(coin,{
+     enabled:true,location:window.location,signal:current.signal}):
+     fetchPersonalNewsBundle(coin));
    }
    if(mode==='macro'){
     queries.push(budget.load('macroData',
@@ -321,15 +323,11 @@ export function initEditorialDashboard({getSymbol}={}){
     const gateway=results[1];
     const extra=get('news-extra-provider-status');
     if(extra){
-     if(!gatewayEnabled){
-      extra.textContent='CryptoPanic / NewsData.io: ожидают защищённого HTTPS-подключения. Ключей в APK нет.';
-     }else{
-      const states=gateway.providers?
-       Object.entries(gateway.providers).map(([key,value])=>key+': '+value).join(' · '):
-       gateway.state;
-      extra.textContent='Дополнительные источники: '+states+
-       ' · контекст, не торговый сигнал';
-     }
+     const states=gateway.providers?
+      Object.entries(gateway.providers).map(([key,value])=>key+': '+value).join(' · '):
+      gateway.state;
+     extra.textContent=(gatewayEnabled?'HTTPS-шлюз':'Личные API с телефона')+
+      ': '+states+' · контекст, не торговый сигнал';
     }
     if(gateway.state==='OK'&&gateway.articles?.length){
      const existing=['OK','EMPTY','STALE'].includes(results[0].state)?
@@ -339,7 +337,7 @@ export function initEditorialDashboard({getSymbol}={}){
      showFeed(mode,{...results[0],state:'OK',source:'MIXED',
       fetchedAt:Date.now(),articles});
      get('editorial-news-status').textContent='GDELT: '+results[0].state+
-      ' · защищённый шлюз: OK'+quotaLine(results[0],'news');
+      ' · дополнительные API: OK'+quotaLine(results[0],'news');
     }else showFeed(mode,results[0]);
     archive.captureGlobal({news:results[0]});
    }else showFeed(mode,results[0]);
