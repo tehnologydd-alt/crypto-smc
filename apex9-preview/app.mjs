@@ -17,6 +17,7 @@ import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs
 import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
 import {workspaceArea,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
+import {globalMarketSnapshot} from './market-overview.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
 
@@ -878,12 +879,33 @@ const contextSources={
  'gdelt-news':'GDELT · упоминания в СМИ'
 };
 const usd=(x)=>Number.isFinite(x)?new Intl.NumberFormat('ru-RU',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(x):'—';
+function renderGlobalOverview(context){
+ const view=globalMarketSnapshot(context,{now:Date.now()});
+ const state=el('overview-global-state');
+ state.dataset.state=view.state;
+ state.textContent=view.reason;
+ const available=view.state==='OK'||view.state==='STALE';
+ text('overview-global-cap',available?usd(view.marketCapUsd):'—');
+ text('overview-global-volume',available?usd(view.totalVolumeUsd):'—');
+ text('overview-global-btc',available?fmt(view.btcDominancePercent,2)+'%':'—');
+ const change=el('overview-global-change');
+ change.textContent=available?
+  (view.marketCapChange24hPercent>0?'+':'')+fmt(view.marketCapChange24hPercent,2)+'%':'—';
+ change.className='overview-global-delta'+(available?
+  view.marketCapChange24hPercent>0?' positive':
+   view.marketCapChange24hPercent<0?' negative':'':'');
+ text('overview-global-updated',available?
+  'По времени CoinGecko: '+time(view.observedAt)+
+   (view.state==='STALE'?' · данные устарели':''):
+  'Нет подтверждённого обновления общего рынка.');
+}
 function appendLine(target,label,value){
  const line=create('div','data-row');
  line.append(create('span','',label),create('strong','',value));
  target.append(line);
 }
 function renderContext(context){
+ renderGlobalOverview(context);
  const list=el('context-source-list'),global=el('global-context'),
   chain=el('btc-chain-context'),news=el('news-articles');
  for(const node of [list,global,chain,news])clear(node);
@@ -951,7 +973,6 @@ function renderSnapshot(snapshot){
   (pct>0?' positive':pct<0?' negative':'');
  text('updated-at','Последняя попытка обновления: '+time(snapshot.collectedAt));
  text('active-sources',srcOk+' / 3');
- text('daily-change',pct===undefined?'—':(pct>0?'+':'')+fmt(pct,2)+'%');
  text('layer-coverage',snapshot.assessment.coveredLayers.length+' / 7');
  text('hero-coverage','Покрытие: '+snapshot.assessment.coveredLayers.length+' / 7 слоёв');
  text('context-status',snapshot.assessment.assessment==='INSUFFICIENT'?'Недостаточно':
@@ -1005,7 +1026,6 @@ async function investigate(value){
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
  text('asset-name',chosen);
- text('asset-passport-name',chosen+' · автоматическое наблюдение');
  el('asset-input').value=chosen;
  if(document.body.dataset.view==='asset')void showAssetScenarios(chosen);
  text('market-price','—');text('market-change','24 ч: —');
@@ -1013,7 +1033,7 @@ async function investigate(value){
  text('updated-at','Запрос публичных источников…');
  text('active-sources','—');text('layer-coverage','—');
  text('hero-coverage','Покрытие: ожидание данных');
- text('daily-change','—');text('context-status','—');
+ text('context-status','—');
  text('quote-volume','—');text('ticker-time','—');
  clear(el('depth-list'));clear(el('source-list'));clear(el('missing-layers'));
  renderContext(null);
