@@ -13,7 +13,7 @@ export function summarizeAssetQuality(rows,{
  const chosen=selectedIds===null?null:new Set(selectedIds);
  const grouped=new Map();
  for(const row of accepted){
-  if(!isAsset(row?.asset)||!directionalHypothesis(row))continue;
+  if(!isAsset(row?.asset)||directionalHypothesis(row)?.evaluationInterval!=='5m')continue;
   if(chosen&&!chosen.has(row.id))continue;
   const records=grouped.get(row.asset)||[];
   records.push(row);grouped.set(row.asset,records);

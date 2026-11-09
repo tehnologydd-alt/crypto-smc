@@ -104,14 +104,13 @@ test('independent asset groups use real M5 stages and exclude archival H1 record
  const old=row('SOLUSDT',{source:'1h'});
  const grouped=summarizeAssetQuality([btc,eth,old],{now,totalLoaded:5});
  assert.equal(grouped.partial,true);
- assert.equal(grouped.assets.length,3);
+ assert.equal(grouped.assets.length,2);
  const b=grouped.assets.find(x=>x.symbol==='BTCUSDT');
  assert.equal(b.published,1);assert.equal(b.stop,1);
  assert.equal(b.finished,1);assert.equal(b.enoughHistory,false);
  const e=grouped.assets.find(x=>x.symbol==='ETHUSDT');
  assert.equal(e.published,1);assert.equal(e.awaiting,1);
- const legacy=grouped.assets.find(x=>x.symbol==='SOLUSDT');
- assert.equal(legacy.published,0);assert.equal(legacy.finished,0);
+ assert.ok(!grouped.assets.some(x=>x.symbol==='SOLUSDT'));
  const tracked=summarizeAssetQuality([btc,eth,old],
   {now,selectedIds:[eth.id]});
  assert.deepEqual(tracked.assets.map(x=>x.symbol),['ETHUSDT']);
