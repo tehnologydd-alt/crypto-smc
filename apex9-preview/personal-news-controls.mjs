@@ -1,8 +1,9 @@
 /** User-initiated Android Keystore management; no localStorage or analytics. */
 import {personalNewsCapable,personalNewsStatus,
- changePersonalNewsKey,removePersonalNewsKey} from './personal-news-client.mjs';
+ changePersonalNewsKey,removePersonalNewsKey,
+ checkPersonalNewsProvider,personalNewsDiagnosticLabel} from './personal-news-client.mjs';
 export function initPersonalNewsControls({
- doc=globalThis.document,onChange=()=>{}
+ doc=globalThis.document,onChange=()=>{},onTest=()=>{},getSymbol=()=> 'BTCUSDT'
 }={}){
  const root=doc?.getElementById?.('personal-news-keys');
  if(!root)return {refresh:async()=>{}};
@@ -12,6 +13,7 @@ export function initPersonalNewsControls({
   id:p,form:doc.getElementById('personal-'+p+'-form'),
   input:doc.getElementById('personal-'+p+'-key'),
   clear:doc.getElementById('personal-'+p+'-clear'),
+  test:doc.getElementById('personal-'+p+'-test'),
   state:doc.getElementById('personal-'+p+'-state')
  }));
  const supported=personalNewsCapable();
@@ -21,6 +23,7 @@ export function initPersonalNewsControls({
    if(f.input)f.input.disabled=true;
    f.form?.querySelector('[type="submit"]')?.setAttribute('disabled','');
    if(f.clear)f.clear.disabled=true;
+   if(f.test)f.test.disabled=true;
    if(f.state)f.state.textContent='WEB_ONLY';
   }
   return {refresh:async()=>{}};
@@ -60,6 +63,19 @@ export function initPersonalNewsControls({
      'Не удалось удалить ключ · '+r.state;
     await refresh();
     onChange();
+   }finally{busy=false;}
+  });
+  f.test?.addEventListener('click',async()=>{
+   if(busy)return;
+   busy=true;
+   if(f.state)f.state.textContent='Проверка ответа сервиса…';
+   try{
+    const symbol=String(getSymbol?.()||'');
+    const coin=symbol.toUpperCase().replace(/(USDT|USDC|USD|EUR)$/,'');
+    const r=await checkPersonalNewsProvider(f.id,coin);
+    if(f.state)f.state.textContent=personalNewsDiagnosticLabel(r)+
+     (r.nextAt?' · следующий запрос '+new Date(r.nextAt).toLocaleString('ru-RU'):'');
+    onTest(f.id,r);
    }finally{busy=false;}
   });
  }
