@@ -5,6 +5,8 @@
 import {loadEditorialFeed} from './editorial-core.mjs';
 import {fetchNewsBundle} from './news-gateway-client.mjs';
 import {fetchPersonalNewsBundle} from './personal-news-client.mjs';
+import {fetchPublicRssNews} from './public-rss-client.mjs';
+import {composeLiveNews,sourceStatusLine} from './live-news-collection.mjs';
 import {consolidateArticles} from './news-source-fusion.mjs';
 import {describeNewsEvidence} from './news-evidence.mjs';
 import {auditDisplayedNews,formatDisplayedNewsAudit} from './news-coverage.mjs';
@@ -62,7 +64,7 @@ export function initEditorialDashboard({getSymbol}={}){
   const source=r.source==='MIXED'?'несколько источников':
    r.source==='NETWORK'?'обновлено':
    r.source==='CACHE'?'локальный кеш':'архивная копия';
-  const label=r.source==='MIXED'?'GDELT + новостной шлюз':'GDELT';
+  const label=r.source==='MIXED'?'Новостная сводка из доступных источников':'GDELT';
   status.textContent=label+' · '+source+' '+niceTime(r.fetchedAt)+
    (stale?' · актуальность не подтверждена':'')+quotaLine(r,mode);
   if(!r.articles?.length){
@@ -95,7 +97,7 @@ export function initEditorialDashboard({getSymbol}={}){
    }else if(article.indexedBy?.length){
     meta.append(node('span','',article.indexedBy.join(' / ')));
    }
-   if(stale)meta.append(node('span','editorial-stale-label','Архив · не свежая публикация'));
+   if(stale||article.outdated===true)meta.append(node('span','editorial-stale-label','Архив · не свежая публикация'));
    story.append(link,meta);list.append(story);
   }
  }
@@ -318,6 +320,7 @@ export function initEditorialDashboard({getSymbol}={}){
     queries.push(gatewayEnabled?fetchNewsBundle(coin,{
      enabled:true,location:window.location,signal:current.signal}):
      fetchPersonalNewsBundle(coin));
+    queries.push(fetchPublicRssNews());
    }
    if(mode==='macro'){
     queries.push(budget.load('macroData',
@@ -328,25 +331,19 @@ export function initEditorialDashboard({getSymbol}={}){
    const results=await Promise.all(queries);
    if(seq!==active)return;
    if(mode==='news'){
-    const gateway=results[1];
+    const merged=composeLiveNews({
+     gdelt:results[0],personal:results[1],rss:results[2]},{now:Date.now()});
+    showFeed(mode,merged);
+    const statuses=sourceStatusLine(merged.sources);
+    get('editorial-news-status').textContent=
+     'Новостей: '+merged.articles.length+
+     ' · фактические источники: '+statuses+
+     quotaLine(results[0],'news');
     const extra=get('news-extra-provider-status');
-    if(extra){
-     const states=gateway.providers?
-      Object.entries(gateway.providers).map(([key,value])=>key+': '+value).join(' · '):
-      gateway.state;
-     extra.textContent=(gatewayEnabled?'HTTPS-шлюз':'Личные API с телефона')+
-      ': '+states+' · контекст, не торговый сигнал';
-    }
-    if(gateway.state==='OK'&&gateway.articles?.length){
-     const existing=['OK','EMPTY','STALE'].includes(results[0].state)?
-      results[0].articles||[]:[];
-     const articles=consolidateArticles([...existing,...gateway.articles],
-      {limit:18,perDomain:2});
-     showFeed(mode,{...results[0],state:'OK',source:'MIXED',
-      fetchedAt:Date.now(),articles});
-     get('editorial-news-status').textContent='GDELT: '+results[0].state+
-      ' · дополнительные API: OK'+quotaLine(results[0],'news');
-    }else showFeed(mode,results[0]);
+    if(extra)extra.textContent='Подключения: '+statuses+
+     ' · отсутствие статей не означает отсутствие событий';
+    archive.captureGlobal({news:merged});
+   }else showFeed(mode,results[0]);
     archive.captureGlobal({news:results[0]});
    }else showFeed(mode,results[0]);
    if(mode==='macro'){
@@ -372,20 +369,26 @@ export function initEditorialDashboard({getSymbol}={}){
   const list=get('overview-events-list');
   if(!status||!list)return;
   status.textContent='Проверяем публичные источники и сохранённые события…';
-  const [news,macro,calendar]=await Promise.all([
+  const [gdelt,macro,calendar,rss,personal]=await Promise.all([
    budget.load('news',()=>loadEditorialFeed('news')),
    budget.load('macro',()=>loadEditorialFeed('macro')),
-   budget.load('calendar',()=>loadBlsCalendar())
+   budget.load('calendar',()=>loadBlsCalendar()),
+   fetchPublicRssNews(),
+   fetchPersonalNewsBundle(
+    String(getSymbol?.()||'BTCUSDT').replace(/(USDT|USDC|USD|EUR)$/,''))
   ]);
+  const news=composeLiveNews({gdelt,rss,personal},{now:Date.now()});
   list.replaceChildren();
   archive.captureGlobal({news,macro,calendar});
   showEventHistory();
   const results=routeGlobalEvents(news,macro,calendar,{now:Date.now(),max:5});
-  const sourceStates=[news,macro,calendar].map(x=>x.state).join(' · ');
-  status.textContent='GDELT / BLS · тематическая подборка, не доказанное влияние · '+
-   sourceStates;
+  status.textContent='Новости '+news.articles.length+
+   ' · '+sourceStatusLine(news.sources)+
+   ' · макро: '+sourceStatusLine({gdelt_macro:macro.state,
+    bls_calendar:calendar.state})+
+   ' · заголовки не подтверждают влияние на рынок';
   if(!results.length){
-   list.append(node('p','muted','Подтверждённых доступных событий пока нет. Источник может быть недоступен или лимит исчерпан.'));
+   list.append(node('p','muted','Проверенных по формату новостных заголовков и актуальных календарных записей пока нет. Причины указаны выше.'));
    return;
   }
   for(const event of results){
@@ -396,7 +399,8 @@ export function initEditorialDashboard({getSymbol}={}){
     (event.group==='calendar'?'План BLS · ':
      event.group==='macro'?'Макроэкономика · ':'Криптоновости · ')+
     niceTime(event.observedAt)+
-    (event.outdated?' · архивная информация':'')));
+    (event.outdated?' · архивная информация':'')+
+    (event.importance==='RECENT_UNRANKED'?' · обычная публикация':' · тематическое совпадение')));
    list.append(item);
   }
  }
