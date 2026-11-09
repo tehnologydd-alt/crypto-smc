@@ -26,6 +26,9 @@
   <main class="content">
     <section class="asset-shortcuts overview-only" aria-label="Избранные активы">
       <div class="section-title"><h2>Избранное</h2><div class="favorites-heading-actions"><span id="favorites-count">0 / 10</span><button type="button" class="ghost" data-go="catalog">＋ Каталог</button></div></div>
+      <button id="favorites-radar-summary" type="button" class="favorite-radar-summary" hidden>
+        <span id="favorites-radar-summary-text"></span><span aria-hidden="true">Радар ›</span>
+      </button>
       <div id="favorite-rail" class="asset-rail" role="list" aria-label="Горизонтально прокручиваемое избранное">
         <p class="muted" id="favorites-empty">Откройте каталог и добавьте первый актив.</p>
       </div>
@@ -124,6 +127,7 @@
       <p id="radar-status" class="radar-status" role="status" aria-live="polite">
         Откройте радар, чтобы проверить рынок.
       </p>
+      <section id="radar-focus-panel" class="radar-focus-panel" hidden aria-label="Подробности события избранного"></section>
       <div id="radar-results" class="radar-results" role="list" aria-label="Наблюдения за рыночными изменениями">
         <p class="radar-empty">После проверки здесь появятся активы.</p>
       </div>
