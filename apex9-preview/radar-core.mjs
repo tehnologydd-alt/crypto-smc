@@ -68,20 +68,21 @@ export function describeRadarFrame(summary){
  if(!summary||summary.status!=='OK'||!RADAR_INTERVALS.includes(summary.interval))
   return {state:!summary?'NO_DATA':summary.status!=='OK'?summary.status:'INVALID_INTERVAL',
    direction:'UNKNOWN',mode:'UNKNOWN',
-   movement:null,volumeRatio:null,lastClosedAt:null,efficiency:null};
+   movement:null,acceleration:null,volumeRatio:null,lastClosedAt:null,efficiency:null};
  const direction=['UP','DOWN','FLAT'].includes(summary.direction)?
   summary.direction:'UNKNOWN';
  const mode=['DIRECTIONAL','RANGE','MIXED'].includes(summary.mode)?
   summary.mode:'UNKNOWN';
  return {state:'OK',direction,mode,
   movement:finite(summary.velocityPctPerBar)?summary.velocityPctPerBar:null,
+  acceleration:finite(summary.accelerationPctPerBar2)?summary.accelerationPctPerBar2:null,
   volumeRatio:finite(summary.volumeRatio)?summary.volumeRatio:null,
   lastClosedAt:Number.isSafeInteger(summary.lastClosedAt)?summary.lastClosedAt:null,
   efficiency:finite(summary.efficiency)?summary.efficiency:null};
 }
 export function filterRadarRows(rows,{filter='all',sort='turnover'}={}){
- const accepted=new Set(['all','up','down','range','changing']);
- const sorter=new Set(['turnover','movement','volume']);
+ const accepted=new Set(['all','up','down','range','changing','events']);
+ const sorter=new Set(['turnover','movement','volume','events']);
  if(!Array.isArray(rows))return [];
  const selected=accepted.has(filter)?filter:'all';
  const sorted=sorter.has(sort)?sort:'turnover';
@@ -89,9 +90,12 @@ export function filterRadarRows(rows,{filter='all',sort='turnover'}={}){
   selected==='all'||selected==='up'&&r.analysis.direction==='UP'||
   selected==='down'&&r.analysis.direction==='DOWN'||
   selected==='range'&&r.analysis.mode==='RANGE'||
-  selected==='changing'&&r.analysis.mode==='DIRECTIONAL');
+  selected==='changing'&&r.analysis.mode==='DIRECTIONAL'||
+  selected==='events'&&r.change?.state==='CHANGED');
  const metric=(r)=>sorted==='movement'?Math.abs(r.analysis.movement??0):
-  sorted==='volume'?(r.analysis.volumeRatio??-1):r.quoteVolume;
+  sorted==='volume'?(r.analysis.volumeRatio??-1):
+  sorted==='events'?(r.change?.state==='CHANGED'?r.change.events.length:0):
+  r.quoteVolume;
  return eligible.sort((a,b)=>metric(b)-metric(a)||a.symbol.localeCompare(b.symbol));
 }
 export function validRadarInterval(interval){return Boolean(CANDLE_INTERVALS[interval])&&RADAR_INTERVALS.includes(interval);}
