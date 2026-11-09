@@ -440,7 +440,7 @@ export function initFavoriteResearch({
 }){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
-  lastRows=[],lastTotal=0;
+  archiveExpanded=false,lastRows=[],lastTotal=0;
  const MINI_CACHE=new Map(),MINI_LOADING=new Set();
  let selected=new Set();
  try{
@@ -661,19 +661,32 @@ export function initFavoriteResearch({
   }
   const visible=lastRows.filter(row=>forecastStage(row)===stage&&
    (journalMode==='all'||selected.has(row.id)));
-  if(!visible.length){
-   box.append(create('p','muted',journalMode==='tracked'?
-    'Пока нет отмеченных сценариев на выбранном этапе. Отметьте нужный сценарий на вкладке «Все».':
-    'На этом этапе пока нет сохранённых наблюдений.'));
-  }else for(const row of visible){
-   box.append(cardForForecast(row,{
-    tracked:selected.has(row.id),
-    onToggle:key=>{
-     if(selected.has(key))selected.delete(key);else selected.add(key);
-     persistSelected();renderStats();renderRows();
-    },
-    onOpen:onSelectSymbol,getMini:renderMini
-   }));
+  const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
+  const legacy=visible.filter(row=>!directionalHypothesis(row));
+  const renderCard=row=>cardForForecast(row,{
+   tracked:selected.has(row.id),
+   onToggle:key=>{
+    if(selected.has(key))selected.delete(key);else selected.add(key);
+    persistSelected();renderStats();renderRows();
+   },
+   onOpen:onSelectSymbol,getMini:renderMini
+  });
+  if(!directed.length){
+   box.append(create('p','forecast-direction-empty',
+    journalMode==='tracked'?
+     'На этом этапе нет отмеченных односторонних сценариев. Новые TP/SL доступны после публикации направленной гипотезы.':
+     'На этом этапе пока нет новых направленных сценариев. APEX публикует рост или снижение с TP1–TP3 и SL только при достаточном подтверждении закрытыми H1.'));
+  }else for(const row of directed)box.append(renderCard(row));
+  if(legacy.length){
+   const archive=create('details','forecast-range-archive');
+   archive.open=archiveExpanded;
+   archive.append(create('summary','forecast-range-archive-title',
+    'Архив прежних диапазонов · '+legacy.length),
+    create('p','forecast-range-archive-note',
+     'Старые исследования сохранены без изменения направления или TP/SL. Они не блокируют новые направленные сценарии.'));
+   for(const row of legacy)archive.append(renderCard(row));
+   archive.addEventListener('toggle',()=>{archiveExpanded=archive.open;});
+   box.append(archive);
   }
   renderStats();
  }
@@ -729,10 +742,14 @@ export function initFavoriteResearch({
    const missing=result.reports.filter(x=>[
     'ERROR','SOURCE_UNAVAILABLE','STALE','GAP','INVALID','INSUFFICIENT'
    ].includes(x.state));
+   const unclear=result.reports.filter(x=>x.state==='NO_CLEAR_DIRECTION').length;
+   const ongoing=result.reports.filter(x=>x.state==='UPDATED').length;
    message('Проверено активов: '+result.checked+
-    (created?' · новых гипотез: '+created:' · новых гипотез нет')+
-    (missing.length?' · данных недостаточно для '+missing.length+
-     ' активов.':' · наблюдения сохранены на устройстве.'));
+    (created?' · новых направленных сценариев: '+created:' · новых направленных сценариев нет')+
+    (ongoing?' · уже наблюдаются: '+ongoing:'')+
+    (unclear?' · направление не определено для '+unclear+' активов':'')+
+    (missing.length?' · недостаточно исходных данных: '+missing.length:'')+
+    '. TP1–TP3 и SL появляются только в новых направленных сценариях.');
   }catch(e){
    message('Проверка избранного: '+String(e?.message||e),true);
   }finally{syncing=false;await loadJournal();}
