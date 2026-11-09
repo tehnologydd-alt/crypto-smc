@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createEventHistory} from './event-history.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
+import {computeReferenceLevels} from './research-level-sequence.mjs';
 const at=Date.UTC(2026,10,9,12);
 function mem(){
  const data=new Map();
@@ -65,4 +66,53 @@ test('per-asset scoreboard excludes other assets, never makes up results',()=>{
  assert.equal(by.partial,true);
  assert.equal(by.scanned,3);
  assert.match(by.note,/не рассчитаны/);
+});
+
+test('independent asset groups use real M5 stages and exclude archival H1 records',()=>{
+ const H=3600000,M=300000,anchor=1800003599999,publication=anchor+1000;
+ const now=anchor+26*H;
+ function row(asset,{source='5m',sl=false}={}){
+  const side='UP',level=computeReferenceLevels(100,94,106)[side];
+  const hypothesis={model:'EMPIRICAL_DIRECTION_LEVELS_V2',
+   decisionMethod:'SIX_BAR_EFFICIENCY_V1',direction:side,
+   anchorCloseAt:anchor,targetCloseAt:anchor+24*H,horizonBars:24,
+   anchorClose:100,bandLow:94,bandHigh:106,
+   levelStudy:{version:'H1_SINGLE_LEVELS_V2',direction:side,
+    entry:100,...level}};
+  if(source==='5m'){
+   hypothesis.evaluationInterval='5m';
+   hypothesis.observationMethod='M5_CLOSED_LEVEL_ORDER_V1';
+  }
+  const entryAt=anchor+2*(source==='5m'?M:H);
+  const stages=[{stage:'CONFIRMED',observedAt:entryAt,
+   recordedAt:entryAt+1000}];
+  let evaluation=null;
+  if(sl){
+   const at=anchor+7*M;
+   stages.push({stage:'SL',observedAt:at,recordedAt:at+1000},
+    {stage:'COMPLETED',observedAt:at,recordedAt:at+1000});
+   evaluation={outcome:'STOP',actualClose:99.5,
+    evaluatedAt:at+1000,targetCloseAt:anchor+24*H};
+  }
+  return {id:'direction2:'+asset+':1h:'+anchor,asset,
+   interval:'1h',publishedAt:publication,
+   status:sl?'COMPLETED':'ACTIVE',hypothesis:JSON.stringify(hypothesis),
+   stageEvents:stages,evaluation};
+ }
+ const btc=row('BTCUSDT',{sl:true});
+ const eth=row('ETHUSDT');
+ const old=row('SOLUSDT',{source:'1h'});
+ const grouped=summarizeAssetQuality([btc,eth,old],{now,totalLoaded:5});
+ assert.equal(grouped.partial,true);
+ assert.equal(grouped.assets.length,3);
+ const b=grouped.assets.find(x=>x.symbol==='BTCUSDT');
+ assert.equal(b.published,1);assert.equal(b.stop,1);
+ assert.equal(b.finished,1);assert.equal(b.enoughHistory,false);
+ const e=grouped.assets.find(x=>x.symbol==='ETHUSDT');
+ assert.equal(e.published,1);assert.equal(e.awaiting,1);
+ const legacy=grouped.assets.find(x=>x.symbol==='SOLUSDT');
+ assert.equal(legacy.published,0);assert.equal(legacy.finished,0);
+ const tracked=summarizeAssetQuality([btc,eth,old],
+  {now,selectedIds:[eth.id]});
+ assert.deepEqual(tracked.assets.map(x=>x.symbol),['ETHUSDT']);
 });
