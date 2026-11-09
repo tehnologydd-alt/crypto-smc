@@ -3,6 +3,7 @@
  * Never adds evidence to trading forecasts or makes event-causality claims.
  */
 import {newsM5Eligibility,fetchNewsPublishedM5} from './news-m5-reaction.mjs';
+import {newsM5BaselineEligibility,fetchNewsM5Baseline} from './news-m5-baseline.mjs';
 import {createNewsM5Budget} from './news-m5-budget.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
@@ -27,7 +28,8 @@ const labels={
  STORAGE_UNAVAILABLE:'Локальный журнал лимитов недоступен'
 };
 export function initNewsM5Panel({getSymbol,storage,
- now=()=>Date.now(),fetcher=fetchNewsPublishedM5}={}){
+ now=()=>Date.now(),fetcher=fetchNewsPublishedM5,
+ baselineFetcher=fetchNewsM5Baseline}={}){
  const budget=createNewsM5Budget({storage,now});
  let request=0,controller=null;
  const container=()=>el('asset-news-m5-results');
@@ -66,8 +68,28 @@ export function initNewsM5Panel({getSymbol,storage,
    'Сопоставление времени публикации с движением цены не устанавливает факта события, причинности или будущего направления рынка.'));
   container()?.replaceChildren(card);
  }
- async function run(article,symbol){
-  const eligibility=newsM5Eligibility(article,{symbol,now:now()});
+ function showBaseline(result){
+  const card=div('section','news-m5-card');
+  card.append(div('strong','',result.eventTitle),
+   div('p','muted','Сравниваем с тем же временем UTC за 24 и 48 часов до публикации. Источник: Binance Spot · закрытые M5.'));
+  for(const item of result.comparison){
+   const line=div('div','news-m5-step');
+   line.append(div('strong','',item.minutes+' мин · после публикации '+signed(item.newsReturnPercent)),
+    div('small','',
+     'За сутки до: '+signed(item.dayBeforePercent)+
+     ' · за двое суток: '+signed(item.twoDaysBeforePercent)+
+     ' · средний модуль двух примеров: '+fmt(item.previousMeanAbsolutePercent)+'%'+
+     ' · разница модулей: '+fmt(item.absoluteDifferencePercentagePoints)+' п.п.'));
+   card.append(line);
+  }
+  card.append(div('p','footnote',
+   'Два дня сравнения не образуют статистическую норму. Одновременные внешние события могли влиять на цену. Совпадение с датой публикации не доказывает причинность.'));
+  container()?.replaceChildren(card);
+ }
+ async function run(article,symbol,kind='reaction'){
+  const isBaseline=kind==='baseline';
+  const eligibility=(isBaseline?newsM5BaselineEligibility:newsM5Eligibility)
+   (article,{symbol,now:now()});
   if(eligibility.state!=='READY'){
    if(state())state().textContent=eligibility.reason||labels[eligibility.state];
    return;
@@ -80,7 +102,8 @@ export function initNewsM5Panel({getSymbol,storage,
   if(state())state().textContent='Получаем закрытые M5 свечи Binance Spot…';
   try{
    const r=await budget.load(symbol,article.observedAt,
-    ()=>fetcher(article,{symbol,signal:signalController.signal,now}));
+    ()=>(isBaseline?baselineFetcher:fetcher)
+     (article,{symbol,signal:signalController.signal,now}),{variant:kind});
    if(id!==request||getSymbol?.()!==symbol)return;
    const quota=r?.quota?' · проверок '+r.quota.used+'/'+r.quota.limit:'';
    if(!['OBSERVED','PARTIAL'].includes(r?.state)){
@@ -88,11 +111,11 @@ export function initNewsM5Panel({getSymbol,storage,
      (r?.reason?' · '+r.reason:'')+quota;
     return;
    }
-   state().textContent=(r.state==='PARTIAL'?
-    'Часть горизонтов M5 ещё формируется':
+   state().textContent=(isBaseline?'Сравнение с 2 предыдущими днями':
+    r.state==='PARTIAL'? 'Часть горизонтов M5 ещё формируется':
     'Наблюдения M5: 15, 60 и 240 минут')+
     (r.cached?' · локальный кеш':' · ответ Binance Spot')+quota;
-   show(r);
+   if(isBaseline)showBaseline(r);else show(r);
   }finally{
    if(controller===signalController)controller=null;
   }
@@ -108,6 +131,15 @@ export function initNewsM5Panel({getSymbol,storage,
   button.title=check.reason||'Посмотреть движение цены после даты публикации';
   button.addEventListener('click',()=>void run(article,symbol));
   row.append(button);
+  const compared=newsM5BaselineEligibility(article,{symbol,now:now()});
+  const secondary=div('button','ghost asset-news-m5-button',
+   compared.state==='READY'?'Сравнить с 2 днями':
+   compared.state==='NOT_READY'?'Сравнение: ждём 4 часа':'Сравнение недоступно');
+  secondary.type='button';
+  secondary.disabled=compared.state!=='READY';
+  secondary.title=compared.reason||'Историческое сравнение с тем же временем UTC';
+  secondary.addEventListener('click',()=>void run(article,symbol,'baseline'));
+  row.append(secondary);
  }
  return {attach,reset,status:()=>budget.status()};
 }
