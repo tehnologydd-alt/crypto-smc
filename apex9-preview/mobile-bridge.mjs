@@ -205,6 +205,50 @@ export async function getMobileAssetResearchArchive(asset,{
  }
 }
 
+/**
+ * Narrow, verified M5 window for one published 24h directional scenario.
+ * A completed query is not evidence of complete candles: the caller must
+ * validate each expected 5-minute slot and refuse any missing interval.
+ */
+export async function getMobileM5Window(asset,startTime,endExclusive){
+ const native=plugin();
+ const empty={native:Boolean(native),asset,interval:'5m',candles:[],complete:false,
+  source:'LOCAL_ROOM_CACHE'};
+ const M=300000;
+ if(typeof asset!=='string'||!/^[A-Z0-9]{5,20}$/.test(asset)||
+  !Number.isSafeInteger(startTime)||startTime<=0||startTime%M!==0||
+  !Number.isSafeInteger(endExclusive)||endExclusive<=startTime||
+  endExclusive%M!==0||endExclusive-startTime>290*M)
+  return {...empty,error:'Неверные границы архива M5.'};
+ if(!native)return {...empty,error:'Нужен Android APK с архивом M5.'};
+ try{
+  const reply=await native.getCandlesWindow({
+   asset,interval:'5m',startTime,endExclusive
+  });
+  if(reply?.asset!==asset||reply?.interval!=='5m'||
+   reply?.startTime!==startTime||reply?.endExclusive!==endExclusive||
+   !Array.isArray(reply.candles)||reply.candles.length>290)
+   throw Error('Ответ M5 не соответствует исходному запросу.');
+  const seen=new Set();
+  let previous=-1;
+  for(const bar of reply.candles){
+   if(!Number.isSafeInteger(bar?.t)||bar.t%M!==0||
+    bar.t<startTime||bar.t>=endExclusive||
+    bar.closeAt!==bar.t+M-1||bar.closed!==true||
+    bar.t<=previous||seen.has(bar.t)||
+    ![bar.open,bar.high,bar.low,bar.close,bar.volume]
+     .every(x=>typeof x==='number'&&Number.isFinite(x))||
+    bar.low<=0||bar.volume<0||bar.low>Math.min(bar.open,bar.close)||
+    bar.high<Math.max(bar.open,bar.close,bar.low))
+    throw Error('История M5 содержит некорректные свечи.');
+   seen.add(bar.t);previous=bar.t;
+  }
+  return {...empty,complete:true,candles:reply.candles};
+ }catch(error){
+  return {...empty,error:String(error?.message||error)};
+ }
+}
+
 /** Offline source candles only. No interpolation of missing H1 records. */
 export async function getMobileCandleArchive(asset,interval='1h',{
  pageSize=500,maxRows=4800,onProgress=null
