@@ -6,7 +6,10 @@ const favorites=read('./favorite-dashboard.mjs');
 const levels=read('./research-level-sequence.mjs');
 const html=read('./index.html');
 test('every valid forecast card displays reference, conditional TP1-TP3 SL',()=>{
- assert.ok(favorites.includes('card.append(renderLevelSequence(row))'));
+ assert.ok(favorites.includes('details.append(renderLevelSequence(row))'));
+ assert.ok(favorites.includes('forecast-target-grid'));
+ assert.ok(favorites.includes('forecast-step-strip'));
+ assert.ok(favorites.includes('forecast-copy-all'));
  assert.ok(favorites.includes("['TP1',plan[key].tp1]"));
  assert.ok(favorites.includes("['TP2',plan[key].tp2]"));
  assert.ok(favorites.includes("['TP3',plan[key].tp3]"));
