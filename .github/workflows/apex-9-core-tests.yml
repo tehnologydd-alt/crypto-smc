@@ -27,6 +27,7 @@ jobs:
           node --check apex9-android/scripts/prepare-web.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
+          node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/favorite-dashboard.mjs
           node --check apex9-preview/forecast-card-ux.mjs
           node --check apex9-preview/directional-scenario.mjs
