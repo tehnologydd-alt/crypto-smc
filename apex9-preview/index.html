@@ -34,6 +34,40 @@
 
     <div id="favorites-toast" class="favorites-toast" hidden role="status" aria-live="polite"><span id="favorites-toast-text">Актив удалён</span><button id="favorites-undo" type="button">Отменить</button></div>
 
+    <section class="view" id="view-overview" aria-labelledby="overview-title">
+      <div class="section-title"><h2 id="overview-title">Рынок в целом</h2><span>Только проверенные сведения</span></div>
+      <article class="card block overview-global-panel" aria-label="Сводка мирового крипторынка">
+        <div class="overview-global-top">
+          <span class="overview-global-source">CoinGecko · глобальный крипторынок</span>
+          <span id="overview-global-state" class="overview-global-state" role="status" aria-live="polite">Ожидаем данные</span>
+        </div>
+        <div class="overview-global-main">
+          <span>Общая капитализация</span>
+          <strong id="overview-global-cap">—</strong>
+        </div>
+        <div class="overview-global-grid">
+          <div class="overview-global-tile">
+            <span>Капитализация · 24 ч</span>
+            <strong id="overview-global-change">—</strong>
+          </div>
+          <div class="overview-global-tile">
+            <span>Суточный объём</span>
+            <strong id="overview-global-volume">—</strong>
+          </div>
+          <div class="overview-global-tile">
+            <span>Доля BTC</span>
+            <strong id="overview-global-btc">—</strong>
+          </div>
+        </div>
+        <p id="overview-global-updated" class="overview-global-updated">Время источника пока не получено.</p>
+        <p class="footnote">Это состояние всего крипторынка, а не изменение выбранного актива и не прогноз направления.</p>
+      </article>
+      <div class="overview-destinations" aria-label="Быстрый переход к исследованиям">
+        <button type="button" data-go="forecasts">Сценарии <span aria-hidden="true">›</span></button>
+        <button type="button" data-go="quality">Качество исследований <span aria-hidden="true">›</span></button>
+      </div>
+    </section>
+
     <section class="home-actions overview-only" aria-label="Быстрые новости и макроэкономика">
       <div class="section-title"><h2>Исследовать</h2><span>Актуальные события</span></div>
       <div class="action-grid editorial-actions">
@@ -44,46 +78,6 @@
           <span class="action-orb" aria-hidden="true">◉</span><span><strong>Макроэкономика</strong><small>Ставки · инфляция · события</small></span>
         </button>
       </div>
-    </section>
-
-    <section class="view" id="view-overview" aria-labelledby="overview-title">
-      <div class="section-title"><h2 id="overview-title">Рынок сейчас</h2><span>Краткая картина</span></div>
-      <div class="metrics">
-        <article class="metric card"><div class="metric-label">Источники онлайн</div><div class="metric-value" id="active-sources">—</div><div class="metric-sub">из 3 доступных адаптеров</div></article>
-        <article class="metric card"><div class="metric-label">Изменение за 24 ч</div><div class="metric-value" id="daily-change">—</div><div class="metric-sub">историческая динамика цены</div></article>
-        <article class="metric card"><div class="metric-label">Охват типов данных</div><div class="metric-value" id="layer-coverage">—</div><div class="metric-sub">из 7 аналитических слоёв</div></article>
-        <article class="metric card"><div class="metric-label">Качество контекста</div><div class="metric-value" id="context-status">—</div><div class="metric-sub">не вероятность прогноза</div></article>
-      </div>
-      <article class="card block">
-        <h3>Контекст за пределами бирж</h3>
-        <p id="external-summary" aria-live="polite">Глобальный крипторынок, сеть BTC и публикации СМИ ещё не проверены.</p>
-        <p class="footnote">Новости и сетевые показатели пока не влияют на оценку направления: их информативность для прогноза должна быть независимо проверена.</p>
-      </article>
-      <article class="card block">
-        <h3>Что известно сейчас</h3>
-        <p id="assessment-text">Ожидаются ответы рыночных источников.</p>
-        <div class="rule"></div>
-        <div class="small-label">Слои, требующие подключения</div>
-        <div id="missing-layers" class="tags"></div>
-      </article>
-      <section class="card block forecast-stages overview-diagnostics" aria-label="Этапы прогнозирования">
-        <div class="section-title"><h3>Состояние исследований</h3><span>Сводка по стадиям</span></div>
-        <div class="forecast-stage-tabs" role="group" aria-label="Фильтр прогнозов">
-          <button type="button" class="forecast-filter active" data-forecast-stage="PENDING_CONFIRMATION" aria-pressed="true">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
-          <button type="button" class="forecast-filter" data-forecast-stage="CONFIRMED" aria-pressed="false">Подтверждён <small id="stage-count-CONFIRMED">0</small></button>
-          <button type="button" class="forecast-filter" data-forecast-stage="ACTIVE" aria-pressed="false">Активный <small id="stage-count-ACTIVE">0</small></button>
-          <button type="button" class="forecast-filter" data-forecast-stage="COMPLETED" aria-pressed="false">Завершённые <small id="stage-count-COMPLETED">0</small></button>
-        </div>
-
-        <p class="footnote">Этапы фиксируются на телефоне. Переходы происходят после получения новых закрытых H1-свечей. Завершение возможно только по реальным данным, без имитации результатов.</p>
-      </section>
-
-      <article class="card block quality-quicklink">
-        <div class="section-title"><h3>Качество исследований</h3><span>Evidence Lab</span></div>
-        <p class="muted">Достоверность исходных данных, проверка завершённых гипотез и сравнение исторических периодов.</p>
-        <button class="ghost quality-open" type="button" data-go="quality">Открыть лабораторию качества <span aria-hidden="true">›</span></button>
-      </article>
-
     </section>
 
     <section class="view hidden" id="view-catalog" aria-labelledby="catalog-title">
@@ -112,12 +106,11 @@
     </section>
 
     <section class="view hidden" id="view-asset" data-asset-area="chart" aria-labelledby="asset-title">
-      <div class="section-title"><h2 id="asset-title">Паспорт актива</h2><span id="asset-passport-name">BTCUSDT · автоматически</span></div>
-      <p class="asset-auto-note">Рыночные показатели, структура, сеть и исторические сценарии проверяются автоматически при открытии раздела. При недоступном источнике сохраняется честная пометка о локальных данных.</p>
+      <div class="section-title"><h2 id="asset-title">Актив</h2><button type="button" class="ghost" data-go="catalog">Выбрать другой</button></div>
     <section class="hero card" aria-labelledby="asset-name">
       <div class="hero-heading">
         <div>
-          <div class="eyebrow">РЫНОЧНЫЙ ПАСПОРТ · PUBLIC SPOT</div>
+          <div class="eyebrow">PUBLIC SPOT · Binance</div>
           <h2 id="asset-name">BTCUSDT</h2>
         </div>
         <button class="ghost" id="refresh-button" type="button" title="Обновить данные">↻ Обновить</button>
@@ -244,11 +237,6 @@
         </div>
         <p class="footnote">Это ограниченные публичные снимки видимых заявок, а не карта скрытой ликвидности или ликвидаций. Пропуски в истории не заполняются. Старая запись не считается текущим состоянием стакана.</p>
       </article>
-      <article class="card block" data-asset-pane="data">
-        <h3>Крипторынок в целом</h3>
-        <div id="global-context" class="stack"><p class="muted">Данные CoinGecko ещё не получены.</p></div>
-        <p class="footnote">Капитализация и доминирование BTC относятся ко всему крипторынку, а не к прогнозу выбранного актива.</p>
-      </article>
       <article class="card block network-panel" id="onchain-network-panel" data-asset-pane="data">
         <div class="section-title"><h3>On-Chain Core · сеть</h3><span>BTC · ETH · GRAM</span></div>
         <p class="muted" id="network-status" role="status" aria-live="polite">Проверяем доступность сетевого адаптера…</p>
@@ -304,10 +292,10 @@
           <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
         </div>
         <div class="forecast-compact-stages" role="group" aria-label="Стадия наблюдения">
-          <button class="forecast-compact-stage active" type="button" data-journal-stage="PENDING_CONFIRMATION">Ожидает</button>
-          <button class="forecast-compact-stage" type="button" data-journal-stage="CONFIRMED">Подтверждён</button>
-          <button class="forecast-compact-stage" type="button" data-journal-stage="ACTIVE">Активный</button>
-          <button class="forecast-compact-stage" type="button" data-journal-stage="COMPLETED">Завершён</button>
+          <button class="forecast-compact-stage active" type="button" data-journal-stage="PENDING_CONFIRMATION">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
+          <button class="forecast-compact-stage" type="button" data-journal-stage="CONFIRMED">Подтверждён <small id="stage-count-CONFIRMED">0</small></button>
+          <button class="forecast-compact-stage" type="button" data-journal-stage="ACTIVE">Активный <small id="stage-count-ACTIVE">0</small></button>
+          <button class="forecast-compact-stage" type="button" data-journal-stage="COMPLETED">Завершён <small id="stage-count-COMPLETED">0</small></button>
         </div>
         <div id="research-forecast-list" class="forecast-journal" aria-live="polite">
           <p class="muted">Загружаем локальный журнал…</p>
@@ -454,10 +442,26 @@
       <article class="card block">
         <h3>Подключённые публичные API</h3>
         <div id="source-list" class="stack"><p class="muted">Статусы станут доступны после запроса.</p></div>
+        <details class="source-audit-details">
+          <summary>Покрытие и ограничения выбранного актива</summary>
+          <div class="source-audit-metrics">
+            <div><span>Работающие биржевые API</span><strong id="active-sources">—</strong></div>
+            <div><span>Доступные слои</span><strong id="layer-coverage">—</strong></div>
+            <div><span>Качество контекста</span><strong id="context-status">—</strong></div>
+          </div>
+          <p id="assessment-text" class="muted">Ожидаются ответы рыночных источников.</p>
+          <div class="small-label">Недоступные или неподключённые слои</div>
+          <div id="missing-layers" class="tags"></div>
+        </details>
       </article>
       <article class="card block">
         <h3>Внешние источники</h3>
+        <p id="external-summary" class="muted" aria-live="polite">Внешние данные ещё не проверены.</p>
         <div id="context-source-list" class="stack"><p class="muted">Статусы появятся после запроса.</p></div>
+        <details class="source-audit-details">
+          <summary>Полные показатели CoinGecko</summary>
+          <div id="global-context" class="stack"><p class="muted">Данные CoinGecko ещё не получены.</p></div>
+        </details>
         <p class="footnote">CoinGecko: общая криптостатистика. mempool.space: только сеть Bitcoin. GDELT: найденные упоминания, не проверенный новостной тон и не доказанная причинность.</p>
       </article>
       <article class="card block">
