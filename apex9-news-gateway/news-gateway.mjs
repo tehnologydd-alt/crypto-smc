@@ -8,6 +8,7 @@
 import {readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {resolve} from 'node:path';
+import {consolidateArticles} from '../apex9-preview/news-source-fusion.mjs';
 const POLICY=Object.freeze({
  cryptopanic:{daily:4,monthly:100,gap:6*3600000},
  newsdata:{daily:4,monthly:100,gap:6*3600000}
@@ -39,7 +40,7 @@ export function providerRequest(provider,coin,secret){
  return url;
 }
 export function normalizeProviderNews(provider,raw,now=Date.now()){
- const entries=provider==='cryptopanic'?raw?.results:raw?.results;
+ const entries=raw?.results;
  if(!Array.isArray(entries))return {state:'INVALID',articles:[]};
  const articles=[];
  for(const entry of entries.slice(0,60)){
@@ -117,23 +118,79 @@ export function createNewsGateway({
    cache.set(key,{at:now(),result});
   return result;
  }
- return {load};
+
+ function status(){
+  const providers={};
+  let ledger;
+  try{ledger=readLedger(ledgerFile);}catch{
+   for(const key of Object.keys(POLICY))providers[key]={state:'STORAGE_UNAVAILABLE'};
+   return {state:'STORAGE_UNAVAILABLE',providers};
+  }
+  const at=now();
+  for(const [key,p] of Object.entries(POLICY)){
+   const previous=ledger[key]||{};
+   const daily=previous.day===day(at)?previous.daily||0:0;
+   const monthly=previous.month===month(at)?previous.monthly||0:0;
+   const configured=Boolean(env[CONFIG[key].env]);
+   providers[key]={state:configured?'READY_TO_REQUEST':'NOT_CONFIGURED',
+    configured,dayRemaining:Math.max(0,p.daily-daily),
+    monthRemaining:Math.max(0,p.monthly-monthly),
+    nextAt:previous.last?previous.last+p.gap:0};
+  }
+  return {state:'OK',providers,scope:'LOCAL_ONLY_NOT_PUBLIC_APK'};
+ }
+ async function bundle(coin){
+  if(!validCoin.test(coin||''))return {state:'INVALID',articles:[],providers:{}};
+  const names=['cryptopanic','newsdata'];
+  const [crypto,news]=await Promise.all(names.map(id=>load(id,coin)));
+  const providers={cryptopanic:crypto.state,newsdata:news.state};
+  const sourceArticles=[...(crypto.articles||[]),...(news.articles||[])];
+  const articles=consolidateArticles(sourceArticles,{limit:18,perDomain:3});
+  return {state:articles.length?'OK':'NO_VERIFIED_NEWS',
+   coin,articles,providers,coverage:names.filter(id=>providers[id]==='OK').length,
+   sourceScope:'NEWS_CONTEXT_ONLY_NOT_TRADE_SIGNAL'};
+ }
+ return {load,status,bundle};
 }
 export function startLocalGateway({gateway=createNewsGateway(),
  port=8787,host='127.0.0.1'}={}){
  if(host!=='127.0.0.1'&&host!=='::1')
   throw Error('Only loopback is allowed without authentication');
  const server=createServer(async(req,res)=>{
-  const u=new URL(req.url||'/', 'http://localhost');
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','no-store');
-  res.setHeader('Access-Control-Allow-Origin','null');
-  if(req.method!=='GET'||u.pathname!=='/v1/news'){
-   res.statusCode=404;res.end(JSON.stringify({state:'NOT_FOUND'}));return;
+  res.setHeader('X-Content-Type-Options','nosniff');
+  // Loopback only; a remote Android connection needs authenticated HTTPS.
+  const hostHeader=String(req.headers.host||'');
+  const portText=String(server.address()?.port||port);
+  const permittedHosts=new Set(['127.0.0.1:'+portText,
+   'localhost:'+portText,'[::1]:'+portText]);
+  const origin=String(req.headers.origin||'');
+  if(!permittedHosts.has(hostHeader)||
+    (origin&&!['http://127.0.0.1:'+portText,
+     'http://localhost:'+portText,'http://[::1]:'+portText].includes(origin))){
+   res.statusCode=403;res.end(JSON.stringify({state:'FORBIDDEN'}));return;
   }
-  const r=await gateway.load(u.searchParams.get('provider'),
-   u.searchParams.get('coin'));
-  res.end(JSON.stringify(r));
+  let u;
+  try{u=new URL(req.url||'/', 'http://localhost');}
+  catch{res.statusCode=400;res.end(JSON.stringify({state:'INVALID'}));return;}
+  if(req.method!=='GET'){
+   res.statusCode=405;res.end(JSON.stringify({state:'METHOD_NOT_ALLOWED'}));return;
+  }
+  try{
+   let result;
+   if(u.pathname==='/v1/status')result=gateway.status();
+   else if(u.pathname==='/v1/news')result=await gateway.load(
+    u.searchParams.get('provider'),u.searchParams.get('coin'));
+   else if(u.pathname==='/v1/bundle')result=await gateway.bundle(
+    u.searchParams.get('coin'));
+   else{
+    res.statusCode=404;result={state:'NOT_FOUND'};
+   }
+   res.end(JSON.stringify(result));
+  }catch{
+   res.statusCode=503;res.end(JSON.stringify({state:'GATEWAY_UNAVAILABLE'}));
+  }
  });
  server.listen(port,host);
  return server;
