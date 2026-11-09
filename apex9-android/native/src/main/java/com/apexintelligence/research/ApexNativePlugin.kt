@@ -213,6 +213,61 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Personal credentials never leave native Keystore in read responses. */
+    @PluginMethod
+    fun setPersonalNewsKey(call: PluginCall) {
+        val provider = call.getString("provider") ?: ""
+        val key = call.getString("key") ?: ""
+        tasks.launch {
+            try {
+                val state = ApexPrivateNews.changeKey(context.applicationContext, provider, key)
+                call.resolve(JSObject().put("providers", state))
+            } catch (_: Exception) {
+                call.reject("API key could not be saved securely")
+            }
+        }
+    }
+
+    @PluginMethod
+    fun removePersonalNewsKey(call: PluginCall) {
+        val provider = call.getString("provider") ?: ""
+        tasks.launch {
+            try {
+                val state = ApexPrivateNews.changeKey(context.applicationContext, provider, null)
+                call.resolve(JSObject().put("providers", state))
+            } catch (_: Exception) {
+                call.reject("Could not clear stored API key")
+            }
+        }
+    }
+
+    @PluginMethod
+    fun getPersonalNewsStatus(call: PluginCall) {
+        tasks.launch {
+            try {
+                call.resolve(JSObject().put("providers",
+                    ApexPrivateNews.status(context.applicationContext)))
+            } catch (_: Exception) {
+                call.reject("Native API key status unavailable")
+            }
+        }
+    }
+
+    @PluginMethod
+    fun fetchPersonalNews(call: PluginCall) {
+        val provider = call.getString("provider") ?: ""
+        val coin = call.getString("coin") ?: ""
+        tasks.launch {
+            try {
+                val result = ApexPrivateNews.fetch(context.applicationContext, provider, coin)
+                call.resolve(JSObject(result.toString()))
+            } catch (_: Exception) {
+                // Never show URL/exception text containing credential query parameters.
+                call.resolve(JSObject().put("state", "OFFLINE"))
+            }
+        }
+    }
+
     private val intervals = mapOf(
         "5m" to 300_000L, "15m" to 900_000L, "1h" to 3_600_000L,
         "4h" to 14_400_000L, "1d" to 86_400_000L
