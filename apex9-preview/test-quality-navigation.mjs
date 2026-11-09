@@ -44,7 +44,7 @@ test('visible quality entry is before long Forecasts journal',()=>{
  assert.ok(html.includes('class="quality-back" data-go="forecasts"'));
 });
 test('the router explicitly controls quality visibility and dock selection',()=>{
- assert.match(app,/['"]quality['"]\]/);
+ assert.ok(app.includes("'quality','radar']"),'Router keeps quality and radar mounted');
  assert.match(app,/view==='quality'/);
  assert.match(app,/if\(view==='quality'\)\{\s*evidenceDashboard\.open\(\)/);
  assert.match(app,/tab\.dataset\.tab===activeDock\(view\)/);
