@@ -45,7 +45,7 @@ class QuotaTests(unittest.TestCase):
         self.assertFalse(self.reserve("newsdata",START+timedelta(hours=23,minutes=59)))
         self.assertTrue(self.reserve("newsdata",START+timedelta(days=1)))
     def test_source_budgets_independent(self):
-        self.assertTrue(self.reserve("cryptopanic",START))
+        self.assertTrue(self.reserve("newsdata",START))
         self.assertTrue(self.reserve("cryptopanic",START))
     def test_monthly_limit_survives_daily_reset(self):
         for day in range(25):
