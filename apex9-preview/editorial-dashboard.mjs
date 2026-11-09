@@ -5,6 +5,7 @@
 import {loadEditorialFeed} from './editorial-core.mjs';
 import {fetchNewsBundle} from './news-gateway-client.mjs';
 import {consolidateArticles} from './news-source-fusion.mjs';
+import {describeNewsEvidence} from './news-evidence.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
@@ -49,9 +50,11 @@ export function initEditorialDashboard({getSymbol}={}){
    return;
   }
   const stale=r.state==='STALE';
-  const source=r.source==='NETWORK'?'обновлено':
+  const source=r.source==='MIXED'?'несколько источников':
+   r.source==='NETWORK'?'обновлено':
    r.source==='CACHE'?'локальный кеш':'архивная копия';
-  status.textContent='GDELT · '+source+' '+niceTime(r.fetchedAt)+
+  const label=r.source==='MIXED'?'GDELT + новостной шлюз':'GDELT';
+  status.textContent=label+' · '+source+' '+niceTime(r.fetchedAt)+
    (stale?' · актуальность не подтверждена':'')+quotaLine(r,mode);
   if(!r.articles?.length){
    list.append(node('p','muted','Нет публикаций, подходящих под выбранную тему.'));
@@ -64,8 +67,25 @@ export function initEditorialDashboard({getSymbol}={}){
    const meta=node('div','editorial-story-meta');
    meta.append(node('span','',article.domain),
     node('time','',niceTime(article.observedAt)));
-   if(article.indexedBy?.length)
+   if(mode==='news'){
+    const asset=String(getSymbol?.()||'').replace(/(USDT|USDC|USD|EUR)$/,'');
+    const evidence=describeNewsEvidence(article,{asset,now:Date.now()});
+    meta.append(node('span','',evidence.timing+' · '+evidence.ageLabel));
+    if(evidence.topics.length)
+     meta.append(node('span','',evidence.topics.join(' / ')));
+    if(evidence.focus==='DIRECT')
+     meta.append(node('span','','Упоминает '+asset));
+    if(evidence.indexerCount>1)
+     meta.append(node('span','','Индексаторы: '+evidence.indexers.join(', ')+
+      ' · не независимая проверка'));
+    else if(evidence.indexerCount===1)
+     meta.append(node('span','','Индексатор: '+evidence.indexers[0]));
+    if(evidence.freshness==='OLD')
+     meta.append(node('span','editorial-stale-label',
+      'Материал старше 24 часов'));
+   }else if(article.indexedBy?.length){
     meta.append(node('span','',article.indexedBy.join(' / ')));
+   }
    if(stale)meta.append(node('span','editorial-stale-label','Архив · не свежая публикация'));
    story.append(link,meta);list.append(story);
   }
@@ -316,7 +336,7 @@ export function initEditorialDashboard({getSymbol}={}){
       results[0].articles||[]:[];
      const articles=consolidateArticles([...existing,...gateway.articles],
       {limit:18,perDomain:2});
-     showFeed(mode,{...results[0],state:'OK',source:'NETWORK',
+     showFeed(mode,{...results[0],state:'OK',source:'MIXED',
       fetchedAt:Date.now(),articles});
      get('editorial-news-status').textContent='GDELT: '+results[0].state+
       ' · защищённый шлюз: OK'+quotaLine(results[0],'news');
