@@ -36,7 +36,7 @@ const quotaLine=(r,mode)=>{
  return ' · запросов '+v.used+' / '+EDITORIAL_POLICY[mode].daily+
   ' за сутки (UTC)'+next;
 };
-export function initEditorialDashboard({getSymbol}={}){
+export function initEditorialDashboard({getSymbol,onNewsObservation}={}){
  let storage=null;
  try{storage=window.localStorage;}catch{}
  const budget=createEditorialBudget({storage});
@@ -44,6 +44,11 @@ export function initEditorialDashboard({getSymbol}={}){
  const comparisonHistory=createBlsComparisonHistory({storage});
  const gatewayEnabled=document.querySelector('meta[name="apex-news-gateway-mode"]')?.content==='same-origin';
  let active=0,controller=null;
+ let latestNews=null;
+ function recordNews(news){
+  latestNews={...news,checkedAt:Date.now()};
+  if(typeof onNewsObservation==='function')onNewsObservation(latestNews);
+ }
  function showFeed(mode,r){
   const list=get('editorial-'+mode+'-list'),status=get('editorial-'+mode+'-status');
   list.replaceChildren();
@@ -337,6 +342,7 @@ export function initEditorialDashboard({getSymbol}={}){
    if(mode==='news'){
     const merged=composeLiveNews({
      gdelt:results[0],personal:results[1],rss:results[2]},{now:Date.now()});
+    recordNews(merged);
     showFeed(mode,merged);
     const statuses=sourceStatusLine(merged.sources);
     get('editorial-news-status').textContent=
@@ -380,6 +386,7 @@ export function initEditorialDashboard({getSymbol}={}){
     String(getSymbol?.()||'BTCUSDT').replace(/(USDT|USDC|USD|EUR)$/,''))
   ]);
   const news=composeLiveNews({gdelt,rss,personal},{now:Date.now()});
+  recordNews(news);
   list.replaceChildren();
   archive.captureGlobal({news,macro,calendar});
   showEventHistory();
@@ -415,5 +422,5 @@ export function initEditorialDashboard({getSymbol}={}){
  for(const mode of ['news','macro'])
   get('editorial-'+mode+'-refresh')?.addEventListener('click',
    ()=>void open(mode,{force:true}));
- return {open,openOverview};
+ return {open,openOverview,getNewsObservation:()=>latestNews};
 }
