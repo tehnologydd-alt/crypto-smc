@@ -14,6 +14,8 @@ import {inspectResearchTimeline} from './research-timeline.mjs';
 import {planResearchLevels,analyzeResearchLevelSequence} from './research-level-sequence.mjs';
 import {displayPair,priceText,stagePresentation,
  observedLevelSummary,scenarioCopyText,SIDE_LABEL} from './forecast-card-ux.mjs';
+import {readRadarChanges} from './radar-changes.mjs';
+import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.mjs';
 
 const id=name=>document.getElementById(name);
 const create=(tag,className='',value)=>{
@@ -425,7 +427,7 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  return card;
 }
 export function initFavoriteResearch({
- getSelectedSymbol,onSelectSymbol,onForecastStage,onExplainSymbol
+ getSelectedSymbol,onSelectSymbol,onForecastStage,onExplainSymbol,onOpenRadar
 }){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
@@ -454,7 +456,25 @@ export function initFavoriteResearch({
    .finally(()=>MINI_LOADING.delete(symbol));
  }
  const status=text=>{id('favorite-selection-status').textContent=text;};
- let undoSymbol=null,undoTimer=0;
+ let undoSymbol=null,undoTimer=0,summaryNotice=null;
+ const radarSummary=id('favorites-radar-summary');
+ radarSummary.addEventListener('click',()=>{
+  if(summaryNotice)onOpenRadar?.(summaryNotice.symbol,summaryNotice.interval);
+ });
+ function radarNotices(){
+  let storage=null;
+  try{storage=globalThis.localStorage||null;}catch{}
+  return getFavoriteRadarNotices(favorites,readRadarChanges(storage),{now:Date.now()});
+ }
+ function renderRadarSummary(notices){
+  summaryNotice=notices[0]||null;
+  radarSummary.hidden=!summaryNotice;
+  if(!summaryNotice)return;
+  id('favorites-radar-summary-text').textContent=summarizeFavoriteRadar(notices).text;
+ }
+ window.addEventListener('apex-radar-updated',()=>{
+  if(document.body.dataset.view==='overview')renderFavorites();
+ });
  function hideUndo(){clearTimeout(undoTimer);id('favorites-toast').hidden=true;undoSymbol=null;}
  function offerUndo(symbol){
   undoSymbol=symbol;id('favorites-toast-text').textContent=symbol+' удалён из избранного';
@@ -472,7 +492,7 @@ export function initFavoriteResearch({
    card.classList.remove('favorite-armed');card.style.transform='';
   };
   card.addEventListener('pointerdown',event=>{
-   if(event.button!==0||event.target.closest('.favorite-explain'))return;
+   if(event.button!==0||event.target.closest('.favorite-explain, .favorite-radar-link'))return;
    startX=event.clientX;startY=event.clientY;tracking=true;armed=false;
    timer=setTimeout(()=>{
     if(tracking){armed=true;blockClick=true;card.classList.add('favorite-armed');}
@@ -505,6 +525,9 @@ export function initFavoriteResearch({
 
  function renderFavorites(){
   const rail=id('favorite-rail');clear(rail);
+  const notices=radarNotices();
+  const bySymbol=new Map(notices.map(x=>[x.symbol,x]));
+  renderRadarSummary(notices);
   id('favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
   id('forecast-favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
   if(!favorites.length){
@@ -517,6 +540,8 @@ export function initFavoriteResearch({
    wrapper.tabIndex=0;
    wrapper.setAttribute('aria-label',symbol+' · открыть Enter; удалить удержанием и свайпом вверх либо Delete');
    if(symbol===getSelectedSymbol())wrapper.classList.add('selected');
+   const notice=bySymbol.get(symbol);
+   if(notice)wrapper.classList.add('has-radar-update');
    const open=create('button','favorite-open');
    open.type='button';open.dataset.symbol=symbol;
    open.setAttribute('aria-label','Исследовать '+symbol);
@@ -532,7 +557,7 @@ export function initFavoriteResearch({
    renderMini(symbol,spark);
    enableSwipeRemoval(wrapper,symbol);
    wrapper.addEventListener('click',(e)=>{
-    if(e.target?.closest?.('.favorite-remove, .favorite-explain'))return;
+    if(e.target?.closest?.('.favorite-remove, .favorite-explain, .favorite-radar-link'))return;
     onSelectSymbol(symbol);
    });
    const explain=create('button','favorite-explain','Почему?');
@@ -543,7 +568,21 @@ export function initFavoriteResearch({
     event.stopPropagation();
     onExplainSymbol?.(symbol);
    });
-   wrapper.append(open,explain);rail.append(wrapper);
+   wrapper.append(open,explain);
+   if(notice){
+    const radar=create('button','favorite-radar-link',
+     '◉ '+notice.frame+' · '+notice.label);
+    radar.type='button';
+    radar.title='Событие Радара по закрытым свечам · '+notice.label;
+    radar.setAttribute('aria-label','Открыть подтверждённое изменение в Радаре: '+
+     symbol+' '+notice.frame+' '+notice.label);
+    radar.addEventListener('click',event=>{
+     event.stopPropagation();
+     onOpenRadar?.(symbol,notice.interval);
+    });
+    wrapper.append(radar);
+   }
+   rail.append(wrapper);
   }
   const selected=favorites.includes(getSelectedSymbol());
   const toggle=id('favorite-toggle');
@@ -724,6 +763,6 @@ export function initFavoriteResearch({
   getScenarioRows,
   refreshJournal:loadJournal,
   renderMini,
-  openOverviewSummary:()=>void loadJournal()
+  openOverviewSummary:()=>{renderFavorites();void loadJournal();}
  };
 }
