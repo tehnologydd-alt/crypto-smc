@@ -879,6 +879,7 @@ function navigate(view,targetId){
    }
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
+  if(view==='sources')void freeSourceDashboard.checkPublicSources(chosen);
   if(view==='forecasts')favoriteManager.openForecasts();
   if(view==='quality'){
    evidenceDashboard.open();
