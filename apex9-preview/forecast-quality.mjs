@@ -8,7 +8,7 @@ import {directionalHypothesis,planDirectionalScenario} from './directional-scena
 import {forecastStage} from './favorite-logic.mjs';
 
 const POINTS=['TP1','TP2','TP3'];
-const TERMINAL={TP3:'tp3',STOP:'stop',AMBIGUOUS:'ambiguous',
+const TERMINAL={TP3:'tp3Outcome',STOP:'stop',AMBIGUOUS:'ambiguous',
  NOT_ENTERED:'notEntered',HORIZON:'expired'};
 const FINAL_STAGE={TP3:'TP3',STOP:'SL',AMBIGUOUS:'ORDER_UNKNOWN',
  NOT_ENTERED:'NO_ENTRY',HORIZON:'TIMEOUT'};
@@ -19,7 +19,7 @@ const timestamp=t=>Number.isSafeInteger(t)&&t>0;
 const freshNumber=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
 const empty=()=>({
  published:0,awaiting:0,entered:0,finished:0,
- tp1:0,tp2:0,tp3:0,stop:0,ambiguous:0,notEntered:0,expired:0,
+ tp1:0,tp2:0,tp3:0,tp3Outcome:0,stop:0,ambiguous:0,notEntered:0,expired:0,
  invalid:0,unverified:0,up:0,down:0,
  completedWithEntry:0,
 });
