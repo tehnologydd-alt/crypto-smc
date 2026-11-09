@@ -30,9 +30,11 @@ test('complete symbol search is routed to a dedicated catalog without a ten-symb
 
 test('favorite removal requires deliberate hold and upward swipe with undo',()=>{
  assert.ok(favorites.includes('enableSwipeRemoval(wrapper,symbol)'));
- assert.ok(favorites.includes('setTimeout(()=>{'));
- assert.ok(favorites.includes('},480);'));
- assert.ok(favorites.includes('event.clientY-startY < -65'));
+ const gestures=read('./favorite-gesture.mjs');
+ assert.ok(favorites.includes('bindFavoriteHoldSwipe(card,{'));
+ assert.ok(gestures.includes('FAVORITE_HOLD_MS=480'));
+ assert.ok(gestures.includes('FAVORITE_REMOVE_PX=65'));
+ assert.ok(gestures.includes('dy<=-FAVORITE_REMOVE_PX'));
  assert.ok(!favorites.includes("create('button','favorite-remove'"));
  assert.ok(favorites.includes('offerUndo(symbol)'));
  assert.ok(favorites.includes("id('favorites-undo').addEventListener('click'"));
