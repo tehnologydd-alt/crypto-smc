@@ -59,6 +59,8 @@ jobs:
       - name: Test source adapters and parsing
         run: |
           node --check apex9-preview/app.mjs
+          node --check apex9-android/scripts/verify-web-modules.mjs
+          node --test apex9-android/scripts/test-web-modules.mjs
           node --check apex9-preview/research.mjs
           node --check apex9-preview/context-sources.mjs
           node --check apex9-preview/mobile-bridge.mjs
@@ -123,6 +125,8 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm run build:web
+          test -s dist/forecast-directional-card.mjs
+          node -e "import('./scripts/verify-web-modules.mjs').then(m=>{let result=m.verifyWebModuleGraph('./dist');console.log('Verified WebView modules:',result.modules);})"
           npx cap add android
           node scripts/set-android-version.mjs
           npx cap sync android
