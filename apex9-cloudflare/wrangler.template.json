@@ -1,0 +1,18 @@
+{
+  "name": "apex9-research-private",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-11-09",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "apex9-news",
+      "database_id": "__D1_DATABASE_ID__"
+    }
+  ]
+}
