@@ -12,3 +12,9 @@ coverage/
 
 # HTTPS preview generated assets - never commit staging output
 apex9-news-gateway/public/
+
+# Generated Cloudflare worker output and local secrets
+apex9-cloudflare/public/
+apex9-cloudflare/wrangler.json
+apex9-cloudflare/.wrangler/
+**/.dev.vars*
