@@ -198,6 +198,7 @@ object ApexAutoForecast {
             .put("horizonBars",ApexDirectionalForecast.HORIZON)
             .put("evaluationInterval",ApexM5Evaluation.INTERVAL)
             .put("observationMethod",ApexM5Evaluation.METHOD)
+            .put("stageSemantics","LIMIT_READY_M5_V1")
             .put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)

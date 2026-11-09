@@ -89,7 +89,8 @@ object ApexDirectionalForecast {
             if (h.optString("observationMethod") != ApexM5Evaluation.METHOD)
                 return "INVALID"
             return ApexM5Evaluation.progress(forecast, dao, now,
-                anchor, target, side, entry, sl, targets)
+                anchor, target, side, entry, sl, targets,
+                h.optString("stageSemantics") == "LIMIT_READY_M5_V1")
         }
         var activatedAt: Long? = null
         var firstTargetAt: Long? = null

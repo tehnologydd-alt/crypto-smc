@@ -487,9 +487,24 @@ class ApexNativePlugin : Plugin() {
                     val orderedStages = listOf(
                         "PENDING_CONFIRMATION", "CONFIRMED", "ACTIVE", "COMPLETED"
                     )
-                    val finalStage = orderedStages.lastOrNull { candidate ->
-                        forecastStages.any { it.stage == candidate }
-                    } ?: if (outcomes[forecast.id] != null) "COMPLETED" else "PENDING_CONFIRMATION"
+                    val limitSemantics = try {
+                        org.json.JSONObject(forecast.hypothesisJson)
+                            .optString("stageSemantics") == "LIMIT_READY_M5_V1"
+                    } catch (_: Exception) { false }
+                    val finalStage = if (limitSemantics) {
+                        when {
+                            outcomes[forecast.id] != null ||
+                                forecastStages.any { it.stage == "COMPLETED" } -> "COMPLETED"
+                            forecastStages.any { it.stage == "CONFIRMED" } -> "ACTIVE"
+                            forecastStages.any { it.stage == "LIMIT_READY" } -> "CONFIRMED"
+                            else -> "PENDING_CONFIRMATION"
+                        }
+                    } else {
+                        orderedStages.lastOrNull { candidate ->
+                            forecastStages.any { it.stage == candidate }
+                        } ?: if (outcomes[forecast.id] != null) "COMPLETED"
+                            else "PENDING_CONFIRMATION"
+                    }
                     item.put("status", finalStage)
                     val eventItems = JSArray()
                     for (stage in forecastStages.sortedBy { it.recordedAt }) {

@@ -90,7 +90,7 @@ object ApexM5Evaluation {
     suspend fun progress(
         forecast: ResearchForecast, dao: ResearchDao, now: Long,
         anchor: Long, target: Long, side: String, entry: Double,
-        stop: Double, take: List<Double>
+        stop: Double, take: List<Double>, limitSemantics: Boolean = false
     ): String {
         val id = forecast.id
         if (dao.researchResult(id) != null) return "COMPLETED"
@@ -113,6 +113,7 @@ object ApexM5Evaluation {
         val count = HORIZON * (HOUR / STEP).toInt()
         var entryAt: Long? = null
         var firstTakeAt: Long? = null
+        var limitReadyAt: Long? = null
         val targets = ArrayList<Pair<Int, Long>>()
         var highestTarget = 0
         var terminal: String? = null
@@ -135,6 +136,11 @@ object ApexM5Evaluation {
                 return "DUE_UNVERIFIED"
             observed++
             lastClose = candle.close
+            // Confirm the limit-ready state only after a genuinely closed M5
+            // whose entire interval follows the immutable publication time.
+            if (limitSemantics && limitReadyAt == null &&
+                candle.openTime >= forecast.publishedAt)
+                limitReadyAt = end
             val entered = candle.low <= entry && candle.high >= entry
             val stopped = if (side == "UP") candle.low <= stop else candle.high >= stop
             fun touched(level: Int): Boolean =
@@ -184,6 +190,10 @@ object ApexM5Evaluation {
             }
         }
 
+        if (limitSemantics && limitReadyAt != null)
+            dao.appendResearchStage(ResearchForecastStage(id, "LIMIT_READY",
+                limitReadyAt, now,
+                "Лимитный сценарий: первая полностью закрытая M5 после публикации; не ордер"))
         if (entryAt != null)
             dao.appendResearchStage(ResearchForecastStage(id, "CONFIRMED",
                 entryAt, now, "Касание входа по закрытой M5; не исполненная сделка"))
@@ -216,8 +226,8 @@ object ApexM5Evaluation {
             return "COMPLETED"
         }
         return when {
-            firstTakeAt != null -> "ACTIVE"
-            entryAt != null -> "CONFIRMED"
+            firstTakeAt != null || (limitSemantics && entryAt != null) -> "ACTIVE"
+            entryAt != null || (limitSemantics && limitReadyAt != null) -> "CONFIRMED"
             else -> "PENDING_CONFIRMATION"
         }
     }
