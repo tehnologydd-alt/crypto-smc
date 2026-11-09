@@ -25,9 +25,9 @@ const source=(direction='UP')=>{
   })
  };
 };
-const bar=(i,{low=99.9,high=100.1,close=100}={})=>({
+const bar=(i,{open=100,low=99.9,high=100.1,close=100}={})=>({
  t:anchor+(i-1)*H+1,closeAt:anchor+i*H,
- open:100,high,low,close,volume:1,closed:true
+ open,high,low,close,volume:1,closed:true
 });
 const fixture=(rows)=>[bar(0),...rows];
 // First H1 candle after publication spans the publication moment and is
@@ -54,8 +54,8 @@ test('native V2 publication must commit ONE original side and aligned levels',()
 });
 test('no entry means no TP credit even when a later bar touches TP',()=>{
  const plan=planDirectionalScenario(source(),{now:date}).plan;
- const candles=fixture([bar(1,{high:105,low:100.5,close:102}),
-  bar(2,{high:105,low:101,close:103}),bar(3,{high:103,low:101,close:102})]);
+ const candles=fixture([bar(1,{open:101,high:105,low:100.5,close:102}),
+  bar(2,{open:102,high:105,low:101,close:103}),bar(3,{open:102,high:103,low:101,close:102})]);
  const result=auditDirectionalScenario(plan,candles,{now:anchor+3*H+60000});
  assert.equal(result.entryAt,null);
  assert.equal(result.hits.length,0);
@@ -120,8 +120,7 @@ test('legacy stats and directional TP3/STOP are separate categories',()=>{
  };
  const sl=source('DOWN');sl.id=sl.id.replace('BTCUSDT','ETHUSDT');
  sl.asset='ETHUSDT';
- sl.hypothesis=sl.hypothesis.replace('"anchorCloseAt"',
-  '"anchorCloseAt"'); // immutable ID binding is intentionally checked
+ sl.id='tampered:'+sl.id; // immutable ID binding must be checked
  // A valid record is required for statistics; corrupted IDs cannot count.
  const stats=journalObservedStats([tp,sl],{now:anchor+26*H});
  assert.equal(stats.all.directional.tp3,1);
