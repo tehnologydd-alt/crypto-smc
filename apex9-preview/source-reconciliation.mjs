@@ -19,6 +19,19 @@ const SPECS=Object.freeze({
  'gdelt-news':{title:'GDELT',group:'NEWS_INDEX'},
  bluesky:{title:'Bluesky',group:'USER_DISCUSSION'}
 });
+// Maximum age for each evidence *type*. This is an APEX analysis rule,
+ // not a claim that all providers refresh at this cadence.
+const MAX_AGE_BY_GROUP=Object.freeze({
+ VENUE_SPOT:20*60000,
+ VISIBLE_ORDER_BOOK:5*60000,
+ GLOBAL_ASSET_USD:2*3600000,
+ WRAPPED_TOKEN_DEX:3*3600000,
+ GLOBAL_MOOD:4*86400000,
+ GLOBAL_CRYPTO:2*3600000,
+ BITCOIN_NETWORK:20*60000,
+ NEWS_INDEX:48*3600000,
+ USER_DISCUSSION:24*3600000
+});
 const validTime=t=>Number.isSafeInteger(t)&&t>0;
 const validPrice=p=>typeof p==='number'&&Number.isFinite(p)&&p>0;
 const validNow=n=>validTime(n)?n:Date.now();
@@ -51,15 +64,20 @@ export function reconcileSources(symbol,results={},{
   const timeOrigin=validTime(providerTime)?'PROVIDER':
    validTime(localTime)?'LOCAL_CAPTURE':'UNKNOWN';
   const validObservation=validTime(observedAt)&&observedAt<=at+60000;
+  const ageMs=validObservation?Math.max(0,at-observedAt):null;
+  const inWindow=ageMs!==null&&ageMs<=MAX_AGE_BY_GROUP[spec.group];
   const recordedAt=validTime(r?.fetchedAt)?r.fetchedAt:null;
   const state=typeof r?.state==='string'?r.state:'INVALID';
-  const usable=state==='OK'&&validObservation;
+  // User posts can have a timestamp but cannot be fact-verified by that alone.
+  const usable=state==='OK'&&inWindow&&spec.group!=='USER_DISCUSSION';
   entries.push({id:key,title:spec.title,group:spec.group,state,
    observedAt:validObservation?observedAt:null,
-   fetchedAt:recordedAt,timeOrigin,usable,
+   fetchedAt:recordedAt,timeOrigin,ageMs,usable,
    recordStatus:state==='STALE'?'ARCHIVED':
-    state==='OK'?(usable?(timeOrigin==='LOCAL_CAPTURE'? 'LOCAL_CAPTURE_TIME':'TIMESTAMPED'):
-     'NO_RELIABLE_TIMESTAMP'):
+    state==='OK'&&spec.group==='USER_DISCUSSION'?'UNVERIFIED_USER_POST':
+    state==='OK'&&validObservation&&!inWindow?'OUTDATED_OBSERVATION':
+    state==='OK'?(usable?(timeOrigin==='LOCAL_CAPTURE'?
+     'LOCAL_CAPTURE_TIME':'TIMESTAMPED'):'NO_RELIABLE_TIMESTAMP'):
     state==='UNSUPPORTED'?'NOT_APPLICABLE':'UNAVAILABLE',
    source:r?.source==='CACHE'?'CACHE':r?.source==='NETWORK'?'NETWORK':'UNKNOWN'});
  }
