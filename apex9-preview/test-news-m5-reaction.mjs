@@ -23,13 +23,14 @@ function makeBars(atEvent,clock){
 }
 test('only continuous fully closed Binance M5 measurements, 15/60/240m',()=>{
  const rows=makeBars(at,now);
- assert.equal(rows.length,62);
+ assert.equal(rows.length,61);
  const r=compareNewsPublishedM5(event,rows,{now,symbol:'BTCUSDT'});
  assert.equal(r.state,'OBSERVED');
  assert.equal(r.version,NEWS_M5_VERSION);
  assert.deepEqual(r.availableHorizons,[15,60,240]);
- assert.equal(r.closedCandles,62);
- assert.equal(r.observations[0].postCandles,4);
+ assert.equal(r.closedCandles,61);
+ assert.equal(r.observations[0].postCandles,3);
+ assert.equal(r.observations[0].sampledAfterMinutes,15);
  assert.equal(r.observations[0].volumeVsPreviousHour,2);
  assert.ok(r.observations[2].highestPercent>0);
  assert.equal(r.causalImpact,'NOT_ESTABLISHED');
@@ -44,6 +45,7 @@ test('mid-M5 publication avoids counting pre-publication volume from mixed bar',
  assert.equal(r.state,'OBSERVED');
  assert.equal(r.mixedCandleCaveat,true);
  assert.equal(r.observations[0].postCandles,3);
+ assert.equal(r.observations[0].sampledAfterMinutes,18);
  assert.equal(r.observations[0].partialHeadlineCandleExcluded,true);
 });
 test('only horizons fully completed at the current moment are reported',()=>{
@@ -52,7 +54,7 @@ test('only horizons fully completed at the current moment are reported',()=>{
  assert.equal(r.state,'PARTIAL');
  assert.deepEqual(r.availableHorizons,[15,60]);
  assert.equal(r.observations.length,2);
- const earliest=at+16*60000;
+ const earliest=at+14*60000;
  assert.equal(newsM5Eligibility(event,{now:earliest}).state,'NOT_READY');
 });
 test('rejects indexed timestamps, unknown publisher URL and expired stories',()=>{
@@ -80,7 +82,7 @@ test('one bounded public Spot request with no keys, handles 429 and not-ready wi
    assert.equal(parsed.hostname,'data-api.binance.vision');
    assert.equal(parsed.searchParams.get('interval'),'5m');
    assert.equal(parsed.searchParams.get('timeZone'),'0');
-   assert.equal(Number(parsed.searchParams.get('limit')),62);
+   assert.equal(Number(parsed.searchParams.get('limit')),61);
    assert.equal(opts.method,'GET');assert.equal(opts.credentials,'omit');
    return {ok:true,json:async()=>makeBars(at,now)};
   }});
