@@ -75,7 +75,7 @@ test('single stage filter retains all count labels; one ID means one source of t
   assert.ok(forecast.includes('id="stage-count-'+stage+'"'));
   assert.equal(html.split('id="stage-count-'+stage+'"').length-1,1);
  }
- const ids=[...html.matchAll(/\\bid="([^"]+)"/g)].map(x=>x[1]);
+ const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
  assert.equal(ids.length,new Set(ids).size);
  assert.ok(!css.includes('body[data-view="overview"] #view-overview>.metrics .metric:nth-child(2)'));
 });
