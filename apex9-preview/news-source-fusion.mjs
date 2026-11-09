@@ -32,8 +32,15 @@ export function consolidateArticles(input,{limit=18,perDomain=2}={}){
    observedAt<=0)continue;
   const domain=new URL(href).hostname.toLowerCase();
   const source=String(x?.source||x?.provider||'GDELT').slice(0,50);
-  candidates.push({...x,title,href,domain,observedAt,source,
-   confirmationCount:1});
+  // Preserve source attribution already established by the gateway.
+  // Do not confuse multiple indexers with independent event verification.
+  const indexedBy=[source];
+  if(Array.isArray(x?.indexedBy))
+   for(const name of x.indexedBy.slice(0,8))
+    if(typeof name==='string'&&name.length>0&&name.length<=50&&
+       !indexedBy.includes(name))indexedBy.push(name);
+  candidates.push({...x,title,href,domain,observedAt,source,indexedBy,
+   confirmationCount:indexedBy.length});
  }
  candidates.sort((a,b)=>b.observedAt-a.observedAt);
  const unique=[],byUrl=new Map(),byHeadline=new Map();
@@ -41,13 +48,13 @@ export function consolidateArticles(input,{limit=18,perDomain=2}={}){
   const key=headlineKey(item.title);
   const existing=byUrl.get(item.href)||(key.length>=18?byHeadline.get(key):null);
   if(existing){
-   const providers=new Set(existing.indexedBy||[existing.source]);
-   providers.add(item.source);
+   const providers=new Set([...(existing.indexedBy||[existing.source]),
+    ...(item.indexedBy||[item.source])]);
    existing.indexedBy=[...providers];
    existing.confirmationCount=providers.size;
    continue;
   }
-  const entry={...item,indexedBy:[item.source]};
+  const entry={...item,indexedBy:[...item.indexedBy]};
   unique.push(entry);byUrl.set(entry.href,entry);
   if(key.length>=18)byHeadline.set(key,entry);
  }
