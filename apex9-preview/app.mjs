@@ -19,6 +19,7 @@ import {workspaceArea,assetAreaForEntry,researchAreaForTarget,activeDock} from '
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {routeAssetNews} from './market-event-router.mjs';
 import {fetchBlueskyPosts} from './social-public.mjs';
+import {discussionEvidence} from './discussion-evidence.mjs';
 import {createEditorialBudget} from './editorial-budget.mjs';
 import {createEventHistory} from './event-history.mjs';
 import {initFreeSourceDashboard} from './free-source-dashboard.mjs';
@@ -35,7 +36,7 @@ const time=(ms)=>Number.isFinite(ms)
  ?new Date(ms).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
 const layerNames={
  market:'Рыночная цена',liquidity:'Видимая ликвидность',onchain:'Ончейн',
- news:'Новости',social:'Социальные настроения',macro:'Макроэкономика',
+ news:'Новости',social:'Публичные обсуждения',macro:'Макроэкономика',
  cross_asset:'Взаимосвязи активов'
 };
 const sourceNames={
@@ -1090,7 +1091,7 @@ async function loadAssetSocial(symbol){
  const list=el('asset-social-list'),state=el('asset-social-state');
  if(!symbol||!list||!state)return;
  clear(list);
- state.textContent='Проверяем кеш публичных обсуждений · Bluesky…';
+ state.textContent='Проверяем кеш публичных обсуждений · Bluesky… Reddit ожидает одобренного доступа.';
  const result=await assetNewsBudget.load('social',
   ()=>fetchBlueskyPosts(symbol),{key:symbol});
  if(symbol!==chosen)return;
@@ -1103,7 +1104,8 @@ async function loadAssetSocial(symbol){
   return;
  }
  state.textContent='Bluesky · '+(result.state==='STALE'?'архив, требуется обновление':
-  'публичные сообщения')+' · запросов '+(result.quota?.used??'—')+'/6';
+  'публичные сообщения')+' · запросов '+(result.quota?.used??'—')+'/6'+
+  ' · Reddit: требуется одобренный OAuth';
  if(!result.posts?.length){
   list.append(create('p','muted','Новых публичных обсуждений для этого актива нет.'));
   return;
@@ -1112,9 +1114,15 @@ async function loadAssetSocial(symbol){
   const row=create('article','asset-event-row');
   const link=create('a','',post.text);
   link.href=post.href;link.target='_blank';link.rel='noopener noreferrer';
+  const evidence=discussionEvidence(post,{symbol,now:Date.now()});
+  const label=evidence.relevance==='MENTIONS_ASSET'?'упоминает актив':
+   evidence.relevance==='GENERAL_TOPIC'?'общая тема':'связь не подтверждена';
   row.append(link,create('small','',
    post.author+' · '+new Date(post.indexedAt).toLocaleString('ru-RU')+
-   ' · непроверенное мнение'+(result.state==='STALE'?' · архив':'')));
+   ' · непроверенное сообщение'+(result.state==='STALE'?' · архив':'')),
+   create('small','',label+' · '+evidence.age+
+    (evidence.topics.length?' · '+evidence.topics.join(' / '):'')+
+    ' · влияние на цену неизвестно'));
   list.append(row);
  }
 }
