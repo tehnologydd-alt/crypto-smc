@@ -380,16 +380,22 @@ export function initEditorialDashboard({getSymbol}={}){
   archive.captureGlobal({news,macro,calendar});
   showEventHistory();
   const results=routeGlobalEvents(news,macro,calendar,{now:Date.now(),max:5});
+  const display=results.length?results:
+   (news.articles||[]).filter(a=>a&&typeof a.href==='string'&&
+    a.href.startsWith('https://')&&Number.isSafeInteger(a.observedAt))
+    .slice(0,3).map(a=>({title:a.title,href:a.href,
+     observedAt:a.observedAt,group:'news',
+     importance:'RECENT_UNRANKED',outdated:a.outdated===true||news.state==='STALE'}));
   status.textContent='Новости '+news.articles.length+
    ' · '+sourceStatusLine(news.sources)+
    ' · макро: '+sourceStatusLine({gdelt_macro:macro.state,
     bls_calendar:calendar.state})+
    ' · заголовки не подтверждают влияние на рынок';
-  if(!results.length){
+  if(!display.length){
    list.append(node('p','muted','Проверенных по формату новостных заголовков и актуальных календарных записей пока нет. Причины указаны выше.'));
    return;
   }
-  for(const event of results){
+  for(const event of display){
    const item=node('article','overview-event-row');
    const link=node('a','',event.title);
    link.href=event.href;link.rel='noopener noreferrer';link.target='_blank';
