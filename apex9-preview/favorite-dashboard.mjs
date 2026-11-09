@@ -737,7 +737,7 @@ export function initFavoriteResearch({
       const group=create('div','forecast-condition-group');
       group.append(create('strong','',x.label),
        create('small','','Завершено '+x.finished+' / '+x.published),
-       create('span','','Активных '+x.entered+' · TP1 '+x.tp1),
+       create('span','','С входом '+x.entered+' · TP1 '+x.tp1),
        create('span','','TP3 '+x.tp3+' · SL '+x.stop+' · ? '+x.ambiguous));
       groups.append(group);
      }
