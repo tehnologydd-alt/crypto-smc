@@ -621,6 +621,30 @@
         <div class="section-title"><h3>Бесплатные API · лимиты</h3><span>Без ключей · по запросу</span></div>
         <p id="free-provider-center-status" class="muted" role="status">Проверяем сохранённые счётчики…</p>
         <div id="free-provider-center" class="free-source-center-list"></div>
+        <section id="personal-news-keys" class="personal-news-keys" aria-labelledby="personal-news-title">
+          <h4 id="personal-news-title">Личные бесплатные API · напрямую с Android</h4>
+          <p id="personal-news-keys-status" class="muted" role="status">Проверяем защищённое хранилище Android…</p>
+          <p class="muted">Ключи шифруются в Android Keystore и не попадают в файл APK. В веб-версии ввод отключён. CryptoPanic требует действующего тарифа; NewsData.io Free отдаёт новости с задержкой около 12 часов.</p>
+          <form id="personal-newsdata-form" class="personal-news-form" autocomplete="off">
+            <label for="personal-newsdata-key">NewsData.io · личный API-ключ</label>
+            <div class="personal-news-inputs">
+              <input id="personal-newsdata-key" type="password" minlength="12" maxlength="300" autocomplete="off" spellcheck="false" placeholder="Вставить ключ" aria-label="NewsData.io API-ключ">
+              <button type="submit" class="ghost">Сохранить</button>
+              <button id="personal-newsdata-clear" type="button" class="ghost">Удалить</button>
+            </div>
+            <small id="personal-newsdata-state">Не проверено</small>
+          </form>
+          <form id="personal-cryptopanic-form" class="personal-news-form" autocomplete="off">
+            <label for="personal-cryptopanic-key">CryptoPanic · личный API-токен</label>
+            <div class="personal-news-inputs">
+              <input id="personal-cryptopanic-key" type="password" minlength="12" maxlength="300" autocomplete="off" spellcheck="false" placeholder="Вставить токен" aria-label="CryptoPanic API-токен">
+              <button type="submit" class="ghost">Сохранить</button>
+              <button id="personal-cryptopanic-clear" type="button" class="ghost">Удалить</button>
+            </div>
+            <small id="personal-cryptopanic-state">Не проверено</small>
+          </form>
+          <p class="footnote">После сохранения открой «Новости» и нажми «Обновить». Приложение проверит реальный ответ API. Лимиты поставщика имеют приоритет.</p>
+        </section>
         <p class="footnote">Остатки считаются только на этом телефоне. Общие IP-квоты и условия провайдеров имеют приоритет; ошибки сети, CORS и ограничения отображаются без выдуманных результатов. API-ключи и платные тарифы не подключены.</p>
       </article>
       <article class="card block native-storage-panel" id="native-storage-panel">
