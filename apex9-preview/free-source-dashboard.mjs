@@ -9,6 +9,7 @@ import {personalNewsStatus,personalNewsDiagnosticLabel} from './personal-news-cl
 import {initPersonalNewsControls} from './personal-news-controls.mjs';
 import {fetchCmcKeyless} from './cmc-keyless.mjs';
 import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
+import {sourceHealth} from './source-health.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
  const node=document.createElement(tag);
@@ -33,13 +34,13 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  if(!storage)try{storage=window.localStorage;}catch{}
  const budget=createFreeSourceBudget({storage});
  const latest=new Map();
- let assetSeq=0,globalSeq=0;
+ let assetSeq=0,globalSeq=0,checkingPublic=null;
  let personalNews={native:false,providers:{}};
  const personalChecks=new Map();
  let assetMeasurements=null,contextMeasurements=null,marketMeasurements=null;
  let fearMeasurement=null,socialMeasurement=null;
- function annotate(mode,r){
-  latest.set(mode,r?.state||'UNKNOWN');
+ function annotate(mode,r,asset=null){
+  latest.set(mode,sourceHealth(r,{asset}));
   refreshCenter();
  }
  function refreshCenter(){
@@ -56,17 +57,16 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    cmc:'CoinMarketCap · публичная USD-оценка'
   };
   for(const mode of ['fear','dex','gecko','okx','paprika','cmc']){
-   const q=budget.status(mode),name=names[mode],last=latest.get(mode)||'НЕ ПРОВЕРЯЛСЯ';
+   const q=budget.status(mode),name=names[mode],last=latest.get(mode);
    const row=div('article','free-source-center-row');
    row.append(div('strong','',name),
     div('span','',q.state==='OK'?
      'День '+q.used+'/'+q.limit+' · месяц '+
       q.monthlyUsed+'/'+q.monthlyLimit:
      'Локальный учёт недоступен'),
-    div('small','',last+(q.nextAt&&q.nextAt>Date.now()?
-     ' · не раньше '+nice(q.nextAt):'')));
+    div('small','',last?.message||'Проверка ещё не запускалась'));
    container.append(row);
-   if(last==='OK')ok++;
+   if(last?.usable)ok++;
   }
   const keyed=[
    ['cryptopanic','CryptoPanic · новости',
@@ -91,8 +91,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
      access+' · '+p.state));
    container.append(row);
   }
-  timeStatus.textContent=ok+' из 6 источников дали корректный ответ в этой сессии. '+
-   'Ещё 3 источника требуют отдельного доступа. Прямые бесплатные источники работают независимо от нашего облака.';
+  timeStatus.textContent=(checkingPublic?'Выполняются реальные запросы. ':'')+
+   ok+' из 6 публичных API: есть проверенный ответ или кеш. '+
+   'Для остальных указана фактическая причина, а не статус подключения по наличию кода.';
  }
  function showFear(r){
   const status=el('free-fear-status'),value=el('free-fear-value');
@@ -232,7 +233,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   for(const [i,mode] of modes.entries()){
    const r=responses[i];
    list.append(cardResult(mode,r,symbol));
-   if(supportsDex||['okx','paprika','cmc'].includes(mode))annotate(mode,r);
+   annotate(mode,r,(mode==='dex'||mode==='gecko')&&supportsDex?symbol:
+    ['okx','paprika','cmc'].includes(mode)?symbol:null);
   }
   const good=responses.filter(x=>x.state==='OK').length;
   status.textContent=symbol+' · проверено '+good+'/5 источников'+
