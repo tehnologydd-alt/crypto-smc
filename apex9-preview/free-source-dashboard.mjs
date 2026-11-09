@@ -4,6 +4,7 @@
 import {createFreeSourceBudget,FREE_POLICY} from './free-source-budget.mjs';
 import {fetchFearGreed,fetchDexPairs,fetchGeckoPools,
  fetchOkxTicker,dexTokenReference,fetchPaprikaTicker} from './free-source-adapters.mjs';
+import {KEYED_NEWS_PROVIDERS} from './news-source-fusion.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
  const node=document.createElement(tag);
@@ -58,8 +59,21 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    container.append(row);
    if(last==='OK')ok++;
   }
+  const keyed=[
+   ['cryptopanic','CryptoPanic · новости'],
+   ['newsdata','NewsData.io · новости'],
+   ['reddit','Reddit · обсуждения']
+  ];
+  for(const [id,name] of keyed){
+   const p=KEYED_NEWS_PROVIDERS[id];
+   const row=div('article','free-source-center-row');
+   row.append(div('strong','',name),
+    div('span','','Подключение ожидает безопасной настройки'),
+    div('small','',p.state+' · ключи не хранятся в APK'));
+   container.append(row);
+  }
   timeStatus.textContent=ok+' из 5 источников дали корректный ответ в этой сессии. '+
-   'Все квоты локальные; IP-лимиты поставщиков действуют отдельно.';
+   'Ещё 3 защищённых источника ожидают настройки. Локальные квоты не заменяют лимиты поставщиков.';
  }
  function showFear(r){
   const status=el('free-fear-status'),value=el('free-fear-value');
