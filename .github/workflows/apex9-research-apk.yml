@@ -127,6 +127,7 @@ jobs:
           npm run icons
           node scripts/install-native.mjs
           test -s android/app/src/main/java/com/apexintelligence/research/ApexAutoForecast.kt
+          test -s android/app/src/main/java/com/apexintelligence/research/ApexDirectionalForecast.kt
           test -s android/app/src/main/java/com/apexintelligence/research/ApexResearchLevels.kt
           test -s android/app/src/main/java/com/apexintelligence/research/ApexHistoricalBackfill.kt
           grep -q 'setOnApplyWindowInsetsListener' android/app/src/main/java/com/apexintelligence/research/MainActivity.java
