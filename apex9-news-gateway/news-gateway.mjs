@@ -10,13 +10,11 @@ import {createServer} from 'node:http';
 import {resolve} from 'node:path';
 import {consolidateArticles} from '../apex9-preview/news-source-fusion.mjs';
 import {providerRequest,normalizeProviderNews} from './provider-core.mjs';
+import {NEWS_SOURCE_POLICY,sourceUsageDescription} from './source-policy.mjs';
 export {providerRequest,normalizeProviderNews,parseProviderPublicationDate} from './provider-core.mjs';
 const CONFIG=Object.freeze({cryptopanic:{env:'APEX_CRYPTOPANIC_TOKEN'},newsdata:{env:'APEX_NEWSDATA_KEY'}});
 const validCoin=/^(BTC|ETH|SOL|XRP|ADA|BNB|DOGE|LTC)$/;
-const POLICY=Object.freeze({
- cryptopanic:{daily:4,monthly:100,gap:6*3600000},
- newsdata:{daily:4,monthly:100,gap:6*3600000}
-});
+const POLICY=NEWS_SOURCE_POLICY;
 
 
 const day=at=>new Date(at).toISOString().slice(0,10);
@@ -44,7 +42,7 @@ export function createNewsGateway({
   if(!secret)return {state:'NOT_CONFIGURED',articles:[]};
   const at=now(),p=POLICY[provider],key=provider+':'+coin;
   const previous=cache.get(key);
-  if(previous&&at-previous.at<6*3600000)
+  if(previous&&at-previous.at<p.cacheMs)
    return {...previous.result,source:'CACHE'};
   // Reserve synchronously, ahead of HTTP. Fail closed if ledger unavailable.
   if(busy)return {state:'BUSY',articles:[]};
@@ -57,7 +55,7 @@ export function createNewsGateway({
    const daily=prev.day===day(at)?prev.daily||0:0;
    const monthly=prev.month===month(at)?prev.monthly||0:0;
    if(daily>=p.daily||monthly>=p.monthly)return {state:'LIMIT_REACHED',articles:[]};
-   if(prev.last&&at-prev.last<p.gap)return {state:'WAIT_INTERVAL',articles:[]};
+   if(prev.last&&at-prev.last<p.gapMs)return {state:'WAIT_INTERVAL',articles:[]};
    data[provider]={day:day(at),month:month(at),daily:daily+1,
     monthly:monthly+1,last:at};
    try{saveLedger(ledgerFile,data);}
@@ -98,7 +96,8 @@ export function createNewsGateway({
    providers[key]={state:configured?'READY_TO_REQUEST':'NOT_CONFIGURED',
     configured,dayRemaining:Math.max(0,p.daily-daily),
     monthRemaining:Math.max(0,p.monthly-monthly),
-    nextAt:previous.last?previous.last+p.gap:0};
+    nextAt:previous.last?previous.last+p.gapMs:0,
+    internalPolicy:sourceUsageDescription(key)};
   }
   return {state:'OK',providers,scope:'LOCAL_ONLY_NOT_PUBLIC_APK'};
  }
