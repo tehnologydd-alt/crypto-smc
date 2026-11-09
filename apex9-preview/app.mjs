@@ -759,9 +759,11 @@ function navigate(view,targetId){
   if(view==='overview')favoriteManager.openOverviewSummary();
   if(view==='news'||view==='macro')void editorialDashboard.open(view);
   // Contextual entry must keep the flat task selector on screen.
-  const node=view==='quality'&&targetId?
-   el('quality-workspace-anchor'):
-   targetId?el(targetId):el('view-'+view);
+  const node=view==='overview'?
+   el('overview-favorites-anchor'):
+   view==='quality'&&targetId?
+    el('quality-workspace-anchor'):
+    targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
  });
 }
