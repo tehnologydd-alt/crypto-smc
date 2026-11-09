@@ -15,7 +15,8 @@ Unlike the local Node/Caddy example, this pilot serves both the **private APEX w
 ## Security and limits
 - Every static file and API route requires HTTPS Basic Auth, checked by the Worker before serving assets.
 - No CORS allowance. Cross-origin API calls are forbidden; third-party pages cannot consume browser news quotas.
-- D1 performs an **atomic reservation before each vendor request**, capped by source at 4 attempts/day, 100/month and a six-hour interval. Failure counts. D1 errors stop new upstream requests.
+- D1 performs an **atomic reservation before each vendor request**, applying provider-specific internal caps: NewsData.io **180/day, 5,580/month, minimum 10-minute gap**; CryptoPanic **4/day, 100/month, minimum 6-hour gap**. These are APEX safety ceilings, **not provider-advertised allowances**. A failed request still counts, and D1 errors stop new upstream requests.
+- NewsData.io Free is advertised as **200 credits/day**, with **roughly 12-hour-delayed news**. APEX must not present those articles as real-time. CryptoPanic's actual entitlement must be checked in the connected account.
 - Cached, sanitized articles are stored by provider and coin in D1, so refreshes do not continually spend vendor quotas.
 - Every article remains context, never a trade instruction.
 - Secrets live only in Cloudflare server settings. The current Android app remains standalone; do not copy browser credentials into the APK.
