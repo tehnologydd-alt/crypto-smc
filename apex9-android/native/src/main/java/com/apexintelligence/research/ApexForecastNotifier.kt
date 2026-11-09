@@ -83,11 +83,10 @@ object ApexForecastNotifier {
                     val id = forecast.id + ":" + stage.stage
                     val key = "delivered:" + id
                     synchronized(this) {
-                        if (ledger.getBoolean(key, false)) continue
-                        // Reserve before dispatch to prevent duplicates from two
-                        // simultaneous syncs. If storage fails, do not notify.
-                        if (!ledger.edit().putBoolean(key, true).commit()) continue
-                        try {
+                        // Reserve before dispatch, also across process restarts.
+                        // No notification is posted if the ledger write fails.
+                        if (!ledger.getBoolean(key, false) &&
+                            ledger.edit().putBoolean(key, true).commit()) try {
                             val intent = Intent(context, MainActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                             }
