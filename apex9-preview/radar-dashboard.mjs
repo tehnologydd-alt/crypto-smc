@@ -7,6 +7,7 @@ import {fetchCandles} from './candles.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {readRadarChanges,saveRadarChanges,mergeRadarObservation,
  createRadarObservation,radarChangeCount} from './radar-changes.mjs';
+import {getFavoriteRadarNotices} from './favorite-radar.mjs';
 import {fetchRadarUniverse,describeRadarFrame,filterRadarRows,
  RADAR_LIMIT,validRadarInterval} from './radar-core.mjs';
 
@@ -56,6 +57,45 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
  const history=readRadarChanges(storage);
  const alignment=new Map();
  let alignmentController=null,alignmentGeneration=0,alignmentSymbol=null;
+ let focusedSymbol=null,focusedInterval=null;
+ function renderFocus(){
+  const panel=id('radar-focus-panel');
+  panel.replaceChildren();panel.hidden=!focusedSymbol;
+  if(!focusedSymbol)return;
+  const notices=getFavoriteRadarNotices([focusedSymbol],history,{now:Date.now()});
+  const detail=notices.find(x=>x.interval===focusedInterval);
+  const head=create('div','radar-focus-head');
+  head.append(create('strong','',
+   nicePair(focusedSymbol)+' · '+(FRAME[focusedInterval]||focusedInterval)));
+  const dismiss=create('button','radar-focus-dismiss','Закрыть');
+  dismiss.type='button';dismiss.setAttribute('aria-label','Закрыть выбранное событие');
+  dismiss.addEventListener('click',()=>{
+   focusedSymbol=null;focusedInterval=null;renderFocus();
+  });
+  head.append(dismiss);panel.append(head);
+  if(!detail){
+   panel.append(create('p','radar-focus-note',
+    'Последнее событие больше не считается актуальным или его исходные данные недоступны.'));
+   return;
+  }
+  const timing=create('p','radar-focus-timing',
+   'Сравнение двух закрытых свечей · '+date(detail.beforeAt)+' → '+date(detail.candleAt));
+  panel.append(timing);
+  const events=create('div','radar-focus-events');
+  for(const event of detail.events){
+   const tile=create('div','radar-focus-event');
+   tile.append(create('strong','',event.label),create('span','',event.description));
+   events.append(tile);
+  }
+  panel.append(events);
+  panel.append(create('p','radar-focus-note',
+   'Сохранённое наблюдение. Радар проверяет до 12 пар с крупнейшим оборотом, поэтому выбранный актив может отсутствовать в текущем списке. Это не прогноз.'));
+  const action=create('button','radar-focus-open','Открыть страницу актива');
+  action.type='button';
+  action.addEventListener('click',()=>onOpenAsset(focusedSymbol));
+  panel.append(action);
+ }
+
  function cancelAlignment(){
   if(alignmentController){alignmentController.abort();alignmentController=null;}
   alignmentGeneration++;
@@ -127,6 +167,7 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
  };
  function render(){
   updateButtons();
+  renderFocus();
   const root=id('radar-results');root.replaceChildren();
   const valid=rows.filter(row=>row.analysis?.state==='OK');
   id('radar-coverage').textContent=valid.length+' из '+total+' проверенных активов';
@@ -303,7 +344,10 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
     if(stopForLimit)break;
    }
    if(generation!==request||local.signal.aborted)return;
-   saveRadarChanges(storage,history);
+   if(saveRadarChanges(storage,history)){
+    // Same-document Android favorites react to committed, validated research only.
+    window.dispatchEvent(new CustomEvent('apex-radar-updated'));
+   }
    lastScanAt=Date.now();lastInterval=chosen;
    status('Сканирование завершено · '+rows.length+' из '+total+
     ' активов с актуальными свечами'+
@@ -337,7 +381,15 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
  id('radar-refresh').addEventListener('click',()=>void scan({force:true}));
  render();
  return {
-  open(){active=true;void scan();},
+  open(){active=true;renderFocus();void scan();},
+  focus(symbol,frame){
+   if(typeof symbol!=='string'||!/^[A-Z0-9]{5,20}$/.test(symbol)||
+    !validRadarInterval(frame))return false;
+   focusedSymbol=symbol;focusedInterval=frame;
+   interval=frame;filter='all';lastScanAt=0;lastInterval=null;
+   render();
+   return true;
+  },
   close(){active=false;
    if(controller)clearRun();
    else cancelAlignment();
