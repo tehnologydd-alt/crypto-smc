@@ -32,7 +32,7 @@ jobs:
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/prepare-web.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
-          node --test apex9-news-gateway/test-news-gateway.mjs apex9-news-gateway/test-hosted-tools.mjs apex9-news-gateway/test-news-bridge.mjs
+          node --test apex9-news-gateway/test-news-gateway.mjs apex9-news-gateway/test-hosted-tools.mjs apex9-news-gateway/test-news-bridge.mjs apex9-news-gateway/test-reddit-readiness.mjs
           for module in apex9-cloudflare/*.mjs; do node --check "$module"; done
           node --test apex9-cloudflare/test-worker.mjs
           python3 apex9-cloudflare/test-sqlite-quota.py
