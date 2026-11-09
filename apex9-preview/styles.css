@@ -2045,3 +2045,42 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .radar-control-heading{flex-wrap:wrap}
  .radar-record-metric strong{font-size:11px}
 }
+
+
+/* APEX 9 Radar change log — separates past observation from prediction. */
+.radar-change-box{border:1px solid #355167;border-radius:13px;background:#102433;
+ padding:10px 11px;margin:10px 0;font-size:11px;line-height:1.55;color:#a2bdcc}
+.radar-change-box.has-changes{background:#14313a;border-color:#307c84}
+.radar-change-title{display:block;color:#c4f2e8;font-size:11px;margin-bottom:9px;
+ font-variant-numeric:tabular-nums;line-height:1.5}
+.radar-change-tags{display:flex;flex-wrap:wrap;gap:6px}
+.radar-change-tag{display:inline-flex;border:1px solid #558689;background:#174450;
+ color:#b6f4ec;border-radius:9px;padding:6px 8px;font-size:10px;font-weight:700}
+.radar-change-tag.change-direction,.radar-change-tag.change-mode{
+ border-color:#b18a51;background:#463728;color:#f2d7a8}
+.radar-no-change{display:block;color:#a8bfcc;font-size:10px;line-height:1.5}
+.radar-align-button{display:block;margin:10px 0;width:100%;min-height:40px;
+ background:#1a2c40;border:1px solid #426b7d;border-radius:11px;
+ color:#c0dff1;font-size:11px;font-weight:750;padding:9px 11px}
+.radar-align-button:disabled{opacity:.55}
+.radar-alignment-result{border:1px solid #4c6078;background:#151f34;
+ border-radius:13px;padding:11px 9px;margin:5px 0 12px}
+.radar-alignment-status{font-size:11px;line-height:1.5;color:#cbe9ec;display:block}
+.radar-alignment-frames{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:10px}
+.radar-alignment-frame{display:flex;flex-direction:column;gap:6px;
+ text-align:center;background:#242837;border:1px solid #3e465c;border-radius:10px;
+ padding:8px 4px;min-width:0}
+.radar-alignment-frame.is-ok{background:#12383c;border-color:#317b78}
+.radar-alignment-frame b{font-size:11px;color:#e1faf6}
+.radar-alignment-frame span{font-size:9px;line-height:1.45;color:#b6c7d6;
+ overflow-wrap:anywhere}
+.radar-alignment-frame.is-ok span{color:#a9eada}
+.radar-alignment-note{font-size:10px;line-height:1.55;color:#9fb6cc;margin:9px 0 0}
+.radar-history-note{font-size:10px;line-height:1.65;color:#96b2bd;
+ padding:10px 12px;border-inline-start:2px solid #3a787f;margin:16px 0}
+#radar-change-count{color:#8ce4d2;font-weight:730}
+@media(max-width:370px){
+ .radar-alignment-frames{gap:3px}
+ .radar-alignment-frame{padding:8px 2px}
+ .radar-alignment-frame span{font-size:8px}
+}
