@@ -160,6 +160,7 @@ object ApexAutoForecast {
             .put("model",METHOD).put("anchorCloseAt",anchor)
             .put("targetCloseAt",anchor+4L*STEP)
             .put("anchorClose",close).put("bandLow",low).put("bandHigh",high)
+            .put("levelStudy",ApexResearchLevels.build(close,low,high))
             .put("horizonBars",4).put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)

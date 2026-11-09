@@ -382,6 +382,7 @@ class ApexNativePlugin : Plugin() {
                 payload.put("anchorClose", anchorClose)
                 payload.put("bandLow", bandLow)
                 payload.put("bandHigh", bandHigh)
+                payload.put("levelStudy", ApexResearchLevels.build(anchorClose, bandLow, bandHigh))
                 payload.put("horizonBars", 4)
                 payload.put("sampleBars", 96)
                 payload.put("empiricalSamples", 92)
