@@ -27,7 +27,7 @@ export function parseEditorialFeed(raw,{mode,now}={}){
   const domain=String(item.domain||u.hostname).trim().slice(0,70);
   if(!domain)continue;
   seen.add(u.href);
-  rank.push({title,href:u.href,domain,observedAt:t,
+  rank.push({title,href:u.href,domain,observedAt:t,timeKind:'INDEXED',
    language:String(item.language||'').slice(0,24)});
  }
  rank.sort((a,b)=>b.observedAt-a.observedAt||a.domain.localeCompare(b.domain));
