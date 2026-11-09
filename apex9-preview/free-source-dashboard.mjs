@@ -96,7 +96,11 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    outer.append(div('span','free-source-figure',
     'Цена: '+fmt(data.priceUsd,7)+' USD'),
     div('small','',
-     'Капитализация +' · '+fmt(data.priceUsd,7)+' USD'),
+     'Капитализация $'+fmt(data.marketCapUsd,0)+
+     ' · объём 24 ч $'+fmt(data.volume24hUsd,0)));
+  }else{
+   outer.append(div('span','free-source-figure',
+    data.tokenLabel+' · '+fmt(data.priceUsd,7)+' USD'),
     div('small','',
      'DEX-пул · ликвидность $'+fmt(data.liquidityUsd,0)+
      ' · объём 24 ч $'+fmt(data.volume24hUsd,0)));
