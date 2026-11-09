@@ -5,9 +5,9 @@
  * Per-installation budget is not a central provider-wide quota.
  */
 export const EDITORIAL_POLICY=Object.freeze({
- news:Object.freeze({daily:12,ttlMs:60*60000,staleMs:48*3600000}),
- macro:Object.freeze({daily:6,ttlMs:2*3600000,staleMs:48*3600000}),
- calendar:Object.freeze({daily:2,ttlMs:12*3600000,staleMs:72*3600000})
+ news:Object.freeze({daily:12,ttlMs:60*60000,spacingMs:45*60000,staleMs:48*3600000}),
+ macro:Object.freeze({daily:6,ttlMs:2*3600000,spacingMs:2*3600000,staleMs:48*3600000}),
+ calendar:Object.freeze({daily:2,ttlMs:12*3600000,spacingMs:12*3600000,staleMs:72*3600000})
 });
 const KEY='apex9:public-editorial-budget:v1';
 const CACHE='apex9:public-editorial-cache:v1:';
@@ -31,18 +31,20 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
   if(raw===null||raw.day!==day){
    if(raw!==null&&(!raw||typeof raw.day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(raw.day)))
     throw Error('Invalid request ledger');
-   return {day,counts:{news:0,macro:0,calendar:0}};
+   return {day,counts:{news:0,macro:0,calendar:0},lastAttempt:{news:0,macro:0,calendar:0}};
   }
-  if(!raw.counts||Object.keys(EDITORIAL_POLICY).some(mode=>
+  if(!raw.counts||!raw.lastAttempt||Object.keys(EDITORIAL_POLICY).some(mode=>
    !Number.isSafeInteger(raw.counts[mode])||
-   raw.counts[mode]<0||raw.counts[mode]>EDITORIAL_POLICY[mode].daily))
+   raw.counts[mode]<0||raw.counts[mode]>EDITORIAL_POLICY[mode].daily||
+   !Number.isSafeInteger(raw.lastAttempt[mode])||raw.lastAttempt[mode]<0))
    throw Error('Invalid request ledger');
   return raw;
  }
  function quota(mode,at){
   const c=counters(at);
+  const nextAt=c.lastAttempt[mode]?c.lastAttempt[mode]+EDITORIAL_POLICY[mode].spacingMs:0;
   return {day:c.day,used:c.counts[mode],limit:EDITORIAL_POLICY[mode].daily,
-   remaining:Math.max(0,EDITORIAL_POLICY[mode].daily-c.counts[mode])};
+   nextAt,remaining:Math.max(0,EDITORIAL_POLICY[mode].daily-c.counts[mode])};
  }
  function saved(mode,at){
   const item=read(CACHE+mode);
@@ -84,8 +86,14 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
     return failed(sourceState,why,remaining);
    };
    if(remaining.remaining===0)return stale('Daily budget exhausted','LIMIT_REACHED');
+   if(ledger.lastAttempt[mode]>at+60000)
+    return stale('Device clock moved backwards','CLOCK_ERROR');
+   if(ledger.lastAttempt[mode]&&at<remaining.nextAt)
+    return stale('Next scheduled request: '+new Date(remaining.nextAt).toISOString(),
+     'WAIT_INTERVAL');
    // Reserve before the request. 429, offline and invalid responses all count.
    ledger.counts[mode]++;
+   ledger.lastAttempt[mode]=at;
    try{write(KEY,ledger);}catch{return stale('Cannot reserve source budget',
     'STORAGE_UNAVAILABLE');}
    remaining=quota(mode,at);

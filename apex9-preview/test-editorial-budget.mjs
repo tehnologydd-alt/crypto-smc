@@ -30,6 +30,7 @@ test('hard daily limit counts failures, exposes stale labelled cache, resets in 
     {state:'RATE_LIMITED',articles:[]};
   },{force:true});
   assert.ok(['OK','STALE'].includes(result.state));
+  time+=45*60000;
  }
  const stopped=await budget.load('news',async()=>{n++;}, {force:true});
  assert.equal(n,12);
@@ -39,7 +40,7 @@ test('hard daily limit counts failures, exposes stale labelled cache, resets in 
  time+=49*3600000;
  const reset=budget.status('news');
  assert.equal(reset.remaining,12);
- assert.equal(utcBudgetDay(time),'2026-11-11');
+ assert.equal(utcBudgetDay(time),'2026-11-12');
 });
 test('no storage or corrupt ledger fails closed; no network used',async()=>{
  let calls=0;
@@ -60,8 +61,25 @@ test('failed requests consume attempts and do not bypass cache TTL',async()=>{
  assert.equal(r.state,'OFFLINE');
  assert.equal(r.quota.remaining,1);
  r=await budget.load('calendar',async()=>{calls++;return {state:'OFFLINE',events:[]};});
+ assert.equal(r.state,'WAIT_INTERVAL');
+ assert.equal(calls,1);
+ t+=12*3600000;
+ r=await budget.load('calendar',async()=>{calls++;return {state:'OFFLINE',events:[]};});
  assert.equal(calls,2);
  assert.equal(r.quota.remaining,0);
  r=await budget.load('calendar',async()=>{calls++;return {state:'OK',events:[]};});
  assert.equal(calls,2);assert.equal(r.state,'LIMIT_REACHED');
+});
+
+test('minimum spacing prevents retry bursts even with force',async()=>{
+ const storage=makeStorage(),budget=createEditorialBudget({storage,now:()=>epoch});
+ let calls=0;
+ const request=async()=>{calls++;return {state:'OK',articles:[]};};
+ const first=await budget.load('macro',request,{force:true});
+ const second=await budget.load('macro',request,{force:true});
+ assert.equal(first.source,'NETWORK');
+ assert.equal(second.state,'STALE');
+ assert.equal(second.sourceState,'WAIT_INTERVAL');
+ assert.equal(calls,1);
+ assert.equal(budget.status('macro').used,1);
 });
