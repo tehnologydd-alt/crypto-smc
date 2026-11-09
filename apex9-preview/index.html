@@ -346,17 +346,18 @@
       </article>
       <article class="card block forecast-observed-statistics">
         <div class="section-title"><h3>Результаты прогнозов</h3><span id="forecast-quality-current-scope">Все прогнозы</span></div>
+        <div class="forecast-mode-tabs" role="group" aria-label="Показывать сценарии и их результаты">
+          <button class="forecast-mode selected" data-forecast-mode="all" aria-pressed="true" type="button">Все</button>
+          <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
+        </div>
         <div id="forecast-stat-all" class="forecast-observation-stat"></div>
         <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
-        <p class="footnote">Сводка следует переключателю «Все / Отмеченные» выше. История H1 учитывается отдельно от M5. Восстановленные задним числом уровни старых гипотез не учитываются как результаты опубликованных направленных прогнозов. Это наблюдения, а не реальные сделки или прогноз доходности.</p>
+        <p class="footnote">Переключатель «Все / Отмеченные» действует одновременно на сводку и журнал ниже. История H1 учитывается отдельно от M5. Восстановленные задним числом уровни старых гипотез не учитываются как результаты опубликованных направленных прогнозов. Это наблюдения, а не реальные сделки или прогноз доходности.</p>
       </article>
       <article class="card block forecast-workspace">
         <div class="section-title"><h3>Журнал сценариев</h3><span>Только реальные наблюдения</span></div>
         <p class="muted">Новый прогноз фиксирует одно направление по H1 и опорную цену, TP1–TP3, SL. «Лимитный» ожидает входа, «Активный» — касание входа отмечено по закрытой M5. Неизвестный порядок касаний не засчитывается как подтверждённый.</p>
-        <div class="forecast-mode-tabs" role="group" aria-label="Какие сценарии показывать">
-          <button class="forecast-mode selected" data-forecast-mode="all" aria-pressed="true" type="button">Все</button>
-          <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
-        </div>
+
         <div class="forecast-compact-stages" role="group" aria-label="Стадия наблюдения">
           <button class="forecast-compact-stage active" type="button" data-journal-stage="PENDING_CONFIRMATION">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
           <button class="forecast-compact-stage" type="button" data-journal-stage="CONFIRMED">Лимитный <small id="stage-count-CONFIRMED">0</small></button>
