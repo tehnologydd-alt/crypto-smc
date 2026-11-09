@@ -344,6 +344,12 @@
         <p class="muted">Проверьте достоверность истории, результаты опубликованных сценариев и устойчивость методов на трёх исторических периодах.</p>
         <button type="button" class="quality-open" data-go="quality">Открыть качество исследований <span aria-hidden="true">›</span></button>
       </article>
+      <article class="card block forecast-observed-statistics">
+        <div class="section-title"><h3>Результаты прогнозов</h3><span id="forecast-quality-current-scope">Все прогнозы</span></div>
+        <div id="forecast-stat-all" class="forecast-observation-stat"></div>
+        <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
+        <p class="footnote">Сводка следует переключателю «Все / Отмеченные» выше. История H1 учитывается отдельно от M5. Восстановленные задним числом уровни старых гипотез не учитываются как результаты опубликованных направленных прогнозов. Это наблюдения, а не реальные сделки или прогноз доходности.</p>
+      </article>
       <article class="card block forecast-workspace">
         <div class="section-title"><h3>Журнал сценариев</h3><span>Только реальные наблюдения</span></div>
         <p class="muted">Новый прогноз фиксирует одно направление по H1 и опорную цену, TP1–TP3, SL. «Лимитный» ожидает входа, «Активный» — касание входа отмечено по закрытой M5. Неизвестный порядок касаний не засчитывается как подтверждённый.</p>
@@ -361,12 +367,7 @@
           <p class="muted">Загружаем локальный журнал…</p>
         </div>
       </article>
-      <article class="card block forecast-observed-statistics">
-        <div class="section-title"><h3>Результаты прогнозов</h3><span id="forecast-quality-current-scope">Все прогнозы</span></div>
-        <div id="forecast-stat-all" class="forecast-observation-stat"></div>
-        <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
-        <p class="footnote">Сводка следует переключателю «Все / Отмеченные» выше. История H1 учитывается отдельно от M5. Восстановленные задним числом уровни старых гипотез не учитываются как результаты опубликованных направленных прогнозов. Это наблюдения, а не реальные сделки или прогноз доходности.</p>
-      </article>
+
     </section>
 
     <section class="view hidden quality-view" id="view-quality" data-quality-area="summary" data-quality-entry="dock" aria-labelledby="quality-title">
