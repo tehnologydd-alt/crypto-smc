@@ -5,6 +5,7 @@
 import {loadEditorialFeed} from './editorial-core.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
+import {fetchBlsIndicators} from './macro-indicators.mjs';
 const get=id=>document.getElementById(id);
 const node=(tag,cls='',content)=>{
  const x=document.createElement(tag);
@@ -58,6 +59,36 @@ export function initEditorialDashboard(){
    story.append(link,meta);list.append(story);
   }
  }
+ function showIndicators(r){
+  const list=get('macro-indicators-list'),status=get('macro-indicators-status');
+  list.replaceChildren();
+  if(!['OK','EMPTY','STALE'].includes(r?.state)){
+   status.textContent='BLS Public Data API v1 · '+(r?.state||'OFFLINE')+
+    (r?.reason?' · '+r.reason:'')+quotaLine(r,'macroData');
+   list.append(node('p','muted','Числовые данные недоступны. Значения не подставляются.'));
+   return;
+  }
+  const stale=r.state==='STALE';
+  status.textContent='BLS API v1 · '+(stale?'архив от ':'получено ')+
+   niceTime(r.fetchedAt)+(stale?' · устарело':'')+quotaLine(r,'macroData');
+  if(!r.indicators?.length){
+   list.append(node('p','muted','По выбранным сериям нет числовых наблюдений.'));
+   return;
+  }
+  for(const s of r.indicators){
+   const card=node('article','macro-indicator-card');
+   card.append(node('strong','',s.name),
+    node('span','macro-indicator-value',
+     s.value.toLocaleString('ru-RU',{maximumFractionDigits:3})+' '+s.unit),
+    node('small','',s.period+' · месяц наблюдения'+
+     (s.preliminary?' · предварительно':'')));
+   if(s.yoyPercent!==null)card.append(node('small','',
+    'Изменение к тому же месяцу год назад: '+s.yoyPercent.toFixed(2)+
+    '% (расчёт из доступных значений)'));
+   card.append(node('small','','Дата фактической публикации не указана в ряду.'));
+   list.append(card);
+  }
+ }
  function showCalendar(r){
   const list=get('macro-calendar-list'),status=get('macro-calendar-status');
   list.replaceChildren();
@@ -94,22 +125,34 @@ export function initEditorialDashboard(){
   controller=current;
   const timer=setTimeout(()=>current.abort(),11000);
   get('editorial-'+mode+'-status').textContent='Проверяем источник и кеш…';
-  if(mode==='macro')get('macro-calendar-status').textContent='Проверяем расписание BLS…';
+  if(mode==='macro'){
+   get('macro-calendar-status').textContent='Проверяем расписание BLS…';
+   get('macro-indicators-status').textContent='Проверяем числовые показатели BLS…';
+  }
   try{
    const queries=[
     budget.load(mode,()=>loadEditorialFeed(mode,{signal:current.signal}),{force})
    ];
-   if(mode==='macro')
+   if(mode==='macro'){
+    queries.push(budget.load('macroData',
+     ()=>fetchBlsIndicators({signal:current.signal}),{force}));
     queries.push(budget.load('calendar',
      ()=>loadBlsCalendar({signal:current.signal}),{force}));
+   }
    const results=await Promise.all(queries);
    if(seq!==active)return;
    showFeed(mode,results[0]);
-   if(mode==='macro')showCalendar(results[1]);
+   if(mode==='macro'){
+    showIndicators(results[1]);
+    showCalendar(results[2]);
+   }
   }catch(e){
    if(seq!==active)return;
    showFeed(mode,{state:'OFFLINE',reason:String(e?.message||e).slice(0,140)});
-   if(mode==='macro')showCalendar({state:'OFFLINE'});
+   if(mode==='macro'){
+    showIndicators({state:'OFFLINE'});
+    showCalendar({state:'OFFLINE'});
+   }
   }finally{
    clearTimeout(timer);
    if(seq===active)controller=null;
