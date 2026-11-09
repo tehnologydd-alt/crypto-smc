@@ -2290,3 +2290,49 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .forecast-quality-outcome{padding:8px 6px}
  .forecast-quality-outcome span{font-size:9px}
 }
+
+
+/* APEX research chronology: one compact, source-audited event trail per scenario. */
+.forecast-event-timeline{
+ margin:13px 0 7px;padding:12px 11px;
+ border:1px solid #36647a;border-radius:14px;
+ background:linear-gradient(140deg,#101f31,#152e3b);
+}
+.forecast-event-heading{display:flex;justify-content:space-between;
+ align-items:flex-start;gap:9px;margin-bottom:10px}
+.forecast-event-heading strong{font-size:12px;color:#d3eee8}
+.forecast-event-heading span{font-size:10px;color:#93b8c8;text-align:right}
+.forecast-event-path{color:#b9eadf;font-size:12px;font-weight:760;
+ line-height:1.6;overflow-wrap:anywhere;margin:0 0 11px}
+.forecast-event-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.forecast-event-item{min-width:0;display:flex;flex-direction:column;
+ gap:5px;padding:10px 9px;border:1px solid #38586c;
+ border-radius:10px;background:#102839}
+.forecast-event-item.is-terminal{border-color:#56887e;background:#183d3e}
+.forecast-event-item-name{font-size:10px;color:#a6cbd1}
+.forecast-event-item-time{font-size:12px;font-variant-numeric:tabular-nums;
+ color:#e0f4f1;line-height:1.35}
+.forecast-event-item-price{font-size:10px;color:#94bbc9;
+ overflow-wrap:anywhere;line-height:1.35}
+.forecast-event-note,.forecast-event-warning,.forecast-event-replay{
+ margin:9px 0 0;color:#8faebd;font-size:10px;line-height:1.6;
+ overflow-wrap:anywhere
+}
+.forecast-event-warning{color:#e0c49f}
+.forecast-event-replay.is-warning{color:#f0bda0}
+.forecast-visual.is-completed .forecast-event-timeline{
+ background:linear-gradient(140deg,#222936,#202631);
+ border-color:#626c79
+}
+.forecast-visual.is-completed .forecast-event-item,
+.forecast-visual.is-completed .forecast-event-item.is-terminal{
+ background:#293440;border-color:#565d69
+}
+.forecast-visual.is-completed .forecast-event-path{color:#d0d8dd}
+.forecast-visual.is-completed .forecast-event-item-time{color:#d5dadd}
+@media(max-width:370px){
+ .forecast-event-timeline{padding:10px 7px}
+ .forecast-event-items{gap:5px}
+ .forecast-event-item{padding:8px 6px}
+ .forecast-event-item-time{font-size:11px}
+}
