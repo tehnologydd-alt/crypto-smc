@@ -8,6 +8,11 @@ const ENDPOINT='https://data-api.binance.vision/api/v3/klines';
 const FIVE=300000, HOUR=12*FIVE, FOUR_HOURS=48*FIVE;
 const HORIZONS=[15,60,240];
 const MAX_AGE=48*3600000;
+// The last M5 close at a clock boundary is one millisecond before that time.
+// Choose the earliest FULLY closed candle at (or within 1ms of) each horizon.
+// A headline published mid-candle may therefore have a slightly later sample.
+const horizonOpen=(at,minutes)=>
+ Math.ceil((at+minutes*60000-FIVE)/FIVE)*FIVE;
 export const NEWS_M5_VERSION='PUBLISHED_HEADLINE_M5_OBSERVATION_V1';
 const pct=(x,y)=>Number((100*(x/y-1)).toFixed(4));
 const rounded=x=>Number(x.toFixed(3));
@@ -28,9 +33,9 @@ export function newsM5Eligibility(event,{symbol='BTCUSDT',now=Date.now()}={}){
   reason:'Публикация вне наблюдаемого периода 48 часов'};
  const base=Math.floor(at/FIVE)*FIVE;
  const start=base-13*FIVE;
- const last=Math.min(base+48*FIVE,Math.floor(now/FIVE)*FIVE-FIVE);
+ const last=Math.min(horizonOpen(at,240),Math.floor(now/FIVE)*FIVE-FIVE);
  if(start<=0)return {state:'INELIGIBLE',reason:'Некорректный период свечей'};
- if(last<base+3*FIVE)return {state:'NOT_READY',
+ if(last<horizonOpen(at,15))return {state:'NOT_READY',
   reason:'15-минутный горизонт ещё не закрыт'};
  return {state:'READY',base,start,last,at,
   expectedCount:(last-start)/FIVE+1};
@@ -73,7 +78,7 @@ export function compareNewsPublishedM5(event,raw,{
  const pureAfterOpen=Math.ceil(spec.at/FIVE)*FIVE;
  const observations=[];
  for(const minutes of HORIZONS){
-  const target=spec.base+minutes*60000;
+  const target=horizonOpen(spec.at,minutes);
   if(target>spec.last)continue;
   const completed=bars.get(target);
   const after=[];
@@ -81,7 +86,8 @@ export function compareNewsPublishedM5(event,raw,{
   if(!after.length)return {state:'INCOMPLETE',reason:'Нет полностью наблюдаемых свечей после публикации'};
   const averageVolume=after.reduce((s,c)=>s+c.volume,0)/after.length;
   observations.push({
-   minutes,closeAt:completed.closeAt,close:completed.close,
+   minutes,sampledAfterMinutes:rounded((completed.closeAt+1-spec.at)/60000),
+   closeAt:completed.closeAt,close:completed.close,
    changePercent:pct(completed.close,baseline.close),
    highestPercent:pct(Math.max(...after.map(x=>x.high)),baseline.close),
    lowestPercent:pct(Math.min(...after.map(x=>x.low)),baseline.close),
