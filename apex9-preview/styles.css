@@ -2206,3 +2206,34 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 .forecast-directional-counts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
 .forecast-directional-counts>span{padding:7px 9px;background:#1b3440;
  border:1px solid #385562;border-radius:8px;color:#bed9db;font-size:10px}
+
+
+/* Forecast V2 migration: directions stay upfront; old range studies are accessible,
+   but they cannot masquerade as current single-sided scenarios. */
+.forecast-direction-empty{
+ border:1px dashed #397886;background:#102c37;color:#b2d3d7;
+ border-radius:13px;padding:14px 13px;font-size:12px;line-height:1.65;
+ margin:4px 0 15px
+}
+.forecast-range-archive{
+ border:1px solid #435366;background:linear-gradient(130deg,#171e2d,#141c2b);
+ border-radius:15px;margin:12px 0 19px;overflow:hidden
+}
+.forecast-range-archive-title{
+ cursor:pointer;min-height:52px;padding:15px 14px;
+ color:#c3cbd7;font-size:13px;font-weight:760;
+ list-style-position:inside
+}
+.forecast-range-archive[open]>.forecast-range-archive-title{
+ border-bottom:1px solid #3b4958
+}
+.forecast-range-archive-note{
+ margin:11px 14px 15px;color:#aab8c9;font-size:11px;line-height:1.6
+}
+.forecast-range-archive>.forecast-record{
+ margin:10px 12px 16px;max-width:calc(100% - 24px)
+}
+@media(max-width:390px){
+ .forecast-range-archive>.forecast-record{margin:9px 7px 13px;max-width:calc(100% - 14px)}
+ .forecast-range-archive-title{padding:13px 10px}
+}
