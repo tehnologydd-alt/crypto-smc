@@ -85,6 +85,7 @@ object ApexDirectionalForecast {
             return "DUE_UNVERIFIED"
         var activatedAt: Long? = null
         var firstTargetAt: Long? = null
+        val targetTouches = ArrayList<Pair<Int, Long>>()
         var highestTarget = 0
         var terminal: String? = null
         var terminalAt: Long? = null
@@ -133,6 +134,8 @@ object ApexDirectionalForecast {
                 break
             }
             if (newTargets.isNotEmpty()) {
+                for (targetIndex in newTargets)
+                    targetTouches.add(targetIndex to at)
                 highestTarget = newTargets.last()
                 if (firstTargetAt == null) firstTargetAt = at
                 if (highestTarget == 3) {
@@ -150,11 +153,30 @@ object ApexDirectionalForecast {
             id, "ACTIVE", firstTargetAt, now,
             "TP1 наблюдался на H1 после подтверждённой опорной цены"
         ))
+        // Each accepted point is persisted independently and exactly once.
+        // If SL and a new TP occur in the same H1, neither point is credited.
+        for ((indexTp, at) in targetTouches)
+            dao.appendResearchStage(ResearchForecastStage(
+                id, "TP$indexTp", at, now,
+                "Касание TP$indexTp в закрытой H1 после опорной цены; не исполнение сделки"
+            ))
         if (terminal == null && now > target && observed == HORIZON) {
             terminal = if (activatedAt == null) "NOT_ENTERED" else "HORIZON"
             terminalAt = target
         }
         if (terminal != null && terminalAt != null) {
+            val terminalStage = when (terminal) {
+                "STOP" -> "SL"
+                "AMBIGUOUS" -> "ORDER_UNKNOWN"
+                "NOT_ENTERED" -> "NO_ENTRY"
+                "HORIZON" -> "TIMEOUT"
+                else -> null
+            }
+            if (terminalStage != null)
+                dao.appendResearchStage(ResearchForecastStage(
+                    id, terminalStage, terminalAt, now,
+                    "Контрольное событие $terminal: только фактическая закрытая H1"
+                ))
             dao.recordResearchResult(ResearchForecastResult(
                 id, terminal, now, target, lastClose, (lastClose / entry - 1.0) * 100
             ))
