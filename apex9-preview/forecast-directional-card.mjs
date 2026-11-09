@@ -83,7 +83,8 @@ export function directionalForecastCard(row,{
   create('small','',plan?'H1 · '+labelForSide(plan.side):
    'Сценарий · проверка целостности'));
  const state=create('span','forecast-visual-state '+(finishedNative?'finished':'active'),
-  finishedNative?'Завершено':visibleStage==='ACTIVE'?'Активный':'Лимитный');
+  finishedNative?'Завершено':visibleStage==='ACTIVE'?'Активный':
+   visibleStage==='CONFIRMED'?'Лимитный':'Ожидает');
  top.append(names,state);card.append(top);
  if(verified.state!=='READY'){
   card.append(create('p','forecast-level-warning',
@@ -98,14 +99,17 @@ export function directionalForecastCard(row,{
  const steps=create('div','forecast-step-strip');
  const stageTitles=['Создан','Лимитный','Активный','Итог'];
  const stageNodes=stageTitles.map((title,i)=>{
-  const node=create('span','forecast-step '+(i<=1?'is-done':'is-pending'),
-   (i<=1?'✓ ':'· ')+title);steps.append(node);return node;
+  const seen=i===0||(i===1&&visibleStage!=='PENDING_CONFIRMATION')||
+   (i===2&&visibleStage==='ACTIVE')||(i===3&&finishedNative);
+  const node=create('span','forecast-step '+(seen?'is-done':'is-pending'),
+   (seen?'✓ ':'· ')+title);steps.append(node);return node;
  });
  card.append(steps);
  const status=create('p','forecast-visual-horizon',
   finishedNative?'Итог записан · проверяем историю касаний':
    visibleStage==='ACTIVE'?'Активный · вход отмечен, проверяем TP и SL':
-   'Лимитный · ожидаем касания входа на закрытой '+sourceFrame+'.');
+   visibleStage==='CONFIRMED'?'Лимитный · ждём касания входа по '+sourceFrame+'.':
+   'Предварительный прогноз · ждём проверенную закрытую '+sourceFrame+'.');
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');
  card.append(status);
  const levels=create('div','forecast-visual-levels');
@@ -190,8 +194,11 @@ export function directionalForecastCard(row,{
   'Сверка по закрытым '+sourceFrame+'-свечам доступна при наличии архива.');
  card.append(replayStatus);
  if(timeline.state==='VERIFIED'){
+  const limitObserved=timeline.events.some(x=>x.stage==='LIMIT_READY');
+  const limitReady=limitObserved||
+   (plan.stageSemantics!=='LIMIT_READY_M5_V1'&&timeline.entered);
   for(const [i,observed] of [
-   true,true,timeline.entered,timeline.finished
+   true,limitReady,timeline.entered,timeline.finished
   ].entries()){
    stageNodes[i].className='forecast-step '+(observed?'is-done':'is-pending');
    stageNodes[i].textContent=(observed?'✓ ':'· ')+stageTitles[i];
@@ -277,8 +284,9 @@ export function directionalForecastCard(row,{
   const finished=audit.finished;
   card.classList.toggle('is-completed',finished||finishedNative);
   state.className='forecast-visual-state '+(finished||finishedNative?'finished':'active');
-  state.textContent=finished?'Завершено':audit.entryAt?'Активный':'Лимитный';
-  for(const [i,observed] of [true,true,Boolean(audit.entryAt),finished].entries()){
+  state.textContent=finished?'Завершено':audit.entryAt?'Активный':
+   visibleStage==='CONFIRMED'?'Лимитный':'Ожидает';
+  for(const [i,observed] of [true,visibleStage!=='PENDING_CONFIRMATION',Boolean(audit.entryAt),finished].entries()){
    stageNodes[i].className='forecast-step '+(observed?'is-done':'is-pending');
    stageNodes[i].textContent=(observed?'✓ ':'· ')+stageTitles[i];
   }

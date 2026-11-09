@@ -22,14 +22,15 @@ export function forecastStage(row,{now=Date.now()}={}){
  const checked=planDirectionalScenario(row,{now});
  if(checked.state!=='READY')return 'PENDING_CONFIRMATION';
  const plan=checked.plan,period=plan.evaluationInterval==='5m'?300000:3600000;
- // Derived view: published directional levels = limit; the historical
- // CONFIRMED Room event is actual entry touch, therefore display Active.
- const entered=Array.isArray(row.stageEvents)&&row.stageEvents.some(e=>
-  e?.stage==='CONFIRMED'&&Number.isSafeInteger(e.observedAt)&&
+ // Older Room CONFIRMED means entry touch. New LIMIT_READY is an
+ // independent verified M5 milestone; do not promote preliminary plans.
+ const evidence=stage=>Array.isArray(row.stageEvents)&&row.stageEvents.some(e=>
+  e?.stage===stage&&Number.isSafeInteger(e.observedAt)&&
   e.observedAt>=plan.publishedAt&&e.observedAt<=plan.targetCloseAt&&
   e.observedAt%period===period-1&&Number.isSafeInteger(e.recordedAt)&&
   e.recordedAt>=e.observedAt&&e.recordedAt<=now+60000);
- return entered?'ACTIVE':'CONFIRMED';
+ if(evidence('CONFIRMED'))return 'ACTIVE';
+ return evidence('LIMIT_READY')?'CONFIRMED':'PENDING_CONFIRMATION';
 }
 export function journalCounts(rows,{now=Date.now()}={}){
  const result=Object.fromEntries(FORECAST_STAGES.map(x=>[x,0]));

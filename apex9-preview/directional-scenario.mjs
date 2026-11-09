@@ -37,7 +37,9 @@ export function planDirectionalScenario(row,{now=Date.now()}={}){
   return empty('INVALID','Данные публикации направления не согласованы');
  const evalInterval=h.evaluationInterval===undefined?'1h':h.evaluationInterval;
  if(!['1h','5m'].includes(evalInterval)||
-  (evalInterval==='5m'&&h.observationMethod!=='M5_CLOSED_LEVEL_ORDER_V1'))
+  (evalInterval==='5m'&&h.observationMethod!=='M5_CLOSED_LEVEL_ORDER_V1')||
+  (h.stageSemantics!==undefined&&h.stageSemantics!=='LIMIT_READY_M5_V1')||
+  (h.stageSemantics==='LIMIT_READY_M5_V1'&&evalInterval!=='5m'))
   return empty('INVALID','Неверно заявлен метод проверки контрольных точек');
  const all=computeReferenceLevels(h.anchorClose,h.bandLow,h.bandHigh);
  const saved=h.levelStudy,expected=all?.[h.direction];
@@ -53,7 +55,8 @@ export function planDirectionalScenario(row,{now=Date.now()}={}){
   model:DIRECTIONAL_MODEL,version:DIRECTIONAL_LEVEL_VERSION,
   side:h.direction,asset:row.asset,id:row.id,
   publishedAt:row.publishedAt,anchorCloseAt:h.anchorCloseAt,
-  targetCloseAt:h.targetCloseAt,evaluationInterval:evalInterval,entry:saved.entry,
+  targetCloseAt:h.targetCloseAt,evaluationInterval:evalInterval,
+  stageSemantics:h.stageSemantics||'LEGACY_ENTRY_STAGE',entry:saved.entry,
   tp1:saved.tp1,tp2:saved.tp2,tp3:saved.tp3,sl:saved.sl,
   origin:'PUBLISHED',source:'Binance Spot · закрытые H1'
  }};

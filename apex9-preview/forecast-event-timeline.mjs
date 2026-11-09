@@ -13,13 +13,13 @@ const outcomeStage=Object.freeze({
  NOT_ENTERED:'NO_ENTRY',HORIZON:'TIMEOUT'
 });
 const titles=Object.freeze({
- PUBLISHED:'Прогноз · лимитный',CONFIRMED:'Активный · вход',
+ PUBLISHED:'Предварительный прогноз',LIMIT_READY:'Лимитный',CONFIRMED:'Активный · вход',
  TP1:'TP1',TP2:'TP2',TP3:'TP3',SL:'SL',
  ORDER_UNKNOWN:'Порядок неизвестен',
  NO_ENTRY:'Без входа',TIMEOUT:'Срок истёк'
 });
 const rank=Object.freeze({
- PUBLISHED:0,CONFIRMED:1,TP1:2,TP2:3,TP3:4,
+ PUBLISHED:0,LIMIT_READY:1,CONFIRMED:2,TP1:3,TP2:4,TP3:5,
  SL:5,ORDER_UNKNOWN:5,NO_ENTRY:5,TIMEOUT:5
 });
 function event(stage,at,plan,{terminal=false}={}){
@@ -35,10 +35,12 @@ export function buildForecastEventTimeline(row,{now=Date.now()}={}){
   reason:checked.reason||'Исходная история Room не подтверждена'};
  const {plan,source,finished,outcome}=checked;
  const recorded=new Map((row.stageEvents||[]).filter(x=>x&&
-  ['CONFIRMED','TP1','TP2','TP3','SL','ORDER_UNKNOWN','NO_ENTRY','TIMEOUT']
+  ['LIMIT_READY','CONFIRMED','TP1','TP2','TP3','SL','ORDER_UNKNOWN','NO_ENTRY','TIMEOUT']
    .includes(x.stage)).map(x=>[x.stage,x.observedAt]));
  const finalStage=finished?outcomeStage[outcome]:null;
  const entries=[event('PUBLISHED',plan.publishedAt,plan)];
+ if(recorded.has('LIMIT_READY'))
+  entries.push(event('LIMIT_READY',recorded.get('LIMIT_READY'),plan));
  if(recorded.has('CONFIRMED'))
   entries.push(event('CONFIRMED',recorded.get('CONFIRMED'),plan));
  for(const key of ['TP1','TP2','TP3']){
@@ -57,7 +59,7 @@ export function buildForecastEventTimeline(row,{now=Date.now()}={}){
   targetCloseAt:plan.targetCloseAt,
   touchedTargets:checked.touched.length,
   label:entries.filter(x=>x.stage!=='PUBLISHED').map(x=>x.label).join(' → ')||
-   'Ожидаем касания входа',
+   'Ожидаем подтверждения лимитного этапа',
   note:source+' · отметки закрытых свечей из Room; это не исполненные ордера.'
  };
 }

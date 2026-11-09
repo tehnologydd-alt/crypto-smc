@@ -12,7 +12,7 @@ const TERMINAL={TP3:'tp3Outcome',STOP:'stop',AMBIGUOUS:'ambiguous',
  NOT_ENTERED:'notEntered',HORIZON:'expired'};
 const FINAL_STAGE={TP3:'TP3',STOP:'SL',AMBIGUOUS:'ORDER_UNKNOWN',
  NOT_ENTERED:'NO_ENTRY',HORIZON:'TIMEOUT'};
-const STAGE_NAMES=new Set(['CONFIRMED','ACTIVE','TP1','TP2','TP3',
+const STAGE_NAMES=new Set(['LIMIT_READY','CONFIRMED','ACTIVE','TP1','TP2','TP3',
  'SL','ORDER_UNKNOWN','NO_ENTRY','TIMEOUT','COMPLETED']);
 const M5=300000,H1=3600000;
 const timestamp=t=>Number.isSafeInteger(t)&&t>0;
@@ -54,6 +54,12 @@ export function verifiedDirectionalEvidence(row,{now=Date.now()}={}){
   events.set(stage.stage,stage);
  }
  const confirmed=events.get('CONFIRMED');
+ const limit=events.get('LIMIT_READY');
+ if(plan.stageSemantics==='LIMIT_READY_M5_V1'&&confirmed&&
+  (!limit||confirmed.observedAt<limit.observedAt))
+  return invalid('Вход раньше подтверждения лимитного этапа');
+ if(plan.stageSemantics!=='LIMIT_READY_M5_V1'&&limit)
+  return invalid('Лимитный этап не был предусмотрен при публикации');
  const touched=POINTS.filter(point=>events.has(point));
  if(touched.length&&(!confirmed||!events.has('TP1')))
   return invalid('TP без подтверждённой опорной цены или TP1');
