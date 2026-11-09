@@ -6,6 +6,7 @@ import {verifiedDirectionalEvidence,directionalQualitySummary} from './forecast-
 import {journalObservedStats} from './journal-stats.mjs';
 import {forecastStage} from './favorite-logic.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
+import {buildForecastEventTimeline} from './forecast-event-timeline.mjs';
 
 const H=3600000,M=300000,anchor=1800003599999;
 const publication=anchor+1000,now=anchor+26*H;
@@ -158,15 +159,20 @@ test('new Room stages advance strictly preliminary → limit → active → comp
  const pending=scenario('ADAUSDT',{limitSemantics:true,entryAt:null});
  assert.equal(forecastStage(pending,{now}),'PENDING_CONFIRMATION');
  const limit=scenario('BTCUSDT',{limitSemantics:true,entryAt:null,
-  limitAt:anchor+M});
+  limitAt:anchor+2*M});
  assert.equal(forecastStage(limit,{now}),'CONFIRMED');
  assert.equal(verifiedDirectionalEvidence(limit,{now}).state,'OBSERVED');
- const entered=scenario('ETHUSDT',{limitSemantics:true,limitAt:anchor+M});
+ const entered=scenario('ETHUSDT',{limitSemantics:true,limitAt:anchor+2*M});
  entered.status='CONFIRMED'; // Native CONFIRMED means touched entry, not limit.
  assert.equal(forecastStage(entered,{now}),'ACTIVE');
  assert.equal(verifiedDirectionalEvidence(entered,{now}).state,'OBSERVED');
+ const chronology=buildForecastEventTimeline(entered,{now});
+ assert.deepEqual(chronology.events.map(x=>x.stage),
+  ['PUBLISHED','LIMIT_READY','CONFIRMED']);
+ assert.equal(chronology.events[1].label,'Лимитный');
+ assert.equal(chronology.events[2].label,'Активный · вход');
  const finished=scenario('SOLUSDT',{outcome:'STOP',limitSemantics:true,
-  limitAt:anchor+M});
+  limitAt:anchor+2*M});
  assert.equal(forecastStage(finished,{now}),'COMPLETED');
  assert.equal(verifiedDirectionalEvidence(finished,{now}).state,'OBSERVED');
  const wrong=scenario('BNBUSDT',{entryAt:null,limitSemantics:true});
