@@ -125,7 +125,7 @@ test('BLS numeric data is limited to three attempts per UTC day',async()=>{
   assert.equal((await budget.load('macroData',async()=>{
    calls++;return {state:'OK',indicators:[{value:3}]};
   },{force:true})).state,'OK');
-  t+=8*3600000;
+  if(i<2)t+=8*3600000;
  }
  const exceeded=await budget.load('macroData',async()=>{calls++;},{force:true});
  assert.equal(calls,3);
