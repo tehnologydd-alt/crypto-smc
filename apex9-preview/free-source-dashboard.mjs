@@ -80,7 +80,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   const label={okx:'OKX Spot',dex:'DEX Screener',gecko:'GeckoTerminal',paprika:'CoinPaprika'}[mode];
   outer.append(div('strong','',label));
   if(!isPresent(result)||!result.data){
-   const reason=mode!=='okx'&&!dexTokenReference(symbol)?
+   const reason=(mode==='dex'||mode==='gecko')&&!dexTokenReference(symbol)?
     'Для этого символа нет проверенного контракта, запрос не выполнялся':
     (result.reason||result.state||'Источник недоступен');
    outer.append(div('small','',reason+caps(mode,result)));
