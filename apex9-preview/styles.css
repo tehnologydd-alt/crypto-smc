@@ -1766,3 +1766,71 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
  .forecast-level-side{padding:10px 5px}
  .forecast-level-line strong{font-size:10px}
 }
+
+
+/* APEX 9: uncluttered overview and dedicated asset catalog. */
+.header-catalog-button{border:1px solid #39727b;background:#0e3039;color:#c6f5ec;
+ border-radius:12px;min-height:39px;padding:8px 12px;font-weight:750}
+.topbar .identity{margin-right:auto}
+body[data-view="overview"] #view-overview>.metrics .metric:nth-child(2),
+body[data-view="overview"] #view-overview>.metrics .metric:nth-child(3),
+body[data-view="overview"] #view-overview>.card.block:not(:first-of-type),
+body[data-view="overview"] #view-overview>.overview-diagnostics,
+body[data-view="overview"] #view-overview>.quality-quicklink{display:none!important}
+body[data-view="overview"] #view-overview>.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-view="overview"] .home-actions{margin-top:17px}
+.asset-shortcuts{margin:8px 0 24px}
+.favorites-heading-actions{display:flex;align-items:center;gap:10px}
+.favorites-heading-actions .ghost{min-height:36px;padding:7px 11px}
+.favorite-card.asset-chip{
+ flex:0 0 min(82vw,320px)!important;width:min(82vw,320px)!important;
+ min-width:min(82vw,320px)!important;height:165px!important;
+ display:flex!important;flex-direction:column!important;align-items:stretch!important;
+ justify-content:flex-start!important;padding:14px 14px 12px!important;gap:6px!important;
+ overflow:visible!important;scroll-snap-align:center;touch-action:pan-x;user-select:none;
+ transition:transform .17s ease,border-color .17s ease
+}
+.favorite-card .favorite-open{order:0!important;flex:0 0 auto!important;
+ width:100%;min-height:43px!important;display:flex;gap:12px}
+.favorite-card .favorite-names{max-width:none!important}
+.favorite-card .favorite-names strong{font-size:16px}
+.favorite-card .favorite-names small{font-size:12px}
+.favorite-card .favorite-chart{order:1!important;flex:0 0 auto!important;
+ width:100%!important;height:64px!important;min-height:64px!important;
+ align-self:stretch!important;border-radius:9px}
+.favorite-card .favorite-explain{position:absolute;bottom:7px;right:10px;
+ min-height:27px;padding:3px 9px;font-size:10px}
+.favorite-card .favorite-remove{display:none!important}
+.favorite-card.favorite-armed{border-color:#63f0d6!important;box-shadow:0 12px 35px #29bbaa35}
+.favorite-card.favorite-armed::after{
+ content:"↑ Смахните вверх, чтобы убрать";
+ position:absolute;left:9px;right:9px;bottom:-30px;text-align:center;
+ font-size:11px;color:#aef1e4;background:#10373b;border-radius:8px;padding:6px
+}
+.favorites-toast{position:fixed;bottom:calc(106px + env(safe-area-inset-bottom));
+ left:50%;transform:translateX(-50%);width:min(94%,400px);z-index:40;
+ display:flex;align-items:center;justify-content:space-between;gap:12px;
+ padding:11px 14px;border:1px solid #397c80;background:#123239;
+ border-radius:14px;box-shadow:0 9px 28px #0008;color:#e2f6f1;font-size:12px}
+.favorites-toast[hidden]{display:none!important}
+.favorites-toast button{border:0;background:transparent;color:#78ead9;font-weight:800;min-height:36px}
+.catalog-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:9px;margin-top:12px}
+.catalog-row{display:flex;align-items:center;min-width:0;background:#102630;
+ border:1px solid #32606b;border-radius:13px;min-height:60px;overflow:hidden}
+.catalog-open{flex:1;text-align:left;background:none;color:#d5f2ee;
+ border:0;font-weight:750;letter-spacing:.025em;padding:13px 15px;min-width:0}
+.catalog-favorite{border:0;border-left:1px solid #32606b;background:#143740;
+ color:#7ee4d0;min-height:58px;min-width:58px;font-size:24px}
+.catalog-favorite[aria-pressed="true"]{color:#f1d48b}
+.catalog-heading{margin-top:20px}
+.catalog-more{width:100%;margin-top:13px;min-height:45px}
+.catalog-search .favorites-toolbar{display:none}
+body:not([data-view="catalog"]) #view-catalog{display:none!important}
+@media(max-width:460px){
+ .topbar{flex-wrap:wrap}
+ .header-catalog-button{font-size:12px;padding:7px}
+ .header-catalog-button span{display:none}
+ .top-status{max-width:117px;font-size:9px}
+ .asset-shortcuts{margin-top:0}
+ .favorite-card.asset-chip{flex-basis:84vw!important;width:84vw!important;min-width:84vw!important}
+}
