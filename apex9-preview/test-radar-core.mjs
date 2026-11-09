@@ -25,7 +25,8 @@ test('radar universe selects only fresh whitelisted Spot USDT nonstable pairs',(
  assert.equal(result.rows[0].change24h,1.75);
 });
 test('radar universe is hard-capped at twelve with verified turnover ranking',()=>{
- const raw=symbols.map((symbol,i)=>tick(symbol,10+i));
+ const raw=symbols.map((symbol,i)=>tick(symbol,10+i,
+  symbol==='BADUSDT'?{lastPrice:'invalid'}:{}));
  const result=parseRadarUniverse(raw,{catalog:symbols,now});
  assert.equal(result.rows.length,RADAR_LIMIT);
  assert.ok(!result.rows.some(x=>x.symbol==='USDCUSDT'));
