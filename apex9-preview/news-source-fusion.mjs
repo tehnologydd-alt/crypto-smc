@@ -68,10 +68,10 @@ export function consolidateArticles(input,{limit=18,perDomain=2}={}){
  return articles;
 }
 export const KEYED_NEWS_PROVIDERS=Object.freeze({
- cryptopanic:Object.freeze({state:'NEEDS_SECURE_BACKEND',
-  reason:'API credentials must not be embedded in APK'}),
- newsdata:Object.freeze({state:'NEEDS_SECURE_BACKEND',
-  reason:'API credentials and provider quotas need server-side handling'}),
+ cryptopanic:Object.freeze({state:'PERSONAL_ANDROID_KEY_OR_GATEWAY_REQUIRED',
+  reason:'Personal Android Keystore or authenticated HTTPS gateway; plan entitlement required'}),
+ newsdata:Object.freeze({state:'PERSONAL_ANDROID_KEY_OR_GATEWAY_REQUIRED',
+  reason:'Personal Android Keystore or authenticated HTTPS gateway; free tier news delayed'}),
  reddit:Object.freeze({state:'NEEDS_OAUTH_OR_APPROVED_PUBLIC_ACCESS',
   reason:'Never imply Reddit API access before OAuth is configured'})
 });
