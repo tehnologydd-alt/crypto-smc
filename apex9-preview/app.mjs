@@ -674,7 +674,9 @@ const favoriteManager=initFavoriteResearch({
  onForecastStage:()=>navigate('forecasts'),
  onExplainSymbol:symbol=>openAssetExplanation(symbol)
 });
-void favoriteManager.initialize();
+void favoriteManager.initialize().then(()=>{
+ if(document.body.dataset.view==='catalog')renderCatalog();
+});
 const evidenceDashboard=initEvidenceDashboard({
  getSelectedSymbol:()=>chosen,
  getFavorites:()=>favoriteManager.getFavorites()
@@ -712,7 +714,11 @@ function openAssetExplanation(value){
 }
 
 function navigate(view,targetId){
- if(view==='catalog')renderCatalog();
+ if(view==='catalog'){
+  el('asset-input').value='';
+  catalogPage=1;
+  renderCatalog();
+ }
  if(view==='asset')setAssetArea('chart');
  if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
