@@ -104,6 +104,7 @@
           <button type="button" data-radar-filter="down" aria-pressed="false">Снижение</button>
           <button type="button" data-radar-filter="range" aria-pressed="false">Диапазон</button>
           <button type="button" data-radar-filter="changing" aria-pressed="false">Направленные</button>
+          <button type="button" data-radar-filter="events" aria-pressed="false">Изменились</button>
         </div>
         <div class="radar-sort-line">
           <label for="radar-sort">Сортировка</label>
@@ -111,11 +112,13 @@
             <option value="turnover">Оборот Spot · 24 ч</option>
             <option value="movement">Скорость движения · модуль</option>
             <option value="volume">Относительный объём</option>
+            <option value="events">Число изменений</option>
           </select>
         </div>
       </div>
       <div class="radar-summary">
         <span id="radar-coverage">0 проверенных активов</span>
+        <span id="radar-change-count">0 изменений</span>
         <span>Binance Spot · USDT</span>
       </div>
       <p id="radar-status" class="radar-status" role="status" aria-live="polite">
@@ -124,9 +127,10 @@
       <div id="radar-results" class="radar-results" role="list" aria-label="Наблюдения за рыночными изменениями">
         <p class="radar-empty">После проверки здесь появятся активы.</p>
       </div>
+      <p class="radar-history-note">Изменения сравниваются только между сохранёнными наблюдениями разных завершённых свечей. Краткая история хранится на этом устройстве; при пропусках данных порядок изменений не предполагается.</p>
       <div class="radar-footnotes">
         <p>Проверяем до 12 пар с наибольшим публичным оборотом за 24 часа, а не весь рынок. Используются только завершённые свечи выбранного таймфрейма.</p>
-        <p>Направление, скорость и режим описывают прошлое движение. Это не прогноз и не торговый сигнал. Для сравнения M15/H1/H4/D1 откройте карточку актива → Структура.</p>
+        <p>Направление, скорость и режим описывают прошлое движение. Это не прогноз и не торговый сигнал. По кнопке внутри карточки можно сверить M15/H1/H4/D1; полные исследования остаются на странице актива → Структура.</p>
         <button type="button" class="ghost" data-go="catalog">Открыть полный каталог активов</button>
       </div>
     </section>
