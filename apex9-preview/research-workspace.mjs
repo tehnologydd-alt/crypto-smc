@@ -27,6 +27,6 @@ export function researchAreaForTarget(target){
   TARGET[target]:DEFAULT.quality;
 }
 export function activeDock(view){
- return ['overview','asset','forecasts','quality','sources'].includes(view)?
-  view:['news','macro'].includes(view)?'overview':'overview';
+ return ['overview','radar','asset','forecasts','quality'].includes(view)?
+  view:view==='sources'?'quality':'overview';
 }
