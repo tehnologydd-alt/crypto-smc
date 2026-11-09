@@ -73,3 +73,35 @@ All adapters use unauthenticated GET, no HTML insertion and **no order-placement
 ## APEX 9.1 — source budgets and on-demand calendar
 
 GDELT news, macro news, and per-asset mentions now have separate per-device UTC-day request limits and minimum spacing. The official BLS no-key .ics schedule is parsed into planned release events (not actual values or directional signals) with a separate allowance. Results are cached, stale content is labelled, and unavailable sources show their actual state. These budgets apply to the APEX 9.1 flows; they do not constitute provider-wide quotas across devices. Paid API reservation has a generic, disabled-by-default local guard with explicit cost settings and no paid vendor wired into this preview.
+
+## Research news sharing between pages (2026-11-09)
+
+The asset **Data → Events and discussions** panel now reuses the news collection
+already requested by **Overview** or **News**. Per-asset GDELT items and shared
+RSS / CryptoPanic / NewsData.io headlines are joined locally by
+`asset-news-context.mjs`, without adding a news API request.
+
+- Only an explicit supported-asset headline mention is included; generic crypto
+  headlines are not silently attributed to BTC, ETH, SOL, TON or another coin.
+- Article URL, indexer names, publication versus index date and staleness
+  indicators are preserved where supplied by adapters. Duplicate indexers
+  are never counted as independent factual confirmation.
+- Actual provider states are displayed alongside the asset news summary:
+  unavailable, empty, missing credentials and rate limits are not converted
+  into a green connected status.
+- `news-research-analysis.mjs` provides descriptive counts of topics, article
+  recency and publisher domains; it does not claim causality, market sentiment,
+  or price prediction.
+- Native personal-provider access still depends on an Android build with the
+  configured Keystore plugin and valid permitted API credentials. This web
+  preview alone does not prove a working Android news connection.
+
+Run the independent source regression checks using Node 22+:
+
+```bash
+node --test apex9-preview/test-asset-news-context.mjs apex9-preview/test-news-research-analysis.mjs apex9-preview/test-news-evidence.mjs apex9-preview/test-news-source-fusion.mjs
+```
+
+`.github/workflows/apex-9-news-checks.yml` also defines an independent
+GitHub Actions test job. That workflow does not build an Android APK; the
+separate Android workflow remains blocked without its verified source snapshot.
