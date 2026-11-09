@@ -35,6 +35,10 @@ export function planDirectionalScenario(row,{now=Date.now()}={}){
   !['UP','DOWN'].includes(h.direction)||
   h.decisionMethod!=='SIX_BAR_EFFICIENCY_V1')
   return empty('INVALID','Данные публикации направления не согласованы');
+ const evalInterval=h.evaluationInterval===undefined?'1h':h.evaluationInterval;
+ if(!['1h','5m'].includes(evalInterval)||
+  (evalInterval==='5m'&&h.observationMethod!=='M5_CLOSED_LEVEL_ORDER_V1'))
+  return empty('INVALID','Неверно заявлен метод проверки контрольных точек');
  const all=computeReferenceLevels(h.anchorClose,h.bandLow,h.bandHigh);
  const saved=h.levelStudy,expected=all?.[h.direction];
  if(!expected||saved?.version!==DIRECTIONAL_LEVEL_VERSION||
@@ -49,7 +53,7 @@ export function planDirectionalScenario(row,{now=Date.now()}={}){
   model:DIRECTIONAL_MODEL,version:DIRECTIONAL_LEVEL_VERSION,
   side:h.direction,asset:row.asset,id:row.id,
   publishedAt:row.publishedAt,anchorCloseAt:h.anchorCloseAt,
-  targetCloseAt:h.targetCloseAt,entry:saved.entry,
+  targetCloseAt:h.targetCloseAt,evaluationInterval:evalInterval,entry:saved.entry,
   tp1:saved.tp1,tp2:saved.tp2,tp3:saved.tp3,sl:saved.sl,
   origin:'PUBLISHED',source:'Binance Spot · закрытые H1'
  }};
@@ -62,6 +66,8 @@ function validBar(b,closeAt,now){
   b.low<=Math.min(b.open,b.close)&&b.high>=Math.max(b.open,b.close);
 }
 export function auditDirectionalScenario(plan,candles,{now=Date.now()}={}){
+ if(plan?.evaluationInterval==='5m')
+  return auditDirectionalM5(plan,candles,{now});
  const bad=(state,reason)=>({state,reason,outcome:'UNVERIFIED',
   entryAt:null,hits:[],observedHours:0,finished:false});
  if(!plan||plan.version!==DIRECTIONAL_LEVEL_VERSION||
@@ -142,6 +148,96 @@ export function auditDirectionalScenario(plan,candles,{now=Date.now()}={}){
   tpCount:hits.length,remainingMs:terminal?null:Math.max(0,plan.targetCloseAt-now),
   note:'Проверка только по сохранённым закрытым H1. Касание уровня не означает исполненную сделку.'
  };
+}
+const M5=300000;
+function validM5Bar(bar,closeAt,now){
+ return bar?.closed===true&&bar.closeAt===closeAt&&
+  bar.t===closeAt-M5+1&&closeAt<now&&
+  [bar.open,bar.high,bar.low,bar.close].every(price)&&
+  typeof bar.volume==='number'&&Number.isFinite(bar.volume)&&
+  bar.volume>=0&&bar.low<=Math.min(bar.open,bar.close)&&
+  bar.high>=Math.max(bar.open,bar.close,bar.low);
+}
+/**
+ * Finer read-only chronology. Exactly 288 possible closed M5 bars across the
+ * immutable 24-hour H1 hypothesis. No inferred intrabar order, even at M5.
+ */
+export function auditDirectionalM5(plan,candles,{now=Date.now()}={}){
+ const bad=(state,reason)=>({state,reason,outcome:'UNVERIFIED',entryAt:null,
+  hits:[],observedBars:0,observedHours:0,finished:false});
+ if(!plan||plan.version!==DIRECTIONAL_LEVEL_VERSION||
+  plan.evaluationInterval!=='5m'||!['UP','DOWN'].includes(plan.side)||
+  !stamp(now)||!stamp(plan.anchorCloseAt)||!stamp(plan.publishedAt)||
+  plan.targetCloseAt!==plan.anchorCloseAt+DIRECTIONAL_HOURS*H||
+  plan.publishedAt<plan.anchorCloseAt||
+  plan.publishedAt>=plan.anchorCloseAt+H||
+  !Array.isArray(candles))
+  return bad('INVALID','Не согласованы границы наблюдения M5');
+ const good=plan.side==='UP'?
+  plan.sl<plan.entry&&plan.entry<plan.tp1&&plan.tp1<plan.tp2&&plan.tp2<plan.tp3:
+  plan.tp3<plan.tp2&&plan.tp2<plan.tp1&&plan.tp1<plan.entry&&plan.entry<plan.sl;
+ if(!good||![plan.entry,plan.tp1,plan.tp2,plan.tp3,plan.sl].every(price))
+  return bad('INVALID','Нарушена последовательность опубликованных точек');
+ const bars=new Map(),duplicate=new Set();
+ for(const b of candles){
+  if(!stamp(b?.closeAt))continue;
+  if(bars.has(b.closeAt))duplicate.add(b.closeAt);
+  else bars.set(b.closeAt,b);
+ }
+ let entryAt=null,terminal=null,terminalAt=null,hits=[],observedBars=0,
+  ambiguousReason=null;
+ for(let i=1;i<=DIRECTIONAL_HOURS*12;i++){
+  const time=plan.anchorCloseAt+i*M5;
+  if(time>=now)break;
+  const b=bars.get(time);
+  if(duplicate.has(time)||!validM5Bar(b,time,now))
+   return bad('NEEDS_DATA','Отсутствует или повреждена M5-свеча №'+i);
+  observedBars++;
+  const entryTouch=b.low<=plan.entry&&b.high>=plan.entry;
+  const stopped=plan.side==='UP'?b.low<=plan.sl:b.high>=plan.sl;
+  const tp1Touch=plan.side==='UP'?b.high>=plan.tp1:b.low<=plan.tp1;
+  if(b.t<plan.publishedAt){
+   if(entryTouch||stopped||tp1Touch){
+    terminal='AMBIGUOUS';terminalAt=time;
+    ambiguousReason='Часть первой M5 до публикации: точное время касания неизвестно';
+    break;
+   }
+   continue;
+  }
+  if(entryAt===null){
+   if(!entryTouch)continue;
+   entryAt=time;
+   if(stopped||tp1Touch){
+    terminal='AMBIGUOUS';terminalAt=time;
+    ambiguousReason='Вход и TP/SL в одной M5: порядок неизвестен';
+    break;
+   }
+   continue;
+  }
+  const unseen=['tp1','tp2','tp3'].filter(k=>!hits.some(x=>x.key===k));
+  const touched=unseen.filter(k=>plan.side==='UP'?
+   b.high>=plan[k]:b.low<=plan[k]);
+  if(stopped&&touched.length){
+   terminal='AMBIGUOUS';terminalAt=time;
+   ambiguousReason='Новый TP и SL в одной M5: порядок неизвестен';
+   break;
+  }
+  if(stopped){terminal='STOP';terminalAt=time;break;}
+  for(const key of touched)hits.push({key,at:time,bar:i});
+  if(touched.includes('tp3')){terminal='TP3';terminalAt=time;break;}
+ }
+ if(!terminal&&now>plan.targetCloseAt){
+  if(observedBars<DIRECTIONAL_HOURS*12)
+   return bad('NEEDS_DATA','Не хватает завершённых M5 до срока сценария');
+  terminal=entryAt===null?'NOT_ENTERED':'HORIZON';
+  terminalAt=plan.targetCloseAt;
+ }
+ return {state:terminal?'COMPLETED':entryAt?'ACTIVE':'WAITING',
+  reason:ambiguousReason,outcome:terminal||'OPEN',
+  entryAt,terminalAt,hits,observedBars,observedHours:observedBars/12,
+  finished:Boolean(terminal),tpCount:hits.length,
+  remainingMs:terminal?null:Math.max(0,plan.targetCloseAt-now),
+  note:'Проверено по закрытым M5. Если внутри одной M5 касались конкурирующие уровни, порядок не установлен. Касание не означает исполненную сделку.'};
 }
 export function directionalOutcomeLabel(outcome){
  return ({
