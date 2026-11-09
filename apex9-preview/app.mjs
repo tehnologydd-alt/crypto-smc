@@ -317,7 +317,7 @@ function setQualityArea(requested){
  }
 }
 
-const editorialDashboard=initEditorialDashboard();
+const editorialDashboard=initEditorialDashboard({getSymbol:()=>chosen});
 // The high-frequency price refresh must NEVER generate unbounded GDELT queries.
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
