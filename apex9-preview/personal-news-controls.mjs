@@ -48,6 +48,7 @@ export function initPersonalNewsControls({
     label.textContent=r.state==='SAVED'?'Ключ защищённо сохранён':
      'Не удалось сохранить ключ · '+r.state;
     await refresh();
+    onChange();
    }finally{busy=false;}
   });
   f.clear?.addEventListener('click',async()=>{
