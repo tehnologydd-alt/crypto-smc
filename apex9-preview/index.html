@@ -20,9 +20,24 @@
       </div>
     </div>
     <button type="button" class="header-catalog-button" data-go="catalog" aria-label="Открыть каталог активов">⌕ <span>Каталог</span></button>
+    <button type="button" class="apex-settings-icon" id="apex-settings-open" title="Настройки" aria-label="Настройки APEX" aria-controls="apex-settings-dialog">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+       <circle cx="12" cy="12" r="3"/>
+       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l-1.9 1.9A1.65 1.65 0 0 0 16 18.4a1.65 1.65 0 0 0-1.5 1.02V21h-5v-1.58A1.65 1.65 0 0 0 8 18.4a1.65 1.65 0 0 0-1.82.33l-1.9-1.9A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.02-1.5H2v-3h1.58A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l1.9-1.9A1.65 1.65 0 0 0 8 5.6a1.65 1.65 0 0 0 1.5-1.02V3h5v1.58A1.65 1.65 0 0 0 16 5.6a1.65 1.65 0 0 0 1.82-.33l1.9 1.9A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.02 1.5H22v3h-1.58A1.65 1.65 0 0 0 19.4 15Z"/>
+      </svg>
+    </button>
     <span class="top-status" id="top-status" aria-live="polite">Источники не проверены</span>
   </header>
 
+  <dialog id="apex-settings-dialog" class="apex-settings-dialog" aria-labelledby="apex-settings-title">
+    <div class="apex-settings-head"><h2 id="apex-settings-title">Настройки APEX</h2><button class="ghost" id="apex-settings-close" type="button" aria-label="Закрыть настройки">✕</button></div>
+    <p class="muted">Режим обновления рынка и фоновые задачи на Android.</p>
+    <div class="apex-setting-line"><span>Цена выбранного актива</span><strong>≈ 30 секунд · при открытом приложении</strong></div>
+    <div class="apex-setting-line"><span>Все рыночные данные</span><strong>≈ 10 минут · при открытом приложении</strong></div>
+    <label class="apex-setting-toggle"><input type="checkbox" id="apex-settings-background" disabled><span>Фоновая синхронизация<small>WorkManager · около 15 минут, Android может отложить запуск</small></span></label>
+    <p id="apex-settings-background-status" class="muted" role="status">Проверяем состояние Android…</p>
+    <button type="button" id="apex-settings-sources" class="ghost">Источники, лимиты и данные</button>
+  </dialog>
   <main class="content">
     <section id="overview-favorites-anchor" class="asset-shortcuts overview-only" aria-label="Избранные активы">
       <div class="section-title"><h2>Избранное</h2><div class="favorites-heading-actions"><span id="favorites-count">0 / 10</span><button type="button" class="ghost" data-go="catalog">＋ Каталог</button></div></div>
@@ -549,7 +564,7 @@
         <div id="news-articles" class="stack"><p class="muted">Публикации ещё не загружены.</p></div>
         <p class="footnote">Совпадение с поисковым запросом не означает, что публикация достоверна или повлияет на рынок.</p>
       </article>
-      <article class="card block native-storage-panel">
+      <article class="card block native-storage-panel" id="native-storage-panel">
         <div class="section-title"><h3>Локальный Android-центр</h3><span>Room · DataStore · WorkManager</span></div>
         <p id="native-storage-status" class="muted" aria-live="polite">Проверяем доступность локального хранилища…</p>
         <div class="data-row"><span>Сохранено наблюдений</span><strong id="native-observation-count">—</strong></div>

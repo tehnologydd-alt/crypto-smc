@@ -2415,3 +2415,33 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 .macro-reaction-steps{display:flex;flex-wrap:wrap;gap:7px}
 .macro-reaction-steps span{font-size:11px;color:#cde3df;background:#152f3c;
  border:1px solid #42606f;border-radius:8px;padding:8px}
+
+/* New APEX settings gear: top right and native settings dialog. */
+.topbar .apex-settings-icon{width:42px;height:42px;min-width:42px;
+ flex:0 0 42px;display:grid;place-items:center;padding:0;
+ border:1px solid #39747f;border-radius:13px;
+ background:#0e3039;color:#c1f2ed}
+.topbar .apex-settings-icon:hover{background:#19434c}
+.apex-settings-dialog{position:fixed;inset:auto 12px 18px;width:min(460px,calc(100% - 24px));
+ max-height:min(80dvh,620px);overflow:auto;margin:auto;padding:20px;
+ border:1px solid #426e79;border-radius:20px;
+ background:#102832;color:#e5f4f2;box-shadow:0 25px 90px #000b}
+.apex-settings-dialog::backdrop{background:#030a12be}
+.apex-settings-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.apex-settings-head h2{font-size:18px;margin:0}
+.apex-settings-dialog .muted{font-size:12px;line-height:1.55;color:#b2cbd0}
+.apex-setting-line{display:flex;align-items:center;justify-content:space-between;
+ gap:12px;padding:12px 0;border-bottom:1px solid #305464;font-size:12px;line-height:1.5}
+.apex-setting-line strong{font-size:11px;color:#bcece6;text-align:right}
+.apex-setting-toggle{display:flex;align-items:flex-start;gap:12px;
+ padding:15px 0 5px;font-size:13px}
+.apex-setting-toggle input{width:19px;height:19px;accent-color:#4fd3c6}
+.apex-setting-toggle small{display:block;color:#a6bec7;font-size:11px;line-height:1.5}
+#apex-settings-sources{width:100%;margin-top:8px}
+@media(max-width:460px){
+ .topbar{column-gap:8px;row-gap:7px}
+ .topbar .identity{margin-right:auto}
+ .topbar .top-status{order:9;flex:0 0 100%;width:100%;
+  max-width:none!important;min-height:0;padding:4px 9px;font-size:10px}
+ .topbar .apex-settings-icon{width:40px;height:40px;min-width:40px;flex-basis:40px}
+}

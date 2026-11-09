@@ -111,6 +111,13 @@ async function refreshMobileStatus(){
  const toggle=el('native-background-sync');
  toggle.disabled=!mobileReady;
  toggle.checked=mobileReady&&Boolean(data.backgroundSyncEnabled);
+ const modalToggle=el('apex-settings-background');
+ modalToggle.checked=toggle.checked;
+ modalToggle.disabled=!mobileReady;
+ text('apex-settings-background-status',mobileReady
+  ?(toggle.checked?'Фоновая синхронизация включена. Точное время запуска определяет Android.':
+    'Фоновая синхронизация отключена.')
+  :'Настройка доступна только внутри установленного Android-приложения.');
  text('native-storage-status',mobileReady
   ?'База Room доступна · '+(data.observationCount||0)+' записей · последнее наблюдение: '+
    (data.latestObservationAt?time(data.latestObservationAt):'пока нет')
@@ -146,6 +153,30 @@ async function showMobileHistory(){
 }
 el('native-refresh-status').addEventListener('click',()=>void refreshMobileStatus());
 el('native-show-history').addEventListener('click',()=>void showMobileHistory());
+el('apex-settings-open').addEventListener('click',()=>{
+ const dialog=el('apex-settings-dialog');
+ void refreshMobileStatus();
+ if(typeof dialog.showModal==='function')dialog.showModal();
+ else dialog.setAttribute('open','');
+});
+el('apex-settings-close').addEventListener('click',()=>{
+ const dialog=el('apex-settings-dialog');
+ if(typeof dialog.close==='function')dialog.close();
+ else dialog.removeAttribute('open');
+});
+el('apex-settings-sources').addEventListener('click',()=>{
+ const dialog=el('apex-settings-dialog');
+ if(typeof dialog.close==='function')dialog.close();
+ else dialog.removeAttribute('open');
+ navigate('sources','native-storage-panel');
+});
+el('apex-settings-background').addEventListener('change',event=>{
+ const original=el('native-background-sync');
+ if(original.disabled){event.target.checked=original.checked;return;}
+ event.target.disabled=true;
+ original.checked=event.target.checked;
+ original.dispatchEvent(new Event('change',{bubbles:true}));
+});
 el('native-background-sync').addEventListener('change',async event=>{
  const toggle=event.target,enabled=toggle.checked;
  toggle.disabled=true;
@@ -155,6 +186,9 @@ el('native-background-sync').addEventListener('change',async event=>{
   await refreshMobileStatus();
  }catch(error){
   toggle.checked=!enabled;
+  const mirrored=el('apex-settings-background');
+  mirrored.checked=!enabled;
+  mirrored.disabled=false;
   text('native-storage-status','Не удалось настроить фоновые задания: '+String(error?.message||error));
   toggle.disabled=!mobileReady;
  }

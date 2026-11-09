@@ -50,3 +50,13 @@ test('no duplicate document IDs or lost research pages',()=>{
   'evidence-lab-panel','research-forecast-list','asset-explain','native-storage-status'])
   assert.ok(ids.includes(id),id);
 });
+
+test('new top-right APEX settings gear opens an Android sync dialog',()=>{
+ assert.equal(html.split('id="apex-settings-open"').length-1,1);
+ assert.equal(html.split('id="apex-settings-dialog"').length-1,1);
+ assert.equal(html.split('id="apex-settings-background"').length-1,1);
+ assert.ok(html.indexOf('id="apex-settings-open"')<html.indexOf('<main class="content">'));
+ assert.ok(app.includes("el('apex-settings-open').addEventListener('click'"));
+ assert.ok(app.includes("original.dispatchEvent(new Event('change'"));
+ assert.ok(css.includes('.topbar .apex-settings-icon'));
+});
