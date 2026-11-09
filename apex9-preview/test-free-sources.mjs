@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createFreeSourceBudget} from './free-source-budget.mjs';
 import {parseFearGreed,parseOkxTicker,parseDexPairs,parseGeckoPools,
- fetchDexPairs,fetchGeckoPools,fetchOkxTicker,dexTokenReference} from './free-source-adapters.mjs';
+ fetchDexPairs,fetchGeckoPools,fetchOkxTicker,dexTokenReference,
+ parsePaprikaTicker,fetchPaprikaTicker} from './free-source-adapters.mjs';
 const at=Date.UTC(2026,10,9,15);
 const memory=()=>{const m=new Map();return{
  getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,v),m};};
@@ -79,4 +80,21 @@ test('DEX and Gecko match exact chain and contract, not ticker lookalikes',async
   assert.match(init.headers.Accept,/version=20230203/);
   return {ok:true,json:async()=>gecko};};
  assert.equal((await fetchGeckoPools('ETHUSDT',{fetchImpl:gfetch,now:()=>at})).state,'OK');
+});
+
+test('CoinPaprika rejects wrong asset, stale or malformed snapshots',async()=>{
+ const raw={id:'btc-bitcoin',last_updated:new Date(at-60000).toISOString(),
+  quotes:{USD:{price:85000,volume_24h:100000,market_cap:1500000000}}};
+ assert.equal(parsePaprikaTicker(raw,{symbol:'BTCUSDT',now:at}).state,'OK');
+ assert.equal(parsePaprikaTicker(raw,{symbol:'ETHUSDT',now:at}).state,'INVALID');
+ assert.equal(parsePaprikaTicker({...raw,last_updated:'2020-01-01T00:00:00Z'},
+  {symbol:'BTCUSDT',now:at}).state,'INVALID');
+ assert.equal(parsePaprikaTicker(raw,{symbol:'XYZUSDT',now:at}).state,'UNSUPPORTED');
+ const fetchImpl=async(url,init)=>{
+  assert.match(url,/\/v1\/tickers\/btc-bitcoin$/);
+  assert.equal(init.credentials,'omit');
+  return {ok:true,json:async()=>raw};
+ };
+ assert.equal((await fetchPaprikaTicker('BTCUSDT',
+  {fetchImpl,now:()=>at})).state,'OK');
 });
