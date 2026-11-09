@@ -7,6 +7,7 @@ import {fetchNewsBundle} from './news-gateway-client.mjs';
 import {fetchPersonalNewsBundle} from './personal-news-client.mjs';
 import {consolidateArticles} from './news-source-fusion.mjs';
 import {describeNewsEvidence} from './news-evidence.mjs';
+import {auditDisplayedNews,formatDisplayedNewsAudit} from './news-coverage.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
@@ -43,6 +44,13 @@ export function initEditorialDashboard({getSymbol}={}){
  function showFeed(mode,r){
   const list=get('editorial-'+mode+'-list'),status=get('editorial-'+mode+'-status');
   list.replaceChildren();
+  if(mode==='news'){
+   const symbol=String(getSymbol?.()||'BTCUSDT');
+   const asset=symbol.replace(/(USDT|USDC|USD|EUR)$/,'');
+   const quality=get('editorial-news-quality');
+   if(quality)quality.textContent=formatDisplayedNewsAudit(
+    auditDisplayedNews(r?.articles||[],{asset,now:Date.now()}),asset);
+  }
   const available=['OK','EMPTY','STALE'].includes(r?.state);
   if(!available){
    status.textContent='GDELT · '+(r?.state||'OFFLINE')+
