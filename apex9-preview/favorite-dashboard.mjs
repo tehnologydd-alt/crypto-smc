@@ -290,6 +290,55 @@ export function initFavoriteResearch({
    .finally(()=>MINI_LOADING.delete(symbol));
  }
  const status=text=>{id('favorite-selection-status').textContent=text;};
+ let undoSymbol=null,undoTimer=0;
+ function hideUndo(){clearTimeout(undoTimer);id('favorites-toast').hidden=true;undoSymbol=null;}
+ function offerUndo(symbol){
+  undoSymbol=symbol;id('favorites-toast-text').textContent=symbol+' удалён из избранного';
+  id('favorites-toast').hidden=false;clearTimeout(undoTimer);
+  undoTimer=setTimeout(hideUndo,6500);
+ }
+ id('favorites-undo').addEventListener('click',()=>{
+  const symbol=undoSymbol;hideUndo();
+  if(symbol)void updateFavorite(symbol,true);
+ });
+ function enableSwipeRemoval(card,symbol){
+  let startX=0,startY=0,armed=false,tracking=false,timer=0,blockClick=false;
+  const reset=()=>{
+   clearTimeout(timer);tracking=false;armed=false;
+   card.classList.remove('favorite-armed');card.style.transform='';
+  };
+  card.addEventListener('pointerdown',event=>{
+   if(event.button!==0||event.target.closest('.favorite-explain'))return;
+   startX=event.clientX;startY=event.clientY;tracking=true;armed=false;
+   timer=setTimeout(()=>{
+    if(tracking){armed=true;blockClick=true;card.classList.add('favorite-armed');}
+   },480);
+  });
+  card.addEventListener('pointermove',event=>{
+   if(!tracking)return;
+   const dx=event.clientX-startX,dy=event.clientY-startY;
+   if(!armed){if(Math.hypot(dx,dy)>14)reset();return;}
+   card.style.transform='translateY('+Math.max(-80,Math.min(0,dy))+'px)';
+  });
+  card.addEventListener('pointerup',event=>{
+   const remove=tracking&&armed&&(event.clientY-startY < -65);
+   reset();
+   if(remove)void updateFavorite(symbol,false);
+   if(blockClick)setTimeout(()=>{blockClick=false;},400);
+  });
+  card.addEventListener('pointercancel',reset);
+  card.addEventListener('click',event=>{
+   if(!blockClick)return;
+   event.preventDefault();event.stopImmediatePropagation();
+  },true);
+  card.addEventListener('keydown',event=>{
+   if(event.target!==card)return;
+   if(event.key==='Delete'||event.key==='Backspace'){
+    event.preventDefault();void updateFavorite(symbol,false);
+   }else if(event.key==='Enter'){event.preventDefault();onSelectSymbol(symbol);}
+  });
+ }
+
  function renderFavorites(){
   const rail=id('favorite-rail');clear(rail);
   id('favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
@@ -301,6 +350,8 @@ export function initFavoriteResearch({
   }else for(const symbol of favorites){
    const wrapper=create('div','asset-chip favorite-card');
    wrapper.setAttribute('role','listitem');
+   wrapper.tabIndex=0;
+   wrapper.setAttribute('aria-label',symbol+' · открыть Enter; удалить удержанием и свайпом вверх либо Delete');
    if(symbol===getSelectedSymbol())wrapper.classList.add('selected');
    const open=create('button','favorite-open');
    open.type='button';open.dataset.symbol=symbol;
@@ -315,14 +366,11 @@ export function initFavoriteResearch({
    spark.dataset.sparkSymbol=symbol;
    wrapper.append(spark);
    renderMini(symbol,spark);
+   enableSwipeRemoval(wrapper,symbol);
    wrapper.addEventListener('click',(e)=>{
     if(e.target?.closest?.('.favorite-remove, .favorite-explain'))return;
     onSelectSymbol(symbol);
    });
-   const remove=create('button','favorite-remove','×');
-   remove.type='button';
-   remove.setAttribute('aria-label','Удалить '+symbol+' из избранного');
-   remove.addEventListener('click',()=>void updateFavorite(symbol,false));
    const explain=create('button','favorite-explain','Почему?');
    explain.type='button';
    explain.setAttribute('aria-label',
@@ -331,7 +379,7 @@ export function initFavoriteResearch({
     event.stopPropagation();
     onExplainSymbol?.(symbol);
    });
-   wrapper.append(open,explain,remove);rail.append(wrapper);
+   wrapper.append(open,explain);rail.append(wrapper);
   }
   const selected=favorites.includes(getSelectedSymbol());
   const toggle=id('favorite-toggle');
@@ -344,16 +392,19 @@ export function initFavoriteResearch({
    'Android-хранилище недоступно. Избранное не сохраняется в веб-просмотре.');
  }
  async function updateFavorite(symbol,add){
-  if(!native||busy)return;
+  if(!native||busy)return false;
   busy=true;renderFavorites();
   try{
    const result=await changeMobileFavorite(symbol,add);
    favorites=sanitizeFavorites(result.favorites);
    renderFavorites();
+   if(!add)offerUndo(symbol);
    await loadJournal();
    if(add)void sync(true);
+   return true;
   }catch(e){
    status('Не удалось изменить избранное: '+String(e?.message||e));
+   return false;
   }finally{
    busy=false;renderFavorites();
   }
@@ -503,6 +554,9 @@ export function initFavoriteResearch({
   openForecasts(){void loadJournal();void sync(false);},
   resume(){void sync(false);},
   getFavorites:()=>[...favorites],
+  hasFavorite:symbol=>favorites.includes(symbol),
+  isNative:()=>native,
+  toggleSymbol:symbol=>updateFavorite(symbol,!favorites.includes(symbol)),
   getScenarioRows,
   refreshJournal:loadJournal,
   renderMini,
