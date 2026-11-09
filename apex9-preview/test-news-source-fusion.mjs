@@ -36,3 +36,18 @@ test('keyed providers are not marked live in a client-only build',()=>{
  for(const p of Object.values(KEYED_NEWS_PROVIDERS))
   assert.notEqual(p.state,'OK');
 });
+
+test('deduplication replay preserves upstream multi-provider attribution',()=>{
+ const first=consolidateArticles([
+  {title:'Bitcoin custody and settlement changes',
+   href:'https://publisher.example/story?utm_source=first',
+   observedAt:at,source:'CryptoPanic'},
+  {title:'Bitcoin custody and settlement changes',
+   href:'https://publisher.example/story?utm_source=second',
+   observedAt:at-1000,source:'NewsData.io'}
+ ]);
+ assert.equal(first.length,1);
+ const replay=consolidateArticles(first);
+ assert.deepEqual(replay[0].indexedBy,['CryptoPanic','NewsData.io']);
+ assert.equal(replay[0].confirmationCount,2);
+});
