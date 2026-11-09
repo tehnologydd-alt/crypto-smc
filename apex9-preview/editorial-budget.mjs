@@ -79,7 +79,7 @@ export function createEditorialBudget({storage,now=()=>Date.now()}={}){
    return failed('INVALID','Unknown source');
   if(mode==='social'&&!/^[A-Z0-9]{5,20}$/.test(key))
    return failed('INVALID','Social feed needs a valid market symbol');
-  if(mode==='eventStudy'&&!/^(BTC|ETH)USDT:[0-9]{13}$/.test(key))
+  if(mode==='eventStudy'&&!/^(BTC|ETH)USDT:[0-9]{13}(:compare)?$/.test(key))
    return failed('INVALID','Bad event/symbol cache key');
   if(mode==='assetNews'&&!/^[A-Z0-9]{5,20}$/.test(key))
    return failed('INVALID','Asset news requires a verified market symbol');

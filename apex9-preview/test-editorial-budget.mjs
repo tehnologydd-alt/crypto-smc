@@ -156,3 +156,16 @@ test('social searches respect one shared six-call budget, per-symbol cache and s
  assert.equal(budget.status('social').used,2);
  assert.equal(n,2);
 });
+
+test('event comparison has a distinct bounded cache from legacy one-window study',async()=>{
+ const storage=makeStorage(),t=Date.UTC(2026,10,9,0);
+ const b=createEditorialBudget({storage,now:()=>t});
+ const oldKey='BTCUSDT:1794220200000';
+ const compareKey=oldKey+':compare';
+ let n=0;
+ const load=async()=>{n++;return {state:'OK',comparison:[{minutes:15}]};};
+ assert.equal((await b.load('eventStudy',load,{key:oldKey})).source,'NETWORK');
+ assert.equal((await b.load('eventStudy',load,{key:compareKey})).state,'WAIT_INTERVAL');
+ assert.equal(n,1);
+ assert.equal((await b.load('eventStudy',load,{key:'BTCUSDT:notatime'})).state,'INVALID');
+});

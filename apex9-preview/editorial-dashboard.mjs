@@ -6,7 +6,8 @@ import {loadEditorialFeed} from './editorial-core.mjs';
 import {createEditorialBudget,EDITORIAL_POLICY} from './editorial-budget.mjs';
 import {loadBlsCalendar} from './macro-calendar.mjs';
 import {fetchBlsIndicators} from './macro-indicators.mjs';
-import {fetchScheduledEventReaction} from './macro-event-reaction.mjs';
+import {fetchBlsM5Comparison,COMPARE_VERSION} from './macro-event-comparison.mjs';
+import {createBlsComparisonHistory} from './event-comparison-history.mjs';
 import {routeGlobalEvents} from './market-event-router.mjs';
 import {createEventHistory} from './event-history.mjs';
 const get=id=>document.getElementById(id);
@@ -32,6 +33,7 @@ export function initEditorialDashboard(){
  try{storage=window.localStorage;}catch{}
  const budget=createEditorialBudget({storage});
  const archive=createEventHistory({storage});
+ const comparisonHistory=createBlsComparisonHistory({storage});
  let active=0,controller=null;
  function showFeed(mode,r){
   const list=get('editorial-'+mode+'-list'),status=get('editorial-'+mode+'-status');
@@ -93,6 +95,41 @@ export function initEditorialDashboard(){
    list.append(card);
   }
  }
+ let refreshSavedComparisons=()=>{};
+ function showSavedComparisons(target){
+  const box=node('details','macro-compare-history');
+  const title=node('summary','','История сравнений по BTC и ETH · устройство');
+  const state=node('p','muted');
+  const list=node('div','apex-event-history-list');
+  box.append(title,state,list);target.append(box);
+  refreshSavedComparisons=()=>{
+   list.replaceChildren();
+   const report=comparisonHistory.list({limit:20});
+   if(report.state!=='OK'){
+    state.textContent='Архив сравнений недоступен · '+report.state;
+    return;
+   }
+   state.textContent='Наблюдений BTC: '+report.btc+
+    ' · ETH: '+report.eth+' · всего: '+report.total+
+    '. Только первые сохранённые полные проверки.';
+   if(!report.entries.length)list.append(node('p','muted',
+    'Сравнения появятся после ручной проверки события по закрытым M5.'));
+   for(const entry of report.entries){
+    const row=node('article','apex-event-history-row');
+    row.append(node('strong','',entry.symbol+' · '+entry.title),
+     node('small','','Запланировано '+niceTime(entry.eventAt)+
+      ' · наблюдение сохранено '+niceTime(entry.savedAt)));
+    for(const m of entry.comparison){
+     row.append(node('small','',m.minutes+' мин: изменение '+
+      (m.eventReturnPercent>0?'+':'')+m.eventReturnPercent.toFixed(2)+'%'+
+      ' · контрольная |амплитуда| '+m.priorMeanAbsolutePercent.toFixed(2)+'%'));
+    }
+    row.append(node('small','','Публикация не подтверждалась; влияние не доказано.'));
+    list.append(row);
+   }
+  };
+  refreshSavedComparisons();
+ }
  function showCalendar(r){
   const list=get('macro-calendar-list'),status=get('macro-calendar-status');
   list.replaceChildren();
@@ -100,6 +137,7 @@ export function initEditorialDashboard(){
    status.textContent='BLS · '+(r?.state||'OFFLINE')+
     (r?.reason?' · '+r.reason:'')+quotaLine(r,'calendar');
    list.append(node('p','muted','Расписание не подтверждено; даты не подставляются.'));
+   showSavedComparisons(list);
    return;
   }
   const stale=r.state==='STALE';
@@ -118,53 +156,83 @@ export function initEditorialDashboard(){
      'Плановая публикация · значения ещё не получены'));
    list.append(row);
   }
-  // A historical BTC comparison does not claim that the scheduled release occurred.
+  // The observed market movement cannot prove the official release happened.
   const recent=(r.events||[]).filter(e=>
    e?.source==='BLS_OFFICIAL_CALENDAR'&&
    e.status==='SCHEDULED_NOT_RELEASED'&&
    Number.isSafeInteger(e.at)&&e.at+4*3600000<Date.now()&&
    Date.now()-e.at<48*3600000).sort((a,b)=>b.at-a.at);
   if(recent.length){
-   const e=recent[0];
+   const event=recent[0];
    const box=node('section','macro-reaction-panel');
-   box.append(node('strong','','BTC · цена вокруг времени в календаре'),
-    node('p','muted',e.title+' · '+niceTime(e.at)+
-     '. Не доказано, что движение вызвано этим событием.'));
-   const button=node('button','ghost','Проверить реакцию · M5');
-   button.type='button';
-   const state=node('p','chart-status',
-    'Только вручную · до 6 запросов в сутки · интервал 30 минут');
-   const summary=node('div','macro-reaction-steps');
-   button.addEventListener('click',async()=>{
-    button.disabled=true;
-    state.textContent='Проверяем закрытые M5 и лимит…';
-    summary.replaceChildren();
-    try{
-     const result=await budget.load('eventStudy',async()=>{
-      const evidence=await fetchScheduledEventReaction(e,{symbol:'BTCUSDT'});
-      return evidence.state==='OBSERVED'?{...evidence,state:'OK'}:evidence;
-     },{key:'BTCUSDT:'+e.at});
-     const accepted=['OK','STALE'].includes(result.state)&&
-      Array.isArray(result.observations);
-     state.textContent=(accepted?'Источник: Binance Spot · закрытые M5':
-      'Наблюдение не подтверждено: '+result.state)+quotaLine(result,'eventStudy');
-     if(accepted){
-      for(const item of result.observations){
-       summary.append(node('span','',item.minutes+' мин · '+
-        (item.returnPercent>0?'+':'')+item.returnPercent.toFixed(2)+'%'+
-        ' · диапазон '+item.lowestPercent.toFixed(2)+'%…'+
-        item.highestPercent.toFixed(2)+'%'));
+   box.append(node('strong','','BTC / ETH · сравнение с двумя предыдущими днями'),
+    node('p','muted',event.title+' · '+niceTime(event.at)+
+     '. Один запрос 625 закрытых M5 по Spot; тот же час UTC за 1 и 2 дня '+
+     'до планового события. Это не контроль всех других новостей.'));
+   for(const symbol of ['BTCUSDT','ETHUSDT']){
+    const row=node('section','macro-comparison-symbol');
+    const button=node('button','ghost',
+     'Исследовать '+(symbol==='BTCUSDT'?'BTC':'ETH')+' · M5');
+    button.type='button';
+    const state=node('p','chart-status',
+     'По запросу · общий лимит 6 исследований/сутки · интервал 30 минут');
+    const summary=node('div','macro-reaction-steps');
+    button.addEventListener('click',async()=>{
+     button.disabled=true;
+     state.textContent='Проверяем 625 свечей M5 и локальный лимит…';
+     summary.replaceChildren();
+     try{
+      // A unique cache key avoids reusing old, single-window eventStudy data.
+      const result=await budget.load('eventStudy',async()=>{
+       const response=await fetchBlsM5Comparison(event,{symbol});
+       return response.state==='OBSERVED'?{...response,state:'OK'}:response;
+      },{key:symbol+':'+event.at+':compare'});
+      const accepted=['OK','STALE'].includes(result.state)&&
+       result.version===COMPARE_VERSION&&
+       result.completeM5Candles===625&&
+       Array.isArray(result.comparison)&&result.comparison.length===3;
+      if(!accepted){
+       state.textContent='Исследование не подтверждено: '+result.state+
+        (result.sourceState?' / '+result.sourceState:'')+
+        quotaLine(result,'eventStudy');
+       summary.append(node('p','muted',
+        result.reason||'Требуются полные закрытые M5; пропуски не восстанавливаем.'));
+      }else{
+       state.textContent=(result.state==='STALE'?
+        'Сохранённый архив сравнения · ':'Полное сравнение · ')+symbol+
+        ' · '+result.completeM5Candles+' M5'+quotaLine(result,'eventStudy');
+       for(const observation of result.comparison){
+        const signed=x=>(x>0?'+':'')+x.toFixed(2)+'%';
+        const difference=observation.differenceAbsolutePp;
+        summary.append(node('span','',
+         observation.minutes+' мин · событие '+signed(observation.eventReturnPercent)+
+         ' · вчера '+signed(observation.previousDayReturnPercent)+
+         ' · 2 дня назад '+signed(observation.twoDaysBeforeReturnPercent)+
+         ' · средняя |амплитуда| контроля '+
+         observation.priorMeanAbsolutePercent.toFixed(2)+'%'+
+         ' · разница |движения| '+(difference>0?'+':'')+
+         difference.toFixed(2)+' п.п.'));
+       }
+       // Preserve the first complete observation; never rewrite older snapshots.
+       comparisonHistory.save({...result,state:'OBSERVED'});
+       refreshSavedComparisons();
       }
-     }else summary.append(node('p','muted',
-      result.reason||'Нет непрерывной полной истории M5.'));
-    }catch(err){
-     state.textContent='Не удалось проверить M5';
-     summary.append(node('p','muted',String(err?.message||err).slice(0,120)));
-    }finally{button.disabled=false;}
-   });
-   box.append(button,state,summary);
+     }catch(err){
+      state.textContent='Ошибка исследования M5';
+      summary.append(node('p','muted',
+       String(err?.message||err).slice(0,120)));
+     }finally{button.disabled=false;}
+    });
+    row.append(button,state,summary);
+    box.append(row);
+   }
+   box.append(node('p','footnote',
+    'Всего 2 контрольных окна. Не исключены другие события, '+
+    'пересмотры данных и рыночный шум. Ни причинность, ни точность прогноза '+
+    'по этим числам не установлены.'));
    list.append(box);
   }
+  showSavedComparisons(list);
  }
  function showEventHistory(){
   const status=get('overview-event-history-status'),

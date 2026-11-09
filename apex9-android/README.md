@@ -91,3 +91,15 @@ Public Bluesky search is optional and on-demand when the asset Data pane is
 opened: max six attempts per UTC day on this installation, minimum two-hour
 spacing, per-symbol caching. Results are labelled user opinions, not verified
 news or sentiment measurements.
+
+## APEX 9.1 – event-matched historical M5 observation
+On the Macro screen, a recent official *scheduled* BLS timestamp can be compared
+with BTCUSDT or ETHUSDT Spot M5 observations at the exact same UTC clock on the
+previous one and two days. The entire 52h5m 625-candle period is fetched with
+**one** bounded public Binance request (up to 650 rows, no credentials), subject
+to the existing eventStudy local allowance (6 attempts/day, 30m spacing), only
+when the user explicitly requests it. Missing, unfinished or duplicated M5
+candles fail closed. The result is not an estimated macro effect, not a
+verified BLS release, and not a trading signal. Two controls alone do not
+support statistical significance. The first successful comparison per event
+and asset is retained locally (up to 80 snapshots, for at most 90 days).
