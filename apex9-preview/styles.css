@@ -1772,13 +1772,6 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
 .header-catalog-button{border:1px solid #39727b;background:#0e3039;color:#c6f5ec;
  border-radius:12px;min-height:39px;padding:8px 12px;font-weight:750}
 .topbar .identity{margin-right:auto}
-body[data-view="overview"] #view-overview>.metrics .metric:nth-child(2),
-body[data-view="overview"] #view-overview>.metrics .metric:nth-child(3),
-body[data-view="overview"] #view-overview>.card.block:not(:first-of-type),
-body[data-view="overview"] #view-overview>.overview-diagnostics,
-body[data-view="overview"] #view-overview>.quality-quicklink{display:none!important}
-body[data-view="overview"] #view-overview>.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
-body[data-view="overview"] .home-actions{margin-top:17px}
 .asset-shortcuts{margin:8px 0 24px}
 .favorites-heading-actions{display:flex;align-items:center;gap:10px}
 .favorites-heading-actions .ghost{min-height:36px;padding:7px 11px}
@@ -1917,4 +1910,58 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .forecast-target{padding:9px 5px}
  .forecast-target .forecast-copy{right:0}
  .forecast-target-price{font-size:12px;margin-right:22px}
+}
+
+/* APEX 9 overview v2: the selected asset cannot masquerade as the whole market. */
+.overview-global-panel{padding:18px!important;border:1px solid #35727b;
+ background:linear-gradient(145deg,#142d39,#101d2d 75%);border-radius:20px}
+.overview-global-top{display:flex;justify-content:space-between;align-items:center;
+ gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.overview-global-source{color:#9dcad0;font-size:11px;font-weight:730}
+.overview-global-state{background:#1d3b45;border:1px solid #447680;color:#a6ebe0;
+ border-radius:999px;padding:6px 9px;font-size:10px;font-weight:750}
+.overview-global-state[data-state="STALE"],.overview-global-state[data-state="INVALID"]{
+ border-color:#91683d;background:#3c3127;color:#f0c68b}
+.overview-global-state:not([data-state="OK"]):not([data-state="STALE"]){
+ border-color:#755950;background:#31252b;color:#e9b4a9}
+.overview-global-main{display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+.overview-global-main span{color:#acc2cc;font-size:12px}
+.overview-global-main strong{font-size:clamp(24px,6.5vw,37px);color:#e3fff9;
+ font-variant-numeric:tabular-nums;letter-spacing:-.025em;overflow-wrap:anywhere}
+.overview-global-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.overview-global-tile{display:flex;flex-direction:column;gap:10px;
+ padding:12px 10px;background:#0b2631;border:1px solid #315560;border-radius:13px;min-width:0}
+.overview-global-tile span{font-size:10px;line-height:1.4;color:#99b3bc}
+.overview-global-tile strong{font-size:clamp(12px,3.6vw,18px);
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:#def7f2}
+.overview-global-delta.positive{color:#8ef0c0}
+.overview-global-delta.negative{color:#f3a4ac}
+.overview-global-updated{font-size:10px;line-height:1.5;color:#9fc2c9;margin:14px 0 7px}
+.overview-global-panel .footnote{font-size:10px;margin:4px 0 0;line-height:1.6}
+.overview-destinations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:9px;margin:10px 0 16px}
+.overview-destinations button{display:flex;justify-content:space-between;
+ align-items:center;gap:9px;padding:11px 12px;min-height:48px;
+ background:#113139;border:1px solid #39737e;color:#c8f3eb;border-radius:14px;
+ font-size:12px;font-weight:750;text-align:left}
+.overview-destinations button span{font-size:22px}
+.source-audit-details{margin-top:16px;border-top:1px solid #305c67;padding-top:10px}
+.source-audit-details>summary{cursor:pointer;min-height:42px;padding:10px 5px;
+ font-size:12px;color:#bae5e4;font-weight:750}
+.source-audit-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;margin:10px 0 12px}
+.source-audit-metrics>div{display:flex;flex-direction:column;gap:7px;
+ background:#0f2a34;border:1px solid #2d5b64;border-radius:12px;
+ min-width:0;padding:10px 8px}
+.source-audit-metrics span{font-size:10px;color:#b2c5cb;line-height:1.4}
+.source-audit-metrics strong{font-size:16px;color:#ddf5f1;overflow-wrap:anywhere}
+.forecast-compact-stage small{background:#102a34;border-radius:7px;
+ padding:3px 7px;color:#94eae0;font-weight:790;font-size:11px}
+@media(max-width:420px){
+ .overview-global-panel{padding:14px 12px!important}
+ .overview-global-grid{gap:6px}
+ .overview-global-tile{padding:10px 7px}
+ .overview-destinations button{padding:10px 9px;font-size:11px}
+ .source-audit-metrics{gap:5px}
+ .source-audit-metrics>div{padding:9px 6px}
 }
