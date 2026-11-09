@@ -4,7 +4,7 @@
  * or global-news-to-asset attribution without an explicit headline match.
  */
 import {assetHeadlineMatches} from './market-event-router.mjs';
-import {consolidateArticles} from './news-source-fusion.mjs';
+import {consolidateArticles,cleanArticleUrl} from './news-source-fusion.mjs';
 
 const eligible=new Set(['OK','EMPTY','STALE']);
 const NEWS_WINDOW=48*3600_000;
@@ -62,6 +62,20 @@ export function buildAssetNewsContext(symbol,{gdelt=null,live=null}={},{
    append(article,{fallbackSource:'Общая лента',timeKind:'UNKNOWN',
     old:live.state==='STALE'||snapshotOld});
  const stories=consolidateArticles(candidates,{limit,perDomain:4});
+ // When an indexer and a publisher point to the SAME canonical article URL,
+ // use the publisher's PUBLISHED date for the timeline, not the later
+ // GDELT index timestamp. Never carry metadata across different URLs.
+ for(const story of stories){
+  const published=candidates.filter(x=>
+   x.timeKind==='PUBLISHED'&&cleanArticleUrl(x.href)===story.href)
+   .sort((a,b)=>b.observedAt-a.observedAt)[0];
+  if(!published)continue;
+  story.observedAt=published.observedAt;
+  story.timeKind='PUBLISHED';
+  story.source=published.source;
+  story.outdated=published.outdated;
+ }
+ stories.sort((a,b)=>b.observedAt-a.observedAt);
  const usable=eligible.has(gdelt?.state)||eligible.has(live?.state);
  return {
   state:stories.length?'OK':usable?'EMPTY':'UNAVAILABLE',
