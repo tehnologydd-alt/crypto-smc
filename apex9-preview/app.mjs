@@ -17,7 +17,9 @@ import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs
 import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
 import {workspaceArea,assetAreaForEntry,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
-import {routeAssetNews} from './market-event-router.mjs';
+import {buildAssetNewsContext} from './asset-news-context.mjs';
+import {formatNewsCollectionAnalysis,analyzeNewsCollection} from './news-research-analysis.mjs';
+import {sourceStatusLine} from './live-news-collection.mjs';
 import {fetchBlueskyPosts} from './social-public.mjs';
 import {discussionEvidence} from './discussion-evidence.mjs';
 import {createEditorialBudget} from './editorial-budget.mjs';
@@ -318,7 +320,15 @@ function setQualityArea(requested){
  }
 }
 
-const editorialDashboard=initEditorialDashboard({getSymbol:()=>chosen});
+let recentAssetContext=null;
+const editorialDashboard=initEditorialDashboard({
+ getSymbol:()=>chosen,
+ onNewsObservation:()=>{
+  // Shared headlines are already fetched; never refresh market or forecasts.
+  if(recentAssetContext?.symbol===chosen)
+   renderAssetNews(recentAssetContext.sources?.find(s=>s.id==='gdelt-news'));
+ }
+});
 // The high-frequency price refresh must NEVER generate unbounded GDELT queries.
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
@@ -1128,7 +1138,50 @@ async function loadAssetSocial(symbol){
   list.append(row);
  }
 }
+function renderAssetNews(gdelt){
+ const merged=buildAssetNewsContext(chosen,{
+  gdelt,live:editorialDashboard.getNewsObservation()
+ },{now:Date.now(),limit:6});
+ const dest=el('asset-news-list');
+ clear(dest);
+ const asset=chosen.replace(/(USDT|USDC|USD|EUR)$/,'');
+ text('asset-news-source-status','Фактические состояния · '+sourceStatusLine(merged.sources));
+ text('asset-news-summary',formatNewsCollectionAnalysis(
+  analyzeNewsCollection(merged.stories,{asset,now:Date.now()}),asset));
+ if(merged.state==='UNAVAILABLE'){
+  text('asset-news-state','Нет успешных ответов новостных источников для исследования.');
+  dest.append(create('p','muted','Проверьте состояния источников выше. Новые публикации не подставляются.'));
+  return;
+ }
+ if(merged.state==='EMPTY'){
+  text('asset-news-state','Источники проверены, но явных упоминаний этого актива нет.');
+  dest.append(create('p','muted','Общие новости не считаются подтверждёнными событиями этой монеты.'));
+  return;
+ }
+ if(merged.state==='INVALID'){
+  text('asset-news-state','Ошибка проверки новостной подборки.');
+  return;
+ }
+ text('asset-news-state',merged.stories.length+
+  ' публикаций с явным названием актива · только новостный контекст');
+ for(const item of merged.stories){
+  const row=create('article','asset-event-row');
+  const link=create('a','',item.title);
+  link.href=item.href;link.target='_blank';link.rel='noopener noreferrer';
+  const temporal=item.timeKind==='PUBLISHED'?'публикация':
+   item.timeKind==='INDEXED'?'индексация':'время не уточнено';
+  const indexers=Array.isArray(item.indexedBy)?item.indexedBy:[];
+  const providers=indexers.length>1?
+   ' · индексаторы: '+indexers.join(', ')+' (не независимое подтверждение)':'';
+  row.append(link,create('small','',
+   item.source+' · '+temporal+' '+new Date(item.observedAt).toLocaleString('ru-RU')+
+   providers+(item.outdated?' · архив / не перепроверено':'')+
+   ' · факт события и влияние на цену не проверены'));
+  dest.append(row);
+ }
+}
 function renderContext(context){
+ recentAssetContext=context;
  renderGlobalOverview(context);
  const list=el('context-source-list'),global=el('global-context'),
   chain=el('btc-chain-context'),news=el('news-articles');
@@ -1138,6 +1191,8 @@ function renderContext(context){
    node.append(create('p','muted','Нет проверенных сведений.'));
   clear(el('asset-news-list'));
   text('asset-news-state','Нет проверенных упоминаний актива.');
+  text('asset-news-source-status','Источники по активу пока не проверены.');
+  text('asset-news-summary','Нет полученных публикаций для анализа.');
   el('asset-news-list').append(create('p','muted','Источники по активу пока не проверены.'));
   showAssetEventHistory();
   text('external-summary','Внешние источники не были получены.');
@@ -1176,27 +1231,9 @@ function renderContext(context){
   b?.state==='UNSUPPORTED'?'Показатели сети Bitcoin доступны только для BTC.':
   'mempool.space: '+(b?.state||'OFFLINE')+(b?.error?' · '+b.error:'')));
  const n=data['gdelt-news'];
- const targeted=routeAssetNews(chosen,n,{max:5});
  assetEventArchive.captureAsset(chosen,{news:n});
  showAssetEventHistory();
- const assetEvents=el('asset-news-list');
- clear(assetEvents);
- text('asset-news-state',n?.state==='STALE'?
-  'Сохранённые упоминания: актуальность не подтверждена.':
-  'GDELT · публикации с однозначным названием актива.');
- if(targeted.length){
-  for(const item of targeted){
-   const row=create('article','asset-event-row');
-   const link=create('a','',item.title);
-   link.href=item.url;link.target='_blank';link.rel='noopener noreferrer';
-   row.append(link,create('small','',
-    'GDELT · '+new Date(item.seenAt).toLocaleString('ru-RU')+
-    ' · упоминание, не подтверждённое влияние'+
-    (item.outdated?' · архив':'')));
-   assetEvents.append(row);
-  }
- }else assetEvents.append(create('p','muted',
-  'Подтверждённых упоминаний именно этого актива нет.'));
+ renderAssetNews(n);
  if(n?.state==='OK'&&n.data?.articles?.length){
   for(const item of n.data.articles){
    const row=create('div','source-line');
