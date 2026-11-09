@@ -17,6 +17,8 @@ import {initResearchSynthesisDashboard} from './research-synthesis-dashboard.mjs
 import {planAssetExplanation,describeResearchQuality} from './research-quality-route.mjs';
 import {workspaceArea,assetAreaForEntry,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
+import {routeAssetNews} from './market-event-router.mjs';
+import {fetchBlueskyPosts} from './social-public.mjs';
 import {createEditorialBudget} from './editorial-budget.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
@@ -298,6 +300,7 @@ function setAssetArea(requested){
   if(mode==='data')requestAnimationFrame(()=>{
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
+   void loadAssetSocial(chosen);
   });
  }
 }
@@ -866,6 +869,7 @@ function navigate(view,targetId){
    if(area==='data'){
     void liquidityDashboard.refresh(chosen);
     void onChainDashboard.refresh(chosen);
+    void loadAssetSocial(chosen);
    }
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
@@ -880,7 +884,10 @@ function navigate(view,targetId){
    back.setAttribute('aria-label',fromPassport?
     'Вернуться к паспорту актива':'Вернуться к прогнозам');
   }
-  if(view==='overview')favoriteManager.openOverviewSummary();
+  if(view==='overview'){
+   favoriteManager.openOverviewSummary();
+   void editorialDashboard.openOverview();
+  }
   if(view==='news'||view==='macro')void editorialDashboard.open(view);
   // Contextual entry must keep the flat task selector on screen.
   const node=view==='overview'?
@@ -911,6 +918,7 @@ function markSelectedAsset(){
  evidenceDashboard.refreshAssetChoices();
 }
 updateTab('overview');
+void editorialDashboard.openOverview();
 markSelectedAsset();
 
 function suggestions(query){
@@ -1041,6 +1049,36 @@ function appendLine(target,label,value){
  line.append(create('span','',label),create('strong','',value));
  target.append(line);
 }
+async function loadAssetSocial(symbol){
+ const list=el('asset-social-list'),state=el('asset-social-state');
+ if(!symbol||!list||!state)return;
+ clear(list);
+ state.textContent='Проверяем кеш публичных обсуждений · Bluesky…';
+ const result=await assetNewsBudget.load('social',
+  ()=>fetchBlueskyPosts(symbol),{key:symbol});
+ if(symbol!==chosen)return;
+ if(!['OK','EMPTY','STALE'].includes(result.state)){
+  state.textContent='Bluesky · '+result.state+
+   ' · запросов '+(result.quota?.used??'—')+'/6 за сутки';
+  list.append(create('p','muted','Обсуждения недоступны. Мнения пользователей не подменяются сведениями.'));
+  return;
+ }
+ state.textContent='Bluesky · '+(result.state==='STALE'?'архив, требуется обновление':
+  'публичные сообщения')+' · запросов '+(result.quota?.used??'—')+'/6';
+ if(!result.posts?.length){
+  list.append(create('p','muted','Новых публичных обсуждений для этого актива нет.'));
+  return;
+ }
+ for(const post of result.posts){
+  const row=create('article','asset-event-row');
+  const link=create('a','',post.text);
+  link.href=post.href;link.target='_blank';link.rel='noopener noreferrer';
+  row.append(link,create('small','',
+   post.author+' · '+new Date(post.indexedAt).toLocaleString('ru-RU')+
+   ' · непроверенное мнение'+(result.state==='STALE'?' · архив':'')));
+  list.append(row);
+ }
+}
 function renderContext(context){
  renderGlobalOverview(context);
  const list=el('context-source-list'),global=el('global-context'),
@@ -1049,6 +1087,9 @@ function renderContext(context){
  if(!context){
   for(const node of [list,global,chain,news])
    node.append(create('p','muted','Нет проверенных сведений.'));
+  clear(el('asset-news-list'));
+  text('asset-news-state','Нет проверенных упоминаний актива.');
+  el('asset-news-list').append(create('p','muted','Источники по активу пока не проверены.'));
   text('external-summary','Внешние источники не были получены.');
   return;
  }
@@ -1085,6 +1126,25 @@ function renderContext(context){
   b?.state==='UNSUPPORTED'?'Показатели сети Bitcoin доступны только для BTC.':
   'mempool.space: '+(b?.state||'OFFLINE')+(b?.error?' · '+b.error:'')));
  const n=data['gdelt-news'];
+ const targeted=routeAssetNews(chosen,n,{max:5});
+ const assetEvents=el('asset-news-list');
+ clear(assetEvents);
+ text('asset-news-state',n?.state==='STALE'?
+  'Сохранённые упоминания: актуальность не подтверждена.':
+  'GDELT · публикации с однозначным названием актива.');
+ if(targeted.length){
+  for(const item of targeted){
+   const row=create('article','asset-event-row');
+   const link=create('a','',item.title);
+   link.href=item.url;link.target='_blank';link.rel='noopener noreferrer';
+   row.append(link,create('small','',
+    'GDELT · '+new Date(item.seenAt).toLocaleString('ru-RU')+
+    ' · упоминание, не подтверждённое влияние'+
+    (item.outdated?' · архив':'')));
+   assetEvents.append(row);
+  }
+ }else assetEvents.append(create('p','muted',
+  'Подтверждённых упоминаний именно этого актива нет.'));
  if(n?.state==='OK'&&n.data?.articles?.length){
   for(const item of n.data.articles){
    const row=create('div','source-line');
@@ -1162,7 +1222,10 @@ async function investigate(value){
   onChainDashboard.clear(symbol);
  }
  markSelectedAsset();
- if(changed&&document.body.dataset.view==='asset')void loadCandleHistory(true);
+ if(changed&&document.body.dataset.view==='asset'){
+  void loadCandleHistory(true);
+  if(el('view-asset').dataset.assetArea==='data')void loadAssetSocial(symbol);
+ }
  text('asset-name',chosen);
  el('asset-input').value=chosen;
  if(document.body.dataset.view==='asset')void showAssetScenarios(chosen);
