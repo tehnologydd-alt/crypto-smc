@@ -123,10 +123,16 @@ object ApexAutoForecast {
         dao.pruneCandles(asset, "1h", max(0L, rows.last().openTime - 4_320L * STEP))
 
         val latest = dao.latestResearchForecast(asset)
-        if (latest != null && latest.hypothesisJson.contains(METHOD)) {
-            val stage = progress(latest, dao, now)
-            if (stage != "COMPLETED")
-                return Report(asset, "UPDATED", stage, "История и этап проверены")
+        if (latest != null) {
+            val stage = when {
+                latest.hypothesisJson.contains(ApexDirectionalForecast.METHOD) ->
+                    ApexDirectionalForecast.progress(latest, dao, now)
+                latest.hypothesisJson.contains(METHOD) ->
+                    progress(latest, dao, now)
+                else -> "UNKNOWN"
+            }
+            if (stage != "COMPLETED" && stage != "UNKNOWN")
+                return Report(asset, "UPDATED", stage, "Проверены реальные H1-свечи и контрольные уровни")
         }
         // A new candidate is created only on a newly observed, CURRENT closed H1 bar.
         val last = recent.last()
@@ -149,19 +155,27 @@ object ApexAutoForecast {
         val width=changes[rank]
         if (!width.isFinite() || width<=0)
             return Report(asset, "INSUFFICIENT", "UNKNOWN", "Недостаточно исторического изменения")
+        val direction = ApexDirectionalForecast.direction(recent, width)
+            ?: return Report(asset, "NO_CLEAR_DIRECTION", "UNKNOWN",
+                "Недостаточно выражено направление последних 6 H1: сценарий не публикуется")
         val close=rounded(last.close)
         val low=rounded(last.close * exp(-width))
         val high=rounded(last.close * exp(width))
         if (!validPrice(low) || !validPrice(high) || low >= close || high <= close)
             return Report(asset, "INVALID", "UNKNOWN", "Диапазон не вычислен")
         val anchor=last.closeTime
-        val id="range1:$asset:1h:$anchor"
+        val id="direction2:$asset:1h:$anchor"
+        val levelStudy=ApexDirectionalForecast.build(close,low,high,direction)
         val payload=JSONObject()
-            .put("model",METHOD).put("anchorCloseAt",anchor)
-            .put("targetCloseAt",anchor+4L*STEP)
+            .put("model",ApexDirectionalForecast.METHOD)
+            .put("decisionMethod","SIX_BAR_EFFICIENCY_V1")
+            .put("direction",direction)
+            .put("anchorCloseAt",anchor)
+            .put("targetCloseAt",anchor+ApexDirectionalForecast.HORIZON.toLong()*STEP)
             .put("anchorClose",close).put("bandLow",low).put("bandHigh",high)
-            .put("levelStudy",ApexResearchLevels.build(close,low,high))
-            .put("horizonBars",4).put("sampleBars",SAMPLE)
+            .put("levelStudy",levelStudy)
+            .put("horizonBars",ApexDirectionalForecast.HORIZON)
+            .put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)
         val inserted=dao.publishResearchForecast(ResearchForecast(
@@ -171,11 +185,11 @@ object ApexAutoForecast {
         if (inserted != -1L) {
             dao.appendResearchStage(ResearchForecastStage(
                 id,"PENDING_CONFIRMATION",now,now,
-                "Прогнозная гипотеза построена по 96 закрытым H1-свечам. Ожидается новая свеча."
+                "Опубликовано одно направление и неизменяемые TP1–TP3/SL. Ожидаем реальную H1-свечу."
             ))
         }
         return Report(asset,if(inserted!=-1L) "CREATED" else "ALREADY_EXISTS",
-            "PENDING_CONFIRMATION","Ожидает первого нового H1-наблюдения")
+            "PENDING_CONFIRMATION","Одно направление: $direction · 24 H1 на проверку")
     }
 
     private suspend fun progress(forecast: ResearchForecast, dao: ResearchDao, now: Long): String {
