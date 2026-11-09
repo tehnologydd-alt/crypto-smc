@@ -98,3 +98,22 @@ test('CoinPaprika rejects wrong asset, stale or malformed snapshots',async()=>{
  assert.equal((await fetchPaprikaTicker('BTCUSDT',
   {fetchImpl,now:()=>at})).state,'OK');
 });
+
+test('adding CoinMarketCap budget keeps existing public source usage intact',async()=>{
+ const storage=memory();
+ const b=createFreeSourceBudget({storage,now:()=>at});
+ assert.equal((await b.load('okx',async()=>({state:'OK',data:{price:5}}),
+  {key:'BTCUSDT'})).state,'OK');
+ const key='apex9:no-key-budget:v1';
+ const old=JSON.parse(storage.getItem(key));
+ delete old.daily.cmc;delete old.monthly.cmc;delete old.last.cmc;
+ storage.setItem(key,JSON.stringify(old));
+ const next=createFreeSourceBudget({storage,now:()=>at});
+ assert.equal(next.status('okx').used,1);
+ assert.equal(next.status('cmc').used,0);
+ assert.equal(next.status('cmc').limit,6);
+ assert.equal((await next.load('cmc',async()=>({state:'OK',data:{priceUsd:100}}),
+  {key:'BTCUSDT'})).state,'OK');
+ assert.equal(next.status('cmc').used,1);
+ assert.equal(next.status('okx').used,1);
+});
