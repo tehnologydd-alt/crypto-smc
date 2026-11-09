@@ -166,6 +166,11 @@
 
     <section class="view hidden" id="view-asset" data-asset-area="chart" aria-labelledby="asset-title">
       <div class="section-title"><h2 id="asset-title">Актив</h2><button type="button" class="ghost" data-go="catalog">Выбрать другой</button></div>
+      <nav id="asset-workspace-anchor" class="asset-workspace-nav" role="group" aria-label="Разделы анализа выбранного актива">
+        <button type="button" class="asset-workspace-button is-active" data-asset-area-button="chart" aria-pressed="true" aria-label="График: закрытые свечи и сценарии"><span>График</span><small>Свечи · сценарии</small></button>
+        <button type="button" class="asset-workspace-button" data-asset-area-button="structure" aria-pressed="false" aria-label="Структура: режим рынка, скорость и BOS CHoCH"><span>Структура</span><small>Режим · BOS</small></button>
+        <button type="button" class="asset-workspace-button" data-asset-area-button="data" aria-pressed="false" aria-label="Данные: ликвидность, стаканы и сеть"><span>Данные</span><small>Ликвидность · сеть</small></button>
+      </nav>
     <section class="hero card" aria-labelledby="asset-name">
       <div class="hero-heading">
         <div>
@@ -193,11 +198,7 @@
         </div>
         <button id="asset-explain" type="button">Объяснить исследования</button>
       </section>
-      <nav id="asset-workspace-anchor" class="asset-workspace-nav" role="group" aria-label="Разделы паспорта актива">
-        <button type="button" class="asset-workspace-button is-active" data-asset-area-button="chart" aria-pressed="true">График</button>
-        <button type="button" class="asset-workspace-button" data-asset-area-button="structure" aria-pressed="false">Структура</button>
-        <button type="button" class="asset-workspace-button" data-asset-area-button="data" aria-pressed="false">Данные</button>
-      </nav>
+
       <article class="card block candle-panel" data-asset-pane="chart">
         <div class="chart-heading">
           <div><h3>Свечная история</h3><p class="muted">Binance Spot · OHLCV · наблюдения, не прогноз</p></div>
