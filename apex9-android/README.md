@@ -103,3 +103,18 @@ candles fail closed. The result is not an estimated macro effect, not a
 verified BLS release, and not a trading signal. Two controls alone do not
 support statistical significance. The first successful comparison per event
 and asset is retained locally (up to 80 snapshots, for at most 90 days).
+
+## APEX public no-key research sources (personal research mode)
+The Overview reads Alternative.me Fear & Greed (market-wide only), at most
+3 attempts/day, 80/month, 6h spacing. When the user opens an asset's Data
+page, OKX Spot public ticker is requested at most 12/day, 300/month, 1h
+spacing. DEX Screener is at most 8/day, 210/month, 2h spacing;
+GeckoTerminal at most 6/day, 160/month, 3h spacing. DEX is limited to
+exact prechecked WETH/WSOL network/contract mappings; other instruments
+are explicitly unsupported. No automatic DEX ticker-to-contract inference.
+These are conservative **per-device** caps, NOT official provider guarantees
+nor shared IP limits. All requests are public read-only GET with no user
+accounts, tokens or order execution. Failures count as attempts; cached
+results carry observed/cached timestamps and are labelled stale if necessary.
+CoinPaprika and key-required providers are not embedded in the distributed APK
+pending confirmation of access and acceptable redistribution/licensing terms.

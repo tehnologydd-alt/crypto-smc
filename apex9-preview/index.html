@@ -93,6 +93,11 @@
         <p id="overview-global-updated" class="overview-global-updated">Время источника пока не получено.</p>
         <p class="footnote">Это состояние всего крипторынка, а не изменение выбранного актива и не прогноз направления.</p>
       </article>
+      <article class="card block free-fear-panel" aria-label="Глобальное настроение крипторынка">
+        <div class="section-title"><h3>Настроение рынка</h3><button class="ghost" type="button" id="free-fear-refresh">Проверить</button></div>
+        <div class="free-fear-inline"><strong id="free-fear-value">—</strong><p id="free-fear-status" class="muted" role="status">Ожидаем Alternative.me…</p></div>
+        <p class="footnote">Fear &amp; Greed — сводный индекс настроений крипторынка. Не является прогнозом направления отдельной монеты. <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener noreferrer">Источник Alternative.me</a>.</p>
+      </article>
       <article class="card block overview-events-panel" aria-label="Главные события крипторынка">
         <div class="section-title"><h3>События для всего рынка</h3><span>Новости · макро · календарь</span></div>
         <p id="overview-events-status" class="muted" role="status">Проверяем доступные публичные источники…</p>
@@ -322,6 +327,10 @@
           <p class="footnote">События конкретного актива сопоставляются с названием в публикации; общий макрофон показывается отдельно и не считается доказанной причиной движения.</p>
         </details>
         <p class="footnote">Посты пользователей не проверены и не являются достоверными новостями, настроением рынка или торговыми сигналами. Максимум 6 поисков в сутки на телефон, интервал 2 часа.</p>
+        <div class="section-title"><h4>Дополнительные бесплатные источники</h4><button class="ghost" type="button" id="free-asset-market-refresh">Проверить</button></div>
+        <p id="free-asset-market-status" class="muted" role="status">При открытии «Данные» сравниваем публичные рыночные наблюдения.</p>
+        <div id="free-asset-market-results" class="free-asset-source-list"></div>
+        <p class="footnote">OKX — котировка Spot. DEX Screener и GeckoTerminal — только точно сопоставленные WETH/WSOL-пулы; их цены не приравниваются к нативным ETH/SOL. Источники не управляют ордерами.</p>
         <div class="section-title"><h4>Рыночные сведения</h4></div>
         <div class="data-row"><span>Объём котируемой валюты, 24 ч</span><strong id="quote-volume">—</strong></div>
         <div class="data-row"><span>Время рыночного наблюдения</span><strong id="ticker-time">—</strong></div>
@@ -602,6 +611,12 @@
         <h3>Упоминания актива в новостях</h3>
         <div id="news-articles" class="stack"><p class="muted">Публикации ещё не загружены.</p></div>
         <p class="footnote">Совпадение с поисковым запросом не означает, что публикация достоверна или повлияет на рынок.</p>
+      </article>
+      <article class="card block" id="free-provider-center-panel">
+        <div class="section-title"><h3>Бесплатные API · лимиты</h3><span>Без ключей · по запросу</span></div>
+        <p id="free-provider-center-status" class="muted" role="status">Проверяем сохранённые счётчики…</p>
+        <div id="free-provider-center" class="free-source-center-list"></div>
+        <p class="footnote">Остатки считаются только на этом телефоне. Общие IP-квоты и условия провайдеров имеют приоритет; ошибки сети, CORS и ограничения отображаются без выдуманных результатов. API-ключи и платные тарифы не подключены.</p>
       </article>
       <article class="card block native-storage-panel" id="native-storage-panel">
         <div class="section-title"><h3>Локальный Android-центр</h3><span>Room · DataStore · WorkManager</span></div>

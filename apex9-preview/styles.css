@@ -2515,3 +2515,17 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 .macro-compare-history summary{font-size:12px;font-weight:700;color:#c1ece7;
  cursor:pointer;line-height:1.7}
 .macro-compare-history .apex-event-history-row strong{font-size:12px;color:#d6f0eb}
+
+/* Independent free no-key API evidence; neutral display, no trade guidance. */
+.free-fear-panel{margin:12px 0}
+.free-fear-inline{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.free-fear-inline strong{font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums;color:#d4f3ec}
+.free-fear-inline .muted{flex:1;min-width:170px;font-size:12px;line-height:1.5}
+.free-asset-source-list,.free-source-center-list{display:grid;gap:8px;margin:11px 0}
+.free-source-result,.free-source-center-row{padding:10px 12px;border:1px solid #35515f;
+ border-radius:11px;background:#102833;display:flex;flex-direction:column;gap:5px;min-width:0}
+.free-source-result strong,.free-source-center-row strong{font-size:12px;color:#d9f3ee}
+.free-source-result small,.free-source-center-row small,.free-source-center-row span{
+ font-size:10px;color:#a5c3c9;line-height:1.5;overflow-wrap:anywhere}
+.free-source-result .free-source-figure{font-size:13px;color:#e0f1ec;
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere}

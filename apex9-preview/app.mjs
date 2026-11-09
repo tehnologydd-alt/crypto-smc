@@ -21,6 +21,7 @@ import {routeAssetNews} from './market-event-router.mjs';
 import {fetchBlueskyPosts} from './social-public.mjs';
 import {createEditorialBudget} from './editorial-budget.mjs';
 import {createEventHistory} from './event-history.mjs';
+import {initFreeSourceDashboard} from './free-source-dashboard.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
@@ -322,6 +323,7 @@ let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
+const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
 const radarDashboard=initRadarDashboard({
  getCatalog:()=>catalog,
  onOpenAsset:symbol=>{void investigate(symbol);navigate('asset','structure');}
@@ -872,6 +874,7 @@ function navigate(view,targetId){
     void liquidityDashboard.refresh(chosen);
     void onChainDashboard.refresh(chosen);
     void loadAssetSocial(chosen);
+    void freeSourceDashboard.openAsset(chosen);
    }
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
@@ -889,6 +892,7 @@ function navigate(view,targetId){
   if(view==='overview'){
    favoriteManager.openOverviewSummary();
    void editorialDashboard.openOverview();
+   void freeSourceDashboard.openOverview();
   }
   if(view==='news'||view==='macro')void editorialDashboard.open(view);
   // Contextual entry must keep the flat task selector on screen.
@@ -904,6 +908,7 @@ el('asset-explain').addEventListener('click',()=>openAssetExplanation(chosen));
 for(const button of document.querySelectorAll('[data-asset-area-button]'))
  button.addEventListener('click',()=>{
   setAssetArea(button.dataset.assetAreaButton);
+  if(button.dataset.assetAreaButton==='data')void freeSourceDashboard.openAsset(chosen);
   el('asset-workspace-anchor').scrollIntoView({behavior:'smooth',block:'start'});
  });
 for(const button of document.querySelectorAll('[data-quality-area-button]'))
@@ -921,6 +926,7 @@ function markSelectedAsset(){
 }
 updateTab('overview');
 void editorialDashboard.openOverview();
+void freeSourceDashboard.openOverview();
 markSelectedAsset();
 
 function suggestions(query){
