@@ -10,6 +10,7 @@ import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
+import {directionalQualitySummary} from './forecast-quality.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {planResearchLevels,analyzeResearchLevelSequence} from './research-level-sequence.mjs';
 import {displayPair,priceText,stagePresentation,
@@ -635,40 +636,106 @@ export function initFavoriteResearch({
   }
  }
  function renderStats(){
+  const now=Date.now(),chosen=[...selected];
   const stats=journalObservedStats(lastRows,{
-   selectedIds:[...selected],totalPublished:lastTotal,now:Date.now()
+   selectedIds:chosen,totalPublished:lastTotal,now
   });
+  const quality=directionalQualitySummary(lastRows,{selectedIds:chosen,now});
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
    const slot=id('forecast-stat-'+name);slot.replaceChildren();
+   const q=name==='all'?quality.all:quality.tracked;
+   slot.append(create('h4','',
+    name==='all'?'Все наблюдения':'Отмеченные пользователем'));
+   const study=create('section','forecast-quality-summary');
+   study.setAttribute('aria-label','Качество прогнозов · H1 → M5');
+   const heading=create('div','forecast-quality-heading');
+   heading.append(create('strong','','Качество прогнозов · H1 → M5'),
+    create('small','','Только исходные записи Room'));
+   study.append(heading);
+   if(!q.published){
+    study.append(create('p','forecast-quality-empty',
+     'Пока нет подтверждённых исследований по M5. Новые наблюдения появятся '+
+     'после публикации направленного прогноза и проверки реальных свечей.'));
+   }
+   const basics=create('div','forecast-quality-kpis');
+   for(const [label,count] of [
+    ['Сценариев M5',q.published],['Подтверждён вход',q.entered],
+    ['Завершено',q.finished],['В наблюдении',q.awaiting]]){
+    const metric=create('div','forecast-quality-kpi');
+    metric.append(create('span','',label),
+     create('strong','',fmt(count,0)));basics.append(metric);
+   }
+   study.append(basics);
+   const levels=create('div','forecast-quality-targets');
+   levels.append(create('strong','forecast-quality-subtitle',
+    'Касания TP · по закрытым M5'));
+   const tracks=create('div','forecast-quality-tracks');
+   for(const [label,number] of [
+    ['TP1',q.tp1],['TP2',q.tp2],['TP3',q.tp3]]){
+    const item=create('div','forecast-quality-track');
+    const labels=create('div','forecast-quality-track-title');
+    labels.append(create('span','',label),
+     create('strong','',fmt(number,0)+' / '+fmt(q.entered,0)));
+    const bar=create('div','forecast-quality-track-bar');
+    const fill=create('span','forecast-quality-track-fill');
+    fill.style.width=(q.entered?Math.min(100,100*number/q.entered):0)+'%';
+    bar.append(fill);item.append(labels,bar);tracks.append(item);
+   }
+   levels.append(tracks);
+   levels.append(create('p','forecast-quality-note',
+    'Число касаний / число сценариев с подтверждённой опорной ценой. '+
+    'Достижение TP не означает, что сценарий завершился на TP.'));
+   study.append(levels);
+   const outcomes=create('div','forecast-quality-outcomes');
+   outcomes.append(create('strong','forecast-quality-subtitle',
+    'Итоги завершённых наблюдений'));
+   const outcomeGrid=create('div','forecast-quality-outcome-grid');
+   for(const [label,count] of [
+    ['TP3 · завершён',q.tp3],['SL · завершён',q.stop],
+    ['Порядок неизвестен',q.ambiguous],['Без входа',q.notEntered],
+    ['Истёк срок',q.expired]]){
+    const node=create('div','forecast-quality-outcome');
+    node.append(create('span','',label),create('strong','',fmt(count,0)));
+    outcomeGrid.append(node);
+   }
+   outcomes.append(outcomeGrid);
+   outcomes.append(create('p','forecast-quality-note',
+    'TP3 и SL — разные конечные исходы. TP1–TP2 могут быть достигнуты '+
+    'раньше SL; неопределённый порядок не считается успехом.'));
+   study.append(outcomes);
+   if(q.invalid||q.unverified){
+    study.append(create('p','forecast-quality-warning',
+     'Не включены в расчёт: несогласованные записи · '+q.invalid+
+     ', неподтверждённые · '+q.unverified+'.'));
+   }
+   if(quality.archivedH1&&name==='all')
+    study.append(create('p','forecast-quality-note',
+     'Направленных сценариев со старой проверкой H1: '+
+     quality.archivedH1+'. Они не смешиваются со статистикой M5.'));
+   study.append(create('p','forecast-quality-method',
+    'Исследовательские наблюдения, а не исполненные ордера. '+
+    'Оценка по сохранённым событиям закрытых M5; '+
+    'при пропусках данных исход не засчитывается.'));
+   slot.append(study);
+   const archived=create('details','forecast-quality-archive');
+   archived.append(create('summary','','Общий журнал и архивные исследования'));
    const line=create('div','forecast-stat-line');
-   for(const [label,n] of [
-    ['Всего',value.total],['В работе',value.waiting+value.confirmed+value.active],
-    ['Завершено',value.completed],['Подтверждён итог',value.verifiedOutcomes],
-    ['В диапазоне',value.within],['Вне диапазона',value.outside],
-    ['Ждут данных',value.unverifiedDue],['Сомнительные записи',value.inconsistent]
-   ]){
-    const node=create('div','forecast-stat-value');
-    node.append(create('span','',label),create('strong','',fmt(n,0)));line.append(node);
+   for(const [label,count] of [
+    ['Всего',value.total],
+    ['В работе',value.waiting+value.confirmed+value.active],
+    ['Завершено',value.completed],
+    ['Проверен итог',value.verifiedOutcomes],
+    ['В диапазоне V1',value.within],['Вне диапазона V1',value.outside],
+    ['Ждут данных',value.unverifiedDue],
+    ['Несогласованные',value.inconsistent]]){
+    const metric=create('div','forecast-stat-value');
+    metric.append(create('span','',label),create('strong','',fmt(count,0)));
+    line.append(metric);
    }
-   slot.append(create('h4','',name==='all'?'Все наблюдения':'Отмеченные пользователем'),line);
-   const directional=value.directional;
-   const study=create('div','forecast-directional-stats');
-   study.append(create('strong','', 'Односторонние сценарии · TP / SL'));
-   const items=create('div','forecast-directional-counts');
-   for(const [label,num] of [
-    ['Опубликовано',directional.published],['TP1',directional.tp1],
-    ['TP2',directional.tp2],['TP3',directional.tp3],
-    ['SL',directional.stop],['Порядок неизвестен',directional.ambiguous],
-    ['Без входа',directional.notEntered],['Срок истёк',directional.horizon],
-    ['В наблюдении',directional.pending]]){
-    const box=create('span','',''+label+': '+num);
-    items.append(box);
-   }
-   study.append(items);slot.append(study);
-   if(stats.truncated)slot.append(create('p','muted',
-     'Общий архив больше открытых 75 записей: эта сводка относится только к загруженной части журнала.'));
-   else slot.append(create('p','muted',
-     'Засчитываются только согласованные с исходной гипотезой итоги. Срок без свечей — не отмена и не успех.'));
+   archived.append(line);slot.append(archived);
+   if(stats.truncated)slot.append(create('p','forecast-quality-warning',
+    'Показатели рассчитаны только по загруженным '+lastRows.length+
+    ' из '+lastTotal+' записей. Общая история больше открытой выборки.'));
   }
  }
  function renderRows(){
