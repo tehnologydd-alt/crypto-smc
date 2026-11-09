@@ -34,14 +34,20 @@ test('old-forecast replays are labelled retrospective, not counted as prediction
  assert.ok(levels.includes("plan.origin==='PUBLISHED'"));
  assert.ok(levels.includes('первая H1-свеча может включать движение до публикации'));
 });
-test('new native forecasts commit immutable levelStudy on creation',()=>{
+test('new native forecasts publish one immutable side and preserve legacy archive',()=>{
  const nativePath='../apex9-android/native/src/main/java/com/apexintelligence/research/';
  const auto=read(nativePath+'ApexAutoForecast.kt');
+ const helper=read(nativePath+'ApexDirectionalForecast.kt');
+ const legacy=read(nativePath+'ApexResearchLevels.kt');
  const plugin=read(nativePath+'ApexNativePlugin.kt');
- const helper=read(nativePath+'ApexResearchLevels.kt');
- assert.ok(auto.includes('.put("levelStudy",ApexResearchLevels.build(close,low,high))'));
+ assert.ok(auto.includes('ApexDirectionalForecast.direction(recent, width)'));
+ assert.ok(auto.includes('.put("levelStudy",levelStudy)'));
+ assert.ok(auto.includes('ApexDirectionalForecast.build(close,low,high,direction)'));
+ assert.ok(auto.includes('NO_CLEAR_DIRECTION'));
+ assert.ok(helper.includes('H1_SINGLE_LEVELS_V2'));
+ assert.ok(helper.includes('terminal = "AMBIGUOUS"'));
+ assert.ok(helper.includes('terminal = "TP3"'));
+ assert.ok(helper.includes('terminal = "STOP"'));
+ assert.ok(legacy.includes('H1_DUAL_LEVEL_STUDY_V1'));
  assert.ok(plugin.includes('ApexResearchLevels.build(anchorClose, bandLow, bandHigh)'));
- assert.ok(helper.includes('H1_DUAL_LEVEL_STUDY_V1'));
- assert.ok(helper.includes('.put("UP", up)'));
- assert.ok(helper.includes('.put("DOWN", down)'));
 });
