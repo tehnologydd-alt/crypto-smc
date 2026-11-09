@@ -72,9 +72,6 @@ export function auditDirectionalScenario(plan,candles,{now=Date.now()}={}){
   plan.publishedAt<plan.anchorCloseAt||
   !(plan.publishedAt<plan.anchorCloseAt+H))
   return bad('INVALID','Неверные временные границы исследования');
- const expected=computeReferenceLevels(plan.entry,
-  plan.side==='UP'?plan.sl-(plan.entry-plan.sl)*2:plan.tp3,
-  plan.side==='UP'?plan.tp3:plan.sl+(plan.sl-plan.entry)*2);
  // Stored side-specific levels are already validated by planDirectionalScenario.
  // Reject impossible ordering independent of the symmetric reference envelope.
  const correct=plan.side==='UP'?
