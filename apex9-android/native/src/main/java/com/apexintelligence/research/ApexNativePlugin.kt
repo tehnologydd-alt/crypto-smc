@@ -213,6 +213,19 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Fresh public editorial RSS, Android HTTPS only. No account required. */
+    @PluginMethod
+    fun fetchPublicRssNews(call: PluginCall) {
+        tasks.launch {
+            try {
+                val r = ApexPublicNews.fetch(context.applicationContext)
+                call.resolve(JSObject(r.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "OFFLINE"))
+            }
+        }
+    }
+
     /** Personal credentials never leave native Keystore in read responses. */
     @PluginMethod
     fun setPersonalNewsKey(call: PluginCall) {
