@@ -179,7 +179,7 @@ function updateTab(view){
   if(active)tab.setAttribute('aria-current','page');
   else tab.removeAttribute('aria-current');
  }
- for(const name of ['overview','asset','forecasts','sources','news','macro','quality'])
+ for(const name of ['overview','catalog','asset','forecasts','sources','news','macro','quality'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
 
@@ -712,6 +712,7 @@ function openAssetExplanation(value){
 }
 
 function navigate(view,targetId){
+ if(view==='catalog')renderCatalog();
  if(view==='asset')setAssetArea('chart');
  if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
@@ -780,7 +781,40 @@ function suggestions(query){
   datalist.appendChild(option);
  }
 }
-el('asset-input').addEventListener('input',(ev)=>suggestions(ev.target.value));
+let catalogPage=1;
+function renderCatalog(){
+ const list=el('catalog-results');list.replaceChildren();
+ const q=el('asset-input').value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(!catalog.length){
+  list.append(create('p','muted','Каталог загружается или недоступен. Можно ввести символ вручную.'));
+  text('catalog-result-count','Нет загруженных пар');
+  el('catalog-show-more').hidden=true;
+  return;
+ }
+ const matches=q?catalog.filter(symbol=>symbol.includes(q)):catalog;
+ text('catalog-result-count',fmt(matches.length,0)+' пар');
+ const shown=matches.slice(0,catalogPage*60);
+ for(const symbol of shown){
+  const row=create('div','catalog-row');row.setAttribute('role','listitem');
+  const open=create('button','catalog-open',symbol);
+  open.type='button';open.setAttribute('aria-label','Исследовать '+symbol);
+  open.addEventListener('click',()=>{void investigate(symbol);navigate('asset');});
+  const chosen=favoriteManager.hasFavorite(symbol);
+  const star=create('button','catalog-favorite',chosen?'★':'☆');
+  star.type='button';star.setAttribute('aria-pressed',String(chosen));
+  star.setAttribute('aria-label',(chosen?'Убрать ':'Добавить ')+symbol+(chosen?' из избранного':' в избранное'));
+  star.disabled=!favoriteManager.isNative()||(!chosen&&favoriteManager.getFavorites().length>=10);
+  star.addEventListener('click',async()=>{
+   await favoriteManager.toggleSymbol(symbol);renderCatalog();
+  });
+  row.append(open,star);list.append(row);
+ }
+ el('catalog-show-more').hidden=shown.length>=matches.length;
+}
+el('catalog-show-more').addEventListener('click',()=>{catalogPage++;renderCatalog();});
+el('asset-input').addEventListener('input',(ev)=>{
+ suggestions(ev.target.value);catalogPage=1;renderCatalog();
+});
 
 async function loadCatalog(){
  const controller=new AbortController();
@@ -794,7 +828,9 @@ async function loadCatalog(){
    text('catalog-status','Каталог Binance Spot/USDT: '+fmt(catalog.length,0)+
     ' доступных пар. Можно вводить сокращение, например GRAM.');
    suggestions(el('asset-input').value);
+   renderCatalog();
   }else{
+   renderCatalog();
    text('catalog-status','Каталог недоступен ('+result.state+
     '). Ручной ввод символа работает, если доступен API.');
   }
@@ -1025,6 +1061,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 void loadCatalog().catch(()=>{
  text('catalog-status','Каталог временно недоступен. Введите известный символ вручную.');
+ renderCatalog();
 });
 void investigate(chosen);
 setInterval(()=>{if(!document.hidden)favoriteManager.resume();},60000);
