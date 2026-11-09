@@ -10,7 +10,8 @@ import {compareScenarioConditions} from './scenario-condition-compare.mjs';
 const H=3600000,M=300000,anchor=1800003599999;
 const publication=anchor+1000,now=anchor+26*H;
 function scenario(symbol,{method='5m',side='UP',outcome=null,
- points=[],entryAt=anchor+2*M,terminalAt=anchor+7*M,spread=6}={}){
+ points=[],entryAt=anchor+2*M,terminalAt=anchor+7*M,spread=6,
+ limitSemantics=false,limitAt=null}={}){
  const low=100-spread,high=100+spread,price=100;
  const p=computeReferenceLevels(price,low,high)[side];
  const hypothesis={model:'EMPIRICAL_DIRECTION_LEVELS_V2',
@@ -22,11 +23,13 @@ function scenario(symbol,{method='5m',side='UP',outcome=null,
  if(method==='5m'){
   hypothesis.evaluationInterval='5m';
   hypothesis.observationMethod='M5_CLOSED_LEVEL_ORDER_V1';
+  if(limitSemantics)hypothesis.stageSemantics='LIMIT_READY_M5_V1';
  }
  const timeline=[];
  const push=(stage,observedAt)=>timeline.push({
   stage,observedAt,recordedAt:Math.max(observedAt+1000,publication+1000)});
  const close=method==='5m'?M:H;
+ if(limitAt!==null)push('LIMIT_READY',limitAt);
  if(entryAt!==null){
   push('CONFIRMED',entryAt);
  }
@@ -151,17 +154,33 @@ test('all source summaries remain non-trading, bounded and explain denominators'
  assert.ok(typeof journalObservedStats==='function');
 });
 
-test('new labels follow published limit and native observed entry, preserving Room',()=>{
- const limit=scenario('BTCUSDT',{entryAt:null});
+test('new Room stages advance strictly preliminary → limit → active → completed',()=>{
+ const pending=scenario('ADAUSDT',{limitSemantics:true,entryAt:null});
+ assert.equal(forecastStage(pending,{now}),'PENDING_CONFIRMATION');
+ const limit=scenario('BTCUSDT',{limitSemantics:true,entryAt:null,
+  limitAt:anchor+M});
  assert.equal(forecastStage(limit,{now}),'CONFIRMED');
- const entered=scenario('ETHUSDT');
- entered.status='CONFIRMED'; // historical Room stage is a touched entry
+ assert.equal(verifiedDirectionalEvidence(limit,{now}).state,'OBSERVED');
+ const entered=scenario('ETHUSDT',{limitSemantics:true,limitAt:anchor+M});
+ entered.status='CONFIRMED'; // Native CONFIRMED means touched entry, not limit.
  assert.equal(forecastStage(entered,{now}),'ACTIVE');
- const finished=scenario('SOLUSDT',{outcome:'STOP'});
+ assert.equal(verifiedDirectionalEvidence(entered,{now}).state,'OBSERVED');
+ const finished=scenario('SOLUSDT',{outcome:'STOP',limitSemantics:true,
+  limitAt:anchor+M});
  assert.equal(forecastStage(finished,{now}),'COMPLETED');
- const wrong=scenario('BNBUSDT',{entryAt:null});
- wrong.stageEvents=[{stage:'CONFIRMED',observedAt:anchor+2000,recordedAt:anchor+5000}];
- assert.equal(forecastStage(wrong,{now}),'CONFIRMED');
+ assert.equal(verifiedDirectionalEvidence(finished,{now}).state,'OBSERVED');
+ const wrong=scenario('BNBUSDT',{entryAt:null,limitSemantics:true});
+ wrong.stageEvents=[{stage:'CONFIRMED',observedAt:anchor+2000,
+  recordedAt:anchor+5000}];
+ assert.equal(forecastStage(wrong,{now}),'PENDING_CONFIRMATION');
+ assert.equal(verifiedDirectionalEvidence(wrong,{now}).state,'INVALID');
+ const old=scenario('XRPUSDT',{entryAt:anchor+2*H,method:'1h'});
+ assert.equal(forecastStage(old,{now}),'ACTIVE');
+});
+test('wrong order of new limit and entry events is invalid, even on M5',()=>{
+ const inverted=scenario('LINKUSDT',{limitSemantics:true,
+  limitAt:anchor+3*M,entryAt:anchor+2*M});
+ assert.equal(verifiedDirectionalEvidence(inverted,{now}).state,'INVALID');
 });
 test('formation conditions compare only coherent M5, not H1 or forged events',()=>{
  const up=scenario('BTCUSDT',{outcome:'STOP',points:['TP1'],spread:4});
