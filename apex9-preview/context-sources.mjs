@@ -4,6 +4,7 @@
  * predictive probabilities or synthetic cross-asset evidence.
  * All requests are public HTTPS GET, without credentials.
  */
+import {consolidateArticles} from './news-source-fusion.mjs';
 const COINGECKO='https://api.coingecko.com/api/v3/global';
 const MEMPOOL='https://mempool.space/api/mempool';
 const GDELT='https://api.gdeltproject.org/api/v2/doc/doc';
@@ -120,7 +121,8 @@ export function parseAssetNews(raw,symbol,receivedAt){
   if(articles.length>=MAX_ARTICLES)break;
  }
  return {scope:'SEARCH_MATCH_NOT_SENTIMENT',asset:symbol,term:asset.name,
-  receivedAt,articles,notDirectionalEvidence:true};
+  receivedAt,articles:consolidateArticles(articles,{limit:MAX_ARTICLES,perDomain:3}),
+  notDirectionalEvidence:true};
 }
 export async function fetchAssetNews(symbol,{fetchImpl=fetch,now=()=>Date.now(),signal}={}){
  const asset=canonicalContextAsset(symbol);
