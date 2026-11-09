@@ -59,6 +59,7 @@ export function initPersonalNewsControls({
     label.textContent=r.state==='REMOVED'?'Ключ удалён с устройства':
      'Не удалось удалить ключ · '+r.state;
     await refresh();
+    onChange();
    }finally{busy=false;}
   });
  }
