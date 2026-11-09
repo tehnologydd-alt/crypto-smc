@@ -83,6 +83,14 @@ object ApexDirectionalForecast {
         val anchorCandle = dao.candleAtClose(forecast.asset, "1h", anchor)
         if (anchorCandle == null || !near(anchorCandle.close, entry))
             return "DUE_UNVERIFIED"
+        // Existing published V2 records with no evaluationInterval retain their
+        // original H1 method; no retrospective rewriting of H1 outcomes.
+        if (h.optString("evaluationInterval") == ApexM5Evaluation.INTERVAL) {
+            if (h.optString("observationMethod") != ApexM5Evaluation.METHOD)
+                return "INVALID"
+            return ApexM5Evaluation.progress(forecast, dao, now,
+                anchor, target, side, entry, sl, targets)
+        }
         var activatedAt: Long? = null
         var firstTargetAt: Long? = null
         val targetTouches = ArrayList<Pair<Int, Long>>()
