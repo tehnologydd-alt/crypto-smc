@@ -73,7 +73,7 @@ test('frame analysis rejects stale/unsupported source instead of upgrading to a 
  assert.equal(found.direction,'UP');
  assert.equal(found.volumeRatio,1.7);
  assert.equal(describeRadarFrame({...raw,status:'STALE'}).state,'STALE');
- assert.equal(describeRadarFrame({...raw,interval:'5m'}).state,'OK'===undefined?'OK':'NO_DATA');
+ assert.equal(describeRadarFrame({...raw,interval:'5m'}).state,'INVALID_INTERVAL');
  assert.equal(describeRadarFrame(null).state,'NO_DATA');
  assert.deepEqual(RADAR_INTERVALS,['15m','1h','4h','1d']);
  assert.equal(validRadarInterval('5m'),false);
