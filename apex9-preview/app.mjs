@@ -18,6 +18,7 @@ import {planAssetExplanation,describeResearchQuality} from './research-quality-r
 import {workspaceArea,assetAreaForEntry,researchAreaForTarget,activeDock} from './research-workspace.mjs';
 import {initEditorialDashboard} from './editorial-dashboard.mjs';
 import {buildAssetNewsContext} from './asset-news-context.mjs';
+import {initNewsM5Panel} from './news-m5-panel.mjs';
 import {formatNewsCollectionAnalysis,analyzeNewsCollection} from './news-research-analysis.mjs';
 import {sourceStatusLine} from './live-news-collection.mjs';
 import {fetchBlueskyPosts} from './social-public.mjs';
@@ -333,6 +334,7 @@ const editorialDashboard=initEditorialDashboard({
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
+const newsM5Panel=initNewsM5Panel({getSymbol:()=>chosen,storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
 const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
 const radarDashboard=initRadarDashboard({
@@ -1177,6 +1179,7 @@ function renderAssetNews(gdelt){
    item.source+' · '+temporal+' '+new Date(item.observedAt).toLocaleString('ru-RU')+
    providers+(item.outdated?' · архив / не перепроверено':'')+
    ' · факт события и влияние на цену не проверены'));
+  newsM5Panel.attach(item,row,chosen);
   dest.append(row);
  }
 }
@@ -1295,6 +1298,7 @@ async function investigate(value){
  const changed=chosen!==symbol;
  if(changed)fastTickerAt=0;
  if(changed){
+  newsM5Panel.reset();
   scenarioRequest++;
   drawnCandleAsset='';drawnCandleInterval='';
   replayScenarioId=null;replayStep=0;
