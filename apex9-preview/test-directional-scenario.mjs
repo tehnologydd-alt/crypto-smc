@@ -6,6 +6,7 @@ import {DIRECTIONAL_MODEL,DIRECTIONAL_LEVEL_VERSION,DIRECTIONAL_HOURS,
  planDirectionalScenario,auditDirectionalScenario,
  directionalOutcomeLabel} from './directional-scenario.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
+import {buildScenarioMap,mapScenarioToViewport} from './scenario-map.mjs';
 
 const H=3600000;
 const anchor=1800003599999;
@@ -139,4 +140,23 @@ test('new cards are single-sided and completed cards grey by CSS',()=>{
  assert.ok(favorites.includes('return legacyRangeCard(row,'));
  assert.ok(css.includes('.forecast-visual.is-completed'));
  assert.match(directionalOutcomeLabel('AMBIGUOUS'),/не установлен/);
+});
+
+test('asset H1 map preserves the single published side and 24H horizon',()=>{
+ const row=source('DOWN');
+ const mapped=buildScenarioMap([row],{asset:'BTCUSDT',now:anchor+4*H});
+ assert.equal(mapped.state,'OBSERVED');
+ assert.equal(mapped.scenarios.length,1);
+ const scenario=mapped.scenarios[0];
+ assert.equal(scenario.model,'DIRECTIONAL');
+ assert.equal(scenario.side,'DOWN');
+ assert.equal(scenario.levels.tp3,94);
+ assert.equal(scenario.levels.sl,102);
+ assert.equal(scenario.targetCloseAt,anchor+24*H);
+ const overlay=mapScenarioToViewport(scenario,fixture([bar(1),bar(2)]));
+ assert.equal(overlay.visible,true);
+ const app=readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
+ assert.ok(app.includes("if(selected?.model==='DIRECTIONAL')"));
+ assert.ok(app.includes("sc.model==='DIRECTIONAL'?"));
+ assert.ok(app.includes('directionalOutcomeLabel(sc.result.outcome)'));
 });
