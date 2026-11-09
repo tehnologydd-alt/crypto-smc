@@ -41,3 +41,19 @@ test('general crypto coverage is not attributed to a particular asset',()=>{
  assert.equal(r.focus,'GENERAL');
  assert.deepEqual(r.mentions,[]);
 });
+
+test('extended asset names remain explicit headline mentions, not generic tokens',()=>{
+ const ton=describeNewsEvidence({title:'Toncoin network upgrade',
+  href:'https://publisher.example/ton',observedAt:now,timeKind:'PUBLISHED'},
+  {now,asset:'GRAM'});
+ assert.equal(ton.focus,'DIRECT');
+ assert.equal(ton.marketDirection,'NOT_INFERRED');
+ const chainlink=describeNewsEvidence({title:'Chainlink network upgrade',
+  href:'https://publisher.example/link',observedAt:now},
+  {now,asset:'LINK'});
+ assert.equal(chainlink.focus,'DIRECT');
+ const unrelated=describeNewsEvidence({title:'Online links and internet reports',
+  href:'https://publisher.example/other',observedAt:now},
+  {now,asset:'LINK'});
+ assert.equal(unrelated.focus,'UNCLEAR');
+});
