@@ -36,6 +36,14 @@ test('radar is dedicated exploration and does not clone other pages',()=>{
  assert.ok(dashboard.includes("onOpenAsset(row.symbol)"));
  assert.ok(dashboard.includes('lastScanAt<REFRESH_MS'));
  assert.ok(dashboard.includes('active=false'));
+ assert.ok(dashboard.includes('createRadarObservation(next,chosen'));
+ assert.ok(dashboard.includes('saveRadarChanges(storage,history)'));
+ assert.ok(dashboard.includes('compareMarketFrames(frameResults,{asset:symbol})'));
+ assert.ok(dashboard.includes("fetchCandles(symbol,frame,{signal:local.signal,limit:64})"));
+ assert.ok(html.includes('data-radar-filter="events"'));
+ assert.ok(html.includes('id="radar-change-count"'));
+ assert.ok(html.includes('class="radar-history-note"'));
+
  assert.ok(css.includes('.radar-results'));
 });
 test('radar modules are included in Android package and no IDs are duplicated',()=>{
