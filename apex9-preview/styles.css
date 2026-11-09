@@ -2084,3 +2084,44 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .radar-alignment-frame{padding:8px 2px}
  .radar-alignment-frame span{font-size:8px}
 }
+
+
+/* APEX 9: Radar notices belong inside favorites, not a second dashboard. */
+.favorite-radar-summary{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;
+ width:100%;margin:3px 0 12px;padding:10px 12px;border-radius:13px;
+ background:#133943;border:1px solid #2d8a84;color:#c1f2e9;
+ min-height:42px;text-align:left;font-size:11px;font-weight:740}
+.favorite-radar-summary[hidden]{display:none!important}
+.favorite-radar-summary span:last-child{flex:0 0 auto;color:#84ddcf}
+.favorite-card.has-radar-update.asset-chip{height:178px!important}
+.favorite-radar-link{
+ position:absolute;bottom:8px;left:10px;right:88px;
+ border:1px solid #258d85;border-radius:9px;background:#123f42;
+ color:#9df3db;min-height:28px;padding:4px 8px;max-width:calc(100% - 105px);
+ text-align:left;font-size:10px;line-height:1.35;font-weight:720;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2}
+.favorite-radar-link:focus-visible{outline:2px solid #bffcf2;outline-offset:2px}
+.favorite-card.has-radar-update .favorite-explain{
+ bottom:8px!important;right:9px!important;z-index:2}
+.radar-focus-panel{margin:9px 0 15px;padding:15px 13px;border-radius:17px;
+ border:1px solid #3b9597;background:linear-gradient(140deg,#153b48,#142339)}
+.radar-focus-panel[hidden]{display:none!important}
+.radar-focus-head{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.radar-focus-head strong{font-size:16px;color:#e0fbf4}
+.radar-focus-dismiss{background:none;border:1px solid #517282;color:#c6e9e8;
+ border-radius:9px;min-height:34px;padding:6px 10px;font-size:11px}
+.radar-focus-timing{font-size:10px;color:#a1c3d0;line-height:1.6;margin:12px 0}
+.radar-focus-events{display:grid;gap:7px}
+.radar-focus-event{display:flex;flex-direction:column;gap:5px;padding:10px;
+ border:1px solid #426c7a;border-radius:11px;background:#102734}
+.radar-focus-event strong{font-size:12px;color:#b8f7e8}
+.radar-focus-event span{font-size:11px;color:#c2d7e3;line-height:1.5}
+.radar-focus-note{color:#a7bdc8;font-size:10px;line-height:1.6;margin:11px 0}
+.radar-focus-open{width:100%;min-height:42px;border-radius:11px;
+ background:#13464b;border:1px solid #29968f;color:#c0f8ea;
+ font-weight:760;font-size:12px}
+@media(max-width:375px){
+ .favorite-radar-link{right:74px;max-width:calc(100% - 90px);font-size:9px}
+ .favorite-card.has-radar-update .favorite-explain{font-size:9px;padding:3px 5px}
+}
