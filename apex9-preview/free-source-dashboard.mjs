@@ -242,6 +242,40 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    '. DEX-цены обёрнутых токенов не равны ценам нативных активов.';
   renderReconciliation(symbol);
  }
+ /**
+  * Real public API checks initiated when the Sources view is opened or its
+  * explicit retry button is pressed. Existing quota/cache rules still apply.
+  * Wrapped-token DEX is checked on ETH reference if selected coin has no map.
+  */
+ async function checkPublicSources(symbol=getSymbol?.()){
+  if(checkingPublic)return checkingPublic;
+  if(typeof symbol!=='string'||!/^[A-Z0-9]{5,20}$/.test(symbol))
+   return {state:'INVALID_ASSET'};
+  const button=el('free-check-all');
+  if(button)button.disabled=true;
+  const work=(async()=>{
+   try{
+    await Promise.all([openOverview(),openAsset(symbol)]);
+    if(!dexTokenReference(symbol)){
+     const anchor='ETHUSDT';
+     const [dex,gecko]=await Promise.all([
+      budget.load('dex',()=>fetchDexPairs(anchor),{key:anchor}),
+      budget.load('gecko',()=>fetchGeckoPools(anchor),{key:anchor})
+     ]);
+     annotate('dex',dex,'WETH/ETH');
+     annotate('gecko',gecko,'WETH/ETH');
+    }
+    return {state:'CHECKED',symbol};
+   }finally{
+    checkingPublic=null;
+    if(button)button.disabled=false;
+    refreshCenter();
+   }
+  })();
+  checkingPublic=work;
+  refreshCenter();
+  return work;
+ }
  async function refreshPersonalStatus(){
   personalNews=await personalNewsStatus();
   refreshCenter();
@@ -250,9 +284,10 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   onChange:()=>{personalChecks.clear();void refreshPersonalStatus();},
   onTest:(provider,result)=>{personalChecks.set(provider,result);refreshCenter();}});
  void refreshPersonalStatus();
+ el('free-check-all')?.addEventListener('click',()=>void checkPublicSources());
  el('free-fear-refresh')?.addEventListener('click',()=>void openOverview());
  el('free-asset-market-refresh')?.addEventListener('click',
   ()=>void openAsset(getSymbol?.()));
  refreshCenter();
- return {openOverview,openAsset,refreshCenter,setContext,setSnapshot,setSocial};
+ return {openOverview,openAsset,checkPublicSources,refreshCenter,setContext,setSnapshot,setSocial};
 }
