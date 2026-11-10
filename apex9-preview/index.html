@@ -478,6 +478,11 @@
           </div>
           <p id="feature-holdout-status" class="forecast-confluence-caveat" role="status" aria-live="polite"></p>
           <div id="feature-holdout-report" class="forecast-feature-report"></div>
+          <details id="forecast-probability-audit" class="forecast-feature-stability">
+            <summary>Частоты исходов · готовность к калибровке</summary>
+            <p class="forecast-confluence-caveat">Только полный архив выбранного актива. Частота TP3/SL не является вероятностью будущего прогноза или доходности. Для настоящей калибровки нужна вероятность, зафиксированная до исхода.</p>
+            <div id="forecast-probability-report" class="forecast-feature-report"></div>
+          </details>
           <details id="feature-shadow-panel" class="forecast-feature-stability">
             <summary>Теневое исследование · только будущие прогнозы</summary>
             <p class="forecast-confluence-caveat">Кандидат сохраняется в Android Room только по вашему нажатию. Исторический результат не засчитывается как будущая проверка. Веса прогнозирования и реальные ордера не изменяются.</p>
