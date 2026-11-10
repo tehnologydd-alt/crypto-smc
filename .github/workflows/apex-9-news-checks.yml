@@ -62,6 +62,8 @@ jobs:
           node --check apex9-preview/forecast-shadow-challengers.mjs
           node --check apex9-preview/forecast-shadow-regimes.mjs
           node --check apex9-preview/forecast-data-quality-hub.mjs
+          node --check apex9-preview/overview-research-progress.mjs
+          node --test apex9-preview/test-overview-research-progress.mjs
           node --test apex9-preview/test-forecast-data-quality-hub.mjs
           node --test apex9-preview/test-forecast-feature-rolling.mjs
           node --test apex9-preview/test-forecast-feature-ablation.mjs
