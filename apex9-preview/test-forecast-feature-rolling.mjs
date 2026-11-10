@@ -207,8 +207,8 @@ test('shadow recipes are frozen, preregistered and never probabilities',()=>{
   'CURRENT_V1','STRUCTURE_V1','IMPULSE_V1','VOLUME_V1']);
  assert.equal(SHADOW_CHALLENGER_RECIPES[0].weights.efficiency,.5);
  assert.equal(Object.isFrozen(SHADOW_CHALLENGER_RECIPES[0].weights),true);
- assert.equal(challengerScore({efficiency:.6,travelNorm:.5,
-  volumeNorm:0},SHADOW_CHALLENGER_RECIPES[0]),.45);
+ assert.ok(Math.abs(challengerScore({efficiency:.6,travelNorm:.5,
+  volumeNorm:0},SHADOW_CHALLENGER_RECIPES[0])-.45)<1e-12);
  assert.equal(challengerScore({efficiency:NaN,travelNorm:.5,
   volumeNorm:1},SHADOW_CHALLENGER_RECIPES[0]),null);
 });
