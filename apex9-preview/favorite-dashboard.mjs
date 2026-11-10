@@ -476,6 +476,7 @@ export function initFavoriteResearch({
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
   archiveExpanded=false,lastRows=[],lastTotal=0;
+ const featureAudit=initFeatureHoldoutDashboard({getFavorites:()=>favorites.slice()});
  const MINI_CACHE=new Map(),MINI_LOADING=new Set(),MINI_AT=new Map();
  let localStore=null;
  try{localStore=globalThis.localStorage;}catch{}
@@ -945,6 +946,7 @@ export function initFavoriteResearch({
   }
  }
  function renderMultiFrame(){
+  featureAudit.refresh();
   const summary=id('forecast-confluence-summary');
   const qualitySlot=id('forecast-multiframe-quality');
   if(!summary||!qualitySlot)return;
