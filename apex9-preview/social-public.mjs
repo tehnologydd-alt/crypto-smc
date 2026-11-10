@@ -49,6 +49,8 @@ export async function fetchBlueskyPosts(symbol,{
  try{
   const r=await fetchImpl(url,{method:'GET',credentials:'omit',cache:'no-store',signal});
   if(r?.status===429||r?.status===418)return {state:'RATE_LIMITED',posts:[]};
+  if([401,403,451].includes(r?.status))return {state:'ACCESS_DENIED',posts:[],
+   reason:'Bluesky HTTP '+r.status};
   if(!r?.ok)return {state:'OFFLINE',posts:[],reason:'Bluesky HTTP '+(r?.status||'?')};
   return parseBlueskyPosts(await r.json(),{symbol,receivedAt:now()});
  }catch(e){return {state:'OFFLINE',posts:[],
