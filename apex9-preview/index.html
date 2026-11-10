@@ -62,6 +62,7 @@
         <p class="muted" id="favorites-empty">Откройте каталог и добавьте первый актив.</p>
       </div>
       <p class="favorites-hint">Листайте карточки. Чтобы убрать актив, удерживайте карточку и смахните вверх.</p>
+      <p id="favorites-price-status" aria-live="polite">Сохранённые цены избранных.</p>
     </section>
 
     <div id="favorites-toast" class="favorites-toast" hidden role="status" aria-live="polite"><span id="favorites-toast-text">Актив удалён</span><button id="favorites-undo" type="button">Отменить</button></div>
@@ -96,13 +97,24 @@
       </article>
       <article class="card block free-fear-panel" aria-label="Глобальное настроение крипторынка">
         <div class="section-title"><h3>Настроение рынка</h3><button class="ghost" type="button" id="free-fear-refresh">Проверить</button></div>
-        <div class="free-fear-inline"><strong id="free-fear-value">—</strong><p id="free-fear-status" class="muted" role="status">Ожидаем Alternative.me…</p></div>
+        <div class="free-fear-inline"><strong id="free-fear-value">—</strong></div>
+        <div class="free-fear-meter">
+          <div class="free-fear-meter-head"><strong id="free-fear-label">Нет свежего значения</strong><small>Индекс Fear &amp; Greed · 0–100</small></div>
+          <div id="free-fear-track" class="free-fear-track" role="progressbar" aria-label="Глобальный индекс Fear & Greed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="">
+            <span id="free-fear-needle" class="free-fear-needle" aria-hidden="true"></span>
+          </div>
+        </div>
+        <p id="free-fear-status" class="muted" role="status">Ожидаем Alternative.me…</p>
         <p class="footnote">Fear &amp; Greed — сводный индекс настроений крипторынка. Не является прогнозом направления отдельной монеты. <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener noreferrer">Источник Alternative.me</a>.</p>
       </article>
       <article class="card block overview-events-panel" aria-label="Главные события крипторынка">
         <div class="section-title"><h3>События для всего рынка</h3><span>Новости · макро · календарь</span></div>
-        <p id="overview-events-status" class="muted" role="status">Проверяем доступные публичные источники…</p>
+        <p id="overview-events-status" class="muted" role="status">Показываем сохранённые события, затем обновляем.</p>
         <div id="overview-events-list" class="overview-events-list"></div>
+        <details id="overview-events-diagnostics">
+          <summary>Диагностика источников</summary>
+          <p id="overview-events-diagnostics-text" class="muted">Источники ещё не проверены.</p>
+        </details>
         <details class="apex-event-history-details">
           <summary>История обнаруженных событий · на устройстве</summary>
           <p id="overview-event-history-status" class="muted">Локальная история ещё не прочитана.</p>
