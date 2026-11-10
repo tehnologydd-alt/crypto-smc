@@ -113,7 +113,6 @@ data class ResearchShadowCandidate(
     val evidenceVersion: String
 )
 
-@Dao
 /**
  * Fast, read-only overview counters for directional M15/H1/H4 research.
  * "recordedTerminal" is a Room outcome count, NOT independent verification
@@ -128,6 +127,7 @@ data class ResearchProgressCount(
     val latestPublishedAt: Long
 )
 
+@Dao
 interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveObservation(record: ResearchObservation)
