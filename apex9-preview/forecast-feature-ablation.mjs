@@ -79,7 +79,7 @@ export function frozenRankScore(features,omitted=null){
  return weights>0?sum/weights:null;
 }
 export function featureWindowAudit(rows,{now,cutAt=null}){
- const metrics=blank(),samples=[];
+ const metrics=blank(),samples=[],eligibleRows=[];
  let occupied=-Infinity,validVolume=0;
  const sorted=rows.slice().sort((a,b)=>a.publishedAt-b.publishedAt||
   a.id.localeCompare(b.id));
@@ -104,6 +104,7 @@ export function featureWindowAudit(rows,{now,cutAt=null}){
   occupied=target;
   if(cutAt!==null&&target>=cutAt){metrics.purged++;continue;}
   metrics.eligible++;
+  eligibleRows.push({id:row.id,publishedAt:row.publishedAt});
   if(frozen.features.volumeAvailable)validVolume++;
   if(!source.finished){metrics.awaiting++;continue;}
   const recorded=row.evaluation?.evaluatedAt;
@@ -129,7 +130,7 @@ export function featureWindowAudit(rows,{now,cutAt=null}){
  }
  metrics.volumeCoverage=metrics.eligible?
   validVolume/metrics.eligible:null;
- return {metrics,samples};
+ return {metrics,samples,eligibleRows};
 }
 function examine(reference,recent){
  const pre=reference.metrics,post=recent.metrics;
