@@ -765,7 +765,7 @@ export function initFavoriteResearch({
    const basics=create('div','forecast-quality-kpis');
    for(const [label,count] of [
     ['Опубликовано',q.published],['С входом',q.entered],
-    ['Завершено',q.finished],['В наблюдении',q.awaiting]]){
+    ['Завершено',q.finished]]){
     const metric=create('div','forecast-quality-kpi');
     metric.append(create('span','',label),
      create('strong','',fmt(count,0)));basics.append(metric);
@@ -909,6 +909,34 @@ export function initFavoriteResearch({
    if(stats.truncated)slot.append(create('p','forecast-quality-warning',
     'Показатели рассчитаны только по загруженным '+lastRows.length+
     ' из '+lastTotal+' записей. Общая история больше открытой выборки.'));
+   // Summary is the default view. Keep original Room evidence, per-asset
+   // comparisons and archived methods available without a crowded screen.
+   const glance=create('div','forecast-quality-glance');
+   glance.setAttribute('aria-label','Касания целей и исходы');
+   for(const [label,count] of [
+    ['TP1 · касания',q.tp1],['TP2 · касания',q.tp2],
+    ['TP3 · касания',q.tp3],['SL · исход',q.stop]]){
+    const metric=create('div','forecast-quality-glance-item');
+    metric.append(create('span','',label),create('strong','',fmt(count,0)));
+    glance.append(metric);
+   }
+   basics.after(glance);
+   const full=create('details','forecast-quality-expansion');
+   full.append(create('summary','',
+    'Развернуть все результаты и методику'));
+   // Preserve all existing nested evidence panels, including incomplete
+   // and archived observations. Nothing in this change alters counts.
+   const essential=new Set([heading,basics,glance]);
+   for(const child of [...study.children]){
+    if(essential.has(child)||child.classList.contains('forecast-quality-coverage')||
+     child.classList.contains('forecast-quality-empty'))continue;
+    full.append(child);
+   }
+   for(const child of [...slot.children]){
+    if(child!==study)full.append(child);
+   }
+   study.append(full);
+   slot.replaceChildren(study);
   }
  }
  function renderRows(){
