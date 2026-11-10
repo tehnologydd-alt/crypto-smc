@@ -17,7 +17,9 @@ const element=(tag,klass='',value)=>{
 const percent=n=>typeof n==='number'&&Number.isFinite(n)?
  (n*100).toFixed(1)+'%':'—';
 const counts=s=>s?.outcomes||{};
-export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={}){
+export function renderProbabilityReadiness(archive,asset,slot,{
+ now=Date.now(),onAudits=null
+}={}){
  if(!slot)return null;
  slot.replaceChildren();
  const report=auditProbabilityReadiness(archive?.forecasts,{
@@ -516,5 +518,8 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
  qualityRoot.append(element('p','forecast-confluence-caveat',
   quality.note||'Исследование доступно только в полном локальном Room-архиве.'));
  slot.prepend(qualityRoot);
+ // Reuse already computed independent audits in the explicit manual workflow;
+ // avoid repeating three full 1500-row passes on a slow Android device.
+ if(typeof onAudits==='function')onAudits({challenge,regimes});
  return report;
 }

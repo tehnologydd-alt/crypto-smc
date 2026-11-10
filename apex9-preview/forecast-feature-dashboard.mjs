@@ -362,12 +362,17 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     'Автоматическое изменение прогнозов отключено.';
    render(report);
    const auditedAt=Date.now();
+   let verifiedAudits=null;
    renderProbabilityReadiness(archive,asset,
-    get('forecast-probability-report'),{now:auditedAt});
+    get('forecast-probability-report'),{
+     now:auditedAt,onAudits:value=>{verifiedAudits=value;}
+    });
    // Persist only the verified manual full-archive comparison. No silent
    // overview archive fetch, retraining, trading, or model promotion.
    if(token===serial&&getFavorites?.().includes(asset))
-    saveDecisionQualityAudit(archive,asset,{now:auditedAt});
+    saveDecisionQualityAudit(archive,asset,{
+     now:auditedAt,audits:verifiedAudits
+    });
    await renderShadowState(asset,archive,report,token);
   }catch(error){
    if(token===serial){

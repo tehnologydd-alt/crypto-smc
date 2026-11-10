@@ -32,6 +32,7 @@ const setText=(tag,value,klass='')=>{
 };
 function validFrame(f){
  return f&&STATES.includes(f.state)&&count(f.published)&&
+  count(f.recordedTerminal)&&f.recordedTerminal<=f.published&&
   count(f.newPublished)&&count(f.newScored)&&
   f.newScored<=f.newPublished&&count(f.repeatedModels)&&
   f.repeatedModels<=3&&count(f.regimeRepeatedModels)&&
@@ -57,7 +58,15 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
    !count(compared.newScored)||compared.newScored>compared.futurePublished||
    typeof compared.state!=='string'||typeof modes.state!=='string')
    return null;
-  const published=archive.forecasts.filter(x=>featureFrameOf(x)===tf).length;
+  // Same inclusion as indexed native Room overview aggregate (by ID prefix).
+  // Comparing BOTH published and terminal counts detects newly resolved TP/SL
+  // even when no new forecast was published after the last audit.
+  const matching=archive.forecasts.filter(x=>x?.interval===tf&&
+   (tf==='1h'?x.id.startsWith('direction2:'):
+    x.id.startsWith('direction3:')));
+  const published=matching.length;
+  const recordedTerminal=matching.filter(x=>
+   ['TP3','STOP'].includes(x.evaluation?.outcome)).length;
   const invalid=['INVALID','INCOMPLETE','INVALID_EVIDENCE','LOW_SCORE_COVERAGE',
    'LOW_COVERAGE','UNVERIFIED'];
   const checkData=invalid.includes(compared.state)||
@@ -83,7 +92,8 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
       m.state==='NO_LONGER_BETTER'||m.state==='LATE_ONLY')?
      'UNSTABLE':'NOT_BETTER';
   }
-  frames[tf]={state,published,newPublished:compared.futurePublished,
+  frames[tf]={state,published,recordedTerminal,
+   newPublished:compared.futurePublished,
    newScored:compared.newScored,repeatedModels:repeated.length,
    regimeRepeatedModels:regimeSupport.length,structureDelta};
   if(!validFrame(frames[tf]))return null;
@@ -94,13 +104,15 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
   frames,autoTraining:false,calibratedProbability:null};
 }
 export function saveDecisionQualityAudit(archive,asset,{
- now=Date.now(),storage=safeStorage(),emit=true
+ now=Date.now(),storage=safeStorage(),emit=true,audits=null
 }={}){
  if(!storage||!validAsset(asset))return false;
  const opts={asset,complete:archive?.complete,
   publishedCount:archive?.publishedCount,now};
- const challenge=auditShadowChallengers(archive?.forecasts,opts);
- const regimes=auditShadowRegimes(archive?.forecasts,opts);
+ const challenge=audits?.challenge||
+  auditShadowChallengers(archive?.forecasts,opts);
+ const regimes=audits?.regimes||
+  auditShadowRegimes(archive?.forecasts,opts);
  const result=summarizeDecisionQuality({archive,asset,challenge,regimes,now});
  if(!result)return false;
  let previous={};
@@ -162,7 +174,9 @@ export function decisionQualityView(asset,{
   const native=Array.isArray(roomRows)?roomRows.find(r=>
    r?.asset===asset&&r.interval===tf):null;
   const outOfDate=native&&count(native.published)&&
-   native.published!==frame.published;
+   (native.published!==frame.published||
+    count(native.recordedTerminal)&&
+    native.recordedTerminal!==frame.recordedTerminal);
   frames[tf]={...frame,outOfDate:Boolean(outOfDate)};
  }
  return {state:'AUDITED',auditedAt:snapshot.auditedAt,frames};
@@ -195,7 +209,7 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
    'overview-quality-frame');
   const title=setText('strong',label);
   const status=setText('span',frame.outOfDate?
-   'Новые записи · повторить аудит':titles[frame.state],
+   'Архив изменился · повторить аудит':titles[frame.state],
    'overview-quality-verdict');
   const line=document.createElement('div');
   line.className='overview-quality-line';

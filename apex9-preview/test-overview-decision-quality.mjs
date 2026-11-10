@@ -95,16 +95,26 @@ test('separate favorite cache, stale Room counts and audited timestamps',()=>{
  assert.equal(readDecisionQuality(asset,{storage,now}).archiveCount,3);
  assert.equal(readDecisionQuality('ETHUSDT',{storage,now}),null);
  assert.equal(decisionQualityView(asset,{
-  storage,now,roomRows:[{asset,interval:'15m',published:summary.frames['15m'].published+1}]
+  storage,now,roomRows:[{asset,interval:'15m',published:summary.frames['15m'].published+1,recordedTerminal:0}]
  }).frames['15m'].outOfDate,true);
  assert.equal(decisionQualityView(asset,{storage,now,
-  roomRows:[{asset,interval:'15m',published:summary.frames['15m'].published}]
+  roomRows:[{asset,interval:'15m',published:summary.frames['15m'].published,recordedTerminal:0}]
  }).frames['15m'].outOfDate,false);
+ assert.equal(decisionQualityView(asset,{storage,now,
+  roomRows:[{asset,interval:'15m',
+   published:summary.frames['15m'].published,recordedTerminal:1}]
+ }).frames['15m'].outOfDate,true);
  assert.equal(readDecisionQuality(asset,{storage,now:now+31*86400000}),null);
  const forged=JSON.parse(storage.getItem(DECISION_QUALITY_KEY));
  forged.summaries[asset].frames['15m'].repeatedModels=99;
  storage.setItem(DECISION_QUALITY_KEY,JSON.stringify(forged));
  assert.equal(readDecisionQuality(asset,{storage,now}),null);
+});
+test('independent audit results are reused instead of rerunning archive comparisons',()=>{
+ const source=readFileSync(new URL('./forecast-feature-dashboard.mjs',import.meta.url),'utf8');
+ const render=readFileSync(new URL('./forecast-probability-dashboard.mjs',import.meta.url),'utf8');
+ assert.ok(source.includes('audits:verifiedAudits'));
+ assert.ok(render.includes("onAudits({challenge,regimes})"));
 });
 test('manual audit of an empty complete archive stores only collecting states',()=>{
  const map=new Map();
