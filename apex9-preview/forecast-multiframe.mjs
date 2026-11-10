@@ -195,6 +195,17 @@ const el=(tag,klass='',value)=>{
  return n;
 };
 const fmt=at=>time(at)?new Date(at).toLocaleString('ru-RU'): '—';
+function multiFrameCardActions(row,{tracked=false,onToggle,onOpen}={}){
+ const actions=el('div','forecast-visual-actions');
+ const follow=el('button','forecast-follow',
+  tracked?'✓ В отмеченных':'☆ Отметить');
+ follow.type='button';follow.setAttribute('aria-pressed',String(tracked));
+ follow.addEventListener('click',()=>onToggle?.(row.id));
+ const open=el('button','forecast-copy-all','Открыть актив');
+ open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset,row.id));
+ actions.append(follow,open);
+ return actions;
+}
 export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  const evidence=multiFrameEvidence(row);
  const card=el('article','forecast-record forecast-visual forecast-multiframe');
@@ -204,12 +215,17 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  identity.append(el('strong','',displayPair(row.asset)),
   el('small','',title+' · отдельное исследование'));
  const complete=evidence.state==='OBSERVED'&&evidence.finished;
- const badge=el('span','forecast-visual-state '+(complete?'finished':'active'),
-  complete?'Завершено':'Наблюдение');
+ const stageLabel=complete?'Завершено':
+  evidence.state!=='OBSERVED'?'Проверка данных':
+  evidence.events.has('CONFIRMED')?'Активный':
+  evidence.events.has('LIMIT_READY')?'Лимитный':'Ожидает';
+ const badge=el('span','forecast-visual-state '+(complete?'finished':
+  evidence.state!=='OBSERVED'?'warning':'active'),stageLabel);
  head.append(identity,badge);card.append(head);
  if(evidence.state!=='OBSERVED'){
   card.append(el('p','forecast-quality-warning',
-   'Недостаточно проверенных данных: '+(evidence.reason||'нет подтверждения')));
+   'Данные сценария требуют проверки: '+(evidence.reason||'нет подтверждения')));
+  card.append(multiFrameCardActions(row,{tracked,onToggle,onOpen}));
   return card;
  }
  if(complete)card.classList.add('is-completed');
@@ -260,12 +276,6 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   'Контекст на момент публикации отсутствовал.'));
  show.append(context);
  card.append(show);
- const actions=el('div','forecast-visual-actions');
- const follow=el('button','forecast-follow',
-  tracked?'✓ В отмеченных':'☆ Отметить');
- follow.type='button';follow.addEventListener('click',()=>onToggle?.(row.id));
- const open=el('button','forecast-copy-all','Открыть актив');
- open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset,row.id));
- actions.append(follow,open);card.append(actions);
+ card.append(multiFrameCardActions(row,{tracked,onToggle,onOpen}));
  return card;
 }
