@@ -8,7 +8,7 @@ import {getMobileRadarHistory} from './mobile-bridge.mjs';
 import {validateRadarObservation} from './radar-changes.mjs';
 import {createRadarDisplayCache} from './radar-display-cache.mjs';
 import {readRadarAutoCheckpoints,writeRadarAutoCheckpoint,
- selectRadarAutoFrame} from './radar-auto-policy.mjs';
+ markRadarAutoFailure,selectRadarAutoFrame} from './radar-auto-policy.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {readRadarChanges,saveRadarChanges,mergeRadarObservation,
  createRadarObservation,radarChangeCount} from './radar-changes.mjs';
@@ -341,10 +341,10 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   if(active&&interval===frame)status(message,warning);
  }
  async function scan({force=false,frame=interval}={}){
-  if(!started||document.hidden)return;
+  if(!started||document.hidden)return false;
   // Manual refresh may replace one background request, not create another.
   if(controller){
-   if(!force)return;
+   if(!force)return false;
    clearRun();
   }
   const favorites=getFavorites();
@@ -352,7 +352,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   const catalog=[...allowed].filter(symbol=>/^[A-Z0-9]{2,16}USDT$/.test(symbol));
   if(!catalog.length){
    progress(frame,'Радар наблюдает только избранные. Добавьте актив в каталоге.');
-   return;
+   return false;
   }
   const generation=++request,local=new AbortController();
   controller=local;
@@ -368,10 +368,10 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
      universe=next;universeAt=Date.now();lastUniverseSymbols=desired;
     }else if(!universe||lastUniverseSymbols!==desired){
      progress(frame,'Публичные тикеры недоступны: '+next.reason,true);
-     return;
+     return false;
     }
    }
-   if(generation!==request||local.signal.aborted)return;
+   if(generation!==request||local.signal.aborted)return false;
    const candidate=universe.rows.filter(row=>allowed.has(row.symbol));
    const freshRows=[], failures=[];
    let stopForLimit=false;
@@ -403,7 +403,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
     }
     if(stopForLimit)break;
    }
-   if(generation!==request||local.signal.aborted)return;
+   if(generation!==request||local.signal.aborted)return false;
    const still=new Set(getFavorites());
    const preserved=displayCache.read(selectedFrame,getFavorites());
    const byName=new Map(preserved.map(row=>[row.symbol,row]));
@@ -425,6 +425,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
     (failures.length?' · '+failures.length+' без подтверждения':'')+
     ' · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),
     Boolean(failures.length));
+   return freshRows.length===catalog.length&&!stopForLimit;
   }catch(e){
    if(generation===request&&!local.signal.aborted)
     progress(frame,'Проверка недоступна: '+String(e?.message||e).slice(0,125),true);
@@ -439,7 +440,9 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   const plan=selectRadarAutoFrame(getFavorites(),checkpoints,{now:Date.now()});
   if(plan.state!=='DUE')return;
   writeRadarAutoCheckpoint(storage,checkpoints,plan,Date.now());
-  void scan({frame:plan.frame});
+  void scan({frame:plan.frame}).then(complete=>{
+   if(!complete)markRadarAutoFailure(storage,checkpoints,plan,Date.now());
+  });
  }
  for(const button of document.querySelectorAll('[data-radar-frame]')){
   button.addEventListener('click',()=>{
