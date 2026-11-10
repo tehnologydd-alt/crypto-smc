@@ -185,7 +185,7 @@ test('manual full archive UI and Android staging include research hub',()=>{
  const bundle=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',
   import.meta.url),'utf8');
  assert.ok(view.includes('summarizeResearchDataQuality(archive,'));
- assert.ok(view.includes('slot.prepend(diagnosticRoot,qualityRoot)'));
+ assert.ok(view.includes('slot.prepend(diagnosticRoot,pairPanel,qualityRoot)'));
  assert.ok(view.includes('Качество исследовательских данных'));
  assert.ok(view.includes('Отсутствующий снимок не означает'));
  assert.ok(entry.includes('getMobileAssetResearchArchive('));

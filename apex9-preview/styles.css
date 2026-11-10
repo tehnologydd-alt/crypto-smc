@@ -3244,6 +3244,15 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .overview-quality-diagnosis{border-top:1px dashed #466173;padding-top:7px}
 .overview-quality-diagnosis>summary{font-size:11px;color:#a3e3db;cursor:pointer}
 .overview-quality-diagnosis>small{display:block;padding:4px 0}
+.forecast-quality-pairs{border:1px solid #325f68;border-radius:10px;margin:8px 0;background:#0b2630}
+.forecast-quality-pairs>summary{padding:12px;cursor:pointer;color:#b4e8dc;font-size:12px;font-weight:750}
+.forecast-quality-pairs-body{padding:0 10px 10px;display:grid;gap:8px}
+.forecast-quality-pairs-frame{display:grid;gap:6px;padding:9px;border:1px solid #325263;border-radius:9px}
+.forecast-quality-pairs-frame>strong{font-size:12px}
+.forecast-quality-pairs-frame>small{font-size:11px;color:#a7bfd2}
+.forecast-quality-pair{display:grid;gap:4px;padding:8px;background:#122c3b;border-radius:7px}
+.forecast-quality-pair>b{font-size:11px}
+.forecast-quality-pair>small{font-size:10px;color:#9fbdcc}
 .forecast-quality-diagnostics{border:1px solid #476275;border-radius:10px;margin:8px 0;background:#102535}
 .forecast-quality-diagnostics>summary{padding:12px;cursor:pointer;color:#b6f0de;font-size:12px;font-weight:750}
 .forecast-quality-diagnostics-body{padding:0 10px 11px;display:grid;gap:8px}

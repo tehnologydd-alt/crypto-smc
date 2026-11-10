@@ -219,3 +219,75 @@ test('UI and Capacitor staging include read-only feature ablation',()=>{
  assert.ok(ui.includes('ΔAUC'));
  assert.ok(build.includes("'forecast-feature-ablation.mjs'"));
 });
+
+
+test('precommitted feature pairs use no fitted weights or hidden missing inputs',async()=>{
+ const {frozenPairScore,spearmanPair,FEATURE_PAIRS}
+  =await import('./forecast-feature-pairs.mjs');
+ assert.equal(FEATURE_PAIRS.length,3);
+ assert.ok(Math.abs(frozenPairScore({
+  efficiency:1,travelNorm:0,volumeNorm:.5},'efficiency','travelNorm')-
+  .625)<1e-9);
+ assert.equal(frozenPairScore({efficiency:0.8},'efficiency','travelNorm'),null);
+ const samples=[{features:{efficiency:.1,travelNorm:.1}},
+  {features:{efficiency:.3,travelNorm:.3}},
+  {features:{efficiency:.6,travelNorm:.6}},
+  {features:{efficiency:.9,travelNorm:.9}}];
+ assert.equal(spearmanPair(samples,'efficiency','travelNorm'),1);
+ assert.equal(spearmanPair(samples.map(s=>({features:{
+  ...s.features,travelNorm:1-s.features.travelNorm}})),
+ 'efficiency','travelNorm'),-1);
+ assert.equal(spearmanPair(samples.map(s=>({features:{
+  ...s.features,travelNorm:.5}})),
+ 'efficiency','travelNorm'),null);
+});
+test('pair research needs verified future nonoverlapping terminal windows',async()=>{
+ const {auditFeaturePairs,FEATURE_PAIRS_VERSION}
+  =await import('./forecast-feature-pairs.mjs');
+ const {auditShadowChallengers,SHADOW_CHALLENGER_REGISTRATION}
+  =await import('./forecast-shadow-challengers.mjs');
+ const make=tf=>Array.from({length:120},(_,i)=>scenario(tf,i,{
+  offset:tf==='15m'?42000:tf==='1h'?12000:3200,
+  efficiency:i%2===0?.95:.05,
+  travelNorm:(i%2===0?.93:.07),
+  volumeNorm:(i%2===0?.92:.08)
+ }));
+ const all=[...make('15m'),...make('1h'),...make('4h')];
+ assert.ok(all.every(row=>row.publishedAt>SHADOW_CHALLENGER_REGISTRATION));
+ const challenger=auditShadowChallengers(all,{
+  asset,complete:true,publishedCount:all.length,now});
+ const paired=auditFeaturePairs(all,{asset,complete:true,
+  publishedCount:all.length,now,challenge:challenger});
+ assert.equal(paired.version,FEATURE_PAIRS_VERSION);
+ assert.equal(paired.trained,false);
+ assert.equal(paired.calibratedProbability,null);
+ for(const tf of ['15m','1h','4h']){
+  assert.equal(challenger.frames[tf].state,'DESCRIPTIVE');
+  assert.equal(paired.frames[tf].state,'DESCRIPTIVE');
+  assert.equal(paired.frames[tf].pairs.length,3);
+  const one=paired.frames[tf].pairs[0];
+  assert.equal(one.state,'OVERLAPPING');
+  assert.equal(one.periods.length,3);
+  assert.equal(one.periods[2].correlation,1);
+  assert.equal(one.periods[2].gain,0);
+ }
+ assert.equal(auditFeaturePairs(all,{asset,complete:false,
+  publishedCount:all.length,now,challenge:challenger}).state,'INCOMPLETE');
+ assert.equal(auditFeaturePairs(all,{asset,complete:true,
+  publishedCount:all.length,now,challenge:{...challenger,asset:'ETHUSDT'}})
+  .state,'INVALID');
+ const stale=all.map(x=>structuredClone(x));
+ stale[0].hypothesis.preOutcomeStrength.score=99;
+ const mismatch=auditFeaturePairs(stale,{asset,complete:true,
+  publishedCount:stale.length,now,challenge:challenger});
+ assert.notEqual(mismatch.frames['15m'].state,'DESCRIPTIVE');
+});
+test('feature pairs appear only in explicit manual full-archive audit',()=>{
+ const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
+ const dashboard=read('./forecast-probability-dashboard.mjs');
+ assert.ok(dashboard.includes('auditFeaturePairs(archive?.forecasts'));
+ assert.ok(dashboard.includes('Сочетания признаков'));
+ assert.ok(dashboard.includes('onAudits({challenge,regimes,diagnostics:diagnosis,pairs})'));
+ const prepared=read('../apex9-android/scripts/prepare-web.mjs');
+ assert.ok(prepared.includes("'forecast-feature-pairs.mjs'"));
+});

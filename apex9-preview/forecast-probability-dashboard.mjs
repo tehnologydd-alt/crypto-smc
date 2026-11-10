@@ -8,6 +8,7 @@ import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
 import {diagnoseQualityFactors,DIAGNOSTIC_LABELS}
  from './forecast-quality-diagnostics.mjs';
+import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -519,6 +520,45 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  }
  qualityRoot.append(element('p','forecast-confluence-caveat',
   quality.note||'Исследование доступно только в полном локальном Room-архиве.'));
+ const pairs=auditFeaturePairs(archive?.forecasts,{
+  asset,complete:archive?.complete,publishedCount:archive?.publishedCount,
+  now,challenge
+ });
+ const pairPanel=element('details','forecast-quality-pairs');
+ pairPanel.append(element('summary','',
+  'Сочетания признаков · повторение, дублирование и спад'));
+ const pairBody=element('div','forecast-quality-pairs-body');
+ pairBody.append(element('p','forecast-confluence-caveat',
+  'Три фиксированные пары, три новых непересекающихся периода. '+
+  'ΔAUC к лучшему отдельному признаку на тех же исходах.'));
+ for(const tf of ['15m','1h','4h']){
+  const frame=pairs.frames?.[tf],section=element('section',
+   'forecast-quality-pairs-frame');
+  section.append(element('strong','',
+   label[tf]+' · '+(frame?.state||pairs.state)));
+  if(frame?.state==='DESCRIPTIVE'){
+   for(const pair of frame.pairs){
+    const box=element('div','forecast-quality-pair');
+    box.append(element('b','',pair.label),
+     element('small','',
+      ({REPEATED_ADDITION:'Добавляет различение в трёх периодах',
+       OVERLAPPING:'Сильно пересекаются · прирост не выявлен',
+       RECENT_SETBACK:'На новом периоде сочетание хуже',
+       EARLY_ONLY:'Ранний результат не повторился',
+       LATEST_ONLY:'Прирост только в новом периоде',
+       NO_REPEATED_ADDITION:'Повторяющегося прироста нет'})[pair.state]));
+    const vals=pair.periods.map(x=>
+     (x.gain>=0?'+':'')+x.gain.toFixed(3)).join(' / ');
+    box.append(element('small','','ΔAUC: '+vals));
+    section.append(box);
+   }
+  }else section.append(element('small','',
+   frame?.reason||pairs.reason));
+  pairBody.append(section);
+ }
+ pairBody.append(element('small','forecast-confluence-caveat',
+  pairs.note||'Неполный архив не позволяет сравнить признаки.'));
+ pairPanel.append(pairBody);
  const diagnosis=diagnoseQualityFactors({asset,quality,challenge,regimes});
  const diagnosticRoot=element('details','forecast-quality-diagnostics');
  diagnosticRoot.append(element('summary','',
@@ -542,9 +582,9 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  diagnosticBody.append(element('p','forecast-confluence-caveat',
   diagnosis.note||'Ни одна формула не изменяется.'));
  diagnosticRoot.append(diagnosticBody);
- slot.prepend(diagnosticRoot,qualityRoot);
+ slot.prepend(diagnosticRoot,pairPanel,qualityRoot);
  // Reuse already computed independent audits in the explicit manual workflow;
  // avoid repeating three full 1500-row passes on a slow Android device.
- if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis});
+ if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs});
  return report;
 }
