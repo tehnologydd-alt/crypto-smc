@@ -455,3 +455,21 @@ export async function getMobileOnChainHistory(asset,limit=80){
    error:String(error?.message||error)};
  }
 }
+
+/** Android WorkManager's historical Radar observations, never a live UI scan.
+ * Only the native repository can attest the source and close time.
+ */
+export async function getMobileRadarHistory(){
+ const native=plugin();
+ if(!native?.getRadarHistory)
+  return {native:false,records:[],source:'UNAVAILABLE'};
+ try{
+  const res=await native.getRadarHistory();
+  return {native:res?.native===true&&res.source==='ANDROID_NATIVE_RADAR',
+   records:Array.isArray(res?.records)?res.records.slice(0,40):[],
+   source:res?.source||'INVALID'};
+ }catch(e){
+  return {native:false,records:[],source:'OFFLINE',
+   error:String(e?.message||e).slice(0,125)};
+ }
+}
