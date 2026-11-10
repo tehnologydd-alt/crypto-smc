@@ -14,7 +14,13 @@ test('Room keeps the original journal and queries V1/V2 individually',()=>{
  assert.ok(dao.includes("id LIKE 'range1:%'"));
  assert.ok(dao.includes("id LIKE 'direction2:%'"));
  assert.ok(dao.includes('suspend fun latestResearchForecast(asset: String)'));
- assert.ok(dao.includes('version = 4'));
+ assert.ok(dao.includes('version = 5'));
+ assert.ok(dao.includes('migration4To5'));
+ assert.ok(dao.includes('migration1To2, migration2To3, migration3To4, migration4To5'));
+ assert.ok(dao.includes('CREATE TABLE IF NOT EXISTS research_shadow_candidates'));
+ assert.ok(dao.includes('ResearchForecast::class'));
+ assert.ok(dao.includes('ResearchForecastResult::class'));
+ assert.ok(dao.includes('ResearchForecastStage::class'));
 });
 test('V1 range can update but never prevent first V2 creation',()=>{
  assert.ok(auto.includes('val legacy = dao.latestLegacyRangeForecast(asset)'));
