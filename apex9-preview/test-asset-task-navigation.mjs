@@ -46,7 +46,7 @@ test('all research cards and original data source ids remain mounted',()=>{
   'structure-summary','depth-list','liquidity-history-panel',
   'onchain-network-panel','asset-quality-status','asset-explain'
  ])assert.equal(html.split('id="'+id+'"').length-1,1,id);
- assert.equal((asset.match(/data-asset-pane="chart"/g)||[]).length,2);
+ assert.equal((asset.match(/data-asset-pane="chart"/g)||[]).length,3);
  assert.equal((asset.match(/data-asset-pane="structure"/g)||[]).length,3);
  assert.equal((asset.match(/data-asset-pane="data"/g)||[]).length,4);
 });
@@ -59,18 +59,19 @@ test('radar opens observed structure; favorites, catalog and search open chart',
  const calls=[...app.matchAll(/navigate\('asset','structure'\)/g)];
  assert.equal(calls.length,1);
 });
-test('multi-TF comparison is manual, and hidden deep panels are not loaded on every view',()=>{
+test('four-frame comparison restores archive automatically but deep panels remain on-demand',()=>{
  const navigation=app.slice(app.indexOf('function navigate(view,targetId){'),
    app.indexOf("el('asset-explain').addEventListener"));
  assert.ok(!navigation.includes('runMarketMatrix('));
  assert.ok(navigation.includes("if(area==='data'){"));
  assert.ok(navigation.includes('void liquidityDashboard.refresh(chosen)'));
  assert.ok(navigation.includes('void onChainDashboard.refresh(chosen)'));
- assert.ok(app.includes("el('market-matrix-run').addEventListener('click',()=>void runMarketMatrix())"));
+ assert.ok(app.includes("el('market-matrix-run').addEventListener('click',()=>void runMarketMatrix(true))"));
  const setArea=app.slice(app.indexOf('function setAssetArea(requested){'),
   app.indexOf('function setQualityArea(requested){'));
  assert.ok(setArea.includes("previousArea!==mode"));
- assert.ok(setArea.includes("if(mode==='structure')void loadCandleHistory(false)"));
+ assert.ok(setArea.includes("if(mode==='structure'){"));
+ assert.ok(setArea.includes('void restoreMarketMatrix(chosen)'));
  assert.ok(setArea.includes("if(mode==='data')requestAnimationFrame"));
  assert.ok(app.includes('void showAssetScenarios(chosen)'));
 });
