@@ -156,7 +156,7 @@ test('asset H1 map preserves the single published side and 24H horizon',()=>{
  const overlay=mapScenarioToViewport(scenario,fixture([bar(1),bar(2)]));
  assert.equal(overlay.visible,true);
  const app=readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
- assert.ok(app.includes("if(selected?.model==='DIRECTIONAL')"));
- assert.ok(app.includes("sc.model==='DIRECTIONAL'?"));
+ assert.ok(app.includes("if(selected?.model==='DIRECTIONAL'||selected?.model==='MULTIFRAME')"));
+ assert.ok(app.includes("['DIRECTIONAL','MULTIFRAME'].includes(sc.model)?"));
  assert.ok(app.includes('directionalOutcomeLabel(sc.result.outcome)'));
 });
