@@ -62,7 +62,10 @@ test('read-only universe fetch preserves network failure and rate limit',async()
  assert.equal(result.state,'OK');
  assert.equal(result.rows[0].symbol,'BTCUSDT');
  assert.equal(api.length,1);
- assert.match(api[0].url,/data-api\.binance\.vision\/api\/v3\/ticker\/24hr$/);
+ assert.match(api[0].url,/data-api\.binance\.vision\/api\/v3\/ticker\/24hr\?/);
+ const requested=JSON.parse(new URL(api[0].url).searchParams.get('symbols'));
+ assert.deepEqual(requested,symbols.filter(x=>x.endsWith('USDT')&&
+  !['USDCUSDT'].includes(x)).slice(0,10));
  assert.equal(api[0].opts.method,'GET');
  assert.equal(api[0].opts.credentials,'omit');
 });
