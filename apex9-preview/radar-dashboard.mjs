@@ -442,6 +442,8 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   writeRadarAutoCheckpoint(storage,checkpoints,plan,Date.now());
   void scan({frame:plan.frame}).then(complete=>{
    if(!complete)markRadarAutoFailure(storage,checkpoints,plan,Date.now());
+  }).catch(()=>{
+   markRadarAutoFailure(storage,checkpoints,plan,Date.now());
   });
  }
  for(const button of document.querySelectorAll('[data-radar-frame]')){
