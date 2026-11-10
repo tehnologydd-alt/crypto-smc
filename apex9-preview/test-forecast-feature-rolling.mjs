@@ -247,7 +247,9 @@ test('late change reverses comparison: no model is promoted',()=>{
   baseEpoch:futureEpoch,
   efficiencyOf:i=>i%2===0?.6:.4,
   volumeNormOf:i=>i%2===0?0:1,
-  outcomeOf:i=>i>=100?
+  // Last 120 scored rows are 30..149: three windows 30..69,
+  // 70..109 and 110..149. Flip only the final window.
+  outcomeOf:i=>i>=110?
    (i%2===0?'STOP':'TP3'):(i%2===0?'TP3':'STOP')
  });
  const report=shadow(rows),struct=report.frames['15m'].models.find(x=>
