@@ -1,6 +1,7 @@
 /** On-demand audit presentation; no network requests or scheduled work. */
 import {auditProbabilityReadiness} from './forecast-probability-readiness.mjs';
 import {auditPreOutcomeStrength} from './forecast-preoutcome-strength.mjs';
+import {auditFeatureContribution} from './forecast-feature-ablation.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -160,5 +161,83 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
  body.append(element('p','forecast-confluence-caveat',
   frozen.note||'Рабочая модель не меняется и новых вероятностей не создаёт.'));
  section.append(body);slot.append(section);
+ const contribution=auditFeatureContribution(archive?.forecasts,{
+  asset,complete:archive?.complete,
+  publishedCount:archive?.publishedCount,now});
+ const ablation=element('details','forecast-probability-details forecast-strength-section');
+ ablation.append(element('summary','',
+  'Какие признаки действительно помогают? · независимая проверка'));
+ const abody=element('div','forecast-probability-detail-body');
+ if(!contribution.frames){
+  abody.append(element('p','forecast-quality-warning',contribution.reason));
+ }else{
+  abody.append(element('p','forecast-confluence-caveat',
+   'Метод: сравниваем различение TP3 и SL (AUC) у одного и того же '+
+   'фиксированного балла с признаком и без него. На раннем и более позднем '+
+   'участках, без обучения и пересчёта старых прогнозов.'));
+  const stateLabel={
+   REPEATED_ADDED_VALUE:'Наблюдаемое улучшение повторилось',
+   NOT_REPEATED:'Раннее улучшение не повторилось',
+   POSSIBLE_HARM:'Признак ухудшил различение на поздних данных',
+   LATE_ONLY:'Улучшение только в поздней выборке',
+   NO_ADDED_VALUE:'Дополнительная польза не подтверждена'
+  };
+  const formatAuc=value=>typeof value==='number'&&Number.isFinite(value)?
+   value.toFixed(3):'—';
+  const gain=value=>typeof value==='number'&&Number.isFinite(value)?
+   (value>=0?'+':'')+value.toFixed(3):'—';
+  for(const tf of ['15m','1h','4h']){
+   const frame=contribution.frames[tf];
+   const panel=element('section','forecast-probability-frame');
+   panel.append(element('strong','',
+    label[tf]+' · новых опубликованных баллов: '+frame.newScores),
+    element('small','',frame.reason));
+   const evidence=element('div','forecast-probability-metrics');
+   for(const [name,value] of [
+    ['Старые без балла',frame.oldWithoutScores],
+    ['Ранние TP3/SL',frame.reference?.decisive??0],
+    ['Поздние TP3/SL',frame.recent?.decisive??0],
+    ['Ранние без объёма',frame.reference?.missingVolume??0],
+    ['Поздние без объёма',frame.recent?.missingVolume??0],
+    ['Непроверенные исходы',(
+     (frame.reference?.invalid??0)+(frame.recent?.invalid??0)
+    )]]){
+    const tile=element('div','forecast-probability-metric');
+    tile.append(element('span','',name),element('strong','',value));
+    evidence.append(tile);
+   }
+   panel.append(evidence);
+   if(frame.state==='DESCRIPTIVE'){
+    for(const feature of frame.features){
+     const item=element('div','forecast-feature-period');
+     item.append(element('strong','',feature.label),
+      element('small','',stateLabel[feature.state]||'Вывод недоступен'));
+     const metrics=element('div','forecast-feature-periods');
+     for(const [name,key] of [['Ранние','reference'],['Поздние','late']]){
+      const col=element('div','forecast-feature-period');
+      col.append(element('span','',
+       name+' · ΔAUC '+gain(feature.deltaAuc[key])),
+       element('small','',
+        'AUC без: '+formatAuc(feature.withoutAuc[key])+
+        ' · с признаком: '+formatAuc(feature.fullAuc[key])));
+      metrics.append(col);
+     }
+     item.append(metrics,
+      element('p','forecast-confluence-caveat',
+       'Отдельный признак · AUC: '+
+       formatAuc(feature.isolatedAuc.late)+
+       '. Это оценка ранжирования, не вероятность.'));
+     panel.append(item);
+    }
+   }else{
+    panel.append(element('p','forecast-quality-warning',
+     'Нет доказательной базы для вывода о полезности: '+frame.reason));
+   }
+   abody.append(panel);
+  }
+ }
+ abody.append(element('p','forecast-confluence-caveat',
+  contribution.note||'Прогнозы, веса и исходы не менялись.'));
+ ablation.append(abody);slot.append(ablation);
  return report;
 }
