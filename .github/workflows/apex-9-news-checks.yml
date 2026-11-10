@@ -40,6 +40,12 @@ jobs:
           node --check apex9-preview/research-layer-core.mjs
           node --check apex9-preview/research-layer-budget.mjs
           node --check apex9-preview/research-layer-dashboard.mjs
+          node --check apex9-preview/overview-cache.mjs
+          node --check apex9-preview/favorite-ticker.mjs
+          node --check apex9-preview/asset-logo.mjs
+          node --check apex9-preview/favorite-dashboard.mjs
+          node --check apex9-preview/radar-core.mjs
+          node --check apex9-preview/radar-dashboard.mjs
       - name: News and asset attribution regression tests
         run: |
           node --test \
@@ -62,3 +68,11 @@ jobs:
             apex9-preview/test-research-layer-core.mjs \
             apex9-preview/test-research-layer-budget.mjs \
             apex9-preview/test-research-layer-ui.mjs
+      - name: Favorite-only monitoring and stable overview cache
+        run: |
+          node --test \
+            apex9-preview/test-favorite-ticker.mjs \
+            apex9-preview/test-overview-cache.mjs \
+            apex9-preview/test-favorites-scope.mjs \
+            apex9-preview/test-radar-core.mjs \
+            apex9-preview/test-overview-catalog.mjs
