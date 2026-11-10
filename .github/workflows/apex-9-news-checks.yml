@@ -44,6 +44,7 @@ jobs:
           node --check apex9-preview/favorite-ticker.mjs
           node --check apex9-preview/asset-logo.mjs
           node --check apex9-preview/favorite-dashboard.mjs
+          node --check apex9-preview/forecast-multiframe.mjs
           node --check apex9-preview/forecast-directional-card.mjs
           node --check apex9-preview/radar-core.mjs
           node --check apex9-preview/radar-dashboard.mjs
@@ -59,6 +60,9 @@ jobs:
             apex9-preview/test-quality-navigation.mjs \
             apex9-preview/test-forecast-event-timeline.mjs \
             apex9-preview/test-forecast-quality.mjs
+      - name: Independent M15/H4 forecast chronology and future-data guards
+        run: |
+          node --test apex9-preview/test-forecast-multiframe.mjs
       - name: News and asset attribution regression tests
         run: |
           node --test \
