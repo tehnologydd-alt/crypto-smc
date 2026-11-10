@@ -24,8 +24,8 @@ function score(hot,at){
  };
 }
 function scenario(i,{high=i%2===0,stop=i%4===1,withScore=true,
- outcome=null}={}){
- const a=BASE+i*25*M,close=100,w=.04;
+ outcome=null,offset=0}={}){
+ const a=BASE+(i*25+offset)*M,close=100,w=.04;
  const targets=computeReferenceLevels(close,
   round(close*Math.exp(-w)),round(close*Math.exp(w))).UP;
  const make=(stage,n)=>({
@@ -126,15 +126,13 @@ test('incomplete, duplicated and mixed assets invalidate the whole audit',()=>{
 });
 test('overlap, missing source and unknown terminal outcome do not count wins',()=>{
  const rows=Array.from({length:100},(_,i)=>scenario(i,{stop:i%2===0}));
- rows.push(scenario(10,{high:true,stop:false}));
- rows.at(-1).id+=':duplicate-new-id'; // distinct ID, same published time
+ rows.push(scenario(10,{high:true,stop:false,offset:8}));
  const bad=structuredClone(rows);
  bad[3].hypothesis.preOutcomeStrength.score=60;
  const report=audit(bad).frames['15m'];
  assert.equal(report.state,'UNVERIFIED');
  assert.equal(report.total.invalid,1);
  assert.ok(report.total.excludedOverlap>=1);
- assert.equal(report.total.decisisive,undefined);
  const oldRows=Array.from({length:100},(_,i)=>scenario(i,{
   outcome:i%4===0?'HORIZON':null
  }));
