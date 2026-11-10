@@ -9,6 +9,8 @@ import {getMobileFavorites,changeMobileFavorite,
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
+import {attachAssetLogo} from './asset-logo.mjs';
+import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {directionalQualitySummary} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
@@ -468,6 +470,39 @@ export function initFavoriteResearch({
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
   archiveExpanded=false,lastRows=[],lastTotal=0;
  const MINI_CACHE=new Map(),MINI_LOADING=new Set();
+ let localStore=null;
+ try{localStore=globalThis.localStorage;}catch{}
+ const favoriteTickers=createFavoriteTickerFeed({storage:localStore});
+ let priceRequest=0;
+ function paintFavoritePrice(symbol,card=null){
+  const target=card||[...document.querySelectorAll('.favorite-card')]
+   .find(node=>node.dataset.symbol===symbol);
+  if(!target)return;
+  const price=target.querySelector('.favorite-price-value');
+  const change=target.querySelector('.favorite-price-change');
+  if(!price||!change)return;
+  const data=favoriteTickers.cached(favorites)[symbol];
+  price.textContent=data?fmt(data.price,data.price<1?8:4)+' USDT':'Цена недоступна';
+  price.dataset.state=data?'ARCHIVE':'UNAVAILABLE';
+  change.textContent=data?(data.changePercent24h>0?'+':'')+
+   fmt(data.changePercent24h,2)+'% / 24ч · сохранено':'Проверяем цену';
+  change.className='favorite-price-change'+
+   (data?.changePercent24h>0?' positive':data?.changePercent24h<0?' negative':'');
+ }
+ function refreshFavoritePrices({force=false}={}){
+  if(!favorites.length)return;
+  const selected=favorites.slice(),sequence=++priceRequest;
+  for(const symbol of selected)paintFavoritePrice(symbol);
+  void favoriteTickers.refresh(selected,{force}).then(result=>{
+   if(sequence!==priceRequest)return;
+   for(const symbol of favorites)paintFavoritePrice(symbol);
+   const badge=id('favorites-price-status');
+   if(badge)badge.textContent=result.state==='OK'?
+    'Цены Binance · обновлено':result.state==='CACHE'?'Цены из кеша':
+    Object.keys(result.prices||{}).length?'Показаны сохранённые цены':
+    'Цены Binance недоступны';
+  });
+ }
  let selected=new Set();
  try{
   const stored=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');
@@ -560,13 +595,21 @@ export function initFavoriteResearch({
    open.setAttribute('aria-label','Исследовать '+symbol);
    const token=symbol.replace(/(USDT|USDC|BTC|ETH|EUR)$/,'');
    const [label,mark]=coinNames[token]||[token,token.slice(0,1)];
-   const icon=create('span','coin-mark '+token.toLowerCase(),mark);
+   const icon=create('span','coin-mark '+token.toLowerCase());
+   attachAssetLogo(icon,symbol,mark);
    const labels=create('span','favorite-names');
    labels.append(create('strong','',label),create('small','',symbol));
    open.append(icon,labels);
+   const priceBox=create('div','favorite-price-box');
+   const priceValue=create('strong','favorite-price-value','Цена недоступна');
+   const priceChange=create('small','favorite-price-change','Проверяем цену');
+   priceBox.append(priceValue,priceChange);
    const spark=create('span','favorite-chart');
+   spark.setAttribute('aria-label','График завершённых H1 свечей '+symbol);
    spark.dataset.sparkSymbol=symbol;
-   wrapper.append(spark);
+   const market=create('div','favorite-market-row');
+   market.append(priceBox,spark);
+   wrapper.append(market);
    renderMini(symbol,spark);
    enableSwipeRemoval(wrapper,symbol);
    wrapper.addEventListener('click',(e)=>{
@@ -582,6 +625,7 @@ export function initFavoriteResearch({
     onExplainSymbol?.(symbol);
    });
    wrapper.append(open,explain);
+   paintFavoritePrice(symbol,wrapper);
    if(notice){
     const radar=create('button','favorite-radar-link',
      '◉ '+notice.frame+' · '+notice.label);
@@ -625,7 +669,9 @@ export function initFavoriteResearch({
   try{
    const result=await changeMobileFavorite(symbol,add);
    favorites=sanitizeFavorites(result.favorites);
+   priceRequest++;
    renderFavorites();
+   if(add)refreshFavoritePrices({force:true});
    if(!add)offerUndo(symbol);
    await loadJournal();
    if(add)void sync(true);
@@ -954,7 +1000,7 @@ export function initFavoriteResearch({
   async initialize(){
    const result=await getMobileFavorites();
    native=result.native;favorites=sanitizeFavorites(result.favorites);
-   renderFavorites();await loadJournal();
+   renderFavorites();refreshFavoritePrices();await loadJournal();
    void sync(true);
   },
   selectChanged(){renderFavorites();},
@@ -967,6 +1013,6 @@ export function initFavoriteResearch({
   getScenarioRows,
   refreshJournal:loadJournal,
   renderMini,
-  openOverviewSummary:()=>{renderFavorites();void loadJournal();}
+  openOverviewSummary:()=>{renderFavorites();refreshFavoritePrices();void loadJournal();}
  };
 }
