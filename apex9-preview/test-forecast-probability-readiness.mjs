@@ -151,6 +151,18 @@ test('late outcomes after holdout start cannot improve reference',()=>{
  assert.equal(result.reference.outcomes.TP3,23);
  assert.equal(result.holdout.outcomes.TP3,16);
 });
+test('late-recorded Room stage events are never reference-period evidence',()=>{
+ const rows=Array.from({length:80},(_,i)=>scenario('15m',i,{
+  outcome:i%2===0?'TP3':'STOP'
+ }));
+ const boundary=rows[48].publishedAt;
+ const changed=structuredClone(rows);
+ changed[10].stageEvents[0].recordedAt=boundary+1000;
+ const result=audit(changed).frames['15m'];
+ assert.equal(result.reference.lateOutcome,1);
+ assert.equal(result.reference.outcomes.TP3,23);
+ assert.equal(result.total.outcomes.TP3,40);
+});
 test('older H1 observer is excluded; H1→M5 and H4 remain independent',()=>{
  const h1=Array.from({length:60},(_,i)=>scenario('1h',i,{
   outcome:i%2===0?'TP3':'STOP'
