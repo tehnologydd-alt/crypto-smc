@@ -11,7 +11,9 @@ const html=read('./index.html'),css=read('./styles.css');
 const overview=read('./editorial-dashboard.mjs');
 test('Android background worker never monitors the selected-only asset',()=>{
  assert.ok(android.includes('val favorites = settings.favorites'));
- assert.ok(android.includes('for (asset in favorites)'));
+ assert.ok(android.includes('JSONArray(favorites).toString()'));
+ assert.ok(android.includes('if (asset !in allowed) continue'));
+ assert.equal(android.includes('24hr?symbol=$asset'),false);
  assert.ok(android.includes('ApexAutoForecast.syncAll(applicationContext, favorites)'));
  assert.equal(android.includes('val asset = settings.asset'),false);
  assert.ok(notifier.includes('.setSmallIcon(R.drawable.ic_stat_apex)'));
