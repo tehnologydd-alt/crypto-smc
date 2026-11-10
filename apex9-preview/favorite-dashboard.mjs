@@ -25,6 +25,7 @@ import {directionalHypothesis} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
 import {multiFrameHypothesis,multiFrameForecastCard,multiFrameQuality,
  multiFrameAgreement} from './forecast-multiframe.mjs';
+import {evidenceCohorts} from './forecast-evidence-context.mjs';
 import {bindFavoriteHoldSwipe} from './favorite-gesture.mjs';
 
 const id=name=>document.getElementById(name);
