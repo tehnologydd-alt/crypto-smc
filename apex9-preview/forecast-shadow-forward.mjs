@@ -102,6 +102,9 @@ export function evaluateShadowProposal(proposal,rows,{
   return failing('INCOMPLETE','Нужен полный постраничный архив Room');
  const report={...failing('COLLECTING','Ещё недостаточно новых наблюдений'),
   proposal,postRegistration:0,covered:0,finished:0,
+  // Compact as-published, non-overlapping outcome ledger. No price levels,
+  // no inference of unobserved TP/SL and no retroactive source fills.
+  timeline:[],timelineVersion:'SHADOW_OBSERVATION_LEDGER_V1',
   usedSourceVersions:['AS_OF_ROOM_EVIDENCE_V1'],now};
  const after=rows.filter(row=>rowFrame(row)===proposal.interval&&
   row.publishedAt>proposal.embargoUntil&&row.publishedAt<=now)
@@ -118,19 +121,28 @@ export function evaluateShadowProposal(proposal,rows,{
   if(row.publishedAt<=blockedUntil){report.overlapExcluded++;continue;}
   blockedUntil=result.plan.targetCloseAt;
   report.eligible++;
+  const item={publishedAt:row.publishedAt,targetCloseAt:result.plan.targetCloseAt,
+   outcomeRecordedAt:null,state:'AWAITING',supports:null,outcome:null};
+  report.timeline.push(item);
   if(!result.finished){report.awaiting++;continue;}
   report.finished++;
-  if(!['TP3','STOP'].includes(result.outcome)){report.other++;continue;}
+  item.outcomeRecordedAt=row.evaluation?.evaluatedAt??null;
+  if(!['TP3','STOP'].includes(result.outcome)){
+   report.other++;item.state='OTHER';continue;
+  }
   const ctx=inspectEvidenceContext(row);
   if(ctx.state!=='VERIFIED'){
-   report.unavailable++;continue;
+   report.unavailable++;item.state='UNAVAILABLE';continue;
   }
   const observed=observedFeatureMatch(ctx,proposal.interval,
    result.plan.side,proposal.featureId);
   if(observed===null){
-   report.unavailable++;continue;
+   report.unavailable++;item.state='UNAVAILABLE';continue;
   }
   const supports=proposal.association==='MATCH_MORE_TP3'?observed:!observed;
+  item.state='DECISIVE';
+  item.supports=supports;
+  item.outcome=result.outcome;
   const group=supports?report.positive:report.negative;
   group[result.outcome==='TP3'?'tp3':'stop']++;
   report.covered++;
