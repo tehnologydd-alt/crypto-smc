@@ -15,6 +15,8 @@ import {featureFrameOf} from './forecast-feature-ablation.mjs';
 export const DECISION_QUALITY_VERSION='APEX_OVERVIEW_DECISION_QUALITY_V1';
 export const DECISION_QUALITY_KEY='apex9:decision-quality:v1';
 export const DECISION_QUALITY_MAX_AGE=30*86400000;
+export const DECISION_HISTORY_KEY='apex9:decision-history:v1';
+export const DECISION_HISTORY_LIMIT=12;
 const FRAMES=['15m','1h','4h'];
 const STATES=['COLLECTING','CHECK_DATA','NOT_BETTER','UNSTABLE','REPEATED','REGIME_SUPPORT'];
 const validAsset=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
@@ -37,6 +39,9 @@ function validFrame(f){
   f.newScored<=f.newPublished&&count(f.repeatedModels)&&
   f.repeatedModels<=3&&count(f.regimeRepeatedModels)&&
   f.regimeRepeatedModels<=f.repeatedModels&&
+  (f.baselineAuc===undefined||f.baselineAuc===null||
+   (Array.isArray(f.baselineAuc)&&f.baselineAuc.length===3&&
+    f.baselineAuc.every(auc)))&&
   (f.structureDelta===null||
    (Array.isArray(f.structureDelta)&&f.structureDelta.length===3&&
     f.structureDelta.every(x=>typeof x==='number'&&Number.isFinite(x)&&
@@ -83,6 +88,10 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
   const structureDelta=Array.isArray(deltas)&&deltas.length===3&&
    deltas.every(x=>typeof x==='number'&&Number.isFinite(x)&&x>=-1&&x<=1)?
     deltas.map(x=>Math.round(x*10000)/10000):null;
+  const rawBaseline=structure?.baselineAuc;
+  const baselineAuc=Array.isArray(rawBaseline)&&rawBaseline.length===3&&
+   rawBaseline.every(auc)?
+    rawBaseline.map(x=>Math.round(x*10000)/10000):null;
   let state='COLLECTING';
   if(checkData)state='CHECK_DATA';
   else if(compared.state==='DESCRIPTIVE'){
@@ -95,7 +104,7 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
   frames[tf]={state,published,recordedTerminal,
    newPublished:compared.futurePublished,
    newScored:compared.newScored,repeatedModels:repeated.length,
-   regimeRepeatedModels:regimeSupport.length,structureDelta};
+   regimeRepeatedModels:regimeSupport.length,structureDelta,baselineAuc};
   if(!validFrame(frames[tf]))return null;
  }
  return {version:DECISION_QUALITY_VERSION,asset,auditedAt:now,
@@ -103,6 +112,93 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
   registrationAt:SHADOW_CHALLENGER_REGISTRATION,
   frames,autoTraining:false,calibratedProbability:null};
 }
+/** Three disjoint, forward-tested outcome cohorts in ONE manual audit.
+ * Thresholds flag a descriptive change, never statistical significance,
+ * future performance, a recalibrated probability, or permission to retrain.
+ */
+export function assessBaselineRankTrend(values){
+ if(!Array.isArray(values)||values.length!==3||!values.every(auc))
+  return {state:'NO_DATA',delta:null};
+ const delta=Math.round((values[2]-values[0])*10000)/10000;
+ const lastStep=values[2]-values[1];
+ return {state:delta<=-.10&&lastStep<=-.04?'DECLINING':
+  delta>=.10&&lastStep>=.04?'RISING':'MIXED',delta};
+}
+const historyFrames=['15m','1h','4h'];
+const validHistoryFrame=x=>x&&
+ count(x.published)&&count(x.recordedTerminal)&&
+ x.recordedTerminal<=x.published&&count(x.newScored)&&
+ ['NO_DATA','DECLINING','RISING','MIXED'].includes(x.trend)&&
+ (x.lateAuc===null||auc(x.lateAuc));
+function validHistoryPoint(p){
+ return p&&count(p.archiveCount)&&time(p.auditedAt)&&p.frames&&
+  historyFrames.every(tf=>validHistoryFrame(p.frames[tf]));
+}
+function storedHistory(storage){
+ try{
+  const raw=storage?.getItem?.(DECISION_HISTORY_KEY);
+  if(!raw||raw.length>150000)return {};
+  const obj=JSON.parse(raw);
+  return obj?.version===1&&obj.assets&&
+   typeof obj.assets==='object'&&!Array.isArray(obj.assets)?
+    obj.assets:{};
+ }catch{return {}}
+}
+/** Only stored manual audits; no Room queries or market polling on Overview. */
+export function readDecisionHistory(asset,{
+ storage=safeStorage(),now=Date.now()
+}={}){
+ if(!validAsset(asset)||!time(now))return [];
+ const entries=storedHistory(storage)[asset];
+ if(!Array.isArray(entries)||entries.length>DECISION_HISTORY_LIMIT||
+  entries.some(p=>!validHistoryPoint(p)||p.auditedAt>now+60000)||
+  entries.some((p,i)=>i>0&&entries[i-1].auditedAt>=p.auditedAt))
+  return [];
+ return entries.map(p=>({auditedAt:p.auditedAt,archiveCount:p.archiveCount,
+  frames:Object.fromEntries(historyFrames.map(tf=>[tf,{...p.frames[tf]}]))
+ }));
+}
+const historySignature=p=>JSON.stringify(historyFrames.map(tf=>{
+ const f=p.frames[tf];
+ return [f.published,f.recordedTerminal,f.newScored,f.trend,f.lateAuc];
+}));
+function rememberDecisionHistory(snapshot,{storage,now}){
+ if(!storage||!time(now)||!validAsset(snapshot?.asset)||
+  !time(snapshot.auditedAt)||snapshot.auditedAt>now+60000||
+  !count(snapshot.archiveCount))return false;
+ const point={auditedAt:snapshot.auditedAt,archiveCount:snapshot.archiveCount,
+  frames:{}};
+ for(const tf of historyFrames){
+  const f=snapshot.frames?.[tf];
+  const vals=f?.baselineAuc;
+  point.frames[tf]={published:f?.published,
+   recordedTerminal:f?.recordedTerminal,newScored:f?.newScored,
+   trend:assessBaselineRankTrend(vals).state,
+   lateAuc:Array.isArray(vals)&&vals.length===3&&vals.every(auc)?
+    Math.round(vals[2]*10000)/10000:null};
+ }
+ if(!validHistoryPoint(point))return false;
+ const all=storedHistory(storage),next={};
+ for(const asset of Object.keys(all)){
+  if(!validAsset(asset)||asset===snapshot.asset||
+   Object.keys(next).length>=9)continue;
+  const entries=readDecisionHistory(asset,{storage,now});
+  if(entries.length)next[asset]=entries;
+ }
+ let entries=readDecisionHistory(snapshot.asset,{storage,now});
+ const last=entries.at(-1);
+ if(last&&last.auditedAt>point.auditedAt)return false;
+ // Same observations and AUC => no new point. Manual re-run is NOT learning.
+ if(last&&historySignature(last)===historySignature(point))return true;
+ entries=[...entries,point].slice(-DECISION_HISTORY_LIMIT);
+ next[snapshot.asset]=entries;
+ try{
+  storage.setItem(DECISION_HISTORY_KEY,JSON.stringify({
+   version:1,assets:next}));
+  return true;
+ }catch{return false}
+}
+
 export function saveDecisionQualityAudit(archive,asset,{
  now=Date.now(),storage=safeStorage(),emit=true,audits=null
 }={}){
@@ -135,6 +231,8 @@ export function saveDecisionQualityAudit(archive,asset,{
  try{storage.setItem(DECISION_QUALITY_KEY,JSON.stringify({
   version:DECISION_QUALITY_VERSION,summaries
  }))}catch{return false}
+ // A separate bounded local chronology is best-effort; current audit remains.
+ rememberDecisionHistory(result,{storage,now});
  if(emit&&typeof window!=='undefined'&&
   typeof window.dispatchEvent==='function'&&
   typeof CustomEvent==='function')
@@ -204,6 +302,7 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
   new Date(result.auditedAt).toLocaleString('ru-RU')+
   ' · сохранённая оценка, не онлайн',
   'overview-quality-hint'));
+ const history=readDecisionHistory(asset,{storage,now});
  for(const [tf,label] of [['15m','M15'],['1h','H1'],['4h','H4']]){
   const frame=result.frames[tf],row=setText('div','',
    'overview-quality-frame');
@@ -235,10 +334,50 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
     vals.map(x=>(x>=0?'+':'')+x.toFixed(3)).join(' / ')+
     ' ΔAUC по трём периодам','overview-quality-hint'));
   }
+  const trend=assessBaselineRankTrend(frame.baselineAuc);
+  if(!frame.outOfDate&&trend.state==='DECLINING')
+   row.append(setText('p','Внимание: AUC базовой формулы снизилась '+
+    'на трёх непересекающихся проверочных периодах. '+
+    'Это исследовательское наблюдение, не прогноз убытка.',
+    'overview-quality-decline'));
+  if(!frame.outOfDate&&trend.state==='RISING')
+   row.append(setText('small','AUC выросла между периодами; '+
+    'это ещё не доказательство обучения или прибыли.',
+    'overview-quality-hint'));
   if(frame.regimeRepeatedModels>0&&!frame.outOfDate)
    row.append(setText('small','Повторяется также по режимам: '+
     frame.regimeRepeatedModels+' / 3 альтернатив','overview-quality-hint'));
   root.append(row);
+ }
+ if(history.length){
+  const details=document.createElement('details');
+  details.className='overview-quality-history';
+  details.append(setText('summary','История ручных аудитов · '+
+   history.length+' / 12'));
+  for(const [tf,label] of [['15m','M15'],['1h','H1'],['4h','H4']]){
+   const panel=setText('div','', 'overview-quality-history-row');
+   panel.append(setText('strong',label+' · AUC последнего окна',
+    'overview-quality-hint'));
+   const plot=document.createElement('div');
+   plot.className='overview-quality-history-bars';
+   for(const point of history){
+    const value=point.frames[tf].lateAuc;
+    const bar=document.createElement('span');
+    bar.className='overview-quality-history-bar';
+    if(value===null)bar.classList.add('is-unavailable');
+    bar.style.height=value===null?'4px':
+     Math.max(6,Math.round(value*42))+'px';
+    bar.title=new Date(point.auditedAt).toLocaleString('ru-RU')+
+     (value===null?' · недостаточно данных':' · AUC '+value.toFixed(3));
+    plot.append(bar);
+   }
+   panel.append(plot);details.append(panel);
+  }
+  details.append(setText('small','Только ручные полные проверки Room. '+
+   'Между аудитами часть исходов повторяется; нельзя считать '+
+   'изменение соседних столбцов независимым улучшением или ухудшением.',
+   'overview-quality-hint'));
+  root.append(details);
  }
  root.append(setText('small','AUC показывает различение TP3 и SL на '+
   'проверенных исходах. Это не вероятность прибыли, доказанная '+

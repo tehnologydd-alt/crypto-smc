@@ -3239,6 +3239,14 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .overview-quality-window.is-positive{background:#43c5a7}
 .overview-quality-window.is-negative{background:#ca8479}
 .overview-quality-open{width:100%;min-height:33px;font-size:11px}
+.overview-quality-decline{margin:0;padding:8px 10px;border:1px solid #a36a68;border-radius:8px;background:#5d303521;color:#f6c1b5;font-size:10px;line-height:1.5}
+.overview-quality-history{border-top:1px solid #ffffff1b;padding-top:8px}
+.overview-quality-history>summary{color:#b9e8d9;font-size:11px;cursor:pointer;font-weight:650}
+.overview-quality-history-row{display:grid;gap:6px;padding:8px 10px;margin-top:6px;background:#102936;border-radius:9px}
+.overview-quality-history-bars{height:45px;display:flex;align-items:flex-end;gap:4px}
+.overview-quality-history-bar{min-width:4px;max-width:20px;flex:1;border-radius:3px 3px 1px 1px;background:#51c4b3}
+.overview-quality-history-bar.is-unavailable{background:#637b8b}
+
 .overview-experience-details{border-top:1px solid #ffffff1b;padding-top:7px}
 .overview-experience-details>summary{font-size:11px;font-weight:650;color:#b9e8d9;cursor:pointer;min-height:32px}
 .overview-experience-details p{font-size:10px;color:#accbd2;line-height:1.55;margin:7px 0}

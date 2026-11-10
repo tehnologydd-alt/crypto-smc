@@ -144,3 +144,68 @@ test('overview, full-archive audit, web staging, and routing are wired',()=>{
  assert.ok(!read('./overview-decision-quality.mjs').includes(
   'getMobileAssetResearchArchive('));
 });
+
+
+test('degradation is measured across three verified chronological windows',async()=>{
+ const {assessBaselineRankTrend}=await import('./overview-decision-quality.mjs');
+ assert.deepEqual(assessBaselineRankTrend([.8,.68,.55]),
+  {state:'DECLINING',delta:-.25});
+ assert.deepEqual(assessBaselineRankTrend([.4,.5,.62]),
+  {state:'RISING',delta:.22});
+ assert.equal(assessBaselineRankTrend([.6,.58,.61]).state,'MIXED');
+ for(const input of [null,[],[.3,.4],[.3,.2,NaN],[-1,.5,.2]])
+  assert.equal(assessBaselineRankTrend(input).state,'NO_DATA');
+});
+test('manual audits record bounded distinct local history without repeated progress',async()=>{
+ const {readDecisionHistory,DECISION_HISTORY_KEY,DECISION_HISTORY_LIMIT}
+  =await import('./overview-decision-quality.mjs');
+ const map=new Map(),storage={getItem:k=>map.get(k)??null,
+  setItem:(k,v)=>map.set(k,v)};
+ const mkAudit=(value,at)=>({
+  asset,complete:true,publishedCount:value,
+  forecasts:Array.from({length:value},(_,i)=>({
+   asset,id:'direction3:abcdefghijkl'+i,interval:'15m',
+   publishedAt:at-1000-i
+  }))
+ });
+ const ch=()=>({asset,frames:Object.fromEntries(
+  ['15m','1h','4h'].map(tf=>[tf,{
+   state:'DESCRIPTIVE',futurePublished:130,newScored:120,
+   models:[{id:'STRUCTURE_V1',state:'NOT_BETTER',
+    baselineAuc:[.80,.69,.55],deltaAuc:[0,0,0]}]
+  }]))});
+ const regime=()=>({asset,frames:Object.fromEntries(
+  ['15m','1h','4h'].map(tf=>[tf,{state:'COLLECTING'}]))});
+ let at=Date.UTC(2026,11,1);
+ for(let i=1;i<=15;i++){
+  const args={storage,now:at+i*1000,emit:false,
+   audits:{challenge:ch(),regimes:regime()}};
+  assert.equal(saveDecisionQualityAudit(mkAudit(i,at+i*1000),asset,args),true);
+ }
+ let history=readDecisionHistory(asset,{storage,now:at+16000});
+ assert.equal(history.length,DECISION_HISTORY_LIMIT);
+ assert.equal(history[0].archiveCount,4);
+ assert.equal(history.at(-1).archiveCount,15);
+ assert.equal(history.at(-1).frames['15m'].trend,'DECLINING');
+ assert.equal(history.at(-1).frames['15m'].lateAuc,.55);
+ const repeat={storage,now:at+16000,emit:false,
+  audits:{challenge:ch(),regimes:regime()}};
+ assert.equal(saveDecisionQualityAudit(mkAudit(15,at+16000),asset,repeat),true);
+ assert.equal(readDecisionHistory(asset,{storage,now:at+16000}).length,12);
+ assert.equal(readDecisionHistory('ETHUSDT',{storage,now:at+16000}).length,0);
+ const corrupt=JSON.parse(storage.getItem(DECISION_HISTORY_KEY));
+ corrupt.assets[asset][0].frames['15m'].lateAuc=55;
+ storage.setItem(DECISION_HISTORY_KEY,JSON.stringify(corrupt));
+ assert.equal(readDecisionHistory(asset,{storage,now:at+16000}).length,0);
+});
+test('cached history is only created after a successful complete audit',()=>{
+ const map=new Map(),storage={getItem:k=>map.get(k)??null,
+  setItem:(k,v)=>map.set(k,v)};
+ assert.equal(saveDecisionQualityAudit({complete:false,forecasts:[]},asset,{
+  now:Date.UTC(2026,11,1),storage,emit:false}),false);
+ assert.equal(map.size,0);
+ const source=readFileSync(new URL('./overview-decision-quality.mjs',import.meta.url),'utf8');
+ assert.ok(source.includes('rememberDecisionHistory(result,{storage,now})'));
+ assert.ok(source.includes('readDecisionHistory(asset,{storage,now})'));
+ assert.ok(!source.includes('getMobileAssetResearchArchive('));
+});
