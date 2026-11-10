@@ -3157,3 +3157,44 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  border-radius:10px;background:#0d3039;color:#b9dada;
  font-size:11px;line-height:1.55;overflow-wrap:anywhere
 }
+
+
+/* Selected-favorite local research data readiness; no background polling. */
+.forecast-data-quality-hub{
+ display:grid;gap:10px;margin:8px 0 14px;
+ padding:12px;border:1px solid #376771;
+ background:#102b36;border-radius:12px;min-width:0;
+}
+.forecast-data-quality-hub>strong{
+ font-size:14px;line-height:1.5;color:#d8efe9
+}
+.forecast-data-quality-frame{
+ display:grid;gap:9px;border:1px solid #335d68;
+ padding:10px;border-radius:10px;background:#09242e;min-width:0
+}
+.forecast-data-quality-frame>strong{
+ font-size:12px;line-height:1.5;color:#d5ebe8
+}
+.forecast-data-quality-frame>p{
+ font-size:11px;line-height:1.5;color:#a9cbd2;margin:0
+}
+.forecast-data-quality-feeds{display:grid;gap:5px}
+.forecast-data-quality-feed{
+ display:grid;grid-template-columns:minmax(0,1fr);
+ gap:4px;padding:9px;border:1px solid #365a63;
+ border-radius:8px;background:#0e303a
+}
+.forecast-data-quality-feed strong{
+ font-size:11px;color:#d6f0e8
+}
+.forecast-data-quality-feed span,
+.forecast-data-quality-feed small{
+ font-size:10px;line-height:1.5;color:#a6c8ce;overflow-wrap:anywhere
+}
+@media(min-width:650px){
+ .forecast-data-quality-feed{
+  grid-template-columns:1fr 1fr;
+  align-items:center
+ }
+ .forecast-data-quality-feed small{grid-column:1/-1}
+}

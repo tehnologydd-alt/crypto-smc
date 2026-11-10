@@ -5,6 +5,7 @@ import {auditFeatureContribution} from './forecast-feature-ablation.mjs';
 import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
 import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
+import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -438,5 +439,82 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
  abody.append(element('p','forecast-confluence-caveat',
   contribution.note||'Прогнозы, веса и исходы не менялись.'));
  ablation.append(abody);slot.append(ablation);
+ const quality=summarizeResearchDataQuality(archive,{
+  asset,now,reports:{probability:report,strength:frozen,
+   ablation:contribution,rolling:repeat,challenger:challenge,
+   regimes}
+ });
+ const qualityRoot=element('section','forecast-data-quality-hub');
+ qualityRoot.append(element('strong','',
+  'Качество исследовательских данных · '+asset));
+ if(!quality.frames){
+  qualityRoot.append(element('p','forecast-quality-warning',quality.reason));
+ }else{
+  qualityRoot.append(element('p','forecast-confluence-caveat',
+   'По каждому таймфрейму: что уже можно проверить, каких наблюдений '+
+   'не хватает и какие источники были доступны при публикации.'));
+  const sourceLabels={
+   market:'Рынок Spot',liquidity:'Стакан',
+   onchain:'Ончейн',news:'Новости',macro:'Макро',social:'Соцсети'
+  };
+  const tfLabels={'15m':'M15','1h':'H1','4h':'H4'};
+  const gateLabels={
+   published:'Публикации',decisive:'Проверенные TP3/SL',
+   lateDecisive:'Поздние TP3/SL',
+   futureScored:'Новые баллы Shadow'
+  };
+  const proportion=(a,b)=>b>0?
+   (a*100/b).toFixed(0)+'%':'—';
+  for(const tf of ['15m','1h','4h']){
+   const item=quality.frames[tf];
+   const part=element('div','forecast-data-quality-frame');
+   part.append(element('strong','',tfLabels[tf]+' · '+item.reason),
+    element('p','',item.nextAction));
+   const cells=element('div','forecast-probability-metrics');
+   for(const required of item.readiness){
+    const tile=element('div','forecast-probability-metric');
+    tile.append(element('span','',gateLabels[required.key]),
+     element('strong','',
+      required.observed+' / '+required.required));
+    cells.append(tile);
+   }
+   part.append(cells);
+   const feedBox=element('details','forecast-probability-details');
+   feedBox.append(element('summary','',
+    'Сохранённые источники · полнота и возраст данных'));
+   const feedBody=element('div','forecast-probability-detail-body');
+   const snapshot=item.source;
+   feedBody.append(element('p','forecast-confluence-caveat',
+    'Проверенные снимки при публикации: '+
+    snapshot.verifiedSnapshots+' / '+snapshot.published+
+    ' · без старого формата: '+snapshot.legacySnapshots+
+    ' · ошибки: '+snapshot.invalidSnapshots));
+   const feedList=element('div','forecast-data-quality-feeds');
+   for(const [source,counts] of [
+    ['Радар '+tfLabels[tf],snapshot.ownRadar],
+    ...Object.entries(snapshot.feeds).map(([key,c])=>[
+     sourceLabels[key]||key,c])
+   ]){
+    const row=element('div','forecast-data-quality-feed');
+    row.append(element('strong','',source),
+     element('span','',
+      'Свежие '+counts.OBSERVED+' / '+snapshot.published+
+      ' · '+proportion(counts.OBSERVED,snapshot.published)),
+     element('small','',
+      'Устарели: '+counts.STALE+' · отсутствуют: '+
+      counts.MISSING+' · ошибки: '+counts.INVALID));
+    feedList.append(row);
+   }
+   feedBody.append(feedList,
+    element('p','forecast-confluence-caveat',
+     'Это доступность источников на момент публикации прогнозов. '+
+     'Отсутствующий снимок не означает, что API отключён сейчас.'));
+   feedBox.append(feedBody);part.append(feedBox);
+   qualityRoot.append(part);
+  }
+ }
+ qualityRoot.append(element('p','forecast-confluence-caveat',
+  quality.note||'Исследование доступно только в полном локальном Room-архиве.'));
+ slot.prepend(qualityRoot);
  return report;
 }
