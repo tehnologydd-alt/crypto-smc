@@ -25,7 +25,7 @@ function scenario(frame,i,{outcome='TP3',offset=0,observer='5m'}={}){
  const events=frame==='1h'&&observer==='1h'?
   [staged('CONFIRMED',2)]:
   [staged('LIMIT_READY',2),staged('CONFIRMED',3)];
- let terminal=anchor+7*eventStep;
+ let terminal=anchor+6*eventStep;
  if(outcome==='TP3')
   events.push(staged('TP1',4),staged('TP2',5),staged('TP3',6));
  if(outcome==='STOP')
