@@ -2609,3 +2609,68 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
  .research-layer-metric{display:grid;gap:5px}
  .research-layer-metric strong{text-align:left}
 }
+
+/* Stable favorite card composition: actual mark, quoted price, separate H1 plot. */
+.favorite-card.asset-chip{
+ flex-basis:min(89vw,346px)!important;width:min(89vw,346px)!important;
+ min-width:min(89vw,346px)!important;height:190px!important;
+ gap:10px!important;padding:13px 14px 11px!important;
+ overflow:hidden!important
+}
+.favorite-card .favorite-open{order:0!important;min-height:47px!important;
+ height:47px!important;flex:0 0 auto!important;gap:11px!important}
+.favorite-card .coin-mark{width:43px!important;height:43px!important;
+ min-width:43px!important;display:flex;align-items:center;justify-content:center;
+ border-radius:50%;overflow:hidden}
+.favorite-card .favorite-asset-logo,.favorite-card .favorite-gram-mark{
+ width:100%;height:100%;object-fit:contain;display:block}
+.favorite-card .favorite-names{flex:1;min-width:0}
+.favorite-card .favorite-names strong{font-size:17px!important}
+.favorite-card .favorite-names small{font-size:11px!important}
+.favorite-card .favorite-market-row{order:1;display:grid;
+ grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:12px;
+ min-height:72px;width:100%;align-items:stretch}
+.favorite-card .favorite-price-box{display:flex;flex-direction:column;
+ align-items:flex-start;justify-content:center;gap:7px;min-width:0;
+ border:1px solid #2c5e68;border-radius:13px;padding:10px 9px;
+ background:#0c2730}
+.favorite-card .favorite-price-value{font-size:clamp(12px,3.7vw,18px);
+ font-weight:830;color:#defaf3;font-variant-numeric:tabular-nums;
+ overflow-wrap:anywhere;line-height:1.27;min-width:0}
+.favorite-card .favorite-price-value[data-state="UNAVAILABLE"]{
+ font-size:11px;font-weight:570;color:#9ebcc3}
+.favorite-card .favorite-price-change{font-size:10px;color:#abc5c9;line-height:1.4}
+.favorite-card .favorite-price-change.positive{color:#84dbba}
+.favorite-card .favorite-price-change.negative{color:#ffacb7}
+.favorite-card .favorite-chart{order:0!important;flex:none!important;
+ width:100%!important;height:72px!important;min-height:72px!important;
+ padding:7px 4px!important;margin:0!important;border:1px solid #2f5864;
+ border-radius:13px!important;background:#0c2630}
+.favorite-card .favorite-chart .apex-sparkline{width:100%;height:100%}
+.favorite-card .favorite-explain{position:absolute!important;
+ bottom:7px!important;right:13px!important;min-height:27px!important;
+ font-size:10px!important}
+@media(max-width:365px){
+ .favorite-card.asset-chip{flex-basis:90vw!important;width:90vw!important;
+ min-width:90vw!important}
+ .favorite-card .favorite-market-row{gap:7px}
+ .favorite-card .favorite-price-value{font-size:12px}
+}
+#favorites-price-status{font-size:10px;color:#85b9bf;min-height:13px}
+.free-fear-panel .free-fear-meter{margin:13px 0 10px}
+.free-fear-meter-head{display:flex;align-items:center;justify-content:space-between;
+ gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.free-fear-meter-head strong{font-size:17px;color:#daf8f2}
+.free-fear-meter-head small{font-size:11px;color:#9fbbc3}
+.free-fear-track{height:13px;border-radius:50px;background:linear-gradient(
+ 90deg,#b55c64 0%,#d9906b 25%,#d7c178 48%,#89cbb3 72%,#59d9b9 100%);
+ position:relative;border:1px solid #56717a}
+.free-fear-needle{position:absolute;top:-5px;left:0%;width:4px;height:23px;
+ border-radius:6px;background:#eafbfc;border:1px solid #123339;
+ box-shadow:0 0 0 2px #10262c;transform:translateX(-50%)}
+.free-fear-track[aria-valuenow=""] .free-fear-needle{display:none}
+#free-fear-status{font-size:11px;line-height:1.6}
+#overview-events-diagnostics{margin-top:12px;padding-top:9px;border-top:1px solid #285966}
+#overview-events-diagnostics>summary{color:#95c3c8;font-size:11px;cursor:pointer}
+#overview-events-diagnostics-text{font-size:10px;line-height:1.7;
+ color:#91acb8;overflow-wrap:anywhere}
