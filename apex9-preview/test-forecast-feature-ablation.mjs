@@ -371,3 +371,101 @@ test('stage 2 complete UI shows quality gates and regime-aware pair report',()=>
  assert.ok(overview.includes('pairRegimes:audits?.pairRegimes'));
  assert.ok(web.includes("'forecast-feature-regime-review.mjs'"));
 });
+
+
+test('stage 3 shadow logistic fits only labelled early observations',async()=>{
+ const {fitShadowLogistic,evaluateShadowLogistic,
+  SHADOW_LEARNER_RULES}=await import('./forecast-shadow-probability-learner.mjs');
+ const make=(i)=>({outcome:i%2===0?'TP3':'STOP',
+  features:{efficiency:i%2===0?.95:.05,
+   travelNorm:i%2===0?.90:.10,volumeNorm:i%2===0?.85:.15}});
+ const train=Array.from({length:120},(_,i)=>make(i));
+ const model=fitShadowLogistic(train);
+ assert.ok(model&&model.usedOnlyTraining);
+ assert.equal(model.samples,120);
+ assert.equal(model.production,false);
+ const evaluated=evaluateShadowLogistic(train,model);
+ assert.ok(evaluated.brier<evaluated.baselineBrier);
+ assert.ok(evaluated.auc>.95);
+ assert.ok(evaluated.brierGain>0);
+ assert.equal(evaluated.reliability.reduce((s,x)=>s+x.count,0),120);
+ assert.equal(fitShadowLogistic(train.map(x=>({
+  ...x,outcome:'TP3'}))),null);
+ assert.equal(SHADOW_LEARNER_RULES.autoPromotion,false);
+});
+test('stage 3 independently evaluates frozen chronological fit and cannot trade',async()=>{
+ const {auditShadowProbabilityLearner}=await import(
+  './forecast-shadow-probability-learner.mjs');
+ const {SHADOW_CHALLENGER_REGISTRATION}=await import(
+  './forecast-shadow-challengers.mjs');
+ const all=Array.from({length:240},(_,i)=>scenario('15m',i,{
+  offset:42000,efficiency:i%2===0?.90:.10,
+  travelNorm:i%2===0?.85:.15,volumeNorm:i%2===0?.80:.20
+ }));
+ assert.ok(all.every(row=>row.publishedAt>SHADOW_CHALLENGER_REGISTRATION));
+ const args={asset,complete:true,publishedCount:all.length,now};
+ const report=auditShadowProbabilityLearner(all,args);
+ const f=report.frames['15m'];
+ assert.equal(f.state,'EVALUATED');
+ assert.equal(f.verdict,'REPEATED_BRIER_GAIN');
+ assert.equal(f.train.count,120);
+ assert.equal(f.validation.sampleCount,40);
+ assert.deepEqual(f.holdouts.map(x=>x.sampleCount),[40,40]);
+ assert.ok(f.holdouts.every(x=>x.brierGain>.015));
+ assert.equal(f.modelChanged,false);
+ assert.equal(report.calibratedProbability,null);
+ assert.equal(report.automaticTraining,false);
+ assert.equal(report.promoted,false);
+ assert.equal(report.frames['1h'].state,'COLLECTING');
+ // Original train sample is immutable; new later observations do not
+ // move the first 240 registered scenarios into the training block.
+ const more=[...all,...Array.from({length:16},(_,i)=>scenario('15m',240+i,{
+  offset:42000,efficiency:i%2===0?.90:.10,
+  travelNorm:i%2===0?.85:.15,volumeNorm:i%2===0?.80:.20
+ }))];
+ const repeat=auditShadowProbabilityLearner(more,{
+  ...args,publishedCount:more.length});
+ assert.deepEqual(repeat.frames['15m'].holdouts,f.holdouts);
+ // Unknown outcomes aren't assumed wins.
+ const awaiting=structuredClone(all);
+ for(let i=200;i<240;i++){
+  delete awaiting[i].evaluation;
+  awaiting[i].stageEvents=[];
+ }
+ const pending=auditShadowProbabilityLearner(awaiting,args);
+ assert.equal(pending.frames['15m'].state,'COLLECTING');
+ assert.equal(pending.frames['15m'].modelTrained,false);
+ const incomplete=auditShadowProbabilityLearner(all,{
+  ...args,complete:false});
+ assert.equal(incomplete.state,'INCOMPLETE');
+ const mixed=structuredClone(all);mixed[3].asset='ETHUSDT';
+ assert.equal(auditShadowProbabilityLearner(mixed,args).state,'INVALID');
+ const invalid=structuredClone(all);
+ invalid[0].hypothesis.preOutcomeStrength.score=99;
+ assert.equal(auditShadowProbabilityLearner(invalid,args)
+  .frames['15m'].state,'INVALID_EVIDENCE');
+});
+test('stage 3 training blocks future outcome leakage across boundaries',async()=>{
+ const {auditShadowProbabilityLearner}=await import(
+  './forecast-shadow-probability-learner.mjs');
+ const list=Array.from({length:240},(_,i)=>scenario('15m',i,{
+  offset:42000,efficiency:i%2===0?.9:.1,
+  travelNorm:.5,volumeNorm:.5
+ }));
+ // Pretend outcomes from earlier training reached Room after the
+ // earliest validation publication. They must be rejected for training.
+ const split=list[120].publishedAt;
+ list[0].evaluation.evaluatedAt=split+1000;
+ const r=auditShadowProbabilityLearner(list,{
+  asset,complete:true,publishedCount:list.length,now});
+ assert.equal(r.frames['15m'].state,'COLLECTING');
+});
+test('stage 3 read-only UI and Android staging include shadow model',()=>{
+ const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
+ assert.ok(read('./forecast-probability-dashboard.mjs').includes(
+  'auditShadowProbabilityLearner(archive?.forecasts'));
+ assert.ok(read('./overview-decision-quality.mjs').includes(
+  'shadowLearner:audits?.shadowLearner'));
+ assert.ok(read('../apex9-android/scripts/prepare-web.mjs').includes(
+  "'forecast-shadow-probability-learner.mjs'"));
+});

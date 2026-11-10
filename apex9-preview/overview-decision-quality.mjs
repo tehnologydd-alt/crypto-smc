@@ -17,6 +17,8 @@ import {FEATURE_PAIRS,FEATURE_PAIR_STATES}
  from './forecast-feature-pairs.mjs';
 import {FEATURE_REGIME_STATES}
  from './forecast-feature-regime-review.mjs';
+import {SHADOW_LEARNER_VERSION}
+ from './forecast-shadow-probability-learner.mjs';
 
 export const DECISION_QUALITY_VERSION='APEX_OVERVIEW_DECISION_QUALITY_V1';
 export const DECISION_QUALITY_KEY='apex9:decision-quality:v1';
@@ -29,6 +31,13 @@ const validAsset=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const count=x=>Number.isSafeInteger(x)&&x>=0;
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const auc=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1;
+const learnerStates=['COLLECTING','LOW_COVERAGE','INVALID_EVIDENCE','EVALUATED'];
+const learnerVerdicts=['REPEATED_BRIER_GAIN','LATEST_WORSE',
+ 'UNSTABLE','NO_REPEATED_GAIN'];
+const validLearner=x=>x===undefined||x===null||(
+ learnerStates.includes(x?.state)&&
+ count(x.scored)&&count(x.required)&&x.required===240&&
+ (x.state!=='EVALUATED'||learnerVerdicts.includes(x.verdict)));
 const validRegimes=p=>p===undefined||p===null||(
  Array.isArray(p)&&p.length===3&&p.every((item,i)=>
   item?.id===FEATURE_PAIRS[i].id&&
@@ -62,6 +71,7 @@ function validFrame(f){
   f.repeatedModels<=3&&count(f.regimeRepeatedModels)&&
   f.regimeRepeatedModels<=f.repeatedModels&&
   validDiagnosis(f.diagnosis)&&validPairs(f.pairs)&&validRegimes(f.pairRegimes)&&
+  validLearner(f.learner)&&
   (f.baselineAuc===undefined||f.baselineAuc===null||
    (Array.isArray(f.baselineAuc)&&f.baselineAuc.length===3&&
     f.baselineAuc.every(auc)))&&
@@ -71,7 +81,8 @@ function validFrame(f){
      x>=-1&&x<=1)));
 }
 export function summarizeDecisionQuality({archive,asset,challenge,regimes,
- diagnostics=null,pairs=null,pairRegimes=null,now=Date.now()}={}){
+ diagnostics=null,pairs=null,pairRegimes=null,shadowLearner=null,
+ now=Date.now()}={}){
  if(!validAsset(asset)||!time(now)||archive?.complete!==true||
   !Array.isArray(archive.forecasts)||!count(archive.publishedCount)||
   archive.publishedCount!==archive.forecasts.length||
@@ -142,6 +153,13 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
      id:FEATURE_PAIRS[i].id,state:p.state,
      comparableModes:p.comparableModes
     })):null;
+  const learnerSource=shadowLearner?.asset===asset?
+   shadowLearner.frames?.[tf]:null;
+  const learnerSummary=learnerSource&&count(learnerSource.scored)?
+   {state:learnerSource.state,scored:learnerSource.scored,
+    required:learnerSource.required,
+    ...(learnerSource.state==='EVALUATED'?
+     {verdict:learnerSource.verdict}:{} )}:null;
   const diagnosticFrame=diagnostics?.asset===asset?
    diagnostics.frames?.[tf]:null;
   frames[tf]={state,published,recordedTerminal,
@@ -150,6 +168,7 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
    regimeRepeatedModels:regimeSupport.length,structureDelta,baselineAuc,
    pairs:validPairs(pairSummary)?pairSummary:null,
    pairRegimes:validRegimes(regimeSummary)?regimeSummary:null,
+   learner:validLearner(learnerSummary)?learnerSummary:null,
    diagnosis:diagnosticFrame&&validDiagnosis(diagnosticFrame)?
     {state:diagnosticFrame.state,codes:diagnosticFrame.codes.slice(0,5)}:null};
   if(!validFrame(frames[tf]))return null;
@@ -258,7 +277,8 @@ export function saveDecisionQualityAudit(archive,asset,{
   auditShadowRegimes(archive?.forecasts,opts);
  const result=summarizeDecisionQuality({archive,asset,challenge,regimes,
   diagnostics:audits?.diagnostics,pairs:audits?.pairs,
-  pairRegimes:audits?.pairRegimes,now});
+  pairRegimes:audits?.pairRegimes,
+  shadowLearner:audits?.shadowLearner,now});
  if(!result)return false;
  let previous={};
  try{
@@ -416,6 +436,14 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
     ' из 3 пар повторились минимум в двух режимах (описательно)',
     'overview-quality-hint');
    row.append(section);
+  }
+  if(!frame.outOfDate&&frame.learner){
+   const status=frame.learner.state==='EVALUATED'?
+    'проверена · '+frame.learner.verdict:
+    'сбор данных · '+frame.learner.scored+' / 240';
+   row.append(setText('small',
+    'Теневая обучаемая модель: '+status+
+    ' · не влияет на прогнозы','overview-quality-hint'));
   }
   const trend=assessBaselineRankTrend(frame.baselineAuc);
   if(!frame.outOfDate&&trend.state==='DECLINING')

@@ -11,6 +11,8 @@ import {diagnoseQualityFactors,DIAGNOSTIC_LABELS}
 import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
 import {auditFeaturePairRegimes,summarizeFeatureStageTwo}
  from './forecast-feature-regime-review.mjs';
+import {auditShadowProbabilityLearner}
+ from './forecast-shadow-probability-learner.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -605,6 +607,53 @@ export function renderProbabilityReadiness(archive,asset,slot,{
    'Без трёх проверенных периодов APEX не делает выводов по режимам.'));
  reviewBody.append(reviewContent);stagePanel.append(reviewBody);
  pairBody.prepend(stagePanel);
+ const shadowLearner=auditShadowProbabilityLearner(archive?.forecasts,{
+  asset,complete:archive?.complete,publishedCount:archive?.publishedCount,now
+ });
+ const learned=document.createElement('details');
+ learned.className='forecast-shadow-learned';
+ learned.append(element('summary','',
+  'Этап 3 из 5 · теневая обучаемая модель и контрольные периоды'));
+ const learnedBody=element('div','forecast-shadow-learned-body');
+ learnedBody.append(element('p','forecast-confluence-caveat',
+  'Экспериментальная логистическая модель, только вручную. '+
+  'Ранние 120 прогнозов — обучение, следующие 40 — проверка, '+
+  'ещё два блока по 40 — независимые контрольные периоды. '+
+  'Без автоматического применения к прогнозам.'));
+ for(const tf of ['15m','1h','4h']){
+  const f=shadowLearner.frames?.[tf];
+  const pane=element('section','forecast-shadow-learned-frame');
+  pane.append(element('strong','',label[tf]+' · '+
+   (f?.state||shadowLearner.state)));
+  pane.append(element('small','',
+   f?.reason||shadowLearner.reason));
+  pane.append(element('small','',
+   'Новых проверенных признаков: '+(f?.scored||0)+
+   ' / '+(f?.required||240)));
+  if(f?.state==='EVALUATED'){
+   pane.append(element('strong','',
+    'Только исследование · '+f.verdict));
+   const metrics=element('div','forecast-shadow-learned-metrics');
+   for(const [name,test] of [['Проверка',f.validation],
+    ['Контроль 1',f.holdouts[0]],['Контроль 2',f.holdouts[1]]]){
+    const row=element('div','forecast-quality-pair');
+    row.append(element('b','',name+' · '+test.sampleCount+' исходов'),
+     element('small','','Brier '+test.brier.toFixed(3)+
+      ' · контроль '+test.baselineBrier.toFixed(3)),
+     element('small','','ΔBrier к базовой частоте '+
+      (test.brierGain>=0?'+':'')+test.brierGain.toFixed(3)+
+      ' · AUC '+test.auc.toFixed(3)));
+    metrics.append(row);
+   }
+   pane.append(metrics,element('small','',
+    'Это доля TP3 среди подтверждённых TP3/SL, '+
+    'не прогноз прибыли и не калиброванная уверенность.'));
+  }
+  learnedBody.append(pane);
+ }
+ learnedBody.append(element('p','forecast-confluence-caveat',
+  shadowLearner.note||'Недостаточно проверенных данных.'));
+ learned.append(learnedBody);
  const diagnosis=diagnoseQualityFactors({asset,quality,challenge,regimes});
  const diagnosticRoot=element('details','forecast-quality-diagnostics');
  diagnosticRoot.append(element('summary','',
@@ -628,9 +677,9 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  diagnosticBody.append(element('p','forecast-confluence-caveat',
   diagnosis.note||'Ни одна формула не изменяется.'));
  diagnosticRoot.append(diagnosticBody);
- slot.prepend(diagnosticRoot,pairPanel,qualityRoot);
+ slot.prepend(learned,diagnosticRoot,pairPanel,qualityRoot);
  // Reuse already computed independent audits in the explicit manual workflow;
  // avoid repeating three full 1500-row passes on a slow Android device.
- if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2});
+ if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner});
  return report;
 }
