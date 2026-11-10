@@ -102,6 +102,8 @@ export async function loadBlsCalendar({fetchImpl=fetch,now=()=>Date.now(),signal
   });
   if(response?.status===429||response?.status===418)
    return {state:'RATE_LIMITED',events:[],reason:'BLS rate-limited the calendar'};
+  if([401,403,451].includes(response?.status))
+   return {state:'ACCESS_DENIED',events:[],reason:'BLS HTTP '+response.status};
   if(!response?.ok)
    return {state:'OFFLINE',events:[],reason:'BLS HTTP '+(response?.status||'?')};
   const source=await response.text();
