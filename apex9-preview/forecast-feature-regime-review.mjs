@@ -38,24 +38,9 @@ const countGroup=samples=>({
 });
 export function assessRegimePairReplication(globalPairs,perMode){
  if(!Array.isArray(globalPairs)||globalPairs.length!==FEATURE_PAIRS.length||
-  !Array.isArray(perMode))return null;
+  !Array.isArray(perMode)||FEATURE_PAIRS.some(ref=>
+   !globalPairs.some(p=>p?.id===ref.id)))return null;
  return FEATURE_PAIRS.map(ref=>{
-  const prior=globalPairs.find(x=>x?.id===ref.id);
-  if(!prior)return null;
-  const available=perMode.filter(x=>x?.pairs?.some(p=>p.id===ref.id));
-  const supporters=available.filter(x=>x.pairs.find(p=>p.id===ref.id)
-   ?.state==='REPEATED_ADDITION').map(x=>x.mode);
-  const setbacks=available.filter(x=>x.pairs.find(p=>p.id===ref.id)
-   ?.state==='RECENT_SETBACK').map(x=>x.mode);
-  const state=available.length<2?'NEED_TWO_MODES':
-   setbacks.length?'CONFLICTING_REGIMES':
-   prior.state==='REPEATED_ADDITION'&&supporters.length>=2?
-    'REPEATED_TWO_MODES':
-   supporters.length?'LIMITED_SUPPORT':'NO_REPEATED_GAIN';
-  return {id:ref.id,label:ref.label,state,
-   comparableModes:available.length,
-   supportingModes:supporters,settbackModes:setbacks};
- }).every(Boolean)?FEATURE_PAIRS.map(ref=>{
   const prior=globalPairs.find(x=>x.id===ref.id);
   const available=perMode.filter(x=>x?.pairs?.some(p=>p.id===ref.id));
   const supportingModes=available.filter(x=>
@@ -71,8 +56,9 @@ export function assessRegimePairReplication(globalPairs,perMode){
    supportingModes.length?'LIMITED_SUPPORT':'NO_REPEATED_GAIN';
   return {id:ref.id,label:ref.label,state,
    comparableModes:available.length,supportingModes,setbackModes};
- }):null;
+ });
 }
+
 export function auditFeaturePairRegimes(rows,{asset,complete=false,
  publishedCount=null,now=Date.now(),challenge=null,pairs=null,
  regimes=null}={}){
