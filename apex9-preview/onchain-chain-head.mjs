@@ -52,7 +52,7 @@ export function parseChainHead(raw,symbol,{now=Date.now()}={}){
    height=numeric(raw.result);unit='слот';break;
   case 'koios':{
    const row=Array.isArray(raw)&&raw.length===1?raw[0]:null;
-   height=numeric(row?.block_no);
+   height=numeric(row?.block_height);
    providerAt=finite(numeric(row?.block_time))?Number(row.block_time)*1000:null;
    break;
   }
