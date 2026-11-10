@@ -18,6 +18,7 @@ import {fetchBlsM5Comparison,COMPARE_VERSION} from './macro-event-comparison.mjs
 import {createBlsComparisonHistory} from './event-comparison-history.mjs';
 import {routeGlobalEvents} from './market-event-router.mjs';
 import {createEventHistory} from './event-history.mjs';
+import {createOverviewCache,checkedOverviewEvents} from './overview-cache.mjs';
 const get=id=>document.getElementById(id);
 const node=(tag,cls='',content)=>{
  const x=document.createElement(tag);
@@ -41,6 +42,8 @@ export function initEditorialDashboard({getSymbol,onNewsObservation,onMacroObser
  try{storage=window.localStorage;}catch{}
  const budget=createEditorialBudget({storage});
  const archive=createEventHistory({storage});
+ const overviewCache=createOverviewCache({storage});
+ let lastOverviewCheck=0,renderedOverviewKey='';
  const comparisonHistory=createBlsComparisonHistory({storage});
  const gatewayEnabled=document.querySelector('meta[name="apex-news-gateway-mode"]')?.content==='same-origin';
  let active=0,controller=null;
@@ -378,11 +381,51 @@ export function initEditorialDashboard({getSymbol,onNewsObservation,onMacroObser
    if(seq===active)controller=null;
   }
  }
+ function showOverviewEventCards(entries){
+  const list=get('overview-events-list');
+  if(!list)return false;
+  const rows=checkedOverviewEvents(entries,{now:Date.now()});
+  if(!rows.length)return false;
+  const signature=JSON.stringify(rows);
+  if(renderedOverviewKey===signature)return true;
+  renderedOverviewKey=signature;
+  const scroll=window.scrollY;
+  list.replaceChildren();
+  for(const event of rows){
+   const item=node('article','overview-event-row');
+   const link=node('a','',event.title);
+   link.href=event.href;link.rel='noopener noreferrer';link.target='_blank';
+   item.append(link,node('small','',
+    (event.group==='calendar'?'План BLS · ':
+     event.group==='macro'?'Макроэкономика · ':'Криптоновости · ')+
+    niceTime(event.observedAt)+
+    (event.outdated?' · архив':'')+
+    ' · влияние на цену не установлено'));
+   list.append(item);
+  }
+  // The list only changes when the underlying items change; no blank frame.
+  return true;
+ }
+ function restoreOverviewEvents(){
+  const entry=overviewCache.readEvents();
+  if(!entry)return false;
+  if(!showOverviewEventCards(entry.value))return false;
+  get('overview-events-status').textContent='Сохранённые события · '+entry.value.length+
+   ' · последняя запись '+niceTime(entry.savedAt)+
+   ' · ожидаем проверку актуальности';
+  return true;
+ }
  async function openOverview(){
   const status=get('overview-events-status');
-  const list=get('overview-events-list');
-  if(!status||!list)return;
-  status.textContent='Проверяем публичные источники и сохранённые события…';
+  if(!status)return;
+  const hadCache=restoreOverviewEvents();
+  if(lastOverviewCheck&&Date.now()-lastOverviewCheck<10*60000){
+   if(hadCache)status.textContent='События из кеша · обновление не требуется (до 10 мин)';
+   return;
+  }
+  lastOverviewCheck=Date.now();
+  if(!hadCache)status.textContent='Получаем публичные события…';
+  else status.textContent='Сохранённые события · проверяем обновления…';
   const [gdelt,macro,calendar,rss,personal]=await Promise.all([
    budget.load('news',()=>loadEditorialFeed('news')),
    budget.load('macro',()=>loadEditorialFeed('macro')),
@@ -393,7 +436,6 @@ export function initEditorialDashboard({getSymbol,onNewsObservation,onMacroObser
   ]);
   const news=composeLiveNews({gdelt,rss,personal},{now:Date.now()});
   recordNews(news);
-  list.replaceChildren();
   archive.captureGlobal({news,macro,calendar});
   showEventHistory();
   const results=routeGlobalEvents(news,macro,calendar,{now:Date.now(),max:5});
@@ -402,28 +444,21 @@ export function initEditorialDashboard({getSymbol,onNewsObservation,onMacroObser
     a.href.startsWith('https://')&&Number.isSafeInteger(a.observedAt))
     .slice(0,3).map(a=>({title:a.title,href:a.href,
      observedAt:a.observedAt,group:'news',
-     importance:'RECENT_UNRANKED',outdated:a.outdated===true||news.state==='STALE'}));
-  status.textContent='Новости '+news.articles.length+
-   ' · '+sourceStatusLine(news.sources)+
+     importance:'RECENT_UNRANKED',
+     outdated:a.outdated===true||news.state==='STALE'}));
+  const inspected=checkedOverviewEvents(display,Date.now());
+  const accepted=inspected.length&&overviewCache.saveEvents(inspected);
+  if(accepted)showOverviewEventCards(inspected);
+  const persisted=overviewCache.readEvents();
+  status.textContent=accepted?
+   'Событий: '+inspected.length+' · проверено '+niceTime(Date.now()):
+   persisted?'Показаны сохранённые события · свежие публикации пока недоступны':
+   'Нет проверенных новых событий. Источники или данные недоступны.';
+  const diagnostic=get('overview-events-diagnostics-text');
+  if(diagnostic)diagnostic.textContent='Новости: '+sourceStatusLine(news.sources)+
    ' · макро: '+sourceStatusLine({gdelt_macro:macro.state,
     bls_calendar:calendar.state})+
-   ' · заголовки не подтверждают влияние на рынок';
-  if(!display.length){
-   list.append(node('p','muted','Проверенных по формату новостных заголовков и актуальных календарных записей пока нет. Причины указаны выше.'));
-   return;
-  }
-  for(const event of display){
-   const item=node('article','overview-event-row');
-   const link=node('a','',event.title);
-   link.href=event.href;link.rel='noopener noreferrer';link.target='_blank';
-   item.append(link,node('small','',
-    (event.group==='calendar'?'План BLS · ':
-     event.group==='macro'?'Макроэкономика · ':'Криптоновости · ')+
-    niceTime(event.observedAt)+
-    (event.outdated?' · архивная информация':'')+
-    (event.importance==='RECENT_UNRANKED'?' · обычная публикация':' · тематическое совпадение')));
-   list.append(item);
-  }
+   ' · данные источников не доказывают влияние на рынок';
  }
  for(const mode of ['news','macro'])
   get('editorial-'+mode+'-refresh')?.addEventListener('click',
