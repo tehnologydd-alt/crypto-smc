@@ -484,8 +484,12 @@ export function initFavoriteResearch({
   const data=favoriteTickers.cached(favorites)[symbol];
   price.textContent=data?fmt(data.price,data.price<1?8:4)+' USDT':'Цена недоступна';
   price.dataset.state=data?'ARCHIVE':'UNAVAILABLE';
+  const stamp=data?new Date(data.observedAt).toLocaleTimeString('ru-RU',
+   {hour:'2-digit',minute:'2-digit'}):'';
+  const delayed=data&&Date.now()-data.observedAt>3*60000;
   change.textContent=data?(data.changePercent24h>0?'+':'')+
-   fmt(data.changePercent24h,2)+'% / 24ч · сохранено':'Проверяем цену';
+   fmt(data.changePercent24h,2)+'% / 24ч · '+
+   (delayed?'архив ':'по Binance ')+stamp:'Проверяем цену';
   change.className='favorite-price-change'+
    (data?.changePercent24h>0?' positive':data?.changePercent24h<0?' negative':'');
  }
