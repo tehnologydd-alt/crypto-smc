@@ -3,9 +3,12 @@
  * One selected favorite per run: never auto-download all favorite archives
  * or silently promote associations to trading signals.
  */
-import {getMobileAssetResearchArchive} from './mobile-bridge.mjs';
+import {getMobileAssetResearchArchive,registerMobileShadowCandidate,
+ getMobileShadowCandidates} from './mobile-bridge.mjs';
 import {analyzeForecastFeatureHoldout} from './forecast-feature-holdout.mjs';
 import {assessFeatureStability} from './forecast-feature-stability.mjs';
+import {canDraftShadow,inspectShadowProposal,evaluateShadowProposal}
+ from './forecast-shadow-forward.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -39,6 +42,9 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
    }
    if(favorites.includes(old))select.value=old;
    root.replaceChildren();
+   get('feature-shadow-content')?.replaceChildren();
+   if(get('feature-shadow-status'))
+    get('feature-shadow-status').textContent='';
    status.textContent=favorites.length?
     'Для проверки выберите актив и запустите аудит полного архива.':
     'Добавьте актив в избранное, чтобы исследовать его историю.';
@@ -162,6 +168,100 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
   root.append(node('p','forecast-confluence-caveat',
    report.note||'Никакие результаты не используются для новых прогнозов.'));
  }
+ async function renderShadowState(asset,archive,holdout,token){
+  const slot=get('feature-shadow-content'),label=get('feature-shadow-status');
+  if(!slot||!label||token!==serial)return;
+  slot.replaceChildren();
+  label.textContent='Проверяем зарегистрированные в Room гипотезы…';
+  const found=await getMobileShadowCandidates(asset);
+  if(token!==serial||select.value!==asset)return;
+  if(!found.native||found.error){
+   label.textContent=found.error||
+    'Этот раздел доступен в Android APK с локальным Room v5.';
+   return;
+  }
+  const stability=assessFeatureStability(holdout);
+  const existing=found.proposals;
+  const taken=new Set(existing.map(x=>x.interval+':'+x.featureId));
+  let available=0;
+  for(const frame of ['15m','1h','4h']){
+   const stable=stability.frames?.[frame];
+   for(const feature of stable?.features||[]){
+    if(feature.state!=='REPEATED'||taken.has(frame+':'+feature.id))continue;
+    const mostRecent=Math.max(...archive.forecasts.map(x=>x.publishedAt));
+    const draft=canDraftShadow(holdout,stability,{
+     asset,frame,featureId:feature.id,now:Date.now(),
+     latestPublishedAt:mostRecent});
+    if(draft.state!=='READY')continue;
+    available++;
+    const box=node('div','forecast-feature-stability-row');
+    const tf=frame==='15m'?'M15':frame==='4h'?'H4':'H1';
+    box.append(node('strong','',tf+' · '+feature.label),
+     node('span','','Повторение в старой истории · только исследовательская гипотеза'));
+    const save=node('button','forecast-feature-register',
+     'Зафиксировать кандидата в Room');
+    save.type='button';
+    save.addEventListener('click',async()=>{
+     if(token!==serial||select.value!==asset||
+      !getFavorites?.().includes(asset)||save.disabled)return;
+     save.disabled=true;
+     label.textContent='Сверяем локальный журнал и фиксируем гипотезу…';
+     const result=await registerMobileShadowCandidate(draft.evidence);
+     if(token!==serial)return;
+     if(result.error){
+      label.textContent='Не сохранено: '+result.error;
+      save.disabled=false;
+      return;
+     }
+     label.textContent=result.created?
+      'Исследовательский кандидат сохранён в Room.':
+      'Такой кандидат уже зарегистрирован.';
+     await renderShadowState(asset,archive,holdout,token);
+    });
+    box.append(save);slot.append(box);
+   }
+  }
+  for(const proposal of existing){
+   const check=inspectShadowProposal(proposal);
+   const card=node('div','forecast-feature-stability-row');
+   const title=proposal.interval==='15m'?'M15':
+    proposal.interval==='4h'?'H4':'H1';
+   card.append(node('strong','',
+    title+' · '+(proposal.featureId||'неизвестный признак')),
+    node('small','',
+     'Room · '+(Number.isSafeInteger(proposal.registeredAt)?
+      new Date(proposal.registeredAt).toLocaleString('ru-RU'):'некорректная дата')));
+   if(check.state!=='VERIFIED'){
+    card.append(node('span','forecast-quality-warning',
+     'Запись повреждена: '+check.reason));slot.append(card);continue;
+   }
+   const observation=evaluateShadowProposal(proposal,archive.forecasts,{
+    asset,complete:archive.complete,publishedCount:archive.publishedCount,
+    now:Date.now()});
+   card.append(node('span','',
+    observation.state==='DESCRIPTIVE'?
+     'Получены новые наблюдения · описательная проверка':
+     'Сбор новых наблюдений · без итогового вывода'));
+   card.append(node('small','',
+    'Новые после защитного периода: '+(observation.postRegistration||0)+
+    ' · непересекающиеся: '+observation.eligible+
+    ' · TP3/SL: '+observation.decisive));
+   card.append(node('small','',
+    'Группа кандидата: '+observation.positive.tp3+' TP3 / '+
+    observation.positive.stop+' SL · остальные: '+
+    observation.negative.tp3+' TP3 / '+observation.negative.stop+' SL'));
+   card.append(node('small','',
+    'Источник недоступен: '+observation.unavailable+
+    ' · ожидание: '+observation.awaiting+
+    ' · неоднозначное/иное: '+observation.other));
+   card.append(node('small','',observation.reason||
+    'Автоматическое применение всегда отключено.'));
+   slot.append(card);
+  }
+  label.textContent='Room: '+existing.length+
+   ' зарегистрированных · '+available+' доступных для регистрации. '+
+   'Все результаты только исследовательские.';
+ }
  button.addEventListener('click',async()=>{
   if(running)return;
   refresh();
@@ -193,6 +293,7 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     ' ТФ с достаточной описательной выборкой. ' +
     'Автоматическое изменение прогнозов отключено.';
    render(report);
+   await renderShadowState(asset,archive,report,token);
   }catch(error){
    if(token===serial){
     status.textContent='Аудит недоступен.';
@@ -205,6 +306,9 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
  });
  select.addEventListener('change',()=>{
   serial++;root.replaceChildren();
+  get('feature-shadow-content')?.replaceChildren();
+  if(get('feature-shadow-status'))
+   get('feature-shadow-status').textContent='';
   status.textContent='Выбран '+select.value+
    '. Нажмите «Исследовать полный архив».';
  });
