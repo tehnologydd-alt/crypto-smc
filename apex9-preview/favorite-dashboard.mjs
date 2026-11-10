@@ -1071,7 +1071,9 @@ export function initFavoriteResearch({
   if(!directed.length&&!multi.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
-     'На выбранном этапе нет отмеченных направленных сценариев. Счётчики показывают только отмеченные карточки загруженного журнала.':
+     (lastTotal>lastRows.length&&view.unavailableMarked?
+      'В загруженной части журнала нет отмеченных направленных сценариев этого этапа. '+view.unavailableMarked+' отметок относятся к записям вне последних '+lastRows.length+'.':
+      'На выбранном этапе нет отмеченных направленных сценариев. Счётчики показывают только отмеченные карточки загруженного журнала.'):
      'На выбранном этапе нет направленных сценариев M15, H1 или H4.'));
   }else {
    for(const row of directed)box.append(renderCard(row));
@@ -1098,9 +1100,10 @@ export function initFavoriteResearch({
   if(!data.native||data.error){
    lastRows=[];lastTotal=0;
    for(const x of FORECAST_STAGES)id('stage-count-'+x).textContent='0';
+   renderRows();
+   // Unknown source is not zero live scenarios; keep the explicit offline mark.
    id('forecast-pending-count').textContent='—';
    id('forecast-evaluated-count').textContent='—';
-   renderRows();
    id('research-forecast-list').replaceChildren(create('p','muted',
     data.error?'Локальный журнал недоступен: '+data.error:
     'Журнал исследований доступен в Android APK.'));
