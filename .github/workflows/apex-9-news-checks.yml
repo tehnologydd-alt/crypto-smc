@@ -37,6 +37,9 @@ jobs:
           node --check apex9-preview/news-m5-panel.mjs
           node --check apex9-preview/news-m5-baseline.mjs
           node --check apex9-preview/market-event-router.mjs
+          node --check apex9-preview/research-layer-core.mjs
+          node --check apex9-preview/research-layer-budget.mjs
+          node --check apex9-preview/research-layer-dashboard.mjs
       - name: News and asset attribution regression tests
         run: |
           node --test \
@@ -52,3 +55,10 @@ jobs:
             apex9-preview/test-news-m5-baseline.mjs \
             apex9-preview/test-context-sources.mjs \
             apex9-preview/test-event-history.mjs
+
+      - name: Public research layers and UI regression tests
+        run: |
+          node --test \
+            apex9-preview/test-research-layer-core.mjs \
+            apex9-preview/test-research-layer-budget.mjs \
+            apex9-preview/test-research-layer-ui.mjs
