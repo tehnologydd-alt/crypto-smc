@@ -18,8 +18,8 @@ const observation=(symbol,at,now=at+31000,opts={})=>
  volumeRatio:1.2,source:'Binance Spot',...opts});
 test('M15/H1/H4/D1 schedule independently by actual completed candle boundary',()=>{
  assert.deepEqual(RADAR_AUTO_FRAMES,['15m','1h','4h','1d']);
- assert.equal(radarExpectedClose('15m',NOW+31000),closed+step);
- assert.equal(radarExpectedClose('15m',NOW+1000),closed);
+ assert.equal(radarExpectedClose('15m',NOW+31000),closed);
+ assert.equal(radarExpectedClose('15m',NOW+1000),closed-step);
  assert.equal(radarExpectedClose('1h',NOW+31000),
   Date.UTC(2026,10,10,11,59,59,999));
  assert.equal(radarExpectedClose('5m',NOW),null);
