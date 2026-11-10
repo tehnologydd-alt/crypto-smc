@@ -6,6 +6,7 @@ import {chainForAsset,collectOnChainNetwork,summarizeOnChainHistory,
  parseOnChainHistory} from './onchain-core.mjs';
 import {getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
 import {initOnChainMarketDashboard} from './onchain-market-dashboard.mjs';
+import {chainHeadSourceForAsset,collectChainHead,createChainHeadCache} from './onchain-chain-head.mjs';
 const get=id=>document.getElementById(id);
 const fmt=(v,digits=2)=>Number.isFinite(v)?
  new Intl.NumberFormat('ru-RU',{maximumFractionDigits:digits}).format(v):'—';
@@ -49,7 +50,7 @@ function draw(canvas,rows,chain){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  ctx.fillStyle='#071923';ctx.fillRect(0,0,w,h);
  const field=chain==='bitcoin'?'mempoolCount':
-  chain==='ethereum'?'transactionsToday':'masterchainSeqno';
+  chain==='ethereum'?'transactionsToday':chain==='ton'?'masterchainSeqno':'chainHeight';
  const sorted=rows.filter(x=>Number.isFinite(x[field])).slice(-80);
  ctx.font='11px system-ui';ctx.fillStyle='#99b8be';
  if(sorted.length<2){
@@ -105,6 +106,9 @@ function renderMetrics(chain,latest,stale){
 }
 export function initOnChainDashboard(){
  const marketComparison=initOnChainMarketDashboard();
+ let storage=null;
+ try{storage=globalThis.localStorage;}catch{}
+ const headCache=createChainHeadCache({storage});
  let generation=0,lastAsset='',lastFetchedAt=0,abort=null,rows=[],activeChain=null;
  const canvas=get('network-history-chart');
  const redraw=()=>draw(canvas,rows,activeChain);
@@ -130,6 +134,78 @@ export function initOnChainDashboard(){
   redraw();
   return stats;
  }
+ async function refreshHead(asset,force,seq){
+  const source=chainHeadSourceForAsset(asset);
+  if(!source)return false;
+  activeChain=source.chain;
+  get('network-name').textContent=source.label+' · публичный узел';
+  get('network-supported-chains').textContent=source.label;
+  const history=headCache.history(asset);
+  function showSaved(values,label){
+   if(!values.length)return;
+   rows=values;activeChain=source.chain;
+   const latest=values.at(-1);
+   renderHead(latest,true);
+   get('network-history-count').textContent=values.length+' записей';
+   get('network-history-note').textContent=
+    'Сохранённые публичные номера блоков/слотов · не история транзакций токена';
+   redraw();
+   setStatus(label+' · архив от '+stamp(latest.collectedAt),true);
+  }
+  showSaved(history,'Сведения из локального кеша');
+  if(!force&&lastFetchedAt&&Date.now()-lastFetchedAt<4*60000)return true;
+  if(force&&lastFetchedAt&&Date.now()-lastFetchedAt<90000){
+   setStatus('Последняя проверка недавно · пока показываем сохранённый снимок');
+   return true;
+  }
+  lastFetchedAt=Date.now();
+  abort?.abort();
+  const controller=new AbortController();abort=controller;
+  const timeout=setTimeout(()=>controller.abort(),11000);
+  setStatus('Проверяем публичный номер блока/слота '+source.label+'…');
+  try{
+   const result=await collectChainHead(asset,{now:()=>Date.now(),
+    signal:controller.signal});
+   if(seq!==generation)return true;
+   if(!['OK','STALE'].includes(result.state)||!result.data){
+    setStatus(source.label+' · '+result.state+' · '+(result.reason||'нет ответа')+
+     (history.length?' · отображается сохранённый снимок':''),true);
+    return true;
+   }
+   renderHead(result.data,result.state!=='OK');
+   if(result.state==='OK')headCache.store(asset,result);
+   rows=headCache.history(asset);
+   if(!rows.length)rows=[result.data];
+   get('network-history-count').textContent=rows.length+' записей';
+   get('network-history-note').textContent=
+    'Источник '+source.provider+' · время ответа '+stamp(result.data.collectedAt)+
+    ' · номер блока не является данными кошелька или токена';
+   redraw();
+   setStatus(source.label+' · '+result.state+' · '+stamp(result.data.collectedAt),
+    result.state!=='OK');
+  }catch(e){
+   if(seq===generation)setStatus('Свежий ответ сети недоступен · '+String(e?.message||e),true);
+  }finally{
+   clearTimeout(timeout);
+   if(seq===generation)abort=null;
+  }
+  return true;
+ }
+ function renderHead(data,isArchive){
+  const metric=get('network-metrics');metric.replaceChildren();
+  for(const [label,value] of [
+   [data.unit==='слот'?'Последний слот':'Последний блок',fmt(data.chainHeight,0)],
+   ['Сеть',data.label],
+   ['Источник',data.provider],
+   ['Время получения',stamp(data.collectedAt)]
+  ]){
+   const line=node('div','network-stat');
+   line.append(node('span','',label),node('strong','',value));metric.append(line);
+  }
+  metric.append(node('p','network-warning',isArchive?
+   'Архивная запись; свежий блок пока не подтверждён.':
+   'Номер блока — состояние сети, не движения токена и не торговый прогноз.'));
+ }
  async function refresh(asset,force=false){
   const chain=chainForAsset(asset);
   if(asset!==lastAsset){
@@ -139,6 +215,11 @@ export function initOnChainDashboard(){
   }
   const seq=++generation;
   if(!chain){
+   if(chainHeadSourceForAsset(asset)){
+    await refreshHead(asset,force,seq);
+    return;
+   }
+   get('network-supported-chains').textContent='Источник ещё не подтверждён';
    get('network-name').textContent='Адаптер сети не подключён';
    get('network-history-count').textContent='0 записей';
    get('network-history-note').textContent='Не подставляем сведения чужой блокчейн-сети.';
@@ -147,6 +228,7 @@ export function initOnChainDashboard(){
    setStatus('Для '+asset+' нет прямого проверенного ончейн-источника. История другой сети не подставляется.',true);
    return;
   }
+  get('network-supported-chains').textContent=chainNames[chain];
   get('network-name').textContent=chainNames[chain];
   marketComparison.runAuto();
   setStatus('Проверяем сохранённые наблюдения '+chainNames[chain]+'…');
@@ -199,9 +281,13 @@ export function initOnChainDashboard(){
   generation++;abort?.abort();abort=null;lastAsset=asset;
   marketComparison.setAsset(asset);
   lastFetchedAt=0;rows=[];activeChain=null;
-  get('network-metrics').replaceChildren();
-  get('network-history-count').textContent='0 записей';
+  const source=chainHeadSourceForAsset(asset);
+  const saved=source?headCache.history(asset):[];
+  if(saved.length){rows=saved;activeChain=source.chain;renderHead(saved.at(-1),true);}
+  else get('network-metrics').replaceChildren();
+  get('network-history-count').textContent=String(rows.length)+' записей';
   get('network-name').textContent='Выбран '+asset;
+  get('network-supported-chains').textContent=source?.label||'Проверяем сеть';
   setStatus('Переключаем сетевой источник…');
   redraw();
  }};
