@@ -9,6 +9,7 @@ import {analyzeForecastFeatureHoldout} from './forecast-feature-holdout.mjs';
 import {assessFeatureStability} from './forecast-feature-stability.mjs';
 import {canDraftShadow,inspectShadowProposal,evaluateShadowProposal}
  from './forecast-shadow-forward.mjs';
+import {assessShadowTemporalMonitor} from './forecast-shadow-monitor.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -256,6 +257,39 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     ' · неоднозначное/иное: '+observation.other));
    card.append(node('small','',observation.reason||
     'Автоматическое применение всегда отключено.'));
+   const monitor=assessShadowTemporalMonitor(observation);
+   const labels={
+    REPEATED_OBSERVATION:'Историческая связь повторяется на новых данных',
+    REVERSED:'Внимание: связь поменяла направление',
+    WEAKENED:'Внимание: связь ослабла',
+    DRIFTING:'Связь нестабильна по величине',
+    UNSTABLE:'Связь не подтверждена в обоих периодах',
+    LOW_COVERAGE:'Недостаточно подтверждённых источников',
+    COLLECTING:'Продолжается сбор независимых наблюдений',
+    INVALID:'Исследование требует проверки исходных данных',
+    INVALID_EVIDENCE:'Исходные данные содержат несогласованные события'
+   };
+   card.append(node('strong','forecast-shadow-monitor-status',
+    'Проверка новых периодов: '+(labels[monitor.state]||'Нет заключения')));
+   const evidenceBox=node('div','forecast-feature-periods');
+   for(const [title,slice] of [['Ранние новые',monitor.reference],
+    ['Последние новые',monitor.recent]]){
+    const part=node('div','forecast-feature-period');
+    part.append(node('strong','',title));
+    if(slice){
+     part.append(node('span','',
+      'Проверенные TP3/SL: '+slice.decisive),
+      node('span','','Разница групп: '+pp(slice.gapPp)),
+      node('small','',
+       'Нет источника: '+slice.unavailable+
+       ' · ожидание: '+slice.awaiting+
+       ' · исключено: '+(slice.purged+slice.lateRecorded)));
+    }else part.append(node('span','','Ожидаем новые наблюдения'));
+    evidenceBox.append(part);
+   }
+   card.append(evidenceBox,
+    node('small','forecast-confluence-caveat',
+     monitor.reason+' Никакие веса и прогнозы не изменяются.'));
    slot.append(card);
   }
   label.textContent='Room: '+existing.length+
