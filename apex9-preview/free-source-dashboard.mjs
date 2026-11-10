@@ -10,6 +10,7 @@ import {initPersonalNewsControls} from './personal-news-controls.mjs';
 import {fetchCmcKeyless} from './cmc-keyless.mjs';
 import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 import {sourceHealth} from './source-health.mjs';
+import {createOverviewCache} from './overview-cache.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
  const node=document.createElement(tag);
@@ -33,6 +34,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  let storage=provided??null;
  if(!storage)try{storage=window.localStorage;}catch{}
  const budget=createFreeSourceBudget({storage});
+ const overviewCache=createOverviewCache({storage});
  const latest=new Map();
  let assetSeq=0,globalSeq=0,checkingPublic=null;
  let personalNews={native:false,providers:{}};
@@ -97,17 +99,35 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  }
  function showFear(r){
   const status=el('free-fear-status'),value=el('free-fear-value');
-  if(!status||!value)return;
-  if(isPresent(r)&&r.data){
-   value.textContent=String(r.data.value)+' / 100';
-   status.textContent='Alternative.me · '+r.data.classification+
-    ' · наблюдение '+nice(r.data.observedAt)+
-    (r.state==='STALE'?' · архив':'')+caps('fear',r);
-  }else{
+  const label=el('free-fear-label'),track=el('free-fear-track');
+  const needle=el('free-fear-needle');
+  if(!status||!value||!label||!track||!needle)return;
+  if(r?.state==='OK'&&r?.data)overviewCache.saveFear(r.data);
+  const saved=overviewCache.readFear();
+  const hasLive=r?.state==='OK'&&r?.data;
+  const snapshot=hasLive?r.data:saved?.value;
+  if(!snapshot){
    value.textContent='—';
-   status.textContent='Alternative.me · '+(r?.state||'OFFLINE')+
-    (r?.reason?' · '+r.reason:'')+caps('fear',r);
+   label.textContent='Нет подтверждённого значения';
+   track.setAttribute('aria-valuenow','');
+   needle.style.left='0%';
+   status.textContent='Alternative.me · '+(r?.state||'ожидание ответа')+
+    ' · нет сохранённых сведений';
+   return;
   }
+  const score=snapshot.value;
+  value.textContent=score+' / 100';
+  const name=score<=24?'Экстремальный страх':
+   score<=44?'Страх':score<=55?'Нейтрально':
+   score<=74?'Жадность':'Экстремальная жадность';
+  label.textContent=name;
+  track.setAttribute('aria-valuenow',String(score));
+  track.setAttribute('aria-valuetext',name);
+  needle.style.left=score+'%';
+  const freshness=hasLive?'Свежий ответ':saved?'Сохранённый индекс':'Исторический';
+  status.textContent='Alternative.me · '+freshness+
+   ' · наблюдение '+nice(snapshot.observedAt)+
+   (hasLive?'':r?.state?' · новый ответ: '+r.state:'');
  }
  function cardResult(mode,result,symbol){
   const outer=div('article','free-source-result');
@@ -202,7 +222,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  async function openOverview(){
   const seq=++globalSeq;
   const status=el('free-fear-status');
-  if(status)status.textContent='Проверяем Alternative.me и кеш…';
+  if(status&&!overviewCache.readFear())status.textContent='Проверяем Alternative.me и кеш…';
   const r=await budget.load('fear',()=>fetchFearGreed());
   if(seq!==globalSeq)return;
   fearMeasurement=r;
@@ -288,6 +308,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  el('free-fear-refresh')?.addEventListener('click',()=>void openOverview());
  el('free-asset-market-refresh')?.addEventListener('click',
   ()=>void openAsset(getSymbol?.()));
+ const storedFear=overviewCache.readFear();
+ if(storedFear)showFear({state:'STALE',data:storedFear.value});
  refreshCenter();
  return {openOverview,openAsset,checkPublicSources,refreshCenter,setContext,setSnapshot,setSocial};
 }
