@@ -13,6 +13,8 @@ import {auditFeaturePairRegimes,summarizeFeatureStageTwo}
  from './forecast-feature-regime-review.mjs';
 import {auditShadowProbabilityLearner}
  from './forecast-shadow-probability-learner.mjs';
+import {auditShadowCalibration}
+ from './forecast-shadow-calibration.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -654,6 +656,56 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  learnedBody.append(element('p','forecast-confluence-caveat',
   shadowLearner.note||'Недостаточно проверенных данных.'));
  learned.append(learnedBody);
+ const calibration=auditShadowCalibration(archive?.forecasts,{
+  asset,complete:archive?.complete,publishedCount:archive?.publishedCount,
+  now,learner:shadowLearner
+ });
+ const calibrationPanel=element('details','forecast-shadow-calibration');
+ calibrationPanel.append(element('summary','',
+  'Этап 4 из 5 · калибровка и смена режима'));
+ const calibrationBody=element('div','forecast-shadow-learned-body');
+ calibrationBody.append(element('p','forecast-confluence-caveat',
+  'Только исследование: 40 наблюдений для калибровки; '+
+  'следующие два независимых периода по 40 для оценки Brier и ECE. '+
+  'Режим Radar берётся только из снимка до публикации.'));
+ const verdictText={
+  REPEATED_GAIN:'Описание: улучшение повторилось в обоих контролях',
+  AWAITING_RADAR:'Недостаточно заранее сохранённого Radar',
+  REGIME_SHIFT:'Состав рыночных режимов заметно изменился',
+  CALIBRATION_WORSE:'Калибровка ухудшила последний контроль',
+  RELIABILITY_DRIFT:'На новом периоде выросла ошибка надёжности',
+  NO_CONFIRMED_GAIN:'Повторяющееся улучшение не подтверждено'
+ };
+ for(const tf of ['15m','1h','4h']){
+  const f=calibration.frames?.[tf];
+  const pane=element('section','forecast-shadow-learned-frame');
+  pane.append(element('strong','',
+   label[tf]+' · '+(f?.state||calibration.state)));
+  pane.append(element('small','',f?.reason||calibration.reason));
+  pane.append(element('small','',f?.verdict?verdictText[f.verdict]:
+   'Для оценки нужны подтверждённые будущие наблюдения.'));
+  if(f?.holdoutMetrics){
+   for(const [i,m] of f.holdoutMetrics.entries()){
+    const line=element('div','forecast-quality-pair');
+    line.append(element('b','',
+     'Контроль '+(i+1)+' · '+m.sampleCount+' TP3/SL'),
+     element('small','','Brier '+m.brier.toFixed(3)+
+      ' · до калибровки '+m.originalBrier.toFixed(3)),
+     element('small','','ECE '+(m.ece*100).toFixed(1)+'%' +
+      ' · ΔBrier '+(m.gainVsUncalibrated>=0?'+':'')+
+      m.gainVsUncalibrated.toFixed(3)));
+    pane.append(line);
+   }
+   pane.append(element('small','',
+    'Radar по периодам: '+f.radarCoverage.map(x=>
+     x===null?'нет данных':(x*100).toFixed(0)+'%').join(' / ')+
+    ' · режим: '+f.regime.state));
+  }
+  calibrationBody.append(pane);
+ }
+ calibrationBody.append(element('p','forecast-confluence-caveat',
+  calibration.note||'Экспериментальная калибровка недоступна.'));
+ calibrationPanel.append(calibrationBody);
  const diagnosis=diagnoseQualityFactors({asset,quality,challenge,regimes});
  const diagnosticRoot=element('details','forecast-quality-diagnostics');
  diagnosticRoot.append(element('summary','',
@@ -677,9 +729,9 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  diagnosticBody.append(element('p','forecast-confluence-caveat',
   diagnosis.note||'Ни одна формула не изменяется.'));
  diagnosticRoot.append(diagnosticBody);
- slot.prepend(learned,diagnosticRoot,pairPanel,qualityRoot);
+ slot.prepend(calibrationPanel,learned,diagnosticRoot,pairPanel,qualityRoot);
  // Reuse already computed independent audits in the explicit manual workflow;
  // avoid repeating three full 1500-row passes on a slow Android device.
- if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner});
+ if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner,calibration});
  return report;
 }

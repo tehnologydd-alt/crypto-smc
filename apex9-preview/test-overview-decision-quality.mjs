@@ -114,7 +114,7 @@ test('independent audit results are reused instead of rerunning archive comparis
  const source=readFileSync(new URL('./forecast-feature-dashboard.mjs',import.meta.url),'utf8');
  const render=readFileSync(new URL('./forecast-probability-dashboard.mjs',import.meta.url),'utf8');
  assert.ok(source.includes('audits:verifiedAudits'));
- assert.ok(render.includes("onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner})"));
+ assert.ok(render.includes("onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner,calibration})"));
 });
 test('manual audit of an empty complete archive stores only collecting states',()=>{
  const map=new Map();

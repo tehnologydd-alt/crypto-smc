@@ -19,6 +19,8 @@ import {FEATURE_REGIME_STATES}
  from './forecast-feature-regime-review.mjs';
 import {SHADOW_LEARNER_VERSION}
  from './forecast-shadow-probability-learner.mjs';
+import {SHADOW_CALIBRATION_VERDICTS}
+ from './forecast-shadow-calibration.mjs';
 
 export const DECISION_QUALITY_VERSION='APEX_OVERVIEW_DECISION_QUALITY_V1';
 export const DECISION_QUALITY_KEY='apex9:decision-quality:v1';
@@ -31,6 +33,14 @@ const validAsset=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const count=x=>Number.isSafeInteger(x)&&x>=0;
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const auc=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1;
+const calibrationStates=['COLLECTING','CHECK_DATA','NEED_RADAR',
+ 'REVIEW_REGIME','REVIEW','RESEARCH_PASSED'];
+const validCalibration=x=>x===undefined||x===null||(
+ calibrationStates.includes(x?.state)&&
+ Number.isSafeInteger(x.scored)&&x.scored>=0&&
+ Number.isSafeInteger(x.required)&&x.required===240&&
+ (x.verdict===undefined||
+  SHADOW_CALIBRATION_VERDICTS.includes(x.verdict)));
 const learnerStates=['COLLECTING','LOW_COVERAGE','INVALID_EVIDENCE','EVALUATED'];
 const learnerVerdicts=['REPEATED_BRIER_GAIN','LATEST_WORSE',
  'UNSTABLE','NO_REPEATED_GAIN'];
@@ -71,7 +81,7 @@ function validFrame(f){
   f.repeatedModels<=3&&count(f.regimeRepeatedModels)&&
   f.regimeRepeatedModels<=f.repeatedModels&&
   validDiagnosis(f.diagnosis)&&validPairs(f.pairs)&&validRegimes(f.pairRegimes)&&
-  validLearner(f.learner)&&
+  validLearner(f.learner)&&validCalibration(f.calibration)&&
   (f.baselineAuc===undefined||f.baselineAuc===null||
    (Array.isArray(f.baselineAuc)&&f.baselineAuc.length===3&&
     f.baselineAuc.every(auc)))&&
@@ -82,7 +92,7 @@ function validFrame(f){
 }
 export function summarizeDecisionQuality({archive,asset,challenge,regimes,
  diagnostics=null,pairs=null,pairRegimes=null,shadowLearner=null,
- now=Date.now()}={}){
+ calibration=null,now=Date.now()}={}){
  if(!validAsset(asset)||!time(now)||archive?.complete!==true||
   !Array.isArray(archive.forecasts)||!count(archive.publishedCount)||
   archive.publishedCount!==archive.forecasts.length||
@@ -160,6 +170,13 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
     required:learnerSource.required,
     ...(learnerSource.state==='EVALUATED'?
      {verdict:learnerSource.verdict}:{} )}:null;
+  const calibrationFrame=calibration?.asset===asset?
+   calibration.frames?.[tf]:null;
+  const calibrationSummary=calibrationFrame&&
+   Number.isSafeInteger(calibrationFrame.scored)?
+    {state:calibrationFrame.state,scored:calibrationFrame.scored,
+     required:calibrationFrame.required,
+     ...(calibrationFrame.verdict?{verdict:calibrationFrame.verdict}:{})}:null;
   const diagnosticFrame=diagnostics?.asset===asset?
    diagnostics.frames?.[tf]:null;
   frames[tf]={state,published,recordedTerminal,
@@ -169,6 +186,7 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
    pairs:validPairs(pairSummary)?pairSummary:null,
    pairRegimes:validRegimes(regimeSummary)?regimeSummary:null,
    learner:validLearner(learnerSummary)?learnerSummary:null,
+   calibration:validCalibration(calibrationSummary)?calibrationSummary:null,
    diagnosis:diagnosticFrame&&validDiagnosis(diagnosticFrame)?
     {state:diagnosticFrame.state,codes:diagnosticFrame.codes.slice(0,5)}:null};
   if(!validFrame(frames[tf]))return null;
@@ -278,7 +296,8 @@ export function saveDecisionQualityAudit(archive,asset,{
  const result=summarizeDecisionQuality({archive,asset,challenge,regimes,
   diagnostics:audits?.diagnostics,pairs:audits?.pairs,
   pairRegimes:audits?.pairRegimes,
-  shadowLearner:audits?.shadowLearner,now});
+  shadowLearner:audits?.shadowLearner,
+  calibration:audits?.calibration,now});
  if(!result)return false;
  let previous={};
  try{
@@ -444,6 +463,12 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
    row.append(setText('small',
     'Теневая обучаемая модель: '+status+
     ' · не влияет на прогнозы','overview-quality-hint'));
+  }
+  if(!frame.outOfDate&&frame.calibration){
+   row.append(setText('small','Калибровка: '+
+    (frame.calibration.verdict||'накапливаются исходы')+
+    ' · исследование, не торговая вероятность',
+    'overview-quality-hint'));
   }
   const trend=assessBaselineRankTrend(frame.baselineAuc);
   if(!frame.outOfDate&&trend.state==='DECLINING')

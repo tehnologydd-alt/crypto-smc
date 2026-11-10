@@ -469,3 +469,112 @@ test('stage 3 read-only UI and Android staging include shadow model',()=>{
  assert.ok(read('../apex9-android/scripts/prepare-web.mjs').includes(
   "'forecast-shadow-probability-learner.mjs'"));
 });
+
+
+test('stage 4 monotone Platt calibration uses validation only and measures Brier/ECE',async()=>{
+ const {fitShadowCalibrator,evaluateShadowCalibration,assessModeShift,
+  SHADOW_CALIBRATION_RULES}=await import('./forecast-shadow-calibration.mjs');
+ const sample=Array.from({length:40},(_,i)=>({
+  raw:i%2===0?.75:.25,outcome:i%2===0?'TP3':'STOP'
+ }));
+ const calibration=fitShadowCalibrator(sample);
+ assert.equal(calibration.fitCount,40);
+ assert.equal(calibration.usedOnlyValidation,true);
+ assert.equal(calibration.production,false);
+ const measured=evaluateShadowCalibration(sample,calibration);
+ assert.equal(measured.sampleCount,40);
+ assert.ok(measured.brier>=0&&measured.brier<=1);
+ assert.ok(measured.ece>=0&&measured.ece<=1);
+ assert.equal(measured.reliability.reduce((n,b)=>n+b.count,0),40);
+ assert.equal(fitShadowCalibrator(sample.map(x=>({
+  ...x,outcome:'TP3'}))),null);
+ const radar={eligible:40,observed:40,invalid:0,coverage:1,
+  modes:{DIRECTIONAL:20,RANGE:20,MIXED:0}};
+ assert.equal(assessModeShift([radar,radar,radar]).state,'STABLE');
+ assert.equal(assessModeShift([radar,radar,{...radar,modes:{
+  DIRECTIONAL:38,RANGE:2,MIXED:0}}]).state,'REGIME_SHIFT');
+ assert.equal(assessModeShift([radar,radar,{...radar,invalid:1}]).state,
+  'CHECK_DATA');
+ assert.equal(assessModeShift([radar,radar,{...radar,coverage:.2,
+  observed:8}]).state,'AWAITING_RADAR');
+ assert.equal(SHADOW_CALIBRATION_RULES.automaticPromotion,false);
+});
+test('stage 4 calibration: complete frozen archive, Radar modes and replay',async()=>{
+ const {auditShadowCalibration}=await import(
+  './forecast-shadow-calibration.mjs');
+ const {auditShadowProbabilityLearner}=await import(
+  './forecast-shadow-probability-learner.mjs');
+ const {EVIDENCE_VERSION,EVIDENCE_FEEDS,EVIDENCE_FRAMES}
+  =await import('./forecast-evidence-context.mjs');
+ const {SHADOW_CHALLENGER_REGISTRATION}
+  =await import('./forecast-shadow-challengers.mjs');
+ const make=i=>scenario('15m',i,{offset:42000,
+  efficiency:i%2===0?.92:.08,
+  travelNorm:i%2===0?.85:.15,volumeNorm:i%2===0?.81:.19});
+ const list=Array.from({length:240},(_,i)=>make(i));
+ assert.ok(list.every(x=>x.publishedAt>SHADOW_CHALLENGER_REGISTRATION));
+ const args={asset,complete:true,publishedCount:list.length,now};
+ const learner=auditShadowProbabilityLearner(list,args);
+ assert.equal(learner.frames['15m'].state,'EVALUATED');
+ const absent=auditShadowCalibration(list,{...args,learner});
+ assert.equal(absent.frames['15m'].state,'NEED_RADAR');
+ assert.equal(absent.frames['15m'].verdict,'AWAITING_RADAR');
+ assert.equal(absent.frames['15m'].holdoutMetrics.length,2);
+ assert.equal(absent.frames['1h'].state,'COLLECTING');
+ assert.equal(absent.calibratedProbability,null);
+ assert.equal(absent.modelChanged,false);
+ for(let i=0;i<list.length;i++){
+  const row=list[i],h=row.hypothesis,
+   mode=i%4<2?'DIRECTIONAL':'RANGE';
+  h.evidenceAsPublished={
+   version:EVIDENCE_VERSION,capturedAt:row.publishedAt,
+   policy:'DESCRIPTIVE_CONTEXT_ONLY_NO_FUTURE_LEAKAGE',
+   feeds:Object.fromEntries(EVIDENCE_FEEDS.map(k=>[k,{state:'MISSING'}])),
+   radar:Object.fromEntries(EVIDENCE_FRAMES.map(k=>[k,{state:'MISSING'}]))
+  };
+  h.evidenceAsPublished.radar['15m']={
+   state:'OBSERVED',source:'ANDROID_NATIVE_RADAR',
+   candleAt:h.anchorCloseAt,observedAt:h.anchorCloseAt+500,
+   direction:'UP',mode,movement:.3,acceleration:.05,volumeRatio:1
+  };
+ }
+ const controlled=auditShadowCalibration(list,{...args,learner});
+ assert.ok(['REVIEW','RESEARCH_PASSED'].includes(controlled.frames['15m'].state));
+ assert.equal(controlled.frames['15m'].regime.state,'STABLE');
+ assert.deepEqual(controlled.frames['15m'].holdoutMetrics.map(x=>x.sampleCount),
+  [40,40]);
+ const extended=[...list,...Array.from({length:12},(_,i)=>make(240+i))];
+ const args2={...args,publishedCount:extended.length};
+ const extendedLearner=auditShadowProbabilityLearner(extended,args2);
+ const rerun=auditShadowCalibration(extended,{...args2,
+  learner:extendedLearner});
+ assert.deepEqual(rerun.frames['15m'].holdoutMetrics,
+  controlled.frames['15m'].holdoutMetrics);
+ const shift=structuredClone(list);
+ for(let i=200;i<240;i++)
+  shift[i].hypothesis.evidenceAsPublished.radar['15m'].mode='DIRECTIONAL';
+ assert.equal(auditShadowCalibration(shift,{...args,learner})
+  .frames['15m'].verdict,'REGIME_SHIFT');
+ const lateRadar=structuredClone(list);
+ lateRadar[155].hypothesis.evidenceAsPublished.radar['15m'].observedAt=
+  lateRadar[155].publishedAt+1;
+ assert.equal(auditShadowCalibration(lateRadar,{...args,learner})
+  .frames['15m'].state,'CHECK_DATA');
+ assert.equal(auditShadowCalibration(list,{...args,learner,
+  complete:false}).state,'INCOMPLETE');
+ const tampered=structuredClone(list);
+ tampered[0].hypothesis.preOutcomeStrength.score=99;
+ assert.equal(auditShadowCalibration(tampered,{...args,learner})
+  .frames['15m'].state,'CHECK_DATA');
+});
+test('stage 4 UI, overview cache and Android staging stay read-only',()=>{
+ const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
+ const view=read('./forecast-probability-dashboard.mjs');
+ const overview=read('./overview-decision-quality.mjs');
+ const prepared=read('../apex9-android/scripts/prepare-web.mjs');
+ assert.ok(view.includes('auditShadowCalibration(archive?.forecasts'));
+ assert.ok(view.includes('Этап 4 из 5'));
+ assert.ok(overview.includes('calibration:audits?.calibration'));
+ assert.ok(prepared.includes("'forecast-shadow-calibration.mjs'"));
+ assert.ok(!read('./forecast-shadow-calibration.mjs').includes('fetch('));
+});

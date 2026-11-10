@@ -47,6 +47,14 @@ const score=(model,f)=>{
  return logistic(model.intercept+model.weights.reduce((sum,w,i)=>
   sum+w*(f[x[i]]-.5),0));
 };
+/** Experimental conditional shadow score, never used by live forecasts. */
+export function predictShadowLogistic(model,features){
+ if(!model||!num(model.intercept)||!Array.isArray(model.weights)||
+  model.weights.length!==3||model.weights.some(x=>!num(x))||
+  !features||SHADOW_LEARNER_RULES.featureKeys.some(k=>!unit(features[k])))
+  return null;
+ return score(model,features);
+}
 const safeSample=x=>x&&['TP3','STOP'].includes(x.outcome)&&
  SHADOW_LEARNER_RULES.featureKeys.every(k=>unit(x.features?.[k]));
 /** Fixed deterministic training on the first, purged chronological block.
