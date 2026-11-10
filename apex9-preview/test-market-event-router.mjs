@@ -54,6 +54,8 @@ test('Bluesky public posts are URL-bounded, dated and not classified as signals'
   return {ok:true,json:async()=>payload};
  }});
  assert.equal(queried,true);assert.equal(fetched.state,'OK');
+ assert.equal((await fetchBlueskyPosts('BTCUSDT',{
+  fetchImpl:async()=>({ok:false,status:403})})).state,'ACCESS_DENIED');
  assert.equal((await fetchBlueskyPosts('NONEUSDT',{fetchImpl:async()=>{
   throw Error('should not call');}})).state,'UNSUPPORTED');
 });
