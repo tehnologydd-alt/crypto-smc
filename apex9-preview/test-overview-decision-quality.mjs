@@ -95,16 +95,31 @@ test('separate favorite cache, stale Room counts and audited timestamps',()=>{
  assert.equal(readDecisionQuality(asset,{storage,now}).archiveCount,3);
  assert.equal(readDecisionQuality('ETHUSDT',{storage,now}),null);
  assert.equal(decisionQualityView(asset,{
-  storage,now,roomRows:[{asset,interval:'15m',published:2}]
+  storage,now,roomRows:[{asset,interval:'15m',published:summary.frames['15m'].published+1}]
  }).frames['15m'].outOfDate,true);
  assert.equal(decisionQualityView(asset,{storage,now,
-  roomRows:[{asset,interval:'15m',published:1}]
+  roomRows:[{asset,interval:'15m',published:summary.frames['15m'].published}]
  }).frames['15m'].outOfDate,false);
  assert.equal(readDecisionQuality(asset,{storage,now:now+31*86400000}),null);
  const forged=JSON.parse(storage.getItem(DECISION_QUALITY_KEY));
  forged.summaries[asset].frames['15m'].repeatedModels=99;
  storage.setItem(DECISION_QUALITY_KEY,JSON.stringify(forged));
  assert.equal(readDecisionQuality(asset,{storage,now}),null);
+});
+test('manual audit of an empty complete archive stores only collecting states',()=>{
+ const map=new Map();
+ const storage={
+  getItem:key=>map.get(key)??null,
+  setItem:(key,value)=>map.set(key,value)
+ };
+ const emptyArchive={complete:true,publishedCount:0,forecasts:[]};
+ assert.equal(saveDecisionQualityAudit(emptyArchive,asset,{
+  storage,now,emit:false
+ }),true);
+ const snapshot=readDecisionQuality(asset,{storage,now});
+ assert.equal(snapshot.frames['15m'].state,'COLLECTING');
+ assert.equal(snapshot.frames['15m'].repeatedModels,0);
+ assert.equal(snapshot.autoTraining,false);
 });
 test('overview, full-archive audit, web staging, and routing are wired',()=>{
  const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
