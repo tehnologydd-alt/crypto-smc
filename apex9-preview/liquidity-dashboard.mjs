@@ -4,6 +4,7 @@
  */
 import {getMobileLiquidityHistory} from './mobile-bridge.mjs';
 import {studyVisibleLiquidity} from './liquidity-core.mjs';
+import {describeDepthAvailability} from './source-availability.mjs';
 import {renderLevelObserver} from './level-dashboard.mjs';
 
 const get=id=>document.getElementById(id);
@@ -25,15 +26,16 @@ const statusLabels={
  LOW_COVERAGE:'Мало наблюдений',
  NO_SAMPLES:'Пока нет снимков'
 };
-function describeVenue(v){
+function describeVenue(v,source){
+ const available=describeDepthAvailability(v.venue,source,v.samples);
  const card=create('div','liquidity-venue-card');
  const title=create('div','liquidity-venue-header');
  title.append(create('strong','',VENUES[v.venue]||v.venue),
   create('span','liquidity-age '+(v.status==='OBSERVED'?'fresh':'historical'),
-   statusLabels[v.status]||v.status));
+   v.samples?(statusLabels[v.status]||v.status):available.label));
  card.append(title);
  if(!v.samples){
-  card.append(create('p','muted','Снимков ещё нет.'));
+  card.append(create('p','muted',available.reason));
   return card;
  }
  const value=create('div','liquidity-imbalance',
@@ -64,6 +66,9 @@ function describeVenue(v){
     ?'Неактуальная запись: снимок не отражает текущий стакан.'
     :'Для описания изменения нужны минимум три снимка за две минуты без больших пропусков.'));
  }
+ if(available.state!=='OBSERVED')
+  card.append(create('p','liquidity-coverage-note',
+   'Проверка источника: '+available.reason));
  return card;
 }
 /** Canvas time series with honest gaps; never connects missing intervals. */
@@ -122,6 +127,7 @@ function draw(canvas,points){
 
 export function initLiquidityDashboard(){
  let generation=0,lastAsset='',lastPoints=[];
+ let latestSources={};
  let chartFrame=0;
  const canvas=get('liquidity-history-canvas');
  function paint(){
@@ -133,7 +139,7 @@ export function initLiquidityDashboard(){
  observer?.observe(canvas);
  if(!observer)window.addEventListener('resize',paint);
  function clear(asset){
-  generation++;lastAsset=asset;lastPoints=[];
+  generation++;lastAsset=asset;lastPoints=[];latestSources={};
   text('liquidity-history-status','Проверяем историю видимых заявок '+asset+'…');
   get('liquidity-history-venues').replaceChildren();
   get('level-observer-content').replaceChildren();
@@ -163,7 +169,7 @@ export function initLiquidityDashboard(){
    renderLevelObserver(history.rows,asset);
    lastPoints=analysis.points;
    for(const venue of analysis.venues)
-    venueContainer.append(describeVenue(venue));
+    venueContainer.append(describeVenue(venue,latestSources[venue.venue]));
    text('liquidity-history-status',analysis.samples
     ?'Сохранённых публичных снимков: '+analysis.samples+
      ' · '+asset+' · показываются исторические наблюдения разных площадок'
@@ -177,5 +183,17 @@ export function initLiquidityDashboard(){
   }
  }
  paint();
- return {refresh,clear,getLastAsset:()=>lastAsset};
+ return {refresh,clear,
+  setSourceStatuses(asset,sources){
+   if(asset!==lastAsset||!Array.isArray(sources))return;
+   latestSources={};
+   for(const venue of ['binance','bybit']){
+    const data=sources.find(s=>s?.id===venue+'-depth');
+    if(data)latestSources[venue]={
+     state:typeof data.state==='string'?data.state:'INVALID',
+     error:typeof data.error==='string'?data.error:''
+    };
+   }
+  },
+  getLastAsset:()=>lastAsset};
 }

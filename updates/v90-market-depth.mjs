@@ -90,15 +90,43 @@ export async function fetchPublicDepth(venue,symbol,{
  const url=HOSTS[venue]+path;
  try{
   const response=await fetchImpl(url,{method:'GET',signal,cache:'no-store',credentials:'omit'});
-  if(response.status===429||response.status===418)
+  if([429,418].includes(response.status))
    return {state:'RATE_LIMITED',venue,symbol,error:'source rate limited',data:null};
-  if(!response.ok)return {state:'OFFLINE',venue,symbol,error:'HTTP '+response.status,data:null};
+  if([401,403,451].includes(response.status))
+   return {state:'ACCESS_DENIED',venue,symbol,error:'HTTP '+response.status,data:null};
+  if(!response.ok){
+   if(venue==='binance'&&response.status===400){
+    try{
+     const failed=await response.json();
+     if(failed?.code===-1121)
+      return {state:'NOT_LISTED',venue,symbol,error:'Binance Spot: invalid symbol',data:null};
+    }catch{}
+   }
+   return {state:'OFFLINE',venue,symbol,error:'HTTP '+response.status,data:null};
+  }
   const payload=await response.json();
-  if(venue==='bybit'&&payload?.retCode===10006)
-   return {state:'RATE_LIMITED',venue,symbol,error:'Bybit API rate limited',data:null};
+  if(venue==='bybit'){
+   if(payload?.retCode===10006)
+    return {state:'RATE_LIMITED',venue,symbol,error:'Bybit API rate limited',data:null};
+   if(payload?.retCode===10029||
+    (payload?.retCode===10001&&
+     /(?:symbol|pair).*(?:not found|not support|invalid|not exist)/i.test(payload.retMsg||'')))
+    return {state:'NOT_LISTED',venue,symbol,error:'Bybit Spot: symbol is not available',data:null};
+   if(payload?.retCode!==0)
+    return {state:'INVALID',venue,symbol,error:
+     'Bybit retCode '+String(payload?.retCode??'?')+' · '+String(payload?.retMsg||'invalid response').slice(0,90),data:null};
+  }
   const receivedAt=now();
-  return {state:'OK',venue,symbol,error:null,data:parseDepthSnapshot(venue,symbol,payload,receivedAt)};
+  try{
+   return {state:'OK',venue,symbol,error:null,
+    data:parseDepthSnapshot(venue,symbol,payload,receivedAt)};
+  }catch(error){
+   const reason=String(error?.message||error).slice(0,120);
+   return {state:reason.includes('stale')?'STALE':'INVALID',
+    venue,symbol,error:reason,data:null};
+  }
  }catch(error){
-  return {state:'OFFLINE',venue,symbol,error:String(error?.message||error),data:null};
+  return {state:'OFFLINE',venue,symbol,
+   error:String(error?.message||error).slice(0,120),data:null};
  }
 }

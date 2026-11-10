@@ -285,10 +285,19 @@ export function initOnChainDashboard(){
   const saved=source?headCache.history(asset):[];
   if(saved.length){rows=saved;activeChain=source.chain;renderHead(saved.at(-1),true);}
   else get('network-metrics').replaceChildren();
+  const nativeChain=chainForAsset(asset);
   get('network-history-count').textContent=String(rows.length)+' записей';
-  get('network-name').textContent='Выбран '+asset;
-  get('network-supported-chains').textContent=source?.label||'Проверяем сеть';
-  setStatus('Переключаем сетевой источник…');
+  get('network-name').textContent=source?.label||
+   (nativeChain?chainNames[nativeChain]:'Сетевой адаптер недоступен');
+  get('network-supported-chains').textContent=source?.label||
+   (nativeChain?chainNames[nativeChain]:'Для актива нет прямого источника');
+  setStatus(source||nativeChain?
+   'Источник выбран · откройте сведения сети для обновления':
+   'Для '+asset+' нет прямого проверенного ончейн-адаптера. '+
+    'История токена не заменяется метриками чужой сети.',!source&&!nativeChain);
+  get('network-history-note').textContent=source||nativeChain?
+   (rows.length?'Сохранённые сетевые снимки':'Сетевые наблюдения пока не получены'):
+   '0 записей · требуется адаптер именно этого токена или сети';
   redraw();
  }};
 }

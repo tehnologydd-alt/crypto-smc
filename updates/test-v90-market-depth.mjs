@@ -82,3 +82,42 @@ test('large source depth cannot overflow the bounded level snapshot',()=>{
  assert.equal(r.topVisibleLevels.filter(x=>x.side==='BID').length,8);
  assert.equal(r.topVisibleLevels.filter(x=>x.side==='ASK').length,8);
 });
+
+test('exchange-specific missing Spot pairs are diagnosed without false history',async()=>{
+ const bybitMissing=await fetchPublicDepth('bybit','TRBUSDT',{
+  fetchImpl:async()=>({ok:true,status:200,json:async()=>({
+   retCode:10029,retMsg:'The symbol is invalid or not listed'
+  })})
+ });
+ assert.equal(bybitMissing.state,'NOT_LISTED');
+ assert.equal(bybitMissing.data,null);
+ const binanceMissing=await fetchPublicDepth('binance','ABCDUSDT',{
+  fetchImpl:async()=>({ok:false,status:400,json:async()=>({
+   code:-1121,msg:'Invalid symbol.'
+  })})
+ });
+ assert.equal(binanceMissing.state,'NOT_LISTED');
+ assert.equal(binanceMissing.data,null);
+ const generic400=await fetchPublicDepth('binance','TRBUSDT',{
+  fetchImpl:async()=>({ok:false,status:400,json:async()=>({
+   code:-1102,msg:'mandatory parameter malformed'
+  })})
+ });
+ assert.equal(generic400.state,'OFFLINE');
+});
+test('Bybit API denials, malformed books and stale snapshots have distinct states',async()=>{
+ const denied=await fetchPublicDepth('bybit','BTCUSDT',{
+  fetchImpl:async()=>({ok:false,status:403})
+ });
+ assert.equal(denied.state,'ACCESS_DENIED');
+ const malformed=await fetchPublicDepth('bybit','BTCUSDT',{
+  now:()=>now,fetchImpl:async()=>({ok:true,status:200,
+   json:async()=>({...bybit,result:{s:'BTCUSDT',b:[],a:[]}})})
+ });
+ assert.equal(malformed.state,'INVALID');
+ const oldSample=await fetchPublicDepth('bybit','BTCUSDT',{
+  now:()=>now,fetchImpl:async()=>({ok:true,status:200,
+   json:async()=>({...bybit,ts:now-500000})})
+ });
+ assert.equal(oldSample.state,'STALE');
+});

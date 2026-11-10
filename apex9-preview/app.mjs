@@ -1531,7 +1531,12 @@ async function investigate(value){
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset'){
   void loadCandleHistory(true);
-  if(el('view-asset').dataset.assetArea==='data')void loadAssetSocial(symbol);
+  if(el('view-asset').dataset.assetArea==='data'){
+   void loadAssetSocial(symbol);
+   // When the user changes an asset while Data is already visible,
+   // trigger the same network source check as when opening the tab.
+   void onChainDashboard.refresh(symbol);
+  }
  }
  text('asset-name',chosen);
  el('asset-input').value=chosen;
@@ -1562,6 +1567,7 @@ async function investigate(value){
   ]);
   if(active!==pending)return;
   renderSnapshot(snapshot);
+  liquidityDashboard.setSourceStatuses(chosen,snapshot.sources);
   renderContext(context);
   freeSourceDashboard.setSnapshot(chosen,snapshot);
   freeSourceDashboard.setContext(chosen,context);

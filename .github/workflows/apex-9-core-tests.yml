@@ -55,6 +55,7 @@ jobs:
           node --test apex9-preview/test-overview-research-progress.mjs
           node --test apex9-preview/test-overview-decision-quality.mjs
           node --test apex9-preview/test-forecast-release-readiness.mjs
+          node --test apex9-preview/test-source-availability.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/favorite-dashboard.mjs
