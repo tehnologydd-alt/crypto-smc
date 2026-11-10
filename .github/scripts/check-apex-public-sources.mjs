@@ -45,6 +45,36 @@ const checks=[
      typeof a.url==='string'&&a.url.startsWith('https://'));
    return {state:valid.length?'OK':'INVALID',count:valid.length};
  }],
+ ['Bluesky public search','https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=Bitcoin&limit=3&sort=latest','json',data=>{
+   if(!Array.isArray(data?.posts))return {state:'INVALID',reason:'Missing public posts'};
+   const valid=data.posts.filter(p=>typeof p?.record?.text==='string'&&
+    Number.isFinite(Date.parse(p?.indexedAt||'')));
+   return {state:valid.length?'OK':'EMPTY',count:valid.length,
+    scope:'PUBLIC_POSTS_NOT_SENTIMENT'};
+ }],
+ ['US BLS calendar','https://www.bls.gov/schedule/news_release/bls.ics','calendar',data=>{
+   if(typeof data!=='string'||!data.includes('BEGIN:VCALENDAR')||
+    !data.includes('END:VCALENDAR')||data.length>1200000)
+    return {state:'INVALID',reason:'Not a supported BLS calendar'};
+   const count=(data.match(/BEGIN:VEVENT/g)||[]).length;
+   return {state:count?'OK':'EMPTY',count,scope:'SCHEDULED_RELEASES_NOT_ACTUAL_VALUES'};
+ }],
+ ['Ethereum public network stats','https://eth.blockscout.com/api/v2/stats','json',data=>{
+   if(typeof data?.total_blocks!=='string'||
+    !/^\\d+$/.test(data.total_blocks))
+    return {state:'INVALID',reason:'No verifiable network metrics'};
+   return {state:'OK',scope:'NETWORK_STATS_NOT_WALLET_OWNERSHIP'};
+ }],
+ ['Public OI/funding market snapshot','https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT','json',data=>{
+   const row=data?.result?.list?.[0],time=Number(data?.time);
+   if(data?.retCode!==0||row?.symbol!=='BTCUSDT'||
+    !/^\\d+(?:\\.\\d+)?$/.test(String(row?.openInterest||''))||
+    !/^-?\\d+(?:\\.\\d+)?$/.test(String(row?.fundingRate||''))||
+    !Number.isSafeInteger(time))
+    return {state:'INVALID',reason:'Missing attributed market metrics'};
+   return {state:now-time<20*60000&&time<now+60000?'OK':'STALE',
+    scope:'READ_ONLY_FUNDING_OI_NOT_LIQUIDATION_EVENTS'};
+ }],
  ['Cointelegraph RSS','https://cointelegraph.com/rss','xml',data=>{
    if(!/<rss\b|<feed\b/i.test(data))return {state:'INVALID',reason:'RSS/XML feed not recognized'};
    const count=(data.match(/<item\b/g)||[]).length;
@@ -54,7 +84,7 @@ const checks=[
 async function check([name,url,format,validate]){
  try{
    const response=await fetch(url,{method:'GET',credentials:'omit',
-    headers:{'accept':format==='xml'?'application/xml, text/xml, application/rss+xml':'application/json'},
+    headers:{'accept':format==='calendar'?'text/calendar':format==='xml'?'application/xml, text/xml, application/rss+xml':'application/json'},
     signal:AbortSignal.timeout(12000),redirect:'follow'});
    if([418,429].includes(response.status))return {name,state:'RATE_LIMITED',http:response.status};
    if([401,403].includes(response.status))return {name,state:'ACCESS_DENIED',http:response.status};
