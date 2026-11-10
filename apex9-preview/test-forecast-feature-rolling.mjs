@@ -8,6 +8,9 @@ import {
  auditShadowChallengers,challengerScore,SHADOW_CHALLENGER_VERSION,
  SHADOW_CHALLENGER_RECIPES,SHADOW_CHALLENGER_REGISTRATION
 } from './forecast-shadow-challengers.mjs';
+import {auditShadowRegimes,inspectPublishedRegime,
+ SHADOW_REGIMES_VERSION,SHADOW_REGIMES_RULES}
+ from './forecast-shadow-regimes.mjs';
 
 const M=900000,H=3600000,H4=14400000;
 const asset='BTCUSDT',now=1900000000000;
@@ -318,4 +321,159 @@ test('new challenger module is present in manual research and APK packaging',()=
  assert.ok(panel.includes('Shadow Challenger · три экспериментальные формулы'));
  assert.ok(panel.includes('Регистрация 11.11.2026, 00:00 UTC'));
  assert.ok(builder.includes("'forecast-shadow-challengers.mjs'"));
+});
+
+
+const asPublishedRadar=(row,mode)=>{
+ const tf=row.interval,step=tfStep(tf);
+ const candleAt=row.hypothesis.anchorCloseAt;
+ const radar=Object.fromEntries(['15m','1h','4h','1d'].map(x=>
+  [x,{state:'MISSING'}]));
+ radar[tf]={state:'OBSERVED',source:'ANDROID_NATIVE_RADAR',
+  candleAt,observedAt:candleAt+1000,direction:'UP',
+  mode,movement:.4,acceleration:.02,volumeRatio:1};
+ const feeds=Object.fromEntries([
+  'market','liquidity','onchain','news','macro','social'
+ ].map(x=>[x,{state:'MISSING'}]));
+ row.hypothesis.evidenceAsPublished={
+  version:'AS_OF_ROOM_EVIDENCE_V1',
+  capturedAt:row.publishedAt,
+  policy:'DESCRIPTIVE_CONTEXT_ONLY_NO_FUTURE_LEAKAGE',
+  feeds,radar
+ };
+ return row;
+};
+const regimeSet=(tf,n=150,modeOf=i=>
+ ['DIRECTIONAL','RANGE','MIXED'][i%3],options={})=>{
+ const rows=group(tf,n,{
+  baseEpoch:futureEpoch,
+  efficiencyOf:i=>i%2===0?.6:.4,
+  volumeNormOf:i=>i%2===0?0:1,
+  ...options
+ });
+ return rows.map((row,i)=>asPublishedRadar(row,modeOf(i)));
+};
+const regimeAudit=rows=>auditShadowRegimes(rows,{
+ asset,complete:true,publishedCount:rows.length,now
+});
+
+test('all three regimes compare exactly the same forward TP3/SL cohorts',()=>{
+ const rows=regimeSet('15m'),r=regimeAudit(rows);
+ assert.equal(r.version,SHADOW_REGIMES_VERSION);
+ assert.equal(r.state,'DESCRIPTIVE');
+ assert.equal(r.autoPromoted,false);
+ assert.equal(r.modelChanged,false);
+ assert.equal(r.calibratedProbability,null);
+ const f=r.frames['15m'];
+ assert.equal(f.state,'DESCRIPTIVE');
+ assert.equal(f.newScored,150);
+ assert.equal(f.comparedModes,3);
+ assert.deepEqual(f.windows.map(x=>x.eligible),[40,40,40]);
+ assert.deepEqual(f.windows.map(x=>x.radarObserved),[40,40,40]);
+ assert.deepEqual(f.windows.map(x=>x.coverage),[1,1,1]);
+ for(const mode of SHADOW_REGIMES_RULES.modes){
+  const c=f.regimes[mode];
+  assert.equal(c.state,'DESCRIPTIVE');
+  assert.equal(c.models.length,3);
+  assert.equal(c.windows.reduce((s,x)=>s+x.decisive,0),40);
+  assert.equal(c.models.find(x=>x.id==='STRUCTURE_V1').state,
+   'OBSERVED_THREE_TIMES');
+  assert.deepEqual(c.models.find(x=>x.id==='STRUCTURE_V1').deltaAuc,
+   [1,1,1]);
+ }
+});
+test('only the matching timeframe pre-publication Radar can classify a regime',()=>{
+ const row=regimeSet('15m',1)[0];
+ assert.deepEqual({
+  state:inspectPublishedRegime(row).state,
+  mode:inspectPublishedRegime(row).mode
+ },{state:'OBSERVED',mode:'DIRECTIONAL'});
+ const tampered=structuredClone(row);
+ tampered.hypothesis.evidenceAsPublished.radar['15m']={state:'MISSING'};
+ tampered.hypothesis.evidenceAsPublished.radar['1h']={
+  ...row.hypothesis.evidenceAsPublished.radar['15m'],mode:'RANGE',
+  candleAt:Math.floor(row.publishedAt/H)*H-1,
+  observedAt:Math.floor(row.publishedAt/H)*H+1000
+ };
+ // Wrong TF cannot masquerade as this prediction's native market mode.
+ assert.equal(inspectPublishedRegime(tampered).state,'MISSING');
+ const future=structuredClone(row);
+ future.hypothesis.evidenceAsPublished.radar['15m'].observedAt=
+  future.publishedAt+1000;
+ assert.equal(inspectPublishedRegime(future).state,'INVALID');
+});
+test('missing mode snapshots do not silently select favorable outcomes',()=>{
+ const rows=regimeSet('15m',150,i=>
+  ['DIRECTIONAL','RANGE','MIXED'][i%3]);
+ for(let i=0;i<rows.length;i+=2)
+  rows[i].hypothesis.evidenceAsPublished.radar['15m']={state:'MISSING'};
+ const f=regimeAudit(rows).frames['15m'];
+ assert.equal(f.state,'LOW_COVERAGE');
+ assert.equal(f.windows[2].coverage,.5);
+ assert.equal(f.windows[2].missing,20);
+ for(const mode of SHADOW_REGIMES_RULES.modes)
+  assert.equal(f.regimes[mode].models.length,0);
+});
+test('stale Radar is never reclassified as a known regime',()=>{
+ const rows=regimeSet('15m');
+ const stale=rows[40].hypothesis.evidenceAsPublished.radar['15m'];
+ stale.candleAt-=3*M;stale.observedAt=stale.candleAt+1000;
+ stale.state='STALE';
+ assert.equal(inspectPublishedRegime(rows[40]).state,'STALE');
+ const f=regimeAudit(rows).frames['15m'];
+ assert.equal(f.windows[0].stale,1);
+ assert.equal(f.windows[0].coverage,39/40);
+});
+test('corrupt as-published Radar invalidates regime comparisons',()=>{
+ const rows=regimeSet('15m');
+ rows[40].hypothesis.evidenceAsPublished.radar['15m'].observedAt=
+  rows[40].publishedAt+1;
+ const f=regimeAudit(rows).frames['15m'];
+ assert.equal(f.state,'INVALID_EVIDENCE');
+ for(const mode of SHADOW_REGIMES_RULES.modes)
+  assert.equal(f.regimes[mode].models.length,0);
+});
+test('late-reported result does not enter earlier regime analysis',()=>{
+ const rows=regimeSet('15m');
+ const cut=rows[70].publishedAt;
+ rows[31].evaluation.evaluatedAt=cut+1000;
+ const f=regimeAudit(rows).frames['15m'];
+ assert.equal(f.state,'DESCRIPTIVE');
+ assert.equal(f.regimes.RANGE.windows[0].decisive,12);
+ assert.equal(f.regimes.RANGE.windows[0].tp3+
+  f.regimes.RANGE.windows[0].stop,12);
+});
+test('regimes are independent per M15 H1 and H4 after registration',()=>{
+ const rows=[...regimeSet('15m'),...regimeSet('1h'),
+  ...regimeSet('4h')];
+ const r=regimeAudit(rows);
+ for(const tf of ['15m','1h','4h']){
+  assert.equal(r.frames[tf].state,'DESCRIPTIVE');
+  assert.equal(r.frames[tf].comparedModes,3);
+  assert.equal(r.frames[tf].regimes.DIRECTIONAL.models.length,3);
+ }
+});
+test('old forecasts, partial archives and too few outcomes never produce winners',()=>{
+ const historical=group('15m',150);
+ historical.forEach(row=>asPublishedRadar(row,'DIRECTIONAL'));
+ const f=regimeAudit(historical).frames['15m'];
+ assert.equal(f.state,'COLLECTING');
+ assert.equal(f.newScored,0);
+ const active=regimeSet('15m',80);
+ assert.equal(regimeAudit(active).frames['15m'].state,'COLLECTING');
+ assert.equal(auditShadowRegimes(active,{
+  asset,complete:false,publishedCount:80,now}).state,'INCOMPLETE');
+ const sparse=regimeSet('15m',150,()=> 'DIRECTIONAL');
+ assert.equal(regimeAudit(sparse).frames['15m'].regimes.RANGE.state,
+  'COLLECTING');
+ assert.equal(regimeAudit(sparse).frames['15m'].regimes.RANGE.models.length,0);
+});
+test('regime module is part of the Android WebView and opt-in audited UI',()=>{
+ const ui=readFileSync(new URL('./forecast-probability-dashboard.mjs',
+  import.meta.url),'utf8');
+ const build=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',
+  import.meta.url),'utf8');
+ assert.ok(ui.includes('auditShadowRegimes(archive?.forecasts'));
+ assert.ok(ui.includes('В каких режимах рынка формулы работают лучше или хуже?'));
+ assert.ok(build.includes("'forecast-shadow-regimes.mjs'"));
 });
