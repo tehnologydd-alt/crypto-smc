@@ -97,6 +97,8 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
             // Independent persistent Radar state is collected without opening WebView.
             // Scheduling is deferrable: source timestamp, never wall-clock assumptions.
             ApexRadarMonitor.sync(applicationContext, favorites, dao)
+            // Reuse genuine Radar M15/H4 candles; no duplicated download loop.
+            ApexMultiFrameForecast.syncAll(applicationContext, favorites, dao)
             Result.success()
         } catch (_: java.io.IOException) {
             Result.retry()
