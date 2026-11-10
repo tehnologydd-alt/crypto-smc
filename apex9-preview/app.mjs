@@ -851,6 +851,13 @@ const favoriteManager=initFavoriteResearch({
 });
 void favoriteManager.initialize().then(()=>{
  if(document.body.dataset.view==='catalog')renderCatalog();
+ const saved=favoriteManager.getFavorites();
+ if(!saved.length){renderGlobalOverview(null);return;}
+ if(!favoriteManager.hasFavorite(chosen)){
+  // Persisted manual-only asset must not trigger automatic background work.
+  chosen=saved[0];text('asset-name',chosen);el('asset-input').value=chosen;
+ }
+ if(document.body.dataset.view==='overview')void investigate(chosen);
 });
 const evidenceDashboard=initEvidenceDashboard({
  getSelectedSymbol:()=>chosen,
@@ -1383,18 +1390,19 @@ async function investigate(value){
  text('asset-name',chosen);
  el('asset-input').value=chosen;
  if(document.body.dataset.view==='asset')void showAssetScenarios(chosen);
- text('market-price','—');text('market-change','24 ч: —');
+ if(changed){text('market-price','—');text('market-change','24 ч: —');}
  text('top-status','Обновление…');
- text('updated-at','Запрос публичных источников…');
+ if(changed)text('updated-at','Запрос публичных источников…');
  text('active-sources','—');text('layer-coverage','—');
  text('hero-coverage','Покрытие: ожидание данных');
  text('context-status','—');
  text('quote-volume','—');text('ticker-time','—');
- clear(el('depth-list'));clear(el('source-list'));clear(el('missing-layers'));
- renderContext(null);
- freeSourceDashboard.setContext(chosen,null);
- freeSourceDashboard.setSnapshot(chosen,null);
- freeSourceDashboard.setSocial(chosen,null);
+ if(changed){
+  clear(el('depth-list'));clear(el('source-list'));clear(el('missing-layers'));
+  freeSourceDashboard.setContext(chosen,null);
+  freeSourceDashboard.setSnapshot(chosen,null);
+  freeSourceDashboard.setSocial(chosen,null);
+ }
  setNotice('Получаем публичные данные бирж, общий крипторынок, сведения о BTC и новостные упоминания.');
  el('search-button').disabled=true;
  el('refresh-button').disabled=true;
@@ -1440,7 +1448,8 @@ el('search-form').addEventListener('submit',(event)=>{
 el('refresh-button').addEventListener('click',()=>void investigate(chosen));
 // Foreground lightweight quote cadence; no high-rate book/news/on-chain polling.
 async function refreshVisibleQuote(){
- if(document.hidden||fastTickerBusy||controller||!chosen||
+ if(document.hidden||document.body.dataset.view!=='asset'||
+  !favoriteManager.hasFavorite(chosen)||fastTickerBusy||controller||!chosen||
   Date.now()-fastTickerAt<30000)return;
  const symbol=chosen;
  fastTickerAt=Date.now();
@@ -1464,20 +1473,21 @@ async function refreshVisibleQuote(){
 }
 setInterval(()=>{
  if(document.hidden)return;
- if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
-  void investigate(chosen); // Includes slower books and contextual sources.
- else void refreshVisibleQuote();
+ if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
+  if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
+   void investigate(chosen);
+  else void refreshVisibleQuote();
+ }
 },15000);
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden)return;
- if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
-  void investigate(chosen);
- else void refreshVisibleQuote();
+ if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
+  if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
+   void investigate(chosen);
+  else void refreshVisibleQuote();
+ }
  favoriteManager.resume();
 });
-void loadCatalog().catch(()=>{
- text('catalog-status','Каталог временно недоступен. Введите известный символ вручную.');
- renderCatalog();
-});
-void investigate(chosen);
+// Catalogue requires explicit user navigation; never scan all pairs on startup.
+renderGlobalOverview(null);
 setInterval(()=>{if(!document.hidden)favoriteManager.resume();},60000);
