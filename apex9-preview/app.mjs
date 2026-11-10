@@ -675,7 +675,8 @@ function showMarketCore(candles,origin,interval){
    ?Math.min(100,Math.max(0,result.rangePosition*100))+'%':'50%';
  return result;
 }
-let matrixGeneration=0,matrixController=null,matrixRestoring=false;
+let matrixGeneration=0,matrixController=null;
+const matrixRestoringAssets=new Set();
 const matrixLastRequest=new Map();
 function renderMarketMatrix(comparison,asset){
  const box=el('market-matrix-items');clear(box);
@@ -717,13 +718,13 @@ function resetMarketMatrix(reason='Ожидаем проверенные све�
  el('market-matrix-run').disabled=false;
 }
 async function restoreMarketMatrix(asset=chosen){
- if(matrixRestoring)return;
+ if(matrixRestoringAssets.has(asset))return;
  const generation=matrixGeneration;
  const saved=marketMatrixCache.read(asset),old=saved?.frames||{};
  renderMarketMatrix(compareMarketFrames(old,{asset}),asset);
  text('market-matrix-status',saved?'Сохранённые горизонты · сверяем историю Android…':
   'Читаем наблюдения Радара и закрытые свечи…');
- matrixRestoring=true;
+ matrixRestoringAssets.add(asset);
  try{
   const native=await getMobileRadarHistory();
   if(asset!==chosen||generation!==matrixGeneration)return;
@@ -750,7 +751,7 @@ async function restoreMarketMatrix(asset=chosen){
  }catch(e){
   if(asset===chosen&&generation===matrixGeneration)
    text('market-matrix-status','История Android недоступна · сохранённые значения остаются');
- }finally{matrixRestoring=false;}
+ }finally{matrixRestoringAssets.delete(asset);}
 }
 async function runMarketMatrix(force=false,preloaded=null){
  if(matrixController){
