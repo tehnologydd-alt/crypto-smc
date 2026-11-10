@@ -773,6 +773,10 @@ class ApexNativePlugin : Plugin() {
             try {
                 val favorites = ApexPreferences.read(context.applicationContext).favorites
                 val reports = ApexAutoForecast.syncAll(context.applicationContext, favorites)
+                val dao = ApexDatabase.get(context).researchDao()
+                ApexRadarMonitor.sync(context.applicationContext, favorites, dao)
+                val multi = ApexMultiFrameForecast.syncAll(
+                    context.applicationContext, favorites, dao)
                 val items = JSArray()
                 for (report in reports) {
                     val item = JSObject()
