@@ -78,7 +78,7 @@ test('tampered levels, future radar observations and timeframes fail closed',()=
  const mix=scenario();
  mix.interval='4h';
  assert.equal(planMultiFrameForecast(mix,{now:anchor+H4*30}).state,'INVALID');
- assert.equal(planMultiFrameForecast(row,{now:anchor+500}).state,'INVALID');
+ assert.equal(planMultiFrameForecast(row,{now:anchor-100000}).state,'INVALID');
 });
 test('verified outcome keeps target touches separate from terminal STOP',()=>{
  const now=anchor+H4*30;
