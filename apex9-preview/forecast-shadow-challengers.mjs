@@ -30,7 +30,7 @@ export const SHADOW_CHALLENGER_RECIPES=Object.freeze([
 ]);
 export const SHADOW_CHALLENGER_RULES=Object.freeze({
  registrationUtc:'2026-11-11T00:00:00.000Z',
- minPostRegistrationScores:120,windowSize:40,
+ minPostRegistrationScores:120,windowSize:40,minScoreCoverage:.80,
  minDecisivePerWindow:20,minTp3PerWindow:6,minStopPerWindow:6,
  minVolumeCoverage:.70,minimumDeltaAuc:.03,
  lastThreeWindows:true,strictlyPostRegistration:true,
@@ -130,6 +130,7 @@ export function auditShadowChallengers(rows,{
   const base={interval:tf,registrationAt:SHADOW_CHALLENGER_REGISTRATION,
    historicalExcluded:history.length-forward.length,
    futurePublished:forward.length,newScored:scored.length,
+   scoreCoverage:forward.length?scored.length/forward.length:null,
    missingStrength:forward.length-scored.length-damaged,
    invalidStrength:damaged,windows:null,models:[],cuts:null,
    state:'COLLECTING',
@@ -142,6 +143,12 @@ export function auditShadowChallengers(rows,{
   }
   if(scored.length<SHADOW_CHALLENGER_RULES.minPostRegistrationScores){
    frames[tf]=base;continue;
+  }
+  if(base.scoreCoverage<SHADOW_CHALLENGER_RULES.minScoreCoverage){
+   frames[tf]={...base,state:'LOW_SCORE_COVERAGE',
+    reason:'Менее 80% новых публикаций имеют проверенный балл до исхода. '+
+     'Выборка может быть искажена пропусками источников.'};
+   continue;
   }
   // Three consecutive equal-sized blocks of the LAST 120 preregistered
   // publications. All recipes use exactly the same fixed observations.
