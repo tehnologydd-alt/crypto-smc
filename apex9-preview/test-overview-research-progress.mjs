@@ -123,6 +123,7 @@ test('overview UI, Kotlin aggregation, sync cache and APK staging are connected'
  assert.ok(db.includes('suspend fun researchProgressForFavorites('));
  assert.ok(db.includes('WHERE f.asset IN (:assets)'));
  assert.ok(db.includes('LEFT JOIN research_forecast_results'));
+ assert.ok(plugin.includes('import org.json.JSONObject'));
  assert.ok(plugin.includes('fun getResearchProgress(call: PluginCall)'));
  assert.ok(plugin.includes('ApexPreferences.read(context.applicationContext)'));
  assert.ok(plugin.includes('LOCAL_ROOM_PROGRESS_V1'));
