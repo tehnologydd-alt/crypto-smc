@@ -3,6 +3,7 @@
  * By design triggered by the user, not a background predictive model.
  */
 import {chainForAsset} from './onchain-core.mjs';
+import {chainHeadSourceForAsset} from './onchain-chain-head.mjs';
 import {compareOnChainMarketHistory} from './onchain-market-compare.mjs';
 import {getMobileOnChainHistory,getMobileCandles,saveMobileCandles} from './mobile-bridge.mjs';
 import {fetchCandles} from './candles.mjs';
@@ -43,7 +44,9 @@ export function initOnChainMarketDashboard(){
   setStatus(chainForAsset(asset)
    ?'Доступно сравнение локальной истории '+asset+
      '. Для расчёта потребуется минимум 12 самостоятельных временных интервалов.'
-   :'Для этого актива нет прямого проверенного сетевого адаптера.',!chainForAsset(asset));
+   :chainHeadSourceForAsset(asset)?
+    'Номер блока сети доступен выше. Сопоставление сетевых метрик с H1 ещё не подтверждено.':
+    'Для этого актива нет прямого проверенного сетевого адаптера.',!chainForAsset(asset));
  }
  function show(result){
   area.replaceChildren();
