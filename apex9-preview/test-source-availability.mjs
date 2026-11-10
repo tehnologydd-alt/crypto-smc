@@ -39,6 +39,6 @@ test('switching assets in an open Data tab refreshes source statuses',()=>{
  assert.ok(app.includes('liquidityDashboard.setSourceStatuses(chosen,snapshot.sources)'));
  assert.ok(app.includes('void onChainDashboard.refresh(symbol)'));
  assert.ok(liquidity.includes('describeVenue(venue,latestSources[venue.venue])'));
- assert.ok(chain.includes('нет прямого проверенного ончейн-адаптера'));
+ assert.ok(chain.includes('Доступен поиск DEX-пулов двух публичных источников'));
  assert.ok(prepared.includes("'source-availability.mjs'"));
 });
