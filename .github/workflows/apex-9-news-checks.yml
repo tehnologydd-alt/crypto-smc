@@ -46,7 +46,10 @@ jobs:
           node --check apex9-preview/favorite-dashboard.mjs
           node --check apex9-preview/forecast-multiframe.mjs
           node --check apex9-preview/forecast-evidence-context.mjs
+          node --check apex9-preview/forecast-feature-holdout.mjs
+          node --check apex9-preview/forecast-feature-dashboard.mjs
           node --test apex9-preview/test-forecast-evidence-context.mjs
+          node --test apex9-preview/test-forecast-feature-holdout.mjs
           node --check apex9-preview/forecast-directional-card.mjs
           node --check apex9-preview/radar-core.mjs
           node --check apex9-preview/radar-dashboard.mjs
