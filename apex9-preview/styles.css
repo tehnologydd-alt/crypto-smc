@@ -3241,6 +3241,17 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .overview-quality-open{width:100%;min-height:33px;font-size:11px}
 .overview-quality-decline{margin:0;padding:8px 10px;border:1px solid #a36a68;border-radius:8px;background:#5d303521;color:#f6c1b5;font-size:10px;line-height:1.5}
 .overview-quality-history{border-top:1px solid #ffffff1b;padding-top:8px}
+.overview-quality-diagnosis{border-top:1px dashed #466173;padding-top:7px}
+.overview-quality-diagnosis>summary{font-size:11px;color:#a3e3db;cursor:pointer}
+.overview-quality-diagnosis>small{display:block;padding:4px 0}
+.forecast-quality-diagnostics{border:1px solid #476275;border-radius:10px;margin:8px 0;background:#102535}
+.forecast-quality-diagnostics>summary{padding:12px;cursor:pointer;color:#b6f0de;font-size:12px;font-weight:750}
+.forecast-quality-diagnostics-body{padding:0 10px 11px;display:grid;gap:8px}
+.forecast-quality-diagnostics-frame{display:grid;gap:5px;padding:9px;border:1px solid #344e65;border-radius:9px;background:#142b3e}
+.forecast-quality-diagnostics-frame>strong{font-size:12px}
+.forecast-quality-diagnostics-frame>span{font-size:11px;color:#d9e5f2}
+.forecast-quality-diagnostics-frame>small{font-size:10px;color:#9ab4ce}
+
 .overview-quality-history>summary{color:#b9e8d9;font-size:11px;cursor:pointer;font-weight:650}
 .overview-quality-history-row{display:grid;gap:6px;padding:8px 10px;margin-top:6px;background:#102936;border-radius:9px}
 .overview-quality-history-bars{height:45px;display:flex;align-items:flex-end;gap:4px}

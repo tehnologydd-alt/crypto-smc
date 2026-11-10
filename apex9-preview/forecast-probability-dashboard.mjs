@@ -6,6 +6,8 @@ import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
 import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
+import {diagnoseQualityFactors,DIAGNOSTIC_LABELS}
+ from './forecast-quality-diagnostics.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -517,9 +519,32 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  }
  qualityRoot.append(element('p','forecast-confluence-caveat',
   quality.note||'Исследование доступно только в полном локальном Room-архиве.'));
- slot.prepend(qualityRoot);
+ const diagnosis=diagnoseQualityFactors({asset,quality,challenge,regimes});
+ const diagnosticRoot=element('details','forecast-quality-diagnostics');
+ diagnosticRoot.append(element('summary','',
+  'Что могло повлиять на качество? · диагностика факторов'));
+ const diagnosticBody=element('div','forecast-quality-diagnostics-body');
+ diagnosticBody.append(element('p','forecast-confluence-caveat',
+  'Факторы для исследования, а не доказанные причины.'));
+ if(!diagnosis.frames)
+  diagnosticBody.append(element('p','forecast-quality-warning',
+   'Недоступна согласованная полная проверка архива.'));
+ else for(const tf of ['15m','1h','4h']){
+  const frame=diagnosis.frames[tf];
+  const part=element('div','forecast-quality-diagnostics-frame');
+  part.append(element('strong','',label[tf]+' · '+frame.state));
+  for(const code of frame.codes)
+   part.append(element('span','',DIAGNOSTIC_LABELS[code]));
+  part.append(element('small','',
+   'Следующая проверка: '+frame.nextAction));
+  diagnosticBody.append(part);
+ }
+ diagnosticBody.append(element('p','forecast-confluence-caveat',
+  diagnosis.note||'Ни одна формула не изменяется.'));
+ diagnosticRoot.append(diagnosticBody);
+ slot.prepend(diagnosticRoot,qualityRoot);
  // Reuse already computed independent audits in the explicit manual workflow;
  // avoid repeating three full 1500-row passes on a slow Android device.
- if(typeof onAudits==='function')onAudits({challenge,regimes});
+ if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis});
  return report;
 }
