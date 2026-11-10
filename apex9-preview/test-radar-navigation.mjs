@@ -30,13 +30,14 @@ test('radar is dedicated exploration and does not clone other pages',()=>{
  for(const excluded of ['id="favorite-rail"','id="global-context"',
   'id="research-forecast-list"','id="evidence-lab-panel"','id="candle-canvas"'])
   assert.ok(!radar.includes(excluded),excluded);
- assert.ok(dashboard.includes('RADAR_LIMIT')||dashboard.includes('universe.rows.slice(offset,offset+3)'));
- assert.ok(dashboard.includes('universe.rows.slice(offset,offset+3)'));
- assert.ok(dashboard.includes("response.state!=='OK'"));
+ assert.ok(dashboard.includes('const batch=candidate.slice(offset,offset+3)'));
+ assert.ok(dashboard.includes("if(received.state!=='OK')"));
  assert.ok(dashboard.includes("onOpenAsset(row.symbol)"));
- assert.ok(dashboard.includes('lastScanAt<REFRESH_MS'));
+ assert.ok(dashboard.includes('selectRadarAutoFrame(getFavorites(),checkpoints'));
+ assert.ok(dashboard.includes('timer=setInterval(autoTick,60000)'));
+ assert.ok(dashboard.includes('open(){active=true;syncUi();void syncNative();}'));
  assert.ok(dashboard.includes('active=false'));
- assert.ok(dashboard.includes('createRadarObservation(next,chosen'));
+ assert.ok(dashboard.includes('createRadarObservation(row,selectedFrame'));
  assert.ok(dashboard.includes('saveRadarChanges(storage,history)'));
  assert.ok(dashboard.includes('compareMarketFrames(frameResults,{asset:symbol})'));
  assert.ok(dashboard.includes("fetchCandles(symbol,frame,{signal:local.signal,limit:64})"));
