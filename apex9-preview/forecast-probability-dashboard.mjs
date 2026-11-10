@@ -4,6 +4,7 @@ import {auditPreOutcomeStrength} from './forecast-preoutcome-strength.mjs';
 import {auditFeatureContribution} from './forecast-feature-ablation.mjs';
 import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
 import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
+import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -351,6 +352,89 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
   challenge.note||
    'Все альтернативы остаются исследовательскими.'));
  abody.append(arena);
+ const regimes=auditShadowRegimes(archive?.forecasts,{
+  asset,complete:archive?.complete,
+  publishedCount:archive?.publishedCount,now});
+ const modes=element('details',
+  'forecast-probability-details forecast-shadow-regime-detail');
+ modes.append(element('summary','',
+  'В каких режимах рынка формулы работают лучше или хуже?'));
+ const bodyMode=element('div','forecast-probability-detail-body');
+ bodyMode.append(element('p','forecast-confluence-caveat',
+  'Классификация берётся только из сохранённого до публикации Radar: '+
+  'направленный рынок, боковик, смешанный режим. '+
+  'Неизвестные или устаревшие состояния исключаются из оценки.'));
+ if(!regimes.frames){
+  bodyMode.append(element('p','forecast-quality-warning',regimes.reason));
+ }else{
+  const groupLabels={
+   DIRECTIONAL:'Направленный рынок',RANGE:'Боковик',
+   MIXED:'Смешанный режим'
+  };
+  const modelLabels={
+   OBSERVED_THREE_TIMES:'Описательный прирост на трёх периодах',
+   RECENTLY_WORSE:'Ухудшение на последнем периоде',
+   NO_LONGER_BETTER:'Ранний прирост не повторился',
+   LATE_ONLY:'Прирост только на последнем периоде',
+   NOT_BETTER:'Прирост AUC не обнаружен'
+  };
+  const pct=x=>typeof x==='number'&&Number.isFinite(x)?
+   (x*100).toFixed(0)+'%':'—';
+  const fmt=x=>typeof x==='number'&&Number.isFinite(x)?
+   (x>=0?'+':'')+x.toFixed(3):'—';
+  for(const tf of ['15m','1h','4h']){
+   const frame=regimes.frames[tf],panel=element('section','forecast-probability-frame');
+   panel.append(element('strong','',
+    label[tf]+' · снимков для исследования: '+frame.newScored),
+    element('small','',frame.reason));
+   if(frame.windows){
+    const cover=element('div','forecast-feature-periods');
+    for(let i=0;i<frame.windows.length;i++){
+     const part=frame.windows[i];
+     const box=element('div','forecast-feature-period');
+     box.append(element('strong','','Период '+(i+1)),
+      element('span','','Radar: '+part.radarObserved+'/'+part.eligible+
+       ' · '+pct(part.coverage)),
+      element('small','',
+       'Нет: '+part.missing+' · устарело: '+part.stale+
+       ' · ошибки: '+part.invalid));
+     cover.append(box);
+    }
+    panel.append(cover);
+   }
+   if(frame.regimes){
+    for(const [mode,labelName] of Object.entries(groupLabels)){
+     const regime=frame.regimes[mode];
+     const details=element('details','forecast-probability-details');
+     details.append(element('summary','',labelName+' · '+regime.state));
+     const body=element('div','forecast-probability-detail-body');
+     body.append(element('p','forecast-confluence-caveat',regime.reason));
+     const counts=element('div','forecast-feature-periods');
+     for(let i=0;i<(regime.windows?.length||0);i++){
+      const count=regime.windows[i],item=element('div','forecast-feature-period');
+      item.append(element('strong','','Период '+(i+1)),
+       element('span','','TP3 '+count.tp3+' · SL '+count.stop),
+       element('small','','Всего в режиме: '+count.eligible));
+      counts.append(item);
+     }
+     body.append(counts);
+     if(regime.state==='DESCRIPTIVE'){
+      for(const item of regime.models){
+       body.append(element('strong','',item.name),
+        element('small','',modelLabels[item.state]||'Без заключения'),
+        element('span','',
+         'ΔAUC к контролю: '+item.deltaAuc.map(fmt).join(' / ')));
+      }
+     }
+     details.append(body);panel.append(details);
+    }
+   }
+   bodyMode.append(panel);
+  }
+ }
+ bodyMode.append(element('p','forecast-confluence-caveat',
+  regimes.note||'Нет оснований изменять действующую модель.'));
+ modes.append(bodyMode);abody.append(modes);
  abody.append(element('p','forecast-confluence-caveat',
   contribution.note||'Прогнозы, веса и исходы не менялись.'));
  ablation.append(abody);slot.append(ablation);
