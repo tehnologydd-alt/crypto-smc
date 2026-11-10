@@ -92,6 +92,48 @@ export async function fetchBitcoinMempool(symbol,{fetchImpl=fetch,now=()=>Date.n
  catch(e){return fail('INVALID',error(e));}
 }
 
+/**
+ * BTC network observations remain BTC-only facts even when the selected asset
+ * is ETH/TON/etc. This is global Bitcoin network background, never on-chain
+ * measurements for the selected altcoin.
+ */
+export async function fetchBitcoinMarketBackground(symbol,{
+ fetchImpl=fetch,now=()=>Date.now(),signal
+}={}){
+ const result=await publicJson(MEMPOOL,{fetchImpl,signal});
+ if(result.state!=='OK')return result;
+ try{
+  const data=parseBitcoinMempool(result.data,now());
+  return ok({...data,
+   relevance:getBase(symbol)==='BTC'?'SELECTED_BITCOIN_NETWORK':'GLOBAL_BITCOIN_NETWORK',
+   assetSpecific:getBase(symbol)==='BTC'});
+ }catch(e){return fail('INVALID',error(e));}
+}
+
+/**
+ * One short-lived shared BTC background snapshot across asset switches. This
+ * prevents refreshing the same public mempool endpoint for every coin selected.
+ * The in-memory cache is NOT a successful new HTTP request and expires.
+ */
+export function createBitcoinBackgroundGate({now=()=>Date.now(),ttlMs=120000}={}){
+ let entry=null,inflight=null;
+ return function load(fetcher){
+  const at=now();
+  if(entry&&at>=entry.at&&at-entry.at<=ttlMs)
+   return Promise.resolve({...entry.result,access:'CACHE',
+    cachedAt:entry.at});
+  if(inflight)return inflight;
+  inflight=Promise.resolve().then(fetcher).then(result=>{
+   if(result?.state==='OK'&&result.data&&
+      Number.isSafeInteger(result.data.receivedAt)){
+    entry={at:now(),result};
+   }
+   return {...result,access:'NETWORK'};
+  }).finally(()=>{inflight=null;});
+  return inflight;
+ };
+}
+
 export function parseGdeltDate(s){
  if(typeof s!=='string'||!/^[0-9]{8}T[0-9]{6}Z$/.test(s))return null;
  const date=Date.parse(s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+
@@ -149,7 +191,11 @@ export async function collectContext(symbol,opts={}){
   opts.newsGate(symbol,()=>fetchAssetNews(symbol,opts)):
   fetchAssetNews(symbol,opts);
  const settled=await Promise.allSettled([
-  fetchCryptoGlobal(opts),fetchBitcoinMempool(symbol,opts),news
+  fetchCryptoGlobal(opts),
+  typeof opts.bitcoinNetworkGate==='function'?
+   opts.bitcoinNetworkGate(()=>fetchBitcoinMarketBackground(symbol,opts)):
+   fetchBitcoinMarketBackground(symbol,opts),
+  news
  ]);
  const sources=settled.map((r,i)=>{
   const value=r.status==='fulfilled'?r.value:fail('OFFLINE',error(r.reason));
