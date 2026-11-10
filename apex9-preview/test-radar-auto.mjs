@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {selectRadarAutoFrame,radarExpectedClose,radarFavoriteSignature,
- readRadarAutoCheckpoints,writeRadarAutoCheckpoint,RADAR_AUTO_FRAMES
+ readRadarAutoCheckpoints,writeRadarAutoCheckpoint,markRadarAutoFailure,RADAR_AUTO_FRAMES
 } from './radar-auto-policy.mjs';
 import {createRadarDisplayCache,radarRowFromHistory} from './radar-display-cache.mjs';
 import {mergeRadarObservation,createRadarObservation,
@@ -75,4 +75,21 @@ test('native history is historical, and must not invent current-candle events',(
  assert.equal(row.change.state,'CHANGED');
  assert.equal(row.analysis.lastClosedAt,closed);
  assert.equal(row.saved,true);
+});
+
+test('a failed source check allows just one delayed retry, not repeated polling',()=>{
+ const storage=mem(),marks={},assets=['BTCUSDT'],at=NOW+31000;
+ const plan=selectRadarAutoFrame(assets,marks,{now:at});
+ assert.equal(plan.state,'DUE');
+ writeRadarAutoCheckpoint(storage,marks,plan,at);
+ assert.equal(markRadarAutoFailure(storage,marks,plan,at),true);
+ assert.notEqual(selectRadarAutoFrame(assets,marks,{now:at+60000}).frame,plan.frame);
+ const retry=selectRadarAutoFrame(assets,marks,{now:at+11*60000});
+ assert.equal(retry.frame,plan.frame);
+ writeRadarAutoCheckpoint(storage,marks,retry,at+11*60000);
+ markRadarAutoFailure(storage,marks,retry,at+11*60000);
+ assert.equal(selectRadarAutoFrame(assets,marks,{now:at+12*60000}).frame===plan.frame,false);
+ assert.equal(selectRadarAutoFrame(assets,marks,{now:at+16*60000}).frame,plan.frame);
+ // Above switch is a genuinely NEW M15 close, rather than a third retry.
+ assert.notEqual(selectRadarAutoFrame(assets,marks,{now:at+16*60000}).close,plan.close);
 });
