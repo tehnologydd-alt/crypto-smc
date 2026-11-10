@@ -660,88 +660,152 @@ function showMarketCore(candles,origin,interval){
    ?Math.min(100,Math.max(0,result.rangePosition*100))+'%':'50%';
  return result;
 }
-let matrixGeneration=0,matrixController=null;
-function resetMarketMatrix(reason='Сравнение ещё не запущено.'){
- matrixGeneration++;
- matrixController?.abort();
- matrixController=null;
- text('market-matrix-status',reason);
- text('market-matrix-summary','Нет свежего сравнения горизонтов.');
- clear(el('market-matrix-items'));
- el('market-matrix-run').disabled=false;
-}
+let matrixGeneration=0,matrixController=null,matrixRestoring=false;
+const matrixLastRequest=new Map();
 function renderMarketMatrix(comparison,asset){
  const box=el('market-matrix-items');clear(box);
- const names={DIRECTIONAL:'направленное',RANGE:'диапазон',MIXED:'смешанное',UNKNOWN:'не определён'};
+ const names={DIRECTIONAL:'направленное',RANGE:'диапазон',
+  MIXED:'смешанное',UNKNOWN:'не определён'};
  for(const frame of comparison.frames){
   const row=create('div','market-matrix-row');
-  row.append(create('strong','',frameLabels[frame.interval]||frame.interval));
+  const heading=create('strong','',frameLabels[frame.interval]||frame.interval);
   const middle=create('div');
-  middle.append(create('div','frame-caption',frame.status==='OK'
-   ?directionLabels[frame.direction]+' · '+(names[frame.mode]||'не определён')
-   :frame.status==='CACHE'?'Историческая запись на телефоне, не текущие сведения':
-    frame.status==='STALE'?'Данные источника устарели':
-    frame.status==='MISSING'?'Нет проверенных данных':'Нет актуальных свечей'));
-  const state=create('span','frame-status '+(frame.status==='OK'?'':'is-stale'),frame.status==='OK'?'Свежие':frame.status);
-  row.append(middle,state);box.append(row);
+  middle.append(create('div','frame-caption',
+   frame.status==='OK'
+    ?directionLabels[frame.direction]+' · '+(names[frame.mode]||'не определён')
+    :frame.status==='CACHE'?
+     (directionLabels[frame.direction]||'Направление не установлено')+
+     ' · сохранённое наблюдение (не свежее)'
+    :frame.status==='STALE'?'Источник устарел':
+     frame.status==='MISSING'?'Ожидаем завершённые свечи':'Нет актуальных данных'));
+  const code=frame.status==='OK'?'Актуально':
+   frame.status==='CACHE'?'Архив':frame.status==='MISSING'?'Ожидание':frame.status;
+  const state=create('span','frame-status '+(frame.status==='OK'?'':'is-stale'),code);
+  row.append(heading,middle,state);box.append(row);
  }
  const message={
-  INSUFFICIENT:'Для сравнения нужно минимум два актуальных горизонта. Исторический кэш не является текущим подтверждением.',
-  DIVERGENT:'Свежие горизонты расходятся по ранее наблюдавшемуся направлению движения.',
-  UP_CONTEXT:'Наблюдалось преобладание роста на доступных свежих горизонтах.',
-  DOWN_CONTEXT:'Наблюдалось преобладание снижения на доступных свежих горизонтах.',
-  MIXED:'Исторические изменения различаются; единого контекста не обнаружено.'
+  INSUFFICIENT:'Для согласованности нужно минимум два актуальных горизонта. Сохранённые данные показаны отдельно.',
+  DIVERGENT:'Исторические направления на свежих горизонтах расходятся.',
+  UP_CONTEXT:'На доступных свежих горизонтах преобладал рост.',
+  DOWN_CONTEXT:'На доступных свежих горизонтах преобладало снижение.',
+  MIXED:'Единого направления на горизонтах не обнаружено.'
  };
  text('market-matrix-summary',(message[comparison.state]||'Контекст не определён')+
-  ' · свежих: '+comparison.available+'/4 · актив: '+asset+'. Не является прогнозом.');
+  ' · актуальных '+comparison.available+'/4 · '+asset+'.');
 }
-async function runMarketMatrix(){
- matrixController?.abort();
+function resetMarketMatrix(reason='Ожидаем проверенные свечи.',asset=chosen){
+ matrixGeneration++;
+ matrixController?.abort();matrixController=null;
+ const saved=marketMatrixCache.read(asset);
+ renderMarketMatrix(compareMarketFrames(saved?.frames||{},{asset}),asset);
+ text('market-matrix-status',saved?'Исторические наблюдения из локального кеша · '+reason:reason);
+ el('market-matrix-run').disabled=false;
+}
+async function restoreMarketMatrix(asset=chosen){
+ if(matrixRestoring)return;
+ const generation=matrixGeneration;
+ const saved=marketMatrixCache.read(asset),old=saved?.frames||{};
+ renderMarketMatrix(compareMarketFrames(old,{asset}),asset);
+ text('market-matrix-status',saved?'Сохранённые горизонты · сверяем историю Android…':
+  'Читаем наблюдения Радара и закрытые свечи…');
+ matrixRestoring=true;
+ try{
+  const native=await getMobileRadarHistory();
+  if(asset!==chosen||generation!==matrixGeneration)return;
+  const verified=matrixFromNativeRadar(native,asset,{now:Date.now()});
+  const combined={...old,...verified};
+  const current=Object.values(combined).filter(x=>x.state==='OK').length;
+  if(Object.keys(combined).length){
+   renderMarketMatrix(compareMarketFrames(combined,{asset}),asset);
+   marketMatrixCache.save(asset,combined);
+  }
+  text('market-matrix-status',current>=2?
+   'Радар Android · актуальных закрытых горизонтов '+current+'/4':
+   Object.keys(combined).length?
+    'Есть сохранённые наблюдения · актуальных '+current+'/4 · уточняем источники':
+    'История пока не накоплена · проверяем доступные свечи');
+  if(current===4)return;
+  if(!favoriteManager.hasFavorite(asset)){
+   text('market-matrix-status','Автообновление доступно для избранных. Показан только архив.');
+   return;
+  }
+  const last=matrixLastRequest.get(asset)||0;
+  if(Date.now()-last>=15*60000&&!matrixController)
+   void runMarketMatrix(false,combined);
+ }catch(e){
+  if(asset===chosen&&generation===matrixGeneration)
+   text('market-matrix-status','История Android недоступна · сохранённые значения остаются');
+ }finally{matrixRestoring=false;}
+}
+async function runMarketMatrix(force=false,preloaded=null){
+ if(matrixController){
+  if(!force)return;
+  matrixController.abort();
+ }
  const run=++matrixGeneration,asset=chosen;
+ const now=Date.now(),last=matrixLastRequest.get(asset)||0;
+ if(!force&&last&&now-last<15*60000)return;
+ // User-initiated refresh still has a minimum gap, avoiding rate-limit loops.
+ if(force&&last&&now-last<2*60000){
+  text('market-matrix-status','Следующая проверка доступна через 2 минуты · показываем сохранённый результат');
+  return;
+ }
  const controller=new AbortController();
- matrixController=controller;
+ matrixController=controller;matrixLastRequest.set(asset,now);
  const button=el('market-matrix-run');button.disabled=true;
- const frames={};
- clear(el('market-matrix-items'));
+ const saved=marketMatrixCache.read(asset);
+ const frames={...(saved?.frames||{}),...(preloaded||{})};
+ if(Object.keys(frames).length)
+  renderMarketMatrix(compareMarketFrames(frames,{asset}),asset);
+ else renderMarketMatrix(compareMarketFrames({},{asset}),asset);
  try{
   for(let i=0;i<MARKET_FRAMES.length;i++){
-   if(run!==matrixGeneration||controller.signal.aborted)return;
+   if(run!==matrixGeneration||controller.signal.aborted||asset!==chosen)return;
    const interval=MARKET_FRAMES[i];
-   text('market-matrix-status','Проверяем '+asset+' · '+frameLabels[interval]+' ('+(i+1)+'/4). Только публичные данные.');
-   // At most one concurrent fetch to respect Android bandwidth and exchange limits.
+   if(!force&&frames[interval]?.state==='OK')continue;
+   text('market-matrix-status','Обновляем закрытые '+frameLabels[interval]+
+    ' · '+(i+1)+'/4 · сохранённые наблюдения остаются видимыми');
    const cached=await getMobileCandles(asset,interval,120);
-   if(run!==matrixGeneration)return;
+   if(run!==matrixGeneration||controller.signal.aborted)return;
+   // Room closed OHLCV may already contain the exact latest complete candle.
+   const local=cached?.candles?.length?
+    analyzeMarketFrame(cached.candles,interval,{now:Date.now(),source:'Android Room'}):null;
+   if(!force&&local?.status==='OK'){
+    frames[interval]={asset,interval,state:'OK',summary:local};
+    renderMarketMatrix(compareMarketFrames(frames,{asset}),asset);
+    continue;
+   }
    const source=await fetchCandles(asset,interval,{
     signal:controller.signal,limit:120,now:()=>Date.now()
    });
-   if(run!==matrixGeneration)return;
+   if(run!==matrixGeneration||controller.signal.aborted)return;
    if(source.state==='OK'&&source.candles?.length){
     const summary=analyzeMarketFrame(source.candles,interval,{now:source.receivedAt});
-    frames[interval]={asset,interval,state:summary.status==='OK'?'OK':summary.status,summary};
     if(summary.status==='OK'){
+     frames[interval]={asset,interval,state:'OK',summary};
      void saveMobileCandles(asset,interval,source.candles.filter(c=>c.closed));
     }
-   }else if(cached.candles?.length){
-    frames[interval]={asset,interval,state:'CACHE',
-     summary:analyzeMarketFrame(cached.candles,interval)};
-   }else{
-    frames[interval]={asset,interval,state:source.state,summary:null};
+   }else if(!frames[interval]&&local&&local.status!=='INVALID'){
+    frames[interval]={asset,interval,state:'CACHE',summary:local};
    }
+   // No response or rate-limit must not erase previously confirmed readings.
+   renderMarketMatrix(compareMarketFrames(frames,{asset}),asset);
   }
   if(run!==matrixGeneration)return;
-  renderMarketMatrix(compareMarketFrames(frames,{asset}),asset);
-  text('market-matrix-status','Проверка завершена · '+new Date().toLocaleTimeString('ru-RU')+
-   ' · источник: Binance Spot');
- }catch(error){
-  if(run===matrixGeneration)text('market-matrix-status','Сбой получения истории: '+String(error?.message||error));
+  marketMatrixCache.save(asset,frames);
+  const count=Object.values(frames).filter(row=>row.state==='OK').length;
+  text('market-matrix-status','Проверка завершённых свечей · актуальных '+count+
+   '/4 · '+new Date().toLocaleTimeString('ru-RU',{
+    hour:'2-digit',minute:'2-digit'})+
+   (count<4?' · остальные показаны как архив или недоступны':''));
+ }catch(e){
+  if(run===matrixGeneration)
+   text('market-matrix-status','Нет нового ответа · последний подтверждённый результат сохранён');
  }finally{
-  if(run===matrixGeneration){
-   matrixController=null;button.disabled=false;
-  }
+  if(run===matrixGeneration){matrixController=null;button.disabled=false;}
  }
 }
-el('market-matrix-run').addEventListener('click',()=>void runMarketMatrix());
-
+el('market-matrix-run').addEventListener('click',()=>void runMarketMatrix(true));
 function displayCandleStructure(candles,description){
  drawnCandleAsset=chosen;drawnCandleInterval=candleInterval;
  const analysis=analyzeStructure(candles);
