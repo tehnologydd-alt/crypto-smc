@@ -163,6 +163,7 @@ jobs:
           test -s dist/forecast-probability-readiness.mjs
           test -s dist/forecast-preoutcome-strength.mjs
           test -s dist/forecast-feature-ablation.mjs
+          test -s dist/forecast-feature-rolling.mjs
           test -s dist/forecast-probability-dashboard.mjs
           test -s dist/forecast-feature-dashboard.mjs
           test -s dist/scenario-journal-state.mjs
