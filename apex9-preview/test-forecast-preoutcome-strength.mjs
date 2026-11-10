@@ -153,6 +153,7 @@ test('new native formula and WebView packaging are present with no order actions
   import.meta.url),'utf8');
  const installer=readFileSync(new URL('../apex9-android/scripts/install-native.mjs',
   import.meta.url),'utf8');
+ assert.ok(installer.includes("'ApexPreOutcomeStrength.kt'"));
  assert.ok(native.includes('CLOSED_PRICE_VOLUME_ONLY_UNTRAINED'));
  assert.ok(native.includes('UNTRAINED_SIGNAL_STRENGTH_NOT_PROBABILITY'));
  assert.ok(native.includes('0.5 * efficiency + 0.3 * travel + 0.2 * relativeVolumeNorm'));
