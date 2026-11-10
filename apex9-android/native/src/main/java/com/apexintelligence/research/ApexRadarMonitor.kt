@@ -26,7 +26,7 @@ import kotlin.math.round
 object ApexRadarMonitor {
     private const val STORE = "apex_radar_native_v1"
     private const val MAX_HTTP_PER_WORK = 16
-    private const val LIMIT = 60
+    private const val LIMIT = 120
     private const val GRACE_MS = 30_000L
     private val symbolPattern = Regex("^[A-Z0-9]{2,16}USDT$")
     private val periods = linkedMapOf(
