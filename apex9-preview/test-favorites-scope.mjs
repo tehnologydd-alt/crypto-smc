@@ -22,7 +22,7 @@ test('Android background worker never monitors the selected-only asset',()=>{
 test('Radar never downloads all market ticker data',()=>{
  assert.ok(radar.includes('getFavorites=()=>[]'));
  assert.ok(radar.includes('const favorites=getFavorites()'));
- assert.ok(radar.includes('if(!allow.size)'));
+ assert.ok(radar.includes('if(!catalog.length)'));
  assert.ok(radarCore.includes('symbols='));
  assert.equal(radarCore.includes("fetchImpl(URL,{"),false);
  assert.ok(app.includes('getFavorites:()=>favoriteManager.getFavorites()'));
