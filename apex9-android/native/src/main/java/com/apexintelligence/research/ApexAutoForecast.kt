@@ -205,6 +205,8 @@ object ApexAutoForecast {
             .put("stageSemantics","LIMIT_READY_M5_V1")
             .put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
+            .put("preOutcomeStrength",
+                ApexPreOutcomeStrength.snapshot(recent,width,now))
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)
             .put("evidenceAsPublished",
                 ApexEvidenceContext.capture(context,dao,asset,now))

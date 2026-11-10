@@ -1,5 +1,6 @@
 /** On-demand audit presentation; no network requests or scheduled work. */
 import {auditProbabilityReadiness} from './forecast-probability-readiness.mjs';
+import {auditPreOutcomeStrength} from './forecast-preoutcome-strength.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -93,5 +94,71 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
   extra.append(content);box.append(extra);slot.append(box);
  }
  slot.append(element('p','forecast-confluence-caveat',report.note));
+ const frozen=auditPreOutcomeStrength(archive?.forecasts,{
+  asset,complete:archive?.complete,
+  publishedCount:archive?.publishedCount,now});
+ const section=element('details','forecast-probability-details forecast-strength-section');
+ section.append(element('summary','',
+  'Экспериментальный балл силы сигнала · до исхода · M15/H1/H4'));
+ const body=element('div','forecast-probability-detail-body');
+ if(!frozen.frames){
+  body.append(element('p','forecast-quality-warning',frozen.reason));
+ }else{
+  body.append(element('p','forecast-confluence-caveat',
+   'Это НЕ вероятность успеха. Число 0–100 вычисляется из закрытых '+
+   'ценовых свечей и относительного объёма на момент публикации, '+
+   'без подгонки по будущим результатам.'));
+  for(const tf of ['15m','1h','4h']){
+   const audit=frozen.frames[tf];
+   const card=element('section','forecast-probability-frame');
+   card.append(element('strong','',
+    label[tf]+' · баллов до исхода: '+audit.precommitted),
+    element('small','',audit.reason));
+   const counts=element('div','forecast-probability-metrics');
+   for(const [title,value] of [
+    ['Старые без балла',audit.oldWithoutScore],
+    ['Исходы TP3/SL',audit.total.decisive],
+    ['Незавершённые',audit.total.unfinished],
+    ['Без проверки',audit.total.unverified+audit.total.invalid],
+    ['Исключены пересечения',audit.total.excludedOverlap],
+    ['Поздний период TP3/SL',audit.late?.decisive??0]]){
+    const item=element('div','forecast-probability-metric');
+    item.append(element('span','',title),element('strong','',value));
+    counts.append(item);
+   }
+   card.append(counts);
+   const detail=element('details','forecast-probability-details');
+   detail.append(element('summary','','Группы баллов и фактические исходы'));
+   const inner=element('div','forecast-probability-detail-body');
+   if(audit.state!=='DESCRIPTIVE'){
+    inner.append(element('p','forecast-quality-warning',
+     'Вывод о полезности балла пока запрещён: '+audit.reason));
+   }
+   for(const [name,cohort] of [
+    ['Ранние новые',audit.reference],['Поздние новые',audit.late]]){
+    inner.append(element('strong','',name));
+    if(!cohort){
+     inner.append(element('p','','Недостаточно новых оценок.'));
+     continue;
+    }
+    const groups=element('div','forecast-feature-periods');
+    for(const band of Object.values(cohort.bands)){
+     const group=element('div','forecast-feature-period');
+     group.append(element('strong','',
+      'Балл '+band.label),
+      element('span','',
+       'TP3 '+band.tp3+' · SL '+band.stop),
+      element('small','',
+       'Закончено иначе: '+band.other+' · ожидает: '+band.unfinished));
+     groups.append(group);
+    }
+    inner.append(groups);
+   }
+   detail.append(inner);card.append(detail);body.append(card);
+  }
+ }
+ body.append(element('p','forecast-confluence-caveat',
+  frozen.note||'Рабочая модель не меняется и новых вероятностей не создаёт.'));
+ section.append(body);slot.append(section);
  return report;
 }

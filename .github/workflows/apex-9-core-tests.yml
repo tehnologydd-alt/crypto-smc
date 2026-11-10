@@ -47,6 +47,7 @@ jobs:
           node --test apex9-preview/test-forecast-shadow-forward.mjs
           node --test apex9-preview/test-forecast-shadow-explanation.mjs
           node --test apex9-preview/test-forecast-probability-readiness.mjs
+          node --test apex9-preview/test-forecast-preoutcome-strength.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/favorite-dashboard.mjs
