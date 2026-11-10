@@ -6,6 +6,7 @@ import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
+import {initAssetFavoritePicker} from './asset-favorites-picker.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
@@ -752,10 +753,15 @@ function displayCandleStructure(candles,description){
   :'Недостаточно закрытых свечей для проверки рыночной структуры.');
  if(!interesting.length)container.append(create('p','muted','Подтверждённых BOS/CHoCH в доступном периоде не найдено.'));
  for(const event of interesting){
-  const row=create('div','structure-event'),label=create('div');
+  const row=create('div','structure-event is-'+
+   (event.direction==='UP'?'up':'down')+' is-'+event.type.toLowerCase());
+  const label=create('div');
   label.append(create('b','',event.type+' · '+(mapDir[event.direction]||event.direction)),
-   create('small','',new Date(event.time).toLocaleString('ru-RU')+' · уровень '+fmt(event.level)));
-  row.append(label,create('small','',event.type==='CHoCH'?'Изменение':'Продолжение'));
+   create('small','',new Date(event.time).toLocaleString('ru-RU',{
+    day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+
+    ' · уровень '+fmt(event.level,2)));
+  row.append(label,create('small','structure-kind',
+   event.type==='CHoCH'?'Изменение':'Продолжение'));
   container.append(row);
  }
 }
@@ -835,6 +841,7 @@ el('chart-reset').addEventListener('click',()=>{
 });
 
 
+let assetFavoritePicker=null;
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
  onSelectSymbol:(symbol,researchId=null)=>{
@@ -848,9 +855,15 @@ const favoriteManager=initFavoriteResearch({
  onOpenRadar:(symbol,interval)=>{
   if(radarDashboard.focus(symbol,interval))navigate('radar','radar-focus-panel');
  },
- onFavoritesChanged:()=>radarDashboard.favoritesChanged()
+ onFavoritesChanged:()=>{radarDashboard.favoritesChanged();assetFavoritePicker?.render();}
+});
+assetFavoritePicker=initAssetFavoritePicker({
+ getFavorites:()=>favoriteManager.getFavorites(),
+ getSelected:()=>chosen,
+ onSelect:symbol=>{void investigate(symbol);}
 });
 void favoriteManager.initialize().then(()=>{
+ assetFavoritePicker.render();
  // Starts outside the Radar page; no page-open network kick-off.
  radarDashboard.start();
  if(document.body.dataset.view==='catalog')renderCatalog();
@@ -905,7 +918,10 @@ function navigate(view,targetId){
   catalogPage=1;
   renderCatalog();
  }
- if(view==='asset')setAssetArea(assetAreaForEntry(targetId,lastAssetArea));
+ if(view==='asset'){
+  setAssetArea(assetAreaForEntry(targetId,lastAssetArea));
+  assetFavoritePicker?.render();
+ }
  if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
  requestAnimationFrame(()=>{
@@ -1380,6 +1396,7 @@ async function investigate(value){
   resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
  }
  chosen=symbol;
+ assetFavoritePicker?.render();
  if(changed)renderPassportResearchQuality(null);
  if(changed){
   liquidityDashboard.clear(symbol);
