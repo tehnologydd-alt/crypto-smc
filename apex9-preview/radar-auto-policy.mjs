@@ -25,6 +25,11 @@ export function selectRadarAutoFrame(favorites,checkpoints,{now=Date.now()}={}){
   const p=checkpoints?.[frame];
   if(!p||p.signature!==signature||p.close!==close)
    return {state:'DUE',frame,close,signature};
+  // One bounded retry after an actual failed/partial source check,
+  // never spin on every timer tick or claim successful observation.
+  if(p.failed===true&&p.attempts===1&&
+   now-p.checkedAt>=10*60000)
+   return {state:'DUE',frame,close,signature};
  }
  return {state:'CURRENT',signature};
 }
@@ -45,7 +50,20 @@ export function readRadarAutoCheckpoints(storage){
 export function writeRadarAutoCheckpoint(storage,checkpoints,plan,at=Date.now()){
  if(plan?.state!=='DUE'||!RADAR_AUTO_FRAMES.includes(plan.frame)||
   !Number.isSafeInteger(at))return false;
- checkpoints[plan.frame]={signature:plan.signature,close:plan.close,checkedAt:at};
+ const old=checkpoints[plan.frame];
+ const same=old?.signature===plan.signature&&old?.close===plan.close;
+ checkpoints[plan.frame]={signature:plan.signature,close:plan.close,
+  checkedAt:at,attempts:same?Math.min(2,(old.attempts||1)+1):1,failed:false};
+ try{storage?.setItem?.(RADAR_AUTO_KEY,JSON.stringify(checkpoints));return true}
+ catch{return false}
+}
+
+export function markRadarAutoFailure(storage,checkpoints,plan,at=Date.now()){
+ if(plan?.state!=='DUE'||!RADAR_AUTO_FRAMES.includes(plan.frame))return false;
+ const current=checkpoints?.[plan.frame];
+ if(!current||current.signature!==plan.signature||current.close!==plan.close)return false;
+ current.failed=true;
+ current.checkedAt=at;
  try{storage?.setItem?.(RADAR_AUTO_KEY,JSON.stringify(checkpoints));return true}
  catch{return false}
 }
