@@ -94,7 +94,7 @@ test('Marked mode does not copy All tab badges or historical entry totals',()=>{
  assert.equal(onlyCompleted.inWork,0);
  assert.equal(onlyCompleted.visible.length,0);
  assert.equal(onlyCompleted.preferred,'COMPLETED');
- assert.equal(onlyCompleted.unavailableMarked.length,1);
+ assert.equal(onlyCompleted.unavailableMarked,1);
  const onlyLive=scenarioJournalState(rows,{
   now,mode:'tracked',stage:'ACTIVE',selectedIds:[active.id]
  });
