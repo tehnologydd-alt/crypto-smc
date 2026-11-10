@@ -196,6 +196,14 @@ export function auditShadowProbabilityLearner(rows,{
     'Не прошла проверка событий исхода или M5 для H1.',base);
    continue;
   }
+  // A training/validation result recorded AFTER the next block began
+  // is never a valid past label. Refuse training even when minimum counts
+  // would otherwise hide this leakage among many other observations.
+  if(blocks.slice(0,3).some(x=>x.metrics.lateRecorded>0)){
+   frames[tf]=blank('COLLECTING',
+    'Часть ранних исходов записана после начала следующего периода.',base);
+   continue;
+  }
   if(blocks.some((x,i)=>x.metrics.volumeCoverage===null||
    x.metrics.volumeCoverage<SHADOW_LEARNER_RULES.minVolumeCoverage)){
    frames[tf]=blank('LOW_COVERAGE',

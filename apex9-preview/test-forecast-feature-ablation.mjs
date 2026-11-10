@@ -287,7 +287,7 @@ test('feature pairs appear only in explicit manual full-archive audit',()=>{
  const dashboard=read('./forecast-probability-dashboard.mjs');
  assert.ok(dashboard.includes('auditFeaturePairs(archive?.forecasts'));
  assert.ok(dashboard.includes('Сочетания признаков'));
- assert.ok(dashboard.includes('onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2})'));
+ assert.ok(dashboard.includes('onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner})'));
  const prepared=read('../apex9-android/scripts/prepare-web.mjs');
  assert.ok(prepared.includes("'forecast-feature-pairs.mjs'"));
 });
