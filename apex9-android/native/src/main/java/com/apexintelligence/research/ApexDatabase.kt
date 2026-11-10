@@ -92,6 +92,27 @@ data class ResearchForecastStage(
     val explanation: String
 )
 
+/** Frozen, read-only challenger hypothesis. The source forecasts remain immutable. */
+@Entity(
+    tableName = "research_shadow_candidates",
+    indices = [
+        Index(value = ["asset", "interval", "featureId"], unique = true),
+        Index(value = ["asset", "registeredAt"])
+    ]
+)
+data class ResearchShadowCandidate(
+    @PrimaryKey val id: String,
+    val asset: String,
+    val interval: String,
+    val featureId: String,
+    val association: String,
+    val registeredAt: Long,
+    val embargoUntil: Long,
+    val sourceCutoffAt: Long,
+    val historySize: Int,
+    val evidenceVersion: String
+)
+
 @Dao
 interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -186,6 +207,15 @@ interface ResearchDao {
     suspend fun researchForecasts(limit: Int): List<ResearchForecast>
 
     /** Read-only asset-scoped historical research; original Room schema retained. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun registerShadowCandidate(candidate: ResearchShadowCandidate): Long
+
+    @Query("SELECT * FROM research_shadow_candidates WHERE asset=:asset AND interval=:interval AND featureId=:feature LIMIT 1")
+    suspend fun shadowCandidate(asset: String, interval: String, feature: String): ResearchShadowCandidate?
+
+    @Query("SELECT * FROM research_shadow_candidates WHERE asset=:asset ORDER BY registeredAt DESC LIMIT 30")
+    suspend fun shadowCandidates(asset: String): List<ResearchShadowCandidate>
+
     @Query("SELECT * FROM research_forecasts WHERE asset = :asset ORDER BY publishedAt DESC LIMIT :limit")
     suspend fun researchForecastsForAsset(asset: String, limit: Int): List<ResearchForecast>
 
@@ -212,9 +242,10 @@ interface ResearchDao {
 @Database(
     entities = [
         ResearchObservation::class, ResearchForecast::class,
-        MarketCandle::class, ResearchForecastResult::class, ResearchForecastStage::class
+        MarketCandle::class, ResearchForecastResult::class, ResearchForecastStage::class,
+        ResearchShadowCandidate::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class ApexDatabase : RoomDatabase() {
@@ -266,6 +297,28 @@ abstract class ApexDatabase : RoomDatabase() {
             }
         }
 
+        /** Preserve all source, forecast, result and stage tables on upgrade. */
+        private val migration4To5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS research_shadow_candidates (" +
+                    "id TEXT NOT NULL, asset TEXT NOT NULL, interval TEXT NOT NULL, " +
+                    "featureId TEXT NOT NULL, association TEXT NOT NULL, " +
+                    "registeredAt INTEGER NOT NULL, embargoUntil INTEGER NOT NULL, " +
+                    "sourceCutoffAt INTEGER NOT NULL, historySize INTEGER NOT NULL, " +
+                    "evidenceVersion TEXT NOT NULL, PRIMARY KEY(id))"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_research_shadow_candidates_asset_interval_featureId " +
+                    "ON research_shadow_candidates(asset, interval, featureId)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_research_shadow_candidates_asset_registeredAt " +
+                    "ON research_shadow_candidates(asset, registeredAt)"
+                )
+            }
+        }
+
         @Volatile private var instance: ApexDatabase? = null
         fun get(context: Context): ApexDatabase =
             instance ?: synchronized(this) {
@@ -273,7 +326,7 @@ abstract class ApexDatabase : RoomDatabase() {
                     context.applicationContext,
                     ApexDatabase::class.java,
                     "apex-research-history.db"
-                ).addMigrations(migration1To2, migration2To3, migration3To4).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5).build().also { instance = it }
             }
     }
 }

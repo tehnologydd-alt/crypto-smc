@@ -123,6 +123,47 @@ export async function publishMobileResearchForecast(forecast){
   return {native:true,created:false,error:String(error?.message||error)};
  }
 }
+/** Frozen shadow hypotheses, never order actions or automatic model weights. */
+export async function registerMobileShadowCandidate(candidate){
+ const native=plugin();
+ if(!native)return {native:false,error:'Требуется Android с Room v5'};
+ if(!candidate||!['15m','1h','4h'].includes(candidate.interval)||
+  !/^[A-Z0-9]{5,20}$/.test(candidate.asset||'')||
+  !['sameRadar','higherRadar','marketDay','visibleDepth'].includes(candidate.featureId)||
+  !['MATCH_MORE_TP3','MISMATCH_MORE_TP3'].includes(candidate.association)||
+  candidate.evidenceVersion!=='APEX_SHADOW_FORWARD_V1')
+  return {native:true,error:'Неверные параметры экспериментальной гипотезы'};
+ try{
+  const data=await native.registerShadowCandidate({
+   asset:candidate.asset,interval:candidate.interval,
+   featureId:candidate.featureId,association:candidate.association,
+   evidenceVersion:candidate.evidenceVersion,
+   sourceCutoffAt:candidate.sourceCutoffAt,historySize:candidate.historySize});
+  if(data?.assetScoped!==true||data?.proposal?.asset!==candidate.asset||
+   data.proposal.interval!==candidate.interval||
+   data.proposal.featureId!==candidate.featureId)
+   throw Error('Непроверенное подтверждение Room');
+  return {native:true,created:data.created===true,proposal:data.proposal};
+ }catch(error){return {native:true,error:String(error?.message||error)};}
+}
+
+export async function getMobileShadowCandidates(asset){
+ const native=plugin();
+ if(!native)return {native:false,proposals:[],error:'Требуется Android с Room v5'};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{5,20}$/.test(asset))
+  return {native:true,proposals:[],error:'Неверный актив'};
+ try{
+  const data=await native.getShadowCandidates({asset});
+  if(data?.assetScoped!==true||data.asset!==asset||
+   !Array.isArray(data.proposals)||data.proposals.length>30||
+   data.proposals.some(x=>x?.asset!==asset))
+   throw Error('Невозможно подтвердить локальный реестр гипотез');
+  return {native:true,proposals:data.proposals,source:'IMMUTABLE_LOCAL_ROOM_V5'};
+ }catch(error){
+  return {native:true,proposals:[],error:String(error?.message||error)};
+ }
+}
+
 export async function getMobileResearchForecasts(limit=40){
  const native=plugin();
  if(!native)return {native:false,forecasts:[],publishedCount:0,evaluatedCount:0};
