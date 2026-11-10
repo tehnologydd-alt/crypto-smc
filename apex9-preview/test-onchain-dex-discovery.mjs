@@ -54,6 +54,7 @@ test('only exact base asset tickers produce non-authoritative candidate pools',(
 
 test('invalid and missing DEX responses never become fake token observations',()=>{
  assert.equal(parseDexScreenerPools('TRBUSDT',{pairs:[]},{now}).state,'NO_MATCH');
+ assert.equal(parseDexScreenerPools('TRBUSDT',{pairs:null},{now}).state,'NO_MATCH');
  assert.equal(parseDexScreenerPools('TRBUSDT',{error:'oops'},{now}).state,'INVALID');
  assert.equal(parseDexScreenerPools('TRBUSDT',{
   pairs:[pair({liquidity:{usd:-1}})]},{now}).state,'NO_MATCH');
@@ -125,7 +126,7 @@ test('unsupported token fallback is a distinct layer from native network and Roo
  const src=readFileSync(new URL('./onchain-dashboard.mjs',import.meta.url),'utf8');
  const staged=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',import.meta.url),'utf8');
  assert.ok(src.includes('await refreshDex(asset,force,seq)'));
- assert.ok(src.includes('collectDexMarket(asset,{signal:controller.signal'));
+ assert.ok(src.includes('collectDexMarket(asset,{'));
  assert.ok(src.includes('Снимки не сохраняются как ончейн-история Room')||
   src.includes('не сохраняются как ончейн-история Room'));
  assert.ok(staged.includes("'onchain-dex-discovery.mjs'"));

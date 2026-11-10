@@ -67,10 +67,11 @@ const finalize=(provider,asset,candidates,observedAt)=>({
 /** Strictly descriptive, fail-closed vendor parse. No quote inference. */
 export function parseDexScreenerPools(asset,payload,{now=Date.now()}={}){
  const base=baseOfSpotAsset(asset);
- if(!base||!validTime(now)||!payload||!Array.isArray(payload.pairs))
+ if(!base||!validTime(now)||!payload||
+  !(Array.isArray(payload.pairs)||payload.pairs===null))
   return response('dexscreener',asset,'INVALID','Некорректный ответ поиска DEX Screener');
  const candidates=[];
- for(const entry of payload.pairs.slice(0,200)){
+ for(const entry of (payload.pairs||[]).slice(0,200)){
   if(!entry||typeof entry!=='object')continue;
   const baseSymbol=safeText(entry.baseToken?.symbol,20).toUpperCase();
   const quote=safeText(entry.quoteToken?.symbol,12).toUpperCase();
