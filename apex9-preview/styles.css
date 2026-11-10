@@ -3049,3 +3049,28 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  .forecast-feature-arm{grid-template-columns:1fr auto}
  .forecast-feature-arm small{grid-column:1/-1}
 }
+
+
+/* Three-window feature stability is opt-in and visually secondary. */
+.forecast-feature-stability{
+ border:1px solid #3c6870;background:#102c36;border-radius:11px;
+ overflow:hidden;min-width:0;margin-top:4px
+}
+.forecast-feature-stability>summary{
+ cursor:pointer;min-height:44px;display:flex;align-items:center;
+ color:#c0e9df;font-size:11px;font-weight:740;padding:12px
+}
+.forecast-feature-stability>.forecast-confluence-caveat{
+ margin:6px 12px 12px;font-size:10px;line-height:1.6
+}
+.forecast-feature-stability-row{
+ display:grid;gap:5px;min-width:0;
+ padding:10px 11px;margin:7px 9px;border:1px solid #3a5d66;
+ border-radius:9px;background:#0c2530
+}
+.forecast-feature-stability-row strong{font-size:11px;color:#d9efe8}
+.forecast-feature-stability-row span{font-size:10px;color:#acccce;line-height:1.45}
+.forecast-feature-stability-row small{
+ font-size:10px;color:#a7c6cf;line-height:1.55;
+ overflow-wrap:anywhere;font-variant-numeric:tabular-nums
+}
