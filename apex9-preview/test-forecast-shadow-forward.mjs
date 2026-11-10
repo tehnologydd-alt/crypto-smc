@@ -5,6 +5,8 @@ import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {canDraftShadow,inspectShadowProposal,evaluateShadowProposal,
  SHADOW_RULES,SHADOW_VERSION} from './forecast-shadow-forward.mjs';
 import {STABILITY_VERSION} from './forecast-feature-stability.mjs';
+import {SHADOW_MONITOR_VERSION,SHADOW_MONITOR_RULES,assessShadowTemporalMonitor}
+ from './forecast-shadow-monitor.mjs';
 
 const S=900000,anchor0=Math.floor(1760000000000/S)*S-1;
 const round=n=>Number(n.toPrecision(13));
@@ -182,4 +184,113 @@ test('Room v5 migration, native bridge, manual UI and APK manifest stay aligned'
  assert.ok(ui.includes('evaluateShadowProposal('));
  assert.ok(html.includes('id="feature-shadow-panel"'));
  assert.ok(web.includes("'forecast-shadow-forward.mjs'"));
+});
+
+
+test('fresh post-registration outcomes show independent repeated descriptive observation',()=>{
+ const all=[...training,...future];
+ const report=evaluateShadowProposal(candidate(),all,{
+  asset:'BTCUSDT',complete:true,publishedCount:all.length,now});
+ const monitor=assessShadowTemporalMonitor(report);
+ assert.equal(monitor.version,SHADOW_MONITOR_VERSION);
+ assert.equal(monitor.state,'REPEATED_OBSERVATION');
+ assert.equal(monitor.reference.published,25);
+ assert.equal(monitor.recent.published,25);
+ assert.equal(monitor.reference.decisive,25);
+ assert.equal(monitor.recent.decisive,25);
+ assert.equal(monitor.reference.coverage,1);
+ assert.equal(monitor.recent.coverage,1);
+ assert.equal(monitor.reference.gapPp,100);
+ assert.equal(monitor.recent.gapPp,100);
+ assert.equal(monitor.referenceCutAt,future[25].publishedAt);
+ assert.equal(monitor.readyToApply,false);
+ assert.equal(monitor.modelChanged,false);
+ assert.equal(SHADOW_MONITOR_RULES.noAutoTraining,true);
+});
+test('reversal of later post-registration observations is clearly flagged',()=>{
+ const reversed=Array.from({length:50},(_,i)=>scenario(101+i,{
+  aligned:i%2===0,
+  finish:i<25?(i%2===0?'TP3':'STOP'):(i%2===0?'STOP':'TP3')
+ }));
+ const all=[...training,...reversed];
+ const report=evaluateShadowProposal(candidate(),all,{
+  asset:'BTCUSDT',complete:true,publishedCount:all.length,now});
+ const monitor=assessShadowTemporalMonitor(report);
+ assert.equal(monitor.reference.gapPp,100);
+ assert.equal(monitor.recent.gapPp,-100);
+ assert.equal(monitor.state,'REVERSED');
+ assert.equal(monitor.readyToApply,false);
+});
+test('a late association fading toward zero is reported as weakened',()=>{
+ const fading=Array.from({length:50},(_,i)=>scenario(101+i,{
+  aligned:i%2===0,
+  finish:i<25?(i%2===0?'TP3':'STOP'):
+   ([0,1].includes(i%4)?'TP3':'STOP')
+ }));
+ const all=[...training,...fading];
+ const result=evaluateShadowProposal(candidate(),all,{
+  asset:'BTCUSDT',complete:true,publishedCount:all.length,now});
+ const monitor=assessShadowTemporalMonitor(result);
+ assert.equal(monitor.state,'WEAKENED');
+ assert.ok(monitor.recent.gapPp<SHADOW_MONITOR_RULES.minimumAbsoluteGapPp);
+});
+test('missing source coverage cannot become a quality conclusion',()=>{
+ const sparse=Array.from({length:100},(_,i)=>{
+  const row=scenario(101+i,{aligned:i%2===0,
+   finish:i%2===0?'TP3':'STOP'});
+  if(i%5<2)row.hypothesis.evidenceAsPublished.radar['15m']={state:'MISSING'};
+  return row;
+ });
+ const all=[...training,...sparse];
+ const result=evaluateShadowProposal(candidate(),all,{
+  asset:'BTCUSDT',complete:true,publishedCount:all.length,
+  now:sparse.at(-1).evaluation.evaluatedAt+S});
+ const monitor=assessShadowTemporalMonitor(result);
+ assert.equal(monitor.state,'LOW_COVERAGE');
+ assert.ok(monitor.reference.coverage<.7);
+ assert.ok(monitor.recent.coverage<.7);
+});
+test('time boundary purges overlap and outcomes recorded only later',()=>{
+ const all=[...training,...future];
+ const base=evaluateShadowProposal(candidate(),all,{
+  asset:'BTCUSDT',complete:true,publishedCount:all.length,now});
+ const modified=structuredClone(base);
+ const edge=modified.timeline[24];
+ edge.targetCloseAt=modified.timeline[25].publishedAt+1;
+ modified.timeline[1].outcomeRecordedAt=modified.timeline[25].publishedAt+1000;
+ const monitor=assessShadowTemporalMonitor(modified);
+ assert.equal(monitor.reference.purged,1);
+ assert.equal(monitor.reference.lateRecorded,1);
+ assert.equal(monitor.reference.decisive,23);
+ assert.equal(monitor.recent.decisive,25);
+ assert.equal(monitor.readyToApply,false);
+});
+test('historical, truncated and malformed archives cannot emit monitor conclusions',()=>{
+ const historic=evaluateShadowProposal(candidate(),training,{
+  asset:'BTCUSDT',complete:true,publishedCount:training.length,now});
+ assert.equal(assessShadowTemporalMonitor(historic).state,'COLLECTING');
+ const partial=evaluateShadowProposal(candidate(),future,{
+  asset:'BTCUSDT',complete:false,publishedCount:100,now});
+ assert.equal(assessShadowTemporalMonitor(partial).state,'INVALID');
+ const all=[...training,...future];
+ const base=evaluateShadowProposal(candidate(),all,{
+  asset:'BTCUSDT',complete:true,publishedCount:all.length,now});
+ const futureLeak=structuredClone(base);
+ futureLeak.timeline[20].publishedAt=now+S;
+ assert.equal(assessShadowTemporalMonitor(futureLeak).state,'INVALID');
+ const duplicate=structuredClone(base);
+ duplicate.timeline[15].publishedAt=duplicate.timeline[14].publishedAt;
+ assert.equal(assessShadowTemporalMonitor(duplicate).state,'INVALID');
+ const altered=structuredClone(base);
+ altered.invalid=2;
+ assert.equal(assessShadowTemporalMonitor(altered).state,'INVALID_EVIDENCE');
+});
+test('mobile shadow panel includes compact temporal conclusions and APK module',()=>{
+ const ui=readFileSync(new URL('./forecast-feature-dashboard.mjs',import.meta.url),'utf8');
+ const web=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',import.meta.url),'utf8');
+ assert.ok(ui.includes('assessShadowTemporalMonitor(observation)'));
+ assert.ok(ui.includes('REVERSED:'));
+ assert.ok(ui.includes('WEAKENED:'));
+ assert.ok(ui.includes('Никакие веса и прогнозы не изменяются.'));
+ assert.ok(web.includes("'forecast-shadow-monitor.mjs'"));
 });
