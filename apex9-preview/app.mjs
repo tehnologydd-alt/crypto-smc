@@ -1075,6 +1075,32 @@ for(const button of document.querySelectorAll('[data-tab]'))
  button.addEventListener('click',()=>navigate(button.dataset.tab));
 for(const button of document.querySelectorAll('[data-go]'))
  button.addEventListener('click',()=>navigate(button.dataset.go,button.dataset.target));
+const insightTrack=el('forecast-insights-track');
+const insightTabs=[...document.querySelectorAll('[data-insight-slide]')];
+function updateInsightSlide(activeIndex){
+ for(const button of insightTabs){
+  const active=Number(button.dataset.insightSlide)===activeIndex;
+  button.classList.toggle('is-active',active);
+  button.setAttribute('aria-pressed',String(active));
+ }
+}
+for(const button of insightTabs)button.addEventListener('click',()=>{
+ const index=Number(button.dataset.insightSlide);
+ const slide=insightTrack.querySelector('[data-insight-panel="'+index+'"]');
+ if(!slide)return;
+ updateInsightSlide(index);
+ insightTrack.scrollTo({left:slide.offsetLeft-insightTrack.offsetLeft,behavior:'smooth'});
+});
+insightTrack.addEventListener('scroll',()=>{
+ const slides=[...insightTrack.querySelectorAll('[data-insight-panel]')];
+ const closest=slides.reduce((best,slide,index)=>{
+  const distance=Math.abs(slide.getBoundingClientRect().left-
+   insightTrack.getBoundingClientRect().left);
+  return distance<best.distance?{index,distance}:best;
+ },{index:0,distance:Infinity});
+ updateInsightSlide(closest.index);
+},{passive:true});
+
 function markSelectedAsset(){
  favoriteManager.selectChanged();
  evidenceDashboard.refreshAssetChoices();
