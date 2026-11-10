@@ -8,7 +8,7 @@ const cases=[
  ['AVAXUSDT',{jsonrpc:'2.0',result:'0x1388'},5000],
  ['BNBUSDT',{jsonrpc:'2.0',result:'0x2328'},9000],
  ['SOLUSDT',{jsonrpc:'2.0',result:123456},123456],
- ['ADAUSDT',[{block_no:77777,block_time:now/1000}],77777],
+ ['ADAUSDT',[{block_height:77777,block_time:now/1000}],77777],
  ['XRPUSDT',{result:{status:'success',validated:true,
   ledger:{ledger_index:55555}}},55555],
  ['DOTUSDT',{jsonrpc:'2.0',result:{number:'0x2710'}},10000],
@@ -47,9 +47,9 @@ test('rejects invalid or unconfirmed provider values, not fictitious block count
   'SOLUSDT',{now}).state,'INVALID');
  assert.equal(parseChainHead({result:{status:'error',ledger:{ledger_index:200}}},
   'XRPUSDT',{now}).state,'INVALID');
- assert.equal(parseChainHead([{block_no:222,block_time:(now+4*3600000)/1000}],
+ assert.equal(parseChainHead([{block_height:222,block_time:(now+4*3600000)/1000}],
   'ADAUSDT',{now}).state,'INVALID');
- assert.equal(parseChainHead([{block_no:222,block_time:(now-4*3600000)/1000}],
+ assert.equal(parseChainHead([{block_height:222,block_time:(now-4*3600000)/1000}],
   'ADAUSDT',{now}).state,'STALE');
 });
 test('only fixed HTTPS read-only endpoints, network denials are distinct from errors',async()=>{
