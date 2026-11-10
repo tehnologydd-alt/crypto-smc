@@ -159,6 +159,7 @@ jobs:
           test -s dist/forecast-feature-stability.mjs
           test -s dist/forecast-shadow-forward.mjs
           test -s dist/forecast-shadow-monitor.mjs
+          test -s dist/forecast-shadow-explanation.mjs
           test -s dist/forecast-feature-dashboard.mjs
           test -s dist/scenario-journal-state.mjs
           node -e "import('./scripts/verify-web-modules.mjs').then(m=>{let result=m.verifyWebModuleGraph('./dist');console.log('Verified WebView modules:',result.modules);})"
