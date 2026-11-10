@@ -174,7 +174,10 @@ test('fixed 60/20/20 publication split preserves entire holdout and embargo',()=
  assert.ok(frame.splitAt<frame.confirmationAt);
  const quality=assessFeatureStability(audit);
  const feature=quality.frames['15m'].features.find(f=>f.id==='sameRadar');
- assert.equal(feature.state,'REPEATED');
+ // Although its sign repeats, this deliberately uneven small sample
+ // changes effect size by >20 percentage points between the two late windows.
+ // The gate must label it DRIFTING instead of promoting a convenient pattern.
+ assert.equal(feature.state,'DRIFTING');
  assert.equal(feature.approvedForForecast,false);
  assert.equal(quality.approvedForForecast,false);
 });
