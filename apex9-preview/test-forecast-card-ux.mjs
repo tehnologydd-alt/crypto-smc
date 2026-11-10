@@ -58,7 +58,9 @@ test('visual card uses the real tracked ID set and only original Room H1',()=>{
  assert.ok(favorites.includes('onToggle?.(row.id)'));
  // One render pass now updates the Marked journal, its badges and quality
  // statistics together; calling renderStats beforehand showed stale totals.
- assert.ok(favorites.includes('persistSelected();renderRows();'));
+ assert.ok(favorites.includes('persistSelected();'));
+ assert.ok(favorites.includes("if(journalMode==='tracked')void loadMarkedRows({force:true})"));
+ assert.ok(favorites.includes('else renderRows();'));
  assert.ok(favorites.includes('renderStats();'));
  assert.ok(favorites.includes('scenarioJournalState(lastRows,'));
  assert.ok(favorites.includes('details.append(renderLevelSequence(row))'));

@@ -47,6 +47,7 @@ jobs:
           node --check apex9-preview/forecast-multiframe.mjs
           node --check apex9-preview/scenario-journal-state.mjs
           node --test apex9-preview/test-scenario-journal-state.mjs
+          node --test apex9-preview/test-marked-scenario-history.mjs
           node --check apex9-preview/forecast-evidence-context.mjs
           node --check apex9-preview/forecast-feature-holdout.mjs
           node --check apex9-preview/forecast-feature-stability.mjs

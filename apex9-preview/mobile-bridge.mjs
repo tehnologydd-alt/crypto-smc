@@ -164,6 +164,58 @@ export async function getMobileShadowCandidates(asset){
  }
 }
 
+/**
+ * Exact bookmarked forecast lookup (including records outside last 75).
+ * Local Room query in <=75-ID batches; never downloads an entire market
+ * archive, overwrites history, or treats missing records as completed.
+ */
+export async function getMobileMarkedResearchForecasts(ids){
+ const native=plugin();
+ const base={native:Boolean(native),source:'LOCAL_ROOM_MARKED_JOURNAL',
+  forecasts:[],missingIds:[],requestedCount:0,complete:false};
+ if(!Array.isArray(ids)||ids.length>300||ids.some(id=>
+  typeof id!=='string'||!/^[A-Za-z0-9:_-]{10,160}$/.test(id)||
+  !['range1','direction2','direction3'].includes(id.split(':')[0]))||
+  new Set(ids).size!==ids.length)
+  return {...base,error:'Некорректные сохранённые отметки.'};
+ if(!native)return {...base,error:'Требуется Android с архивом Room.'};
+ if(!ids.length)return {...base,complete:true,requestedCount:0};
+ const seen=new Set(),rows=[],missing=[];
+ try{
+  for(let offset=0;offset<ids.length;offset+=75){
+   const batch=ids.slice(offset,offset+75);
+   const response=await native.getMarkedResearchForecasts({ids:batch});
+   if(response?.source!=='LOCAL_ROOM_MARKED_JOURNAL'||
+    response.requestedCount!==batch.length||
+    !Array.isArray(response.forecasts)||
+    !Array.isArray(response.missingIds)||
+    response.foundCount!==response.forecasts.length)
+    throw Error('Обновите Android APK: целевая загрузка отмеченных недоступна.');
+   const wanted=new Set(batch),found=new Set();
+   for(const row of response.forecasts){
+    if(typeof row?.id!=='string'||!wanted.has(row.id)||
+     !/^[A-Z0-9]{5,20}$/.test(row.asset||'')||
+     !Number.isSafeInteger(row.publishedAt)||row.publishedAt<=0||
+     found.has(row.id)||seen.has(row.id))
+     throw Error('Журнал Room вернул несогласованный отмеченный сценарий.');
+    found.add(row.id);seen.add(row.id);rows.push(row);
+   }
+   const absent=batch.filter(x=>!found.has(x));
+   if(response.missingIds.length!==absent.length||
+    new Set(response.missingIds).size!==absent.length||
+    response.missingIds.some(x=>!absent.includes(x)))
+    throw Error('Room не подтвердил список отсутствующих отметок.');
+   missing.push(...absent);
+  }
+  rows.sort((a,b)=>b.publishedAt-a.publishedAt||b.id.localeCompare(a.id));
+  return {...base,forecasts:rows,missingIds:missing,
+   requestedCount:ids.length,complete:true};
+ }catch(error){
+  return {...base,error:String(error?.message||error),
+   requestedCount:ids.length};
+ }
+}
+
 export async function getMobileResearchForecasts(limit=40){
  const native=plugin();
  if(!native)return {native:false,forecasts:[],publishedCount:0,evaluatedCount:0};

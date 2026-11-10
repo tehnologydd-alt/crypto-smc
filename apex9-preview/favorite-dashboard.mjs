@@ -4,7 +4,8 @@
  * Sync is foreground and (when opted-in) via Android WorkManager.
  */
 import {getMobileFavorites,changeMobileFavorite,
- syncMobileFavoriteResearch,getMobileResearchForecasts,getMobileCandles,
+ syncMobileFavoriteResearch,getMobileResearchForecasts,
+ getMobileMarkedResearchForecasts,getMobileCandles,
  getMobileCandleArchive,getMobileM5Window} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
@@ -12,7 +13,7 @@ import {attachSparkline} from './sparkline.mjs';
 import {attachAssetLogo} from './asset-logo.mjs';
 import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
-import {scenarioJournalState} from './scenario-journal-state.mjs';
+import {scenarioJournalState,scenarioJournalRows} from './scenario-journal-state.mjs';
 import {directionalQualitySummary} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
@@ -476,7 +477,9 @@ export function initFavoriteResearch({
 }){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
-  archiveExpanded=false,lastRows=[],lastTotal=0;
+  archiveExpanded=false,lastRows=[],lastTotal=0,
+  markedRows=[],markedMissing=[],markedReadyFor=null,
+  markedLoading=false,markedError=null,markedFetchGeneration=0;
  const featureAudit=initFeatureHoldoutDashboard({getFavorites:()=>favorites.slice()});
  const MINI_CACHE=new Map(),MINI_LOADING=new Set(),MINI_AT=new Map();
  let localStore=null;
@@ -525,6 +528,10 @@ export function initFavoriteResearch({
   try{localStorage.setItem('apex9_selected_research_ids_v1',
    JSON.stringify([...selected].slice(-300)));}catch{}
  };
+ const selectedKey=()=>[...selected].sort().join('|');
+ const displayedJournal=()=>scenarioJournalRows(lastRows,markedRows,{
+  mode:journalMode
+ });
  function renderMini(symbol,slot){
   const prior=MINI_CACHE.get(symbol);
   if(prior)attachSparkline(slot,prior);
@@ -736,17 +743,20 @@ export function initFavoriteResearch({
  }
  function renderStats(){
   const now=Date.now(),chosen=[...selected];
-  const stats=journalObservedStats(lastRows,{
-   selectedIds:chosen,totalPublished:lastTotal,now
+  const scopedJournal=displayedJournal();
+  const stats=journalObservedStats(scopedJournal,{
+   selectedIds:chosen,
+   totalPublished:journalMode==='tracked'?null:lastTotal,now
   });
-  const quality=directionalQualitySummary(lastRows,{selectedIds:chosen,now});
+  const quality=directionalQualitySummary(scopedJournal,{selectedIds:chosen,now});
   const scopedRows=journalMode==='tracked'?
-   lastRows.filter(row=>selected.has(row.id)):lastRows;
-  const live=scenarioJournalState(lastRows,{
-   selectedIds:[...selected],mode:journalMode,stage,now
+   scopedJournal.filter(row=>selected.has(row.id)):scopedJournal;
+  const live=scenarioJournalState(scopedJournal,{
+   selectedIds:chosen,mode:journalMode,stage,now
   });
   const comparisons=compareScenarioConditions(scopedRows,{now});
-  const byAsset=summarizeAssetQuality(scopedRows,{now,totalLoaded:lastTotal});
+  const byAsset=summarizeAssetQuality(scopedRows,{now,
+   totalLoaded:journalMode==='tracked'?scopedRows.length:lastTotal});
   id('forecast-quality-current-scope').textContent=
    journalMode==='tracked'?'Отмеченные':'Все прогнозы';
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
@@ -961,7 +971,7 @@ export function initFavoriteResearch({
   if(!summary||!qualitySlot)return;
   summary.replaceChildren();qualitySlot.replaceChildren();
   const scoped=journalMode==='tracked'?
-   lastRows.filter(x=>selected.has(x.id)):lastRows;
+   displayedJournal().filter(x=>selected.has(x.id)):lastRows;
   const stats=multiFrameQuality(scoped);
   for(const [frame,label] of [['15m','M15'],['4h','H4']]){
    const record=stats[frame],tile=create('div','forecast-confluence-kpi');
@@ -1001,7 +1011,7 @@ export function initFavoriteResearch({
       'Без снимка: '+q.legacy+' · повреждённых: '+q.invalid));
     evidenceSlot.append(tile);
    }
-   if(lastTotal>lastRows.length)
+   if(journalMode==='all'&&lastTotal>lastRows.length)
     evidenceSlot.append(create('p','forecast-quality-warning',
      'Анализ частичный: доступны только загруженные '+lastRows.length+
      ' из '+lastTotal+' записей. Это не оценка эффективности модели.'));
@@ -1010,7 +1020,7 @@ export function initFavoriteResearch({
     'Новости и соцсети не считаются подтверждённым настроением; '+
     'TP не равен результату реальной сделки.'));
   }
-  if(lastTotal>lastRows.length)
+  if(journalMode==='all'&&lastTotal>lastRows.length)
    summary.append(create('p','forecast-quality-warning',
     'Частичный журнал: загружены последние '+lastRows.length+
     ' из '+lastTotal+' записей. Совпадения могут быть неполными.'));
@@ -1037,6 +1047,40 @@ export function initFavoriteResearch({
    line.append(frames);summary.append(line);
   }
  }
+ /**
+  * Restore only the saved Room IDs, even when they are years older than the
+  * 75 recent journal entries. Keep it on-demand to protect Android resources.
+  */
+ async function loadMarkedRows({force=false}={}){
+  const key=selectedKey();
+  if(markedLoading&&!force)return;
+  if(!force&&markedReadyFor===key&&!markedError){
+   if(journalMode==='tracked')renderRows();
+   return;
+  }
+  const token=++markedFetchGeneration;
+  markedLoading=true;markedError=null;markedReadyFor=null;
+  markedRows=[];markedMissing=[];
+  if(journalMode==='tracked')renderRows();
+  const result=await getMobileMarkedResearchForecasts([...selected]);
+  if(token!==markedFetchGeneration||key!==selectedKey())return;
+  markedLoading=false;
+  if(result.error||result.complete!==true){
+   markedError=result.error||'Не удалось прочитать сохранённые сценарии.';
+  }else{
+   markedRows=result.forecasts;
+   markedMissing=result.missingIds;
+   markedReadyFor=key;
+  }
+  if(journalMode==='tracked'){
+   const view=scenarioJournalState(displayedJournal(),{
+    selectedIds:[...selected],mode:journalMode,stage
+   });
+   if(!view.counts[stage]&&view.scenarios.length)
+    stage=view.preferred;
+   renderRows();
+  }
+ }
  function renderRows(){
   const box=id('research-forecast-list');box.replaceChildren();
   for(const b of document.querySelectorAll('[data-journal-stage]')){
@@ -1048,7 +1092,34 @@ export function initFavoriteResearch({
    const on=b.dataset.forecastMode===journalMode;
    b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on?'true':'false');
   }
-  const view=scenarioJournalState(lastRows,{
+  if(journalMode==='tracked'&&
+    (markedLoading||markedError||markedReadyFor!==selectedKey())){
+   const label=markedError?
+    'Не удалось загрузить отмеченные сценарии из Room: '+markedError:
+    'Загружаем все отмеченные прогнозы из Room, включая старый архив…';
+   for(const key of FORECAST_STAGES)
+    id('stage-count-'+key).textContent='—';
+   id('forecast-pending-count').textContent='—';
+   id('forecast-evaluated-count').textContent='—';
+   id('forecast-quality-current-scope').textContent='Отмеченные';
+   id('forecast-stat-all').replaceChildren();
+   id('forecast-stat-all').hidden=true;
+   const tracked=id('forecast-stat-tracked');
+   tracked.hidden=false;
+   tracked.replaceChildren(create('p','forecast-quality-note',label));
+   id('forecast-multiframe-quality').replaceChildren();
+   id('forecast-confluence-summary').replaceChildren();
+   id('forecast-evidence-cohorts').replaceChildren();
+   box.append(create('p','forecast-direction-empty',label));
+   if(markedError){
+    const retry=create('button','forecast-follow','Повторить чтение Room');
+    retry.type='button';
+    retry.addEventListener('click',()=>void loadMarkedRows({force:true}));
+    box.append(retry);
+   }
+   return;
+  }
+  const view=scenarioJournalState(displayedJournal(),{
    selectedIds:[...selected],mode:journalMode,stage
   });
   for(const [key,count] of Object.entries(view.counts))
@@ -1060,20 +1131,34 @@ export function initFavoriteResearch({
   const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
   const multi=visible.filter(row=>Boolean(multiFrameHypothesis(row)));
   const legacy=view.archive;
+  if(journalMode==='tracked'){
+   box.append(create('p','forecast-marked-restored',
+    'Сохранено отметок: '+selected.size+
+    ' · найдено в Room: '+markedRows.length+
+    (markedMissing.length?' · недоступно: '+markedMissing.length:'')+
+    '. Архивные исследования показаны отдельно от этапов.'));
+  }
   const renderCard=row=>cardForForecast(row,{
    tracked:selected.has(row.id),
    onToggle:key=>{
     if(selected.has(key))selected.delete(key);else selected.add(key);
-    persistSelected();renderRows();
+    persistSelected();
+    if(journalMode==='tracked')void loadMarkedRows({force:true});
+    else renderRows();
    },
    onOpen:onSelectSymbol,getMini:renderMini
   });
-  if(!directed.length&&!multi.length){
+  if(journalMode==='tracked'&&markedMissing.length){
+   box.append(create('p','forecast-quality-warning',
+    'Не найдены в Room: '+markedMissing.length+
+    ' сохранённых отметок. Они не удалены из настроек и не засчитаны как прогнозы.'));
+  }
+  if(!directed.length&&!multi.length&&!legacy.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
-     (lastTotal>lastRows.length&&view.unavailableMarked?
-      'В загруженной части журнала нет отмеченных направленных сценариев этого этапа. '+view.unavailableMarked+' отметок относятся к записям вне последних '+lastRows.length+'.':
-      'На выбранном этапе нет отмеченных направленных сценариев. Счётчики показывают только отмеченные карточки загруженного журнала.'):
+     (selected.size?
+      'Все сохранённые направленные сценарии загружены, но на этом этапе их нет. Выберите другой этап.':
+      'Нет отмеченных сценариев. Отметить прогноз можно звёздочкой в журнале «Все».'):
      'На выбранном этапе нет направленных сценариев M15, H1 или H4.'));
   }else {
    for(const row of directed)box.append(renderCard(row));
@@ -1081,7 +1166,7 @@ export function initFavoriteResearch({
   }
   if(legacy.length){
    const archive=create('details','forecast-range-archive');
-   archive.open=archiveExpanded;
+   archive.open=journalMode==='tracked'||archiveExpanded;
    archive.append(create('summary','forecast-range-archive-title',
     'Архив прежних диапазонов · '+legacy.length),
     create('p','forecast-range-archive-note',
@@ -1114,12 +1199,13 @@ export function initFavoriteResearch({
   const scope=scenarioJournalState(lastRows,{
    selectedIds:[...selected],mode:journalMode,stage
   });
-  if(!stageTouched)stage=scope.preferred;
+  if(!stageTouched&&journalMode==='all')stage=scope.preferred;
   for(const b of document.querySelectorAll('[data-forecast-stage]')){
    const on=b.dataset.forecastStage===stage;
    b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');
   }
-  renderRows();
+  if(journalMode==='tracked')void loadMarkedRows({force:true});
+  else renderRows();
  }
  function getScenarioRows(asset){
   return lastRows.filter(x=>x.asset===asset&&
@@ -1183,11 +1269,22 @@ export function initFavoriteResearch({
  for(const button of document.querySelectorAll('[data-forecast-mode]')){
   button.addEventListener('click',()=>{
    journalMode=button.dataset.forecastMode;
-   const view=scenarioJournalState(lastRows,{
-    selectedIds:[...selected],mode:journalMode,stage
-   });
-   if(!view.counts[stage])stage=view.preferred;
-   renderRows();
+   if(journalMode==='tracked'){
+    if(markedReadyFor===selectedKey()&&!markedError){
+     const view=scenarioJournalState(displayedJournal(),{
+      selectedIds:[...selected],mode:journalMode,stage
+     });
+     if(!view.counts[stage]&&view.scenarios.length)
+      stage=view.preferred;
+     renderRows();
+    }else void loadMarkedRows();
+   }else{
+    const view=scenarioJournalState(lastRows,{
+     selectedIds:[...selected],mode:journalMode,stage
+    });
+    if(!view.counts[stage])stage=view.preferred;
+    renderRows();
+   }
   });
  }
  id('favorite-toggle').addEventListener('click',()=>{

@@ -203,6 +203,10 @@ interface ResearchDao {
     @Query("SELECT * FROM research_forecast_stages WHERE forecastId IN (:ids)")
     suspend fun researchStages(ids: List<String>): List<ResearchForecastStage>
 
+    /** Exact bookmarked IDs; bounded in the native bridge, independent of age. */
+    @Query("SELECT * FROM research_forecasts WHERE id IN (:ids) ORDER BY publishedAt DESC, id DESC")
+    suspend fun researchForecastsByIds(ids: List<String>): List<ResearchForecast>
+
     @Query("SELECT * FROM research_forecasts ORDER BY publishedAt DESC LIMIT :limit")
     suspend fun researchForecasts(limit: Int): List<ResearchForecast>
 

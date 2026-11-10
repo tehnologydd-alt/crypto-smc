@@ -3149,3 +3149,11 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
   grid-template-columns:repeat(3,minmax(0,1fr))
  }
 }
+
+
+/* Bookmarks restored from Room by ID, not limited to the last 75. */
+.forecast-marked-restored{
+ margin:0 0 12px;padding:9px 11px;border:1px solid #2f606a;
+ border-radius:10px;background:#0d3039;color:#b9dada;
+ font-size:11px;line-height:1.55;overflow-wrap:anywhere
+}
