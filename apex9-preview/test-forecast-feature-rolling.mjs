@@ -289,6 +289,17 @@ test('unknown volume never produces a claimed challenger winner',()=>{
  assert.equal(f.models.length,0);
  assert.equal(f.windows[2].volumeCoverage,.5);
 });
+test('too many missing pre-publication scores cannot produce a winning candidate',()=>{
+ const rows=group('15m',210,{baseEpoch:futureEpoch});
+ for(let i=0;i<rows.length;i+=3)
+  delete rows[i].hypothesis.preOutcomeStrength;
+ const a=shadow(rows).frames['15m'];
+ assert.equal(a.newScored,140);
+ assert.equal(a.futurePublished,210);
+ assert.equal(a.state,'LOW_SCORE_COVERAGE');
+ assert.ok(a.scoreCoverage<.8);
+ assert.equal(a.models.length,0);
+});
 test('incomplete archive, duplicate IDs and forged scores block shadow comparison',()=>{
  const rows=challengers('15m');
  assert.equal(auditShadowChallengers(rows,{
