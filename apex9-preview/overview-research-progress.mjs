@@ -199,7 +199,12 @@ export function initOverviewResearchProgress({getFavorites,
   busy=true;lastError=null;render();
   const answer=await getMobileResearchProgress(favorites);
   busy=false;
-  if(token!==request||!same(favorites,favoriteList()))return;
+  if(token!==request||!same(favorites,favoriteList())){
+   // A favorite changed while Room was reading: discard the stale result
+   // and retry with the new favorite list after the old request finishes.
+   if(document.body.dataset.view==='overview')void poll(true);
+   return;
+  }
   if(answer.complete){
    current=answer;lastReadAt=now();cache(answer);
   }else{
