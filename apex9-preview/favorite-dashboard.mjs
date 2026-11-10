@@ -4,7 +4,8 @@
  * Sync is foreground and (when opted-in) via Android WorkManager.
  */
 import {getMobileFavorites,changeMobileFavorite,
- syncMobileFavoriteResearch,getMobileResearchForecasts,getMobileCandles,
+ syncMobileFavoriteResearch,getMobileResearchForecasts,
+ getMobileMarkedResearchForecasts,getMobileCandles,
  getMobileCandleArchive,getMobileM5Window} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
@@ -12,7 +13,7 @@ import {attachSparkline} from './sparkline.mjs';
 import {attachAssetLogo} from './asset-logo.mjs';
 import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
-import {scenarioJournalState} from './scenario-journal-state.mjs';
+import {scenarioJournalState,scenarioJournalRows} from './scenario-journal-state.mjs';
 import {directionalQualitySummary} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
@@ -476,7 +477,9 @@ export function initFavoriteResearch({
 }){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
-  archiveExpanded=false,lastRows=[],lastTotal=0;
+  archiveExpanded=false,lastRows=[],lastTotal=0,
+  markedRows=[],markedMissing=[],markedReadyFor=null,
+  markedLoading=false,markedError=null,markedFetchGeneration=0;
  const featureAudit=initFeatureHoldoutDashboard({getFavorites:()=>favorites.slice()});
  const MINI_CACHE=new Map(),MINI_LOADING=new Set(),MINI_AT=new Map();
  let localStore=null;
@@ -525,6 +528,10 @@ export function initFavoriteResearch({
   try{localStorage.setItem('apex9_selected_research_ids_v1',
    JSON.stringify([...selected].slice(-300)));}catch{}
  };
+ const selectedKey=()=>[...selected].sort().join('|');
+ const displayedJournal=()=>scenarioJournalRows(lastRows,markedRows,{
+  mode:journalMode
+ });
  function renderMini(symbol,slot){
   const prior=MINI_CACHE.get(symbol);
   if(prior)attachSparkline(slot,prior);
