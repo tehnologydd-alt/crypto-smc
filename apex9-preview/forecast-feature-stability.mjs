@@ -74,13 +74,13 @@ function inspectFeature(frame,definition){
   return {...result,state:'INSUFFICIENT',reason:'Невозможно рассчитать доли'};
  const strong=gaps.every(g=>Math.abs(g)>=STABILITY_RULES.minimumAbsoluteDifferencePp);
  const signs=gaps.map(sign);
- if(signs[0]!==signs[1]||signs[1]!==signs[2]){
-  return {...result,state:'CONFLICTING',
-   reason:'Связь меняет знак между временными периодами'};
- }
  if(!strong){
   return {...result,state:'WEAK',
    reason:'Связь слишком мала хотя бы на одном временном периоде'};
+ }
+ if(signs[0]!==signs[1]||signs[1]!==signs[2]){
+  return {...result,state:'CONFLICTING',
+   reason:'Связь меняет знак между временными периодами'};
  }
  if(Math.abs(gaps[1]-gaps[2])>
     STABILITY_RULES.maxValidationConfirmationDriftPp){
