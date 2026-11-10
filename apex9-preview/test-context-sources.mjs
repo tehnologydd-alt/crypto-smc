@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonicalContextAsset,parseCryptoGlobal,fetchCryptoGlobal,
- parseBitcoinMempool,fetchBitcoinMempool,parseAssetNews,fetchAssetNews,collectContext
+ parseBitcoinMempool,fetchBitcoinMempool,fetchBitcoinMarketBackground,
+ createBitcoinBackgroundGate,parseAssetNews,fetchAssetNews,collectContext
 } from './context-sources.mjs';
 const now=1700000000000;
 const global={data:{total_market_cap:{usd:1500000000},
@@ -52,15 +53,18 @@ test('unsupported news search does not call API',async()=>{
  const r=await fetchAssetNews('UNKNOWNUSDT',{fetchImpl:async()=>{throw Error('should not call')}});
  assert.equal(r.state,'UNSUPPORTED');
 });
-test('context collector separates live data and unsupported coverage',async()=>{
+test('context collector uses BTC network as distinct global background on altcoins',async()=>{
  const f=async url=>{
   if(url.includes('coingecko'))return response(global);
   if(url.includes('gdelt'))return response({articles:[]});
   return response(mempool);
  };
  const r=await collectContext('GRAMUSDT',{fetchImpl:f,now:()=>now});
- assert.deepEqual(r.sources.map(x=>x.state),['OK','UNSUPPORTED','EMPTY']);
- assert.equal(r.coverage,1);
+ assert.deepEqual(r.sources.map(x=>x.state),['OK','OK','EMPTY']);
+ assert.equal(r.coverage,2);
+ assert.equal(r.sources[1].data.relevance,'GLOBAL_BITCOIN_NETWORK');
+ assert.equal(r.sources[1].data.assetSpecific,false);
+ assert.equal(r.sources[1].data.transactionCount,1234);
  assert.equal(r.sources[0].data.notDirectionalEvidence,true);
 });
 test('bitcoin network source appears only on bitcoin',async()=>{
@@ -93,4 +97,54 @@ test('asset news gate keeps normal market polling from bypassing daily quotas',a
  assert.equal(calls,1);
  assert.equal(result.sources[2].state,'LIMIT_REACHED');
  assert.equal(result.sources[0].state,'OK');
+});
+
+test('Bitcoin background is real on any asset, without pretending chain-specific alt data',async()=>{
+ let calls=0;
+ const r=await fetchBitcoinMarketBackground('ETHUSDT',{now:()=>now,
+  fetchImpl:async(url,opts)=>{
+   calls++;
+   assert.equal(url,'https://mempool.space/api/mempool');
+   assert.equal(opts.credentials,'omit');
+   return response(mempool);
+  }});
+ assert.equal(calls,1);
+ assert.equal(r.state,'OK');
+ assert.equal(r.data.relevance,'GLOBAL_BITCOIN_NETWORK');
+ assert.equal(r.data.assetSpecific,false);
+ assert.equal(r.data.notWhaleTransfers,true);
+ const btc=await fetchBitcoinMarketBackground('BTCUSDT',{
+  now:()=>now,fetchImpl:async()=>response(mempool)});
+ assert.equal(btc.data.assetSpecific,true);
+ assert.equal(btc.data.relevance,'SELECTED_BITCOIN_NETWORK');
+});
+test('shared BTC network gate avoids duplicate requests across symbols, respects TTL',async()=>{
+ let clock=now,requests=0;
+ const gate=createBitcoinBackgroundGate({now:()=>clock,ttlMs:120000});
+ const fetcher=async()=>{
+  requests++;
+  return {state:'OK',data:{receivedAt:clock,transactionCount:5}};
+ };
+ const [a,b]=await Promise.all([gate(fetcher),gate(fetcher)]);
+ assert.equal(requests,1);
+ assert.equal(a.access,'NETWORK');
+ assert.equal(b.access,'NETWORK');
+ clock+=30000;
+ const cached=await gate(fetcher);
+ assert.equal(cached.state,'OK');
+ assert.equal(cached.access,'CACHE');
+ assert.equal(requests,1);
+ clock+=130000;
+ const fresh=await gate(fetcher);
+ assert.equal(fresh.access,'NETWORK');
+ assert.equal(requests,2);
+});
+test('network failures never become fictitious Bitcoin-chain data',async()=>{
+ const gate=createBitcoinBackgroundGate({now:()=>now});
+ const response=await gate(async()=>({state:'OFFLINE',error:'No response',data:null}));
+ assert.equal(response.state,'OFFLINE');
+ assert.equal(response.data,null);
+ assert.equal(response.access,'NETWORK');
+ const next=await gate(async()=>({state:'OK',data:{receivedAt:now}}));
+ assert.equal(next.access,'NETWORK');
 });
