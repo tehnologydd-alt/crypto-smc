@@ -166,6 +166,10 @@ interface ResearchDao {
     @Query("SELECT * FROM research_forecasts WHERE asset=:asset AND id LIKE 'direction2:%' ORDER BY publishedAt DESC LIMIT 1")
     suspend fun latestDirectionalForecast(asset: String): ResearchForecast?
 
+    /** Independent M15/H4 research; existing Room tables and H1 records unchanged. */
+    @Query("SELECT * FROM research_forecasts WHERE asset=:asset AND horizon=:interval AND id LIKE 'direction3:%' ORDER BY publishedAt DESC LIMIT 1")
+    suspend fun latestMultiFrameForecast(asset: String, interval: String): ResearchForecast?
+
     @Query("SELECT * FROM research_forecasts WHERE asset=:asset AND id LIKE 'range1:%' ORDER BY publishedAt DESC LIMIT 1")
     suspend fun latestLegacyRangeForecast(asset: String): ResearchForecast?
 
