@@ -156,12 +156,35 @@ function resultFrame(rows,frame,{now}){
   else eligible.push(row);
  }
  const reference=segment(eligible,{now,referenceCutoff:splitAt});
- const holdout=segment(ordered.slice(splitIndex),{now});
+ const later=ordered.slice(splitIndex);
+ const holdout=segment(later,{now});
  const features=FEATURE_DEFINITIONS.map(d=>compareFeature(d,reference,holdout));
  const viable=features.filter(x=>x.state==='DESCRIPTIVE').length;
+ // An extra FIXED 20% / 20% split of published records allows independent
+ // descriptive replication checks. Purge plans crossing its boundary, and
+ // keep outcomes recorded after that boundary out of the earlier segment.
+ // This is based solely on publication chronology, never outcome labels.
+ const mid=Math.floor(later.length/2);
+ const confirmationAt=later[mid]?.publishedAt;
+ let validation=null,confirmation=null,purgedValidation=0;
+ if(mid>0&&mid<later.length&&stamp(confirmationAt)&&
+    confirmationAt>later[mid-1].publishedAt){
+  const earlier=later.slice(0,mid).filter(row=>{
+   let h=null;
+   try{h=typeof row.hypothesis==='string'?JSON.parse(row.hypothesis):row.hypothesis;}
+   catch{}
+   const safe=stamp(h?.targetCloseAt)&&h.targetCloseAt<confirmationAt;
+   if(!safe)purgedValidation++;
+   return safe;
+  });
+  validation=segment(earlier,{now,referenceCutoff:confirmationAt});
+  confirmation=segment(later.slice(mid),{now});
+ }
  return {...all,state:viable?'DESCRIPTIVE':'INSUFFICIENT',
   reason:viable?null:'Нужны минимум 12 TP3/SL в каждой группе в обоих периодах',
-  splitAt,purged:purged.length,reference,holdout,features};
+  splitAt,purged:purged.length,reference,holdout,features,
+  validation,confirmation,confirmationAt:validation?confirmationAt:null,
+  purgedValidation};
 }
 /**
  * Accepts ONLY a complete, source-checked Room archive for ONE selected asset.
