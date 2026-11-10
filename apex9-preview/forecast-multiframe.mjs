@@ -195,6 +195,10 @@ const el=(tag,klass='',value)=>{
  return n;
 };
 const fmt=at=>time(at)?new Date(at).toLocaleString('ru-RU'): '—';
+// Compact display only; original immutable values remain intact.
+const shortPrice=value=>typeof value==='number'&&value>0&&Number.isFinite(value)?
+ Number(value.toPrecision(8)).toLocaleString('en-US',{
+  useGrouping:false,maximumFractionDigits:16}):'—';
 function multiFrameCardActions(row,{tracked=false,onToggle,onOpen}={}){
  const actions=el('div','forecast-visual-actions');
  const follow=el('button','forecast-follow',
@@ -242,8 +246,10 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  for(const [label,value] of [
   ['Вход',plan.entry],['SL',plan.sl]]){
   const tile=el('div','forecast-price-box');
-  tile.append(el('span','forecast-price-label',label),
-   el('strong','forecast-price-value',priceText(value)));grid.append(tile);
+  const number=el('strong','forecast-price-value',shortPrice(value));
+  number.title='Точное значение: '+priceText(value);
+  tile.append(el('span','forecast-price-label',label),number);
+  grid.append(tile);
  }
  show.append(grid);
  const targets=el('div','forecast-target-grid');
@@ -251,8 +257,10 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   const item=el('div','forecast-target');
   const stage=key.toUpperCase();
   if(evidence.events.has(stage))item.classList.add('is-hit');
+  const number=el('strong','forecast-target-price',shortPrice(plan[key]));
+  number.title='Точное значение: '+priceText(plan[key]);
   item.append(el('span','forecast-target-name',stage),
-   el('strong','forecast-target-price',priceText(plan[key])),
+   number,
    el('small','forecast-target-mark',
     evidence.events.has(stage)?'✓ Касание':'Не отмечено'));
   targets.append(item);
