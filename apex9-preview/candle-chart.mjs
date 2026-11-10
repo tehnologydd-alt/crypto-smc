@@ -81,7 +81,7 @@ export class CandleChart {
   this.schedule();
  }
  focusOnScenario(anchorCloseAt){
-  if(this.interval!=='1h')return false;
+  if(!['15m','1h','4h'].includes(this.interval))return false;
   const index=this.data.findIndex(c=>c?.closed===true&&c.closeAt===anchorCloseAt);
   if(index<0)return false;
   this.offset=this.clampOffset(this.data.length-index-Math.floor(this.visible/2));
@@ -143,8 +143,9 @@ export class CandleChart {
   const low=minV-padding,high=maxV+padding;
   const priceY=p=>14+(high-p)/(high-low)*(mainH-22);
   const step=plotW/bars.length;
-  // Every shaded segment corresponds to real consecutive closed H1 candles.
-  const overlays=this.interval==='1h'?this.scenarios.map(sc=>({
+  // Every shaded segment corresponds to real consecutive closed source-TF candles.
+  const overlays=['15m','1h','4h'].includes(this.interval)?
+    this.scenarios.filter(sc=>sc.sourceInterval===this.interval).map(sc=>({
    sc,geometry:mapScenarioToViewport(sc,bars,{interval:this.interval})
   })).filter(x=>x.geometry.visible):[];
   for(const {sc,geometry} of overlays){
@@ -173,6 +174,34 @@ export class CandleChart {
      ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
     }
    }
+   // The selected immutable forecast has five price levels. Draw them
+   // only over real, consecutive CLOSED source-TF candles, never into
+   // blank future space. Other forecasts keep an unobtrusive envelope.
+   if(sc.focused&&sc.levels){
+    const lines=[['SL',sc.levels.sl,'#f2a2ab'],
+     ['Вход',sc.levels.entry,'#d7ecf0'],
+     ['TP1',sc.levels.tp1,'#88e3d1'],
+     ['TP2',sc.levels.tp2,'#70d9c6'],
+     ['TP3',sc.levels.tp3,'#58cbb9']];
+    ctx.setLineDash([2,3]);ctx.lineWidth=1.15;
+    for(const [name,price,color] of lines){
+     if(!Number.isFinite(price)||price<low||price>high)continue;
+     const y=priceY(price);
+     ctx.strokeStyle=color;ctx.fillStyle=color;
+     for(const seg of geometry.segments){
+      const from=Math.max(0,seg.from*step);
+      const to=Math.min(plotW,(seg.to+1)*step);
+      if(to<=from)continue;
+      ctx.beginPath();ctx.moveTo(from,y);ctx.lineTo(to,y);ctx.stroke();
+     }
+     const last=geometry.segments.at(-1);
+     if(last){
+      const x=Math.max(1,Math.min(plotW-34,(last.to+1)*step-31));
+      ctx.textAlign='left';ctx.font='bold 9px system-ui';
+      ctx.fillText(name,x,Math.max(11,Math.min(mainH-7,y-5)));
+     }
+    }
+   }
    ctx.restore();
   }
   ctx.strokeStyle='#24424a';ctx.lineWidth=1;
@@ -198,7 +227,7 @@ export class CandleChart {
    ctx.fillRect(x-candleWidth/2,volumeTop+volumeH*(1-bar.volume/volMax),
     candleWidth,Math.max(1,volumeH*bar.volume/volMax));
   }
-  // Only immutable H1 stages whose SOURCE close exists in this viewport.
+  // Only immutable source-time stages backed by a CLOSED chart candle.
   // Plotted after candle bodies for legibility; never mark expected future bars.
   for(const {sc,geometry} of overlays){
    const markerColor=sc.focused?'#8effec':sc.tracked?'#65dcd1':'#a3b0c7';

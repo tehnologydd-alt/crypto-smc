@@ -118,3 +118,56 @@ test('native source connects Radar closed candles and Room without new schema',(
  assert.ok(ui.includes('multiFrameAgreement(scoped,asset)'));
  assert.ok(html.includes('id="forecast-confluence-summary"'));
 });
+
+
+test('M15/H4 newly published studies use M5 while preserving old studies',()=>{
+ for(const frame of ['15m','4h']){
+  const original=scenario(frame);
+  const fine=scenario(frame);
+  fine.hypothesis.evaluationInterval='5m';
+  fine.hypothesis.stageSemantics='M5_CLOSED_LIMIT_V2';
+  fine.hypothesis.observationMethod='M5_CLOSED_LEVEL_ORDER_V1';
+  const now=anchor+H4*30;
+  assert.equal(planMultiFrameForecast(original,{now}).state,'READY');
+  const plan=planMultiFrameForecast(fine,{now});
+  assert.equal(plan.state,'READY');
+  assert.equal(plan.plan.evaluationInterval,'5m');
+  assert.equal(multiFrameEvidence(fine,{now}).state,'OBSERVED');
+  const M5=300000;
+  fine.stageEvents=[
+   {stage:'LIMIT_READY',observedAt:anchor+2*M5,
+    recordedAt:anchor+2*M5+1000},
+   {stage:'CONFIRMED',observedAt:anchor+3*M5,
+    recordedAt:anchor+3*M5+1000},
+   {stage:'TP1',observedAt:anchor+4*M5,
+    recordedAt:anchor+4*M5+1000}
+  ];
+  const evaluated=multiFrameEvidence(fine,{now});
+  assert.equal(evaluated.state,'OBSERVED');
+  assert.deepEqual(evaluated.touched,['TP1']);
+  const wrong=structuredClone(fine);
+  wrong.stageEvents[2].observedAt=anchor+4*M5+1;
+  assert.equal(multiFrameEvidence(wrong,{now}).state,'INVALID');
+  const missing=structuredClone(fine);
+  delete missing.hypothesis.observationMethod;
+  assert.equal(planMultiFrameForecast(missing,{now}).state,'INVALID');
+ }
+});
+test('native M15/H4 now store as-published M5 method, old cohorts never recast',()=>{
+ const base='../apex9-android/native/src/main/java/com/apexintelligence/research/';
+ const read=f=>readFileSync(new URL(base+f,import.meta.url),'utf8');
+ const evaluator=read('ApexM5Evaluation.kt');
+ const engine=read('ApexMultiFrameForecast.kt');
+ const plugin=read('ApexNativePlugin.kt');
+ assert.ok(engine.includes('M5_CLOSED_LIMIT_V2'));
+ assert.ok(engine.includes('.put("evaluationInterval",ApexM5Evaluation.INTERVAL)'));
+ assert.ok(engine.includes('horizonMs=spec.step*spec.bars'));
+ assert.ok(engine.includes('if(m5)return ApexM5Evaluation.progress('));
+ assert.ok(engine.includes('val legacy='));
+ assert.ok(engine.includes('if(candle.openTime<row.publishedAt)continue'));
+ assert.ok(evaluator.includes('horizonMs: Long = HORIZON * HOUR'));
+ assert.ok(evaluator.includes('val count = (horizonMs / STEP).toInt()'));
+ assert.ok(evaluator.includes('candle.openTime < forecast.publishedAt) {'));
+ assert.ok(!evaluator.includes('Часть первой M5 до публикации:'));
+ assert.ok(plugin.includes('"M5_CLOSED_LIMIT_V2"'));
+});

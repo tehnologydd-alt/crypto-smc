@@ -1,7 +1,7 @@
 import {collectAsset,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -415,18 +415,19 @@ function renderScenarioReplay(scenarios){
   detail=el('scenario-replay-detail');
  clear(steps);clear(detail);
  const selected=scenarios.find(s=>s.id===focusedScenarioId)||scenarios[0];
- if(selected?.model==='DIRECTIONAL'){
+ if(selected?.model==='DIRECTIONAL'||selected?.model==='MULTIFRAME'){
   root.classList.remove('has-replay');
-  text('scenario-replay-counter','24 H1 · TP / SL');
+  text('scenario-replay-counter',selected.model==='MULTIFRAME'?
+   selected.sourceInterval.toUpperCase()+' · TP / SL':'24 H1 · TP / SL');
   text('scenario-replay-context',selected.asset+' · '+
    (selected.side==='UP'?'↑ Рост':'↓ Снижение')+
    ' · оригинальные уровни: TP1 '+fmt(selected.levels.tp1)+
    ', TP2 '+fmt(selected.levels.tp2)+', TP3 '+fmt(selected.levels.tp3)+
    ', SL '+fmt(selected.levels.sl));
   text('scenario-replay-warning',
-   'Старый 4H Replay относится только к архиву диапазонов. '+
-   'Для 24-часового прогноза порядок касаний проверяется в карточке «Сценарии» '+
-   'по реальным H1 и не заменяется четырьмя историческими закрытиями.');
+   'Карта показывает сохранённые уровни и этапы из Room. '+
+   'Порядок касаний проверяется отдельно, способом из публикации сценария. '+
+   'Свечи графика не доказывают порядок внутри свечи.');
   candleView.setReplayCursor(null);
   return;
  }
@@ -528,22 +529,24 @@ function renderScenarioMap(asset){
  }
  const map=buildScenarioMap(lastScenarioRows,{
   asset,mode:scenarioMode,selectedIds:trackedResearchIds(),
-  focusId:focusedScenarioId,now:Date.now(),max:3
+  focusId:focusedScenarioId,now:Date.now(),max:3,
+  interval:candleInterval
  });
- const onH1=candleInterval==='1h';
+ const chartSupported=['15m','1h','4h'].includes(candleInterval);
  if(map.scenarios.length&&!map.scenarios.some(sc=>sc.focused)){
   map.scenarios[0].focused=true;
   focusedScenarioId=map.scenarios[0].id;
  }
  candleView.setInterval(candleInterval);
- candleView.setScenarios(onH1?map.scenarios:[]);
+ candleView.setScenarios(chartSupported?map.scenarios:[]);
  const extra=(map.hidden?' · ещё '+map.hidden+' вне мини-карты':'')+
   (lastScenarioTruncated?' · журнал частичный (последние 75 записей)':'');
  const focus=map.scenarios.find(sc=>sc.focused);
- if(focus&&onH1&&candleView.data.length)
+ if(focus&&chartSupported&&drawnCandleAsset===asset&&
+  drawnCandleInterval===candleInterval&&candleView.data.length)
   candleView.focusOnScenario(focus.anchorCloseAt);
- const context=onH1?' · показываем только реальные H1-свечи':
-  ' · метки доступны только при выборе H1';
+ const context=chartSupported?' · показываем закрытые свечи '+
+  candleInterval.toUpperCase():' · метки доступны для M15, H1, H4';
  text('asset-scenario-status',map.state==='INVALID'?
   'Параметры карты не прошли проверку.':
   map.available?
@@ -561,7 +564,7 @@ function renderScenarioMap(asset){
    'Показать на графике исследовательский сценарий от '+
    new Date(sc.publishedAt).toLocaleString('ru-RU'));
   const top=create('span','scenario-map-item-heading');
-  const name=sc.model==='DIRECTIONAL'?
+  const name=['DIRECTIONAL','MULTIFRAME'].includes(sc.model)?
    (sc.side==='UP'?'↑ РОСТ':'↓ СНИЖЕНИЕ')+
     (sc.stage==='EVALUATED'?' · завершён':
      sc.stage==='ACTIVE'?' · активный · TP1':
@@ -575,7 +578,7 @@ function renderScenarioMap(asset){
    create('small','',(sc.tracked?'★ Отмечен':'Исследование')+
      ' · '+sc.milestones.length+' из 4 событий'));
   const middle=create('span','scenario-map-item-range',
-   sc.model==='DIRECTIONAL'?
+   ['DIRECTIONAL','MULTIFRAME'].includes(sc.model)?
     'Вход '+fmtPrice(sc.levels.entry)+' · TP1 '+fmtPrice(sc.levels.tp1)+
     ' · TP2 '+fmtPrice(sc.levels.tp2)+' · TP3 '+fmtPrice(sc.levels.tp3)+
     ' · SL '+fmtPrice(sc.levels.sl):
@@ -584,10 +587,10 @@ function renderScenarioMap(asset){
    'Опорная свеча: '+new Date(sc.anchorCloseAt).toLocaleString('ru-RU')+
    ' · публикация: '+new Date(sc.publishedAt).toLocaleString('ru-RU'));
   button.append(top,middle,detail);
-  if(sc.model==='DIRECTIONAL')button.title='Точные исходные уровни: '+
+  if(['DIRECTIONAL','MULTIFRAME'].includes(sc.model))button.title='Точные исходные уровни: '+
    JSON.stringify(sc.levels);
   if(sc.result)button.append(create('span','scenario-map-item-result',
-   (sc.model==='DIRECTIONAL'?
+   (['DIRECTIONAL','MULTIFRAME'].includes(sc.model)?
     directionalOutcomeLabel(sc.result.outcome):
     sc.result.outcome==='WITHIN_RANGE'?
      'Итог в исходном диапазоне':'Итог за пределами диапазона')+
@@ -596,10 +599,10 @@ function renderScenarioMap(asset){
    focusedScenarioId=sc.id;
    replayStep=0;
    renderScenarioMap(asset);
-   if(!onH1)return;
+   if(!chartSupported)return;
    const found=candleView.focusOnScenario(sc.anchorCloseAt);
    text('chart-selected',found?
-    'График перемещён к опорной H1-свече исследования от '+
+    'График перемещён к опорной '+candleInterval.toUpperCase()+'-свече исследования от '+
       new Date(sc.publishedAt).toLocaleString('ru-RU')+'.':
     'Опорной свечи нет в загруженной истории. Карта не дорисовывает недостающие данные.');
   });
@@ -619,7 +622,7 @@ async function showAssetScenarios(asset,{force=false}={}){
  const token=++scenarioRequest;
  text('asset-scenario-status','Проверяем подлинные этапы сохранённых исследований…');
  try{
-  const results=await getMobileResearchForecasts(75);
+  const results=await getMobileAssetResearchForecasts(asset,75);
   if(token!==scenarioRequest||asset!==chosen)return;
   if(!results.native||results.error){
    lastScenarioRows=[];lastScenarioFetchedAt=Date.now();

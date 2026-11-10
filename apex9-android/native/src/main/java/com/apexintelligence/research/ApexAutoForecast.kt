@@ -147,6 +147,12 @@ object ApexAutoForecast {
             if (interval == ApexM5Evaluation.INTERVAL && dao.researchResult(latest.id) == null) {
                 try {
                     ApexM5Evaluation.downloadAndSave(asset, dao, now)
+                    // WorkManager may be delayed or the app may be closed.
+                    // Complete any missing historical M5, not just latest 500.
+                    val h = JSONObject(latest.hypothesisJson)
+                    ApexM5Evaluation.ensureWindow(asset,dao,now,
+                        h.optLong("anchorCloseAt",-1L),
+                        h.optLong("targetCloseAt",-1L))
                 } catch (e: ApexM5Evaluation.SourceUnavailable) {
                     return Report(asset, "M5_UNAVAILABLE", "DUE_UNVERIFIED",
                         "Нет проверенных M5 для контроля точек: " + (e.message ?: "источник недоступен"))

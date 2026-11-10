@@ -79,12 +79,18 @@ test('entry plus TP1 in a single completed M5 is never credited as a win',()=>{
  assert.equal(r.outcome,'AMBIGUOUS');
  assert.deepEqual(r.hits,[]);
 });
-test('an overlapping publication M5 cannot be credited after the fact',()=>{
- const r=audit([bar(1,{open:100.1,high:100.4,low:99.9,close:100.2})],
-  anchor+M+1000);
- assert.equal(r.outcome,'AMBIGUOUS');
+test('partly pre-publication M5 is skipped, not fabricated ambiguous',()=>{
+ const partial=bar(1,{open:100.1,high:103,low:97,close:100.2});
+ const r=audit([partial],anchor+M+1000);
+ assert.equal(r.outcome,'OPEN');
+ assert.equal(r.state,'WAITING');
  assert.equal(r.entryAt,null);
- assert.match(r.reason,/публикации/);
+ const after=audit([partial,entering,
+  bar(3,{open:101.1,high:101.6,low:100.8,close:101.2})],
+  anchor+3*M+1000);
+ assert.equal(after.state,'ACTIVE');
+ assert.equal(after.entryAt,anchor+2*M);
+ assert.deepEqual(after.hits,[]);
 });
 test('a missing M5 candle yields unverified evidence, not TP3 or STOP',()=>{
  const r=audit([bar(1),bar(3)],anchor+3*M+1000);
@@ -130,4 +136,21 @@ test('room bridge, M5 native publisher and card routing are all connected',()=>{
  assert.ok(favorites.includes("getMobileM5Window(plan.asset,start,end)"));
  assert.ok(cards.includes('const reader=isM5?sourceM5:sourceH1'));
  assert.ok(cards.includes("const sourceFrame=isM5?'M5':'H1'"));
+});
+
+test('M5 source window backfill is paged and never creates synthetic candles',()=>{
+ const base='../apex9-android/native/src/main/java/com/apexintelligence/research/';
+ const read=f=>readFileSync(new URL(base+f,import.meta.url),'utf8');
+ const evaluation=read('ApexM5Evaluation.kt');
+ const multiframes=read('ApexMultiFrameForecast.kt');
+ const h1=read('ApexAutoForecast.kt');
+ assert.ok(evaluation.includes('suspend fun ensureWindow('));
+ assert.ok(evaluation.includes('val batch = min(LIMIT, count - offset)'));
+ assert.ok(evaluation.includes('endTime='));
+ assert.ok(evaluation.includes('response.length().toLong() !='));
+ assert.ok(evaluation.includes('dao.insertHistoricalCandlesOnce(source)'));
+ assert.ok(evaluation.includes('if (pages > 4)'));
+ assert.ok(multiframes.includes('ApexM5Evaluation.ensureWindow('));
+ assert.ok(h1.includes('ApexM5Evaluation.ensureWindow('));
+ assert.ok(evaluation.includes('Skip it entirely'));
 });

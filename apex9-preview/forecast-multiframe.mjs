@@ -30,10 +30,14 @@ export function planMultiFrameForecast(row,{now=Date.now()}={}){
  const h=multiFrameHypothesis(row);
  if(!h)return fail('NOT_MULTIFRAME','Это не прогноз M15/H4');
  const spec=MULTIFRAME_SPEC[row.interval];
+ const legacy=h.evaluationInterval===row.interval&&
+  h.stageSemantics==='SAME_FRAME_LIMIT_V1';
+ const fine=h.evaluationInterval==='5m'&&
+  h.stageSemantics==='M5_CLOSED_LIMIT_V2'&&
+  h.observationMethod==='M5_CLOSED_LEVEL_ORDER_V1';
  if(!spec||h.interval!==row.interval||
-  h.evaluationInterval!==row.interval||
+  !(legacy||fine)||
   h.decisionMethod!=='SIX_BAR_EFFICIENCY_V1'||
-  h.stageSemantics!=='SAME_FRAME_LIMIT_V1'||
   h.horizonBars!==spec.bars||h.sampleBars!==96||
   h.historicalPercentile!==.8||h.empiricalSamples!==92||
   !price(h.empiricalWidth)||!price(h.anchorClose)||
@@ -73,6 +77,8 @@ export function planMultiFrameForecast(row,{now=Date.now()}={}){
   side:h.direction,publishedAt:row.publishedAt,
   anchorCloseAt:h.anchorCloseAt,targetCloseAt:h.targetCloseAt,
   source:'Binance Spot · закрытые '+row.interval,
+  evaluationInterval:h.evaluationInterval,
+  stageSemantics:h.stageSemantics,
   ...saved,contextAsPublished:context,spec
  }};
 }
@@ -88,9 +94,11 @@ export function multiFrameEvidence(row,{now=Date.now()}={}){
  if(!Array.isArray(row.stageEvents))return {state:'UNVERIFIED',reason:'Нет этапов Room'};
  for(const item of row.stageEvents){
   if(!STAGES.includes(item?.stage))continue;
+  const evaluationStep=plan.evaluationInterval==='5m'?300000:
+   plan.spec.step;
   if(events.has(item.stage)||!time(item.observedAt)||!time(item.recordedAt)||
    item.observedAt<plan.publishedAt||item.observedAt>plan.targetCloseAt||
-   item.observedAt%plan.spec.step!==plan.spec.step-1||
+   item.observedAt%evaluationStep!==evaluationStep-1||
    item.recordedAt<item.observedAt||item.recordedAt>now+60000)
    return {state:'INVALID',reason:'Неверная последовательность событий Room'};
   events.set(item.stage,item);
@@ -239,6 +247,15 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
    'Направление: '+(plan.side==='UP'?'↑ Рост':'↓ Снижение')+
    ' · срок '+plan.spec.horizon);
  card.append(summary);
+ if(complete&&evidence.outcome==='AMBIGUOUS'){
+  const unknown=row.stageEvents?.find(x=>x.stage==='ORDER_UNKNOWN');
+  const explanation=typeof unknown?.explanation==='string'?
+   unknown.explanation.trim().slice(0,180):'';
+  card.append(el('p','forecast-quality-warning',
+   explanation||'Порядок в исходной свече неизвестен. '+
+    'Старые H4/M15 архивы проверялись собственным таймфреймом; '+
+    'новые публикации проверяются по закрытым M5.'));
+ }
  const show=el('details','forecast-card-fold');
  show.open=!complete;
  show.append(el('summary','','Уровни, результаты и источник'));
@@ -268,7 +285,9 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  show.append(targets,el('p','forecast-visual-horizon',
   'Опубликовано '+fmt(plan.publishedAt)+
   ' · последний срок '+fmt(plan.targetCloseAt)+
-  ' · контроль только по закрытым '+title+'.'));
+  ' · контроль по закрытым '+
+   (plan.evaluationInterval==='5m'?'M5':'архивным '+title)+
+   ' · порядок внутри свечи не предполагается.'));
  const history=el('div','forecast-event-timeline');
  for(const event of [...evidence.events.values()].sort((a,b)=>a.observedAt-b.observedAt)){
   const item=el('p','forecast-event-note',

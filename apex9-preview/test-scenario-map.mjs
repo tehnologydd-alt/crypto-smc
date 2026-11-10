@@ -81,3 +81,80 @@ test('no cross-timeframe overlays, invalid records and absent candles stay empty
  assert.equal(mapScenarioToViewport(s,[]).visible,false);
  assert.equal(buildScenarioMap([{...scenario(),hypothesis:'{}'}],{asset:'BTCUSDT',now}).state,'EMPTY');
 });
+
+
+test('chart M15/H4 shows its own immutable forecasts with correct candle markers',async()=>{
+ const {MULTIFRAME_MODEL}=await import('./forecast-multiframe.mjs');
+ const {computeReferenceLevels}=await import('./research-level-sequence.mjs');
+ const round=n=>Number(n.toPrecision(13));
+ const M5=300000,H4=14400000;
+ const at=Math.floor(Date.UTC(2026,10,12)/H4)*H4-1;
+ const price=100,width=.04,now=at+30*H4;
+ const levels=computeReferenceLevels(price,
+  round(price*Math.exp(-width)),round(price*Math.exp(width)));
+ const make=(interval,step,bars)=>{
+  const publishedAt=at+2000;
+  return {
+   id:'direction3:BTCUSDT:'+interval+':'+at,
+   asset:'BTCUSDT',interval,publishedAt,status:'ACTIVE',
+   evaluation:null,
+   stageEvents:[
+    {stage:'LIMIT_READY',observedAt:at+2*M5,
+     recordedAt:at+2*M5+1000},
+    {stage:'CONFIRMED',observedAt:at+3*M5,
+     recordedAt:at+3*M5+1000}
+   ],
+   hypothesis:{model:MULTIFRAME_MODEL,interval,direction:'UP',
+    evaluationInterval:'5m',
+    observationMethod:'M5_CLOSED_LEVEL_ORDER_V1',
+    decisionMethod:'SIX_BAR_EFFICIENCY_V1',
+    stageSemantics:'M5_CLOSED_LIMIT_V2',
+    anchorCloseAt:at,anchorClose:price,targetCloseAt:at+step*bars,
+    horizonBars:bars,sampleBars:96,empiricalSamples:92,
+    empiricalWidth:width,historicalPercentile:.8,
+    levelStudy:{version:'MULTIFRAME_SINGLE_LEVELS_V1',
+     direction:'UP',entry:price,...levels.UP},
+    contextAsPublished:{}}
+  };
+ };
+ const m15=make('15m',900000,16);
+ const h4=make('4h',H4,24);
+ for(const [row,tf,step] of [
+  [m15,'15m',900000],[h4,'4h',H4]
+ ]){
+  const mapped=buildScenarioMap([m15,h4],{
+   asset:'BTCUSDT',interval:tf,now});
+  assert.equal(mapped.available,1);
+  assert.equal(mapped.scenarios[0].id,row.id);
+  assert.equal(mapped.scenarios[0].model,'MULTIFRAME');
+  assert.equal(mapped.scenarios[0].sourceInterval,tf);
+  assert.equal(mapped.scenarios[0].levels.entry,price);
+  const cs=Array.from({length:3},(_,i)=>({
+   closeAt:at+i*step,t:at+i*step-step+1,closed:true,
+   open:price,high:price+1,low:price-1,close:price,volume:10
+  }));
+  const plotted=mapScenarioToViewport(mapped.scenarios[0],cs,{
+   interval:tf});
+  assert.equal(plotted.visible,true);
+  assert.ok(plotted.marks.some(m=>m.key==='PUBLISHED'));
+  assert.ok(plotted.marks.some(m=>m.key==='CONFIRMED'));
+  assert.equal(mapScenarioToViewport(mapped.scenarios[0],cs,{
+   interval:tf==='15m'?'4h':'15m'}).visible,false);
+  const ongoing=structuredClone(cs);ongoing[1].closed=false;
+  assert.ok(!mapScenarioToViewport(mapped.scenarios[0],ongoing,{
+   interval:tf}).marks.some(m=>m.key==='CONFIRMED'));
+ }
+ const chart=await import('node:fs');
+ const source=chart.readFileSync(new URL('./candle-chart.mjs',import.meta.url),'utf8');
+ const app=chart.readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
+ assert.ok(source.includes("this.scenarios.filter(sc=>sc.sourceInterval===this.interval)"));
+ assert.ok(app.includes('getMobileAssetResearchForecasts(asset,75)'));
+ assert.ok(app.includes('interval:candleInterval'));
+});
+test('legacy H1 map remains exclusively on H1, even when M15/H4 selected',()=>{
+ const prior=scenario();
+ const h1=buildScenarioMap([prior],{asset:'BTCUSDT',interval:'1h',now});
+ const m15=buildScenarioMap([prior],{asset:'BTCUSDT',interval:'15m',now});
+ assert.equal(h1.available,1);
+ assert.equal(m15.available,0);
+});

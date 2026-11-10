@@ -102,6 +102,14 @@ export function directionalForecastCard(row,{
     'Причина завершения: '+directionalOutcomeLabel(outcome)),
    create('span','forecast-final-source',sourceLabel+
     (Number.isSafeInteger(endedAt)&&endedAt>0?' · '+date(endedAt):'')));
+  if(outcome==='AMBIGUOUS'){
+   const recorded=row.stageEvents?.find(x=>x.stage==='ORDER_UNKNOWN');
+   const detail=typeof recorded?.explanation==='string'?
+    recorded.explanation.trim().slice(0,180):'';
+   snapshot.append(create('small','forecast-final-source',
+    detail||'Для закрытых свечей источник не установил порядок. '+
+    'Это не обязательно одновременное касание TP и SL.'));
+  }
   snapshot.hidden=false;
  }
  if(finishedRoom){

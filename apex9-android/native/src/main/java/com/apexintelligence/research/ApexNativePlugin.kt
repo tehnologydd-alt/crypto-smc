@@ -666,7 +666,8 @@ class ApexNativePlugin : Plugin() {
             val limitSemantics = try {
                 org.json.JSONObject(forecast.hypothesisJson)
                     .optString("stageSemantics") in listOf(
-                        "LIMIT_READY_M5_V1","SAME_FRAME_LIMIT_V1")
+                        "LIMIT_READY_M5_V1","SAME_FRAME_LIMIT_V1",
+                        "M5_CLOSED_LIMIT_V2")
             } catch (_: Exception) { false }
             val finalStage = if (limitSemantics) {
                 when {

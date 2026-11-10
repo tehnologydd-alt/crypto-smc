@@ -200,11 +200,9 @@ export function auditDirectionalM5(plan,candles,{now=Date.now()}={}){
   const stopped=plan.side==='UP'?b.low<=plan.sl:b.high>=plan.sl;
   const tp1Touch=plan.side==='UP'?b.high>=plan.tp1:b.low<=plan.tp1;
   if(b.t<plan.publishedAt){
-   if(entryTouch||stopped||tp1Touch){
-    terminal='AMBIGUOUS';terminalAt=time;
-    ambiguousReason='Часть первой M5 до публикации: точное время касания неизвестно';
-    break;
-   }
+   // OHLC cannot distinguish moves before publication from moves after it.
+   // Exclude this partial candle entirely rather than manufacturing a
+   // terminal AMBIGUOUS outcome. Only fully post-publication M5 are eligible.
    continue;
   }
   if(entryAt===null){
@@ -240,7 +238,7 @@ export function auditDirectionalM5(plan,candles,{now=Date.now()}={}){
   entryAt,terminalAt,hits,observedBars,observedHours:observedBars/12,
   finished:Boolean(terminal),tpCount:hits.length,
   remainingMs:terminal?null:Math.max(0,plan.targetCloseAt-now),
-  note:'Проверено по закрытым M5. Если внутри одной M5 касались конкурирующие уровни, порядок не установлен. Касание не означает исполненную сделку.'};
+  note:'Проверено по полностью закрытым M5 после публикации. Частичная первая M5 не учитывается. Если внутри одной последующей M5 касались конкурирующие уровни, порядок не установлен. Касание не означает исполненную сделку.'};
 }
 export function directionalOutcomeLabel(outcome){
  return ({

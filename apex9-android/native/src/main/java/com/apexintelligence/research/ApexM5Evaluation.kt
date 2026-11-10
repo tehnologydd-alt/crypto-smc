@@ -22,9 +22,22 @@ object ApexM5Evaluation {
 
     class SourceUnavailable(message: String) : Exception(message)
 
-    fun download(asset: String, now: Long): List<MarketCandle> {
+    fun download(asset: String, now: Long): List<MarketCandle> =
+        request(asset, now)
+
+    private fun request(
+        asset: String, now: Long,
+        startOpen: Long? = null, endOpenExclusive: Long? = null
+    ): List<MarketCandle> {
         require(Regex("^[A-Z0-9]{5,20}$").matches(asset))
-        val conn = (URL("https://data-api.binance.vision/api/v3/klines?symbol=$asset&interval=5m&limit=$LIMIT")
+        val range = if (startOpen != null && endOpenExclusive != null) {
+            require(startOpen > 0L && startOpen % STEP == 0L &&
+                endOpenExclusive > startOpen &&
+                (endOpenExclusive - startOpen) % STEP == 0L &&
+                endOpenExclusive - startOpen <= LIMIT * STEP)
+            "&startTime=$startOpen&endTime=${endOpenExclusive - 1L}"
+        } else ""
+        val conn = (URL("https://data-api.binance.vision/api/v3/klines?symbol=$asset&interval=5m&limit=$LIMIT$range")
             .openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 6500
@@ -43,6 +56,9 @@ object ApexM5Evaluation {
             }
             if (response.length() !in 1..LIMIT)
                 throw SourceUnavailable("Пустая или неполная история M5")
+            if (startOpen != null && endOpenExclusive != null &&
+                response.length().toLong() != (endOpenExclusive - startOpen) / STEP)
+                throw SourceUnavailable("В диапазоне M5 не хватает свечей")
             val rows = ArrayList<MarketCandle>(LIMIT)
             var previous = -1L
             for (i in 0 until response.length()) {
@@ -56,6 +72,8 @@ object ApexM5Evaluation {
                     throw SourceUnavailable("Нарушено время M5")
                 if (previous > 0 && start - previous != STEP)
                     throw SourceUnavailable("В M5-ответе пропущены свечи")
+                if (startOpen != null && start != startOpen + i * STEP)
+                    throw SourceUnavailable("Источник M5 вернул другое временное окно")
                 previous = start
                 val open = raw.optString(1).toDoubleOrNull()
                 val high = raw.optString(2).toDoubleOrNull()
@@ -87,14 +105,58 @@ object ApexM5Evaluation {
         dao.pruneCandles(asset, INTERVAL, max(0L, now - 14 * 24 * HOUR))
     }
 
+    /**
+     * Repair only GENUINELY missing CLOSED M5 windows. In particular H4
+     * needs 1,152 M5 candles, larger than the default Binance 500-bar page.
+     * Fixed 500-bar pages, at most four calls, favorite-scoped and no
+     * invented history. Previously stored OHLCV is never overwritten.
+     */
+    suspend fun ensureWindow(
+        asset: String, dao: ResearchDao, now: Long,
+        anchor: Long, target: Long
+    ) {
+        if (anchor <= 0L || anchor % STEP != STEP - 1L ||
+            target <= anchor || target - anchor > 4L * 24 * HOUR)
+            throw SourceUnavailable("Недопустимый диапазон M5")
+        val due = ((min(target, now - 1L) - anchor) / STEP).coerceAtLeast(0L)
+        if (due == 0L) return
+        val count = due.toInt()
+        val firstOpen = anchor + 1L
+        val known = dao.candlesInRange(
+            asset, INTERVAL, firstOpen, firstOpen + due * STEP
+        ).map { it.openTime }.toHashSet()
+        var pages = 0
+        var offset = 0
+        while (offset < count) {
+            val batch = min(LIMIT, count - offset)
+            val start = firstOpen + offset * STEP
+            val complete = (0 until batch).all { known.contains(start + it * STEP) }
+            if (!complete) {
+                pages++
+                if (pages > 4) throw SourceUnavailable("Превышен лимит дозагрузки M5")
+                val source = request(asset, now, start, start + batch * STEP)
+                if (source.size != batch ||
+                    source.indices.any { source[it].openTime != start + it * STEP })
+                    throw SourceUnavailable("Невозможно подтвердить последовательность M5")
+                dao.insertHistoricalCandlesOnce(source)
+            }
+            offset += batch
+        }
+        // Room may refuse a duplicate or contain damaged records. The
+        // chronological evaluator verifies all OHLCV before any outcome.
+    }
+
     suspend fun progress(
         forecast: ResearchForecast, dao: ResearchDao, now: Long,
         anchor: Long, target: Long, side: String, entry: Double,
-        stop: Double, take: List<Double>, limitSemantics: Boolean = false
+        stop: Double, take: List<Double>, limitSemantics: Boolean = false,
+        horizonMs: Long = HORIZON * HOUR
     ): String {
         val id = forecast.id
         if (dao.researchResult(id) != null) return "COMPLETED"
-        if (target != anchor + HORIZON * HOUR || take.size != 3 ||
+        if (horizonMs <= 0L || horizonMs % STEP != 0L ||
+            horizonMs > 4L * 24 * HOUR ||
+            target != anchor + horizonMs || take.size != 3 ||
             !price(entry) || !price(stop) || take.any { !price(it) } ||
             side != "UP" && side != "DOWN") return "INVALID"
         if (side == "UP" &&
@@ -110,7 +172,7 @@ object ApexM5Evaluation {
             maxExclusive)
         val byClose = candles.associateBy { it.closeTime }
         if (byClose.size != candles.size) return "DUE_UNVERIFIED"
-        val count = HORIZON * (HOUR / STEP).toInt()
+        val count = (horizonMs / STEP).toInt()
         var entryAt: Long? = null
         var firstTakeAt: Long? = null
         var limitReadyAt: Long? = null
@@ -120,6 +182,7 @@ object ApexM5Evaluation {
         var terminalAt: Long? = null
         var observed = 0
         var lastClose = entry
+        var ambiguityReason: String? = null
 
         for (index in 1..count) {
             val end = anchor + index * STEP
@@ -150,11 +213,10 @@ object ApexM5Evaluation {
             // This M5 started BEFORE the immutable publication timestamp.
             // A touch could have occurred before publishing the scenario.
             if (candle.openTime < forecast.publishedAt) {
-                if (entered || stopped || touched(1)) {
-                    terminal = "AMBIGUOUS"
-                    terminalAt = end
-                    break
-                }
+                // A partially elapsed bar contains pre-publication movement.
+                // Its OHLC cannot establish a post-publication entry or TP.
+                // Skip it entirely; never manufacture an AMBIGUOUS terminal.
+                // The first eligible close comes from a fully post-publish M5.
                 continue
             }
             if (entryAt == null) {
@@ -163,6 +225,11 @@ object ApexM5Evaluation {
                 if (stopped || touched(1)) {
                     terminal = "AMBIGUOUS"
                     terminalAt = end
+                    ambiguityReason = if (stopped && touched(1))
+                        "M5: после входа в одной свече достигнуты TP1 и SL"
+                    else if (stopped)
+                        "M5: касание входа и SL в одной свече"
+                    else "M5: касание входа и TP1 в одной свече"
                     break
                 }
                 continue
@@ -171,6 +238,7 @@ object ApexM5Evaluation {
             if (stopped && newlyTouched.isNotEmpty()) {
                 terminal = "AMBIGUOUS"
                 terminalAt = end
+                ambiguityReason = "M5: SL и новый TP в одной свече"
                 break
             }
             if (stopped) {
@@ -217,12 +285,14 @@ object ApexM5Evaluation {
             }
             if (stage != null)
                 dao.appendResearchStage(ResearchForecastStage(id, stage,
-                    terminalAt, now, "M5: $terminal. Внутри одной свечи порядок неизвестен"))
+                    terminalAt, now, ambiguityReason ?:
+                        "M5: $terminal · зафиксированная закрытая свеча"))
             dao.recordResearchResult(ResearchForecastResult(id,
                 terminal, now, target, lastClose, (lastClose / entry - 1.0) * 100.0))
             dao.appendResearchStage(ResearchForecastStage(id, "COMPLETED",
                 terminalAt, now,
-                "Итог по закрытым M5: $terminal, достигнуто TP: $highestTarget"))
+                "Итог по закрытым M5: $terminal, достигнуто TP: $highestTarget" +
+                    (ambiguityReason?.let { " · $it" } ?: "")))
             return "COMPLETED"
         }
         return when {

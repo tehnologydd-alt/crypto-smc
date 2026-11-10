@@ -18,7 +18,8 @@ import kotlin.math.max
 object ApexMultiFrameForecast {
     const val MODEL="EMPIRICAL_MULTIFRAME_DIRECTION_V1"
     const val LEVEL_VERSION="MULTIFRAME_SINGLE_LEVELS_V1"
-    const val SEMANTICS="SAME_FRAME_LIMIT_V1"
+    const val SEMANTICS="SAME_FRAME_LIMIT_V1" // immutable legacy studies
+    const val M5_SEMANTICS="M5_CLOSED_LIMIT_V2" // new studies only
     private const val SAMPLE=96
     private val precision=MathContext(13)
     private val mutex=Mutex()
@@ -85,6 +86,19 @@ object ApexMultiFrameForecast {
         val now=System.currentTimeMillis()
         val latest=dao.latestMultiFrameForecast(asset,spec.interval)
         if(latest!=null&&dao.researchResult(latest.id)==null){
+            // A H4 forecast spans 1,152 M5 bars. Background WorkManager
+            // may skip runs; repair missing source-time pages on demand.
+            val hypothesis=try{JSONObject(latest.hypothesisJson)}
+                           catch (_:Exception){JSONObject()}
+            if(hypothesis.optString("evaluationInterval")==ApexM5Evaluation.INTERVAL){
+                try {
+                    ApexM5Evaluation.ensureWindow(asset,dao,now,
+                        hypothesis.optLong("anchorCloseAt",-1L),
+                        hypothesis.optLong("targetCloseAt",-1L))
+                } catch (_:Exception) {
+                    return Report(asset,spec.interval,"M5_UNAVAILABLE","DUE_UNVERIFIED")
+                }
+            }
             val state=progress(latest,spec,dao,now)
             if(state!="COMPLETED")return Report(asset,spec.interval,"UPDATED",state)
         }
@@ -130,8 +144,9 @@ object ApexMultiFrameForecast {
             .put("decisionMethod","SIX_BAR_EFFICIENCY_V1")
             .put("anchorCloseAt",anchor).put("anchorClose",entry)
             .put("targetCloseAt",anchor+spec.step*spec.bars)
-            .put("horizonBars",spec.bars).put("evaluationInterval",frame)
-            .put("stageSemantics",SEMANTICS).put("levelStudy",controls)
+            .put("horizonBars",spec.bars).put("evaluationInterval",ApexM5Evaluation.INTERVAL)
+            .put("observationMethod",ApexM5Evaluation.METHOD)
+            .put("stageSemantics",M5_SEMANTICS).put("levelStudy",controls)
             .put("sampleBars",SAMPLE).put("empiricalSamples",changes.size)
             .put("historicalPercentile",.8).put("empiricalWidth",width)
             .put("preOutcomeStrength",
@@ -159,6 +174,11 @@ object ApexMultiFrameForecast {
         val entry=controls.optDouble("entry",Double.NaN)
         val sl=controls.optDouble("sl",Double.NaN)
         val tp=(1..3).map{controls.optDouble("tp$it",Double.NaN)}
+        val m5=h.optString("evaluationInterval")==ApexM5Evaluation.INTERVAL&&
+            h.optString("observationMethod")==ApexM5Evaluation.METHOD&&
+            h.optString("stageSemantics")==M5_SEMANTICS
+        val legacy=h.optString("evaluationInterval")==frame&&
+            h.optString("stageSemantics")==SEMANTICS
         val ordered=if(side=="UP")
             sl<entry&&entry<tp[0]&&tp[0]<tp[1]&&tp[1]<tp[2]
         else if(side=="DOWN")
@@ -168,9 +188,8 @@ object ApexMultiFrameForecast {
                      catch (_:Exception){return "INVALID"}
         val originalId="direction3:"+row.asset+":"+frame+":"+anchor
         if(h.optString("model")!=MODEL||h.optString("interval")!=frame||
-            h.optString("evaluationInterval")!=frame||
+            !(legacy||m5)||
             h.optString("decisionMethod")!="SIX_BAR_EFFICIENCY_V1"||
-            h.optString("stageSemantics")!=SEMANTICS||
             h.optInt("sampleBars")!=SAMPLE||h.optInt("horizonBars")!=spec.bars||
             row.horizon!=frame||row.id!=originalId||
             controls.optString("version")!=LEVEL_VERSION||
@@ -185,6 +204,11 @@ object ApexMultiFrameForecast {
             })return "INVALID"
         val baseline=dao.candleAtClose(row.asset,frame,anchor)?:return "DUE_UNVERIFIED"
         if(!near(baseline.close,entry))return "DUE_UNVERIFIED"
+        if(m5)return ApexM5Evaluation.progress(
+            row,dao,now,anchor,target,side,entry,sl,tp,
+            limitSemantics=true,horizonMs=spec.step*spec.bars
+        )
+        // Old published records keep their original timeframe methodology.
         val bars=dao.candlesInRange(row.asset,frame,anchor+1,target+1)
         val byTime=bars.associateBy{it.closeTime}
         if(byTime.size!=bars.size)return "DUE_UNVERIFIED"
