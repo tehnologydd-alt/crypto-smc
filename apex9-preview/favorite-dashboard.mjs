@@ -1047,6 +1047,39 @@ export function initFavoriteResearch({
    line.append(frames);summary.append(line);
   }
  }
+ /**
+  * Restore only the saved Room IDs, even when they are years older than the
+  * 75 recent journal entries. Keep it on-demand to protect Android resources.
+  */
+ async function loadMarkedRows({force=false}={}){
+  const key=selectedKey();
+  if(!force&&markedReadyFor===key&&!markedError){
+   if(journalMode==='tracked')renderRows();
+   return;
+  }
+  const token=++markedFetchGeneration;
+  markedLoading=true;markedError=null;markedReadyFor=null;
+  markedRows=[];markedMissing=[];
+  if(journalMode==='tracked')renderRows();
+  const result=await getMobileMarkedResearchForecasts([...selected]);
+  if(token!==markedFetchGeneration||key!==selectedKey())return;
+  markedLoading=false;
+  if(result.error||result.complete!==true){
+   markedError=result.error||'Не удалось прочитать сохранённые сценарии.';
+  }else{
+   markedRows=result.forecasts;
+   markedMissing=result.missingIds;
+   markedReadyFor=key;
+  }
+  if(journalMode==='tracked'){
+   const view=scenarioJournalState(displayedJournal(),{
+    selectedIds:[...selected],mode:journalMode,stage
+   });
+   if(!view.counts[stage]&&view.scenarios.length)
+    stage=view.preferred;
+   renderRows();
+  }
+ }
  function renderRows(){
   const box=id('research-forecast-list');box.replaceChildren();
   for(const b of document.querySelectorAll('[data-journal-stage]')){
@@ -1058,7 +1091,33 @@ export function initFavoriteResearch({
    const on=b.dataset.forecastMode===journalMode;
    b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on?'true':'false');
   }
-  const view=scenarioJournalState(lastRows,{
+  if(journalMode==='tracked'&&
+    (markedLoading||markedError||markedReadyFor!==selectedKey())){
+   const label=markedError?
+    'Не удалось загрузить отмеченные сценарии из Room: '+markedError:
+    'Загружаем все отмеченные прогнозы из Room, включая старый архив…';
+   for(const key of FORECAST_STAGES)
+    id('stage-count-'+key).textContent='—';
+   id('forecast-pending-count').textContent='—';
+   id('forecast-evaluated-count').textContent='—';
+   id('forecast-quality-current-scope').textContent='Отмеченные';
+   id('forecast-stat-all').replaceChildren();
+   const tracked=id('forecast-stat-tracked');
+   tracked.hidden=false;
+   tracked.replaceChildren(create('p','forecast-quality-note',label));
+   id('forecast-multiframe-quality').replaceChildren();
+   id('forecast-confluence-summary').replaceChildren();
+   id('forecast-evidence-cohorts').replaceChildren();
+   box.append(create('p','forecast-direction-empty',label));
+   if(markedError){
+    const retry=create('button','forecast-follow','Повторить чтение Room');
+    retry.type='button';
+    retry.addEventListener('click',()=>void loadMarkedRows({force:true}));
+    box.append(retry);
+   }
+   return;
+  }
+  const view=scenarioJournalState(displayedJournal(),{
    selectedIds:[...selected],mode:journalMode,stage
   });
   for(const [key,count] of Object.entries(view.counts))
@@ -1074,16 +1133,23 @@ export function initFavoriteResearch({
    tracked:selected.has(row.id),
    onToggle:key=>{
     if(selected.has(key))selected.delete(key);else selected.add(key);
-    persistSelected();renderRows();
+    persistSelected();
+    if(journalMode==='tracked')void loadMarkedRows({force:true});
+    else renderRows();
    },
    onOpen:onSelectSymbol,getMini:renderMini
   });
-  if(!directed.length&&!multi.length){
+  if(journalMode==='tracked'&&markedMissing.length){
+   box.append(create('p','forecast-quality-warning',
+    'Не найдены в Room: '+markedMissing.length+
+    ' сохранённых отметок. Они не удалены из настроек и не засчитаны как прогнозы.'));
+  }
+  if(!directed.length&&!multi.length&&!legacy.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
-     (lastTotal>lastRows.length&&view.unavailableMarked?
-      'В загруженной части журнала нет отмеченных направленных сценариев этого этапа. '+view.unavailableMarked+' отметок относятся к записям вне последних '+lastRows.length+'.':
-      'На выбранном этапе нет отмеченных направленных сценариев. Счётчики показывают только отмеченные карточки загруженного журнала.'):
+     (selected.size?
+      'Все сохранённые направленные сценарии загружены, но на этом этапе их нет. Выберите другой этап.':
+      'Нет отмеченных сценариев. Отметить прогноз можно звёздочкой в журнале «Все».'):
      'На выбранном этапе нет направленных сценариев M15, H1 или H4.'));
   }else {
    for(const row of directed)box.append(renderCard(row));
@@ -1091,7 +1157,7 @@ export function initFavoriteResearch({
   }
   if(legacy.length){
    const archive=create('details','forecast-range-archive');
-   archive.open=archiveExpanded;
+   archive.open=journalMode==='tracked'||archiveExpanded;
    archive.append(create('summary','forecast-range-archive-title',
     'Архив прежних диапазонов · '+legacy.length),
     create('p','forecast-range-archive-note',
