@@ -150,3 +150,17 @@ test('visual chronology remains separate from independent M5 replay',()=>{
  assert.ok(css.includes('.forecast-visual.is-completed .forecast-event-timeline'));
  assert.ok(asset.includes("'forecast-event-timeline.mjs'"));
 });
+
+test('completed directional forecasts fold to a source-backed closing reason',()=>{
+ const card=readFileSync(new URL('./forecast-directional-card.mjs',import.meta.url),'utf8');
+ const css=readFileSync(new URL('./styles.css',import.meta.url),'utf8');
+ assert.ok(card.includes("const finishedRoom=finishedNative||"));
+ assert.ok(card.includes("const fold=create('details','forecast-card-fold')"));
+ assert.ok(card.includes("fold.open=!finishedRoom"));
+ assert.ok(card.includes("'Причина завершения: '+directionalOutcomeLabel(outcome)"));
+ assert.ok(card.includes("showFinalReason(verifiedFinish?timeline.outcome:row.evaluation?.outcome"));
+ assert.ok(card.includes("fold.append(chronology)"));
+ assert.ok(card.includes("fold.append(levels,copied)"));
+ assert.ok(css.includes('.forecast-final-snapshot[hidden]'));
+ assert.ok(css.includes('.forecast-visual.is-completed'));
+});
