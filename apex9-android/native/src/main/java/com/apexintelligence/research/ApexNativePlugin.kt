@@ -790,6 +790,15 @@ class ApexNativePlugin : Plugin() {
                 val result = JSObject()
                 result.put("checked", reports.size)
                 result.put("reports", items)
+                val multiItems = JSArray()
+                for (report in multi) {
+                    multiItems.put(JSObject()
+                        .put("asset", report.asset)
+                        .put("interval", report.interval)
+                        .put("state", report.state)
+                        .put("stage", report.stage))
+                }
+                result.put("multiFrameReports", multiItems)
                 result.put("favoritesLimit", ApexPreferences.MAX_FAVORITES)
                 call.resolve(result)
             } catch (e: Exception) {
