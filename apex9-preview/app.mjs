@@ -347,6 +347,7 @@ let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
 const bitcoinBackgroundGate=createBitcoinBackgroundGate();
+el('asset-news-check').addEventListener('click',()=>ensureAssetNewsFeed({force:true}));
 const newsM5Panel=initNewsM5Panel({getSymbol:()=>chosen,storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
 const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
