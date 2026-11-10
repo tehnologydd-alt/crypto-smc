@@ -1,12 +1,13 @@
 import {collectAsset,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
 import {initAssetFavoritePicker} from './asset-favorites-picker.mjs';
+import {createMarketMatrixCache,matrixFromNativeRadar} from './market-matrix-cache.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
@@ -305,7 +306,10 @@ function setAssetArea(requested){
  }
  if(document.body.dataset.view==='asset'&&previousArea!==mode){
   if(mode==='chart')requestAnimationFrame(()=>candleView.resize());
-  if(mode==='structure')void loadCandleHistory(false);
+  if(mode==='structure'){
+   void loadCandleHistory(false);
+   void restoreMarketMatrix(chosen);
+  }
   if(mode==='data')requestAnimationFrame(()=>{
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
@@ -351,6 +355,7 @@ function ensureAssetNewsFeed({force=false}={}){
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
 const overviewCache=createOverviewCache({storage:editorialStorage});
+const marketMatrixCache=createMarketMatrixCache({storage:editorialStorage});
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
 const bitcoinBackgroundGate=createBitcoinBackgroundGate();
 el('asset-news-check').addEventListener('click',()=>ensureAssetNewsFeed({force:true}));
@@ -932,6 +937,7 @@ function navigate(view,targetId){
    // Both chart and historical structure use the same completed candle data.
    void loadCandleHistory(false);
    void showAssetScenarios(chosen);
+   if(area==='structure')void restoreMarketMatrix(chosen);
    // Native depth and onchain panels are only refreshed when opened.
    // Multi-TF market comparison remains explicitly user-initiated.
    if(area==='data'){
@@ -1393,7 +1399,7 @@ async function investigate(value){
   lastScenarioRows=[];lastScenarioAsset='';lastScenarioFetchedAt=0;
   focusedScenarioId=null;
   candleView.setScenarios([]);
-  resetMarketMatrix('Актив изменён. Для него потребуется отдельное сравнение.');
+  resetMarketMatrix('Актив изменён · загружаем сохранённые горизонты.',symbol);
  }
  chosen=symbol;
  assetFavoritePicker?.render();
