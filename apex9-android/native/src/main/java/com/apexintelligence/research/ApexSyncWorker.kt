@@ -94,6 +94,9 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
             if (favorites.isNotEmpty()) {
                 ApexAutoForecast.syncAll(applicationContext, favorites)
             }
+            // Independent persistent Radar state is collected without opening WebView.
+            // Scheduling is deferrable: source timestamp, never wall-clock assumptions.
+            ApexRadarMonitor.sync(applicationContext, favorites, dao)
             Result.success()
         } catch (_: java.io.IOException) {
             Result.retry()
