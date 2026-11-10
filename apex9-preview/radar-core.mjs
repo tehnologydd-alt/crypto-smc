@@ -51,7 +51,15 @@ export async function fetchRadarUniverse({
  if(!Array.isArray(catalog)||catalog.length===0)
   return {state:'NEEDS_CATALOG',rows:[],reason:'Каталог Spot ещё не загружен'};
  try{
-  const response=await fetchImpl(URL,{
+  const selected=[...new Set(catalog.filter(x=>
+   typeof x==='string'&&SYMBOL.test(x)&&x.endsWith('USDT')
+   &&!EXCLUDED_BASES.has(x.slice(0,-4))))].slice(0,10);
+  if(!selected.length)return {state:'NO_FAVORITES',rows:[],
+   reason:'Нет подходящих избранных Spot USDT активов'};
+  // Binance Spot officially accepts a JSON array of symbols. Fetch only
+  // selected pairs, never the exchange-wide 24h ticker universe.
+  const url=URL+'?symbols='+encodeURIComponent(JSON.stringify(selected));
+  const response=await fetchImpl(url,{
    method:'GET',cache:'no-store',credentials:'omit',signal
   });
   if(response?.status===429||response?.status===418)
