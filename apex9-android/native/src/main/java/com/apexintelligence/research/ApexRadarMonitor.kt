@@ -217,6 +217,10 @@ object ApexRadarMonitor {
                         try{download(asset,frame,now)}catch (_: Exception){null}
                     }
                     if (rows==null) continue
+                    // Share source-verified M15/H4 closed bars with independent
+                    // forecasts. IGNORE keeps the first persisted observations.
+                    if (frame=="15m" || frame=="4h")
+                        dao.insertHistoricalCandlesOnce(rows)
                     val item=analyze(asset,frame,rows,now) ?: continue
                     save(context,item)
                 }
