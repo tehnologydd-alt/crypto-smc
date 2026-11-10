@@ -643,6 +643,119 @@ class ApexNativePlugin : Plugin() {
     }
 
     /** Read the whole immutable history. No loss/profit/trading statistics. */
+    /** Identical immutable event serialization for recent and old saved cards. */
+    private suspend fun forecastJournalItems(
+        dao: ResearchDao,
+        published: List<ResearchForecast>
+    ): JSArray {
+        val outcomes = if (published.isEmpty()) emptyMap() else
+            dao.researchResults(published.map { it.id }).associateBy { it.forecastId }
+        val stages = if (published.isEmpty()) emptyMap() else
+            dao.researchStages(published.map { it.id }).groupBy { it.forecastId }
+        val rows = JSArray()
+        for (forecast in published) {
+            val item = JSObject()
+            item.put("id", forecast.id)
+            item.put("asset", forecast.asset)
+            item.put("interval", forecast.horizon)
+            val forecastStages = stages[forecast.id].orEmpty()
+            val orderedStages = listOf(
+                "PENDING_CONFIRMATION", "CONFIRMED", "ACTIVE", "COMPLETED"
+            )
+            val limitSemantics = try {
+                org.json.JSONObject(forecast.hypothesisJson)
+                    .optString("stageSemantics") in listOf(
+                        "LIMIT_READY_M5_V1","SAME_FRAME_LIMIT_V1")
+            } catch (_: Exception) { false }
+            val finalStage = if (limitSemantics) {
+                when {
+                    outcomes[forecast.id] != null ||
+                        forecastStages.any { it.stage == "COMPLETED" } -> "COMPLETED"
+                    forecastStages.any { it.stage == "CONFIRMED" } -> "ACTIVE"
+                    forecastStages.any { it.stage == "LIMIT_READY" } -> "CONFIRMED"
+                    else -> "PENDING_CONFIRMATION"
+                }
+            } else {
+                orderedStages.lastOrNull { candidate ->
+                    forecastStages.any { it.stage == candidate }
+                } ?: if (outcomes[forecast.id] != null) "COMPLETED"
+                    else "PENDING_CONFIRMATION"
+            }
+            item.put("status", finalStage)
+            val eventItems = JSArray()
+            for (stage in forecastStages.sortedBy { it.recordedAt }) {
+                val event = JSObject()
+                event.put("stage", stage.stage)
+                event.put("observedAt", stage.observedAt)
+                event.put("recordedAt", stage.recordedAt)
+                event.put("explanation", stage.explanation)
+                eventItems.put(event)
+            }
+            item.put("stageEvents", eventItems)
+            item.put("publishedAt", forecast.publishedAt)
+            item.put("hypothesis", forecast.hypothesisJson)
+            val outcome = outcomes[forecast.id]
+            if (outcome != null) {
+                val saved = JSObject()
+                saved.put("outcome", outcome.outcome)
+                saved.put("targetCloseAt", outcome.targetCloseAt)
+                saved.put("evaluatedAt", outcome.evaluatedAt)
+                saved.put("actualClose", outcome.actualClose)
+                saved.put("actualChangePct", outcome.actualChangePct)
+                item.put("evaluation", saved)
+            }
+            rows.put(item)
+        }
+        return rows
+    }
+
+    /**
+     * Load only explicitly bookmarked IDs, including records older than the
+     * last 75. Never scan entire history or invent missing journal entries.
+     */
+    @PluginMethod
+    fun getMarkedResearchForecasts(call: PluginCall) {
+        val requestedArray = call.data.optJSONArray("ids")
+        if (requestedArray == null || requestedArray.length() !in 1..75) {
+            call.reject("Select between 1 and 75 saved forecast IDs")
+            return
+        }
+        val allowed = Regex("^[A-Za-z0-9:_-]{10,160}$")
+        val ids = mutableListOf<String>()
+        for (i in 0 until requestedArray.length()) {
+            val value = requestedArray.opt(i)
+            if (value !is String || !allowed.matches(value) ||
+                value.substringBefore(':') !in setOf("range1", "direction2", "direction3") ||
+                ids.contains(value)) {
+                call.reject("Invalid or duplicated marked forecast ID")
+                return
+            }
+            ids.add(value)
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context).researchDao()
+                val found = dao.researchForecastsByIds(ids)
+                if (found.size > ids.size || found.any { it.id !in ids }) {
+                    call.reject("Room returned unexpected saved forecasts")
+                    return@launch
+                }
+                val result = JSObject()
+                result.put("source", "LOCAL_ROOM_MARKED_JOURNAL")
+                result.put("requestedCount", ids.size)
+                result.put("foundCount", found.size)
+                result.put("forecasts", forecastJournalItems(dao, found))
+                val seen = found.map { it.id }.toSet()
+                val missing = JSArray()
+                ids.filter { it !in seen }.forEach { missing.put(it) }
+                result.put("missingIds", missing)
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject("Could not read saved forecasts: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
     @PluginMethod
     fun getResearchForecasts(call: PluginCall) {
         // Legacy global query remains available when no asset was supplied.
@@ -664,64 +777,7 @@ class ApexNativePlugin : Plugin() {
                 val dao = ApexDatabase.get(context).researchDao()
                 val published = if (requestedAsset == null) dao.researchForecasts(limit)
                     else dao.researchForecastPage(requestedAsset, limit, offset)
-                val outcomes = if (published.isEmpty()) emptyMap() else
-                    dao.researchResults(published.map { it.id }).associateBy { it.forecastId }
-                val stages = if (published.isEmpty()) emptyMap() else
-                    dao.researchStages(published.map { it.id }).groupBy { it.forecastId }
-                val rows = JSArray()
-                for (forecast in published) {
-                    val item = JSObject()
-                    item.put("id", forecast.id)
-                    item.put("asset", forecast.asset)
-                    item.put("interval", forecast.horizon)
-                    val forecastStages = stages[forecast.id].orEmpty()
-                    val orderedStages = listOf(
-                        "PENDING_CONFIRMATION", "CONFIRMED", "ACTIVE", "COMPLETED"
-                    )
-                    val limitSemantics = try {
-                        org.json.JSONObject(forecast.hypothesisJson)
-                            .optString("stageSemantics") in listOf(
-                                "LIMIT_READY_M5_V1","SAME_FRAME_LIMIT_V1")
-                    } catch (_: Exception) { false }
-                    val finalStage = if (limitSemantics) {
-                        when {
-                            outcomes[forecast.id] != null ||
-                                forecastStages.any { it.stage == "COMPLETED" } -> "COMPLETED"
-                            forecastStages.any { it.stage == "CONFIRMED" } -> "ACTIVE"
-                            forecastStages.any { it.stage == "LIMIT_READY" } -> "CONFIRMED"
-                            else -> "PENDING_CONFIRMATION"
-                        }
-                    } else {
-                        orderedStages.lastOrNull { candidate ->
-                            forecastStages.any { it.stage == candidate }
-                        } ?: if (outcomes[forecast.id] != null) "COMPLETED"
-                            else "PENDING_CONFIRMATION"
-                    }
-                    item.put("status", finalStage)
-                    val eventItems = JSArray()
-                    for (stage in forecastStages.sortedBy { it.recordedAt }) {
-                        val event = JSObject()
-                        event.put("stage", stage.stage)
-                        event.put("observedAt", stage.observedAt)
-                        event.put("recordedAt", stage.recordedAt)
-                        event.put("explanation", stage.explanation)
-                        eventItems.put(event)
-                    }
-                    item.put("stageEvents", eventItems)
-                    item.put("publishedAt", forecast.publishedAt)
-                    item.put("hypothesis", forecast.hypothesisJson)
-                    val outcome = outcomes[forecast.id]
-                    if (outcome != null) {
-                        val saved = JSObject()
-                        saved.put("outcome", outcome.outcome)
-                        saved.put("targetCloseAt", outcome.targetCloseAt)
-                        saved.put("evaluatedAt", outcome.evaluatedAt)
-                        saved.put("actualClose", outcome.actualClose)
-                        saved.put("actualChangePct", outcome.actualChangePct)
-                        item.put("evaluation", saved)
-                    }
-                    rows.put(item)
-                }
+                val rows = forecastJournalItems(dao, published)
                 val response = JSObject()
                 response.put("forecasts", rows)
                 response.put("publishedCount", if (requestedAsset == null)
