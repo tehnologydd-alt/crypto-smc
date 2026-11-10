@@ -147,7 +147,7 @@ test('wrong timestamps, duplicated stages and future outcomes do not score',()=>
 test('all source summaries remain non-trading, bounded and explain denominators',()=>{
  const ui=readFileSync(new URL('./favorite-dashboard.mjs',import.meta.url),'utf8');
  const css=readFileSync(new URL('./styles.css',import.meta.url),'utf8');
- assert.ok(ui.includes('directionalQualitySummary(lastRows'));
+ assert.ok(ui.includes('directionalQualitySummary(scopedJournal'));
  assert.ok(ui.includes('Качество прогнозов'));
  assert.ok(ui.includes('Касания TP'));
  assert.ok(css.includes('.forecast-quality-summary'));
