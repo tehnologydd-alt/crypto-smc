@@ -63,7 +63,7 @@ object ApexRadarMonitor {
             if (openAt <= lastTime || openAt <= 0 || openAt % step != 0L ||
                 end != openAt + step - 1L ||
                 listOf(o,h,l,c,v).any { !it.isFinite() } ||
-                min(o,min(l,c)) <= 0 || h < max(o,max(l,c)) || v < 0) return null
+                min(o,min(l,c)) <= 0 || h < max(o,max(l,c)) || l > min(o,c) || v < 0) return null
             lastTime = openAt
             if (end < now) {
                 data.add(MarketCandle(symbol,frame,openAt,end,o,h,l,c,v,now))
@@ -171,6 +171,18 @@ object ApexRadarMonitor {
             val selected=favorites.filter { symbolPattern.matches(it) }.distinct().take(10)
             if (selected.isEmpty()) return@withContext
             val prefs=context.getSharedPreferences(STORE,Context.MODE_PRIVATE)
+            // When a symbol leaves favorites, native Radar drops its old records.
+            // A future re-add starts with a new honest baseline, not a stale change.
+            val old=try{JSONObject(prefs.getString("records","{}") ?: "{}")}
+                catch (_: Exception){JSONObject()}
+            val filtered=JSONObject()
+            for (key in old.keys()) {
+                val item=old.optJSONObject(key) ?: continue
+                val last=item.optJSONObject("latest") ?: continue
+                if (last.optString("symbol") in selected) filtered.put(key,item)
+            }
+            if (filtered.length() != old.length())
+                prefs.edit().putString("records",filtered.toString()).commit()
             var networkCalls=0
             // Start with newest events; longer horizons are only checked at close.
             for (frame in listOf("15m","1h","4h","1d")) {
