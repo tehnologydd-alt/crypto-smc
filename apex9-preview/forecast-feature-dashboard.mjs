@@ -11,6 +11,7 @@ import {canDraftShadow,inspectShadowProposal,evaluateShadowProposal}
  from './forecast-shadow-forward.mjs';
 import {assessShadowTemporalMonitor} from './forecast-shadow-monitor.mjs';
 import {explainShadowEvidence} from './forecast-shadow-explanation.mjs';
+import {renderProbabilityReadiness} from './forecast-probability-dashboard.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
