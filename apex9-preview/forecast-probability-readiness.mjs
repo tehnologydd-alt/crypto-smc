@@ -65,7 +65,13 @@ function tally(rows,{now,cutAt=null}={}){
   if(!check.finished){scored.awaiting++;continue;}
   const at=row.evaluation?.evaluatedAt;
   if(!stamp(at)||at>now+60000||
-    cutAt!==null&&at>=cutAt){scored.lateOutcome++;continue;}
+    cutAt!==null&&(at>=cutAt||
+     (Array.isArray(row.stageEvents)&&row.stageEvents.some(event=>
+      event?.recordedAt>=cutAt)))){
+   // The terminal result AND every required source milestone must have been
+   // recorded before the holdout began, not just observed on an older candle.
+   scored.lateOutcome++;continue;
+  }
   if(!outcomeKeys.includes(check.outcome)){scored.invalid++;continue;}
   scored.outcomes[check.outcome]++;
  }
