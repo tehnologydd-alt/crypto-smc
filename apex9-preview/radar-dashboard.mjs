@@ -445,6 +445,16 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   if(!started||document.hidden||controller)return;
   const plan=selectRadarAutoFrame(getFavorites(),checkpoints,{now:Date.now()});
   if(plan.state!=='DUE')return;
+  const selected=getFavorites().filter(x=>/^[A-Z0-9]{2,16}USDT$/.test(x));
+  // If WorkManager already checked the same real closed candle for every
+  // favorite, do not repeat the same HTTP work in WebView after a resume.
+  if(selected.length&&selected.every(symbol=>{
+   const observed=history[symbol+'|'+plan.frame]?.latest;
+   return validateRadarObservation(observed)&&observed.candleAt===plan.close;
+  })){
+   writeRadarAutoCheckpoint(storage,checkpoints,plan,Date.now());
+   return;
+  }
   writeRadarAutoCheckpoint(storage,checkpoints,plan,Date.now());
   void scan({frame:plan.frame}).then(complete=>{
    if(!complete)markRadarAutoFailure(storage,checkpoints,plan,Date.now());
@@ -479,11 +489,10 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
     if(restored.length)frameRows.set(frame,restored);
    }
    rows=uiRows(interval);render();
-   void syncNative();
-   autoTick();
+   void syncNative().finally(autoTick);
    timer=setInterval(autoTick,60000);
    document.addEventListener('visibilitychange',()=>{
-    if(!document.hidden){void syncNative();autoTick();}
+    if(!document.hidden){void syncNative().finally(autoTick);}
     else if(controller){controller.abort();}
    });
   },
