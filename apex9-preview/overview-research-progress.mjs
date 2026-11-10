@@ -10,6 +10,7 @@
  * full-archive audit. Percent is NOT model intelligence or predicted success.
  */
 import {getMobileResearchProgress} from './mobile-bridge.mjs';
+import {renderDecisionQuality} from './overview-decision-quality.mjs';
 
 export const OVERVIEW_EXPERIENCE_VERSION='APEX_RESEARCH_EXPERIENCE_OVERVIEW_V1';
 export const OVERVIEW_EXPERIENCE_RULES=Object.freeze({
@@ -101,6 +102,13 @@ export function initOverviewResearchProgress({getFavorites,
  if(!select||!list||!status||!refresh)return {openOverview(){},
   favoritesChanged(){},researchUpdated(){}};
  let current=null,busy=false,lastReadAt=0,request=0,lastError=null;
+ const renderQuality=()=>renderDecisionQuality({
+  root:get('overview-decision-quality'),asset:select.value,
+  now:now(),storage,
+  roomRows:current?.favorites?.includes(select.value)?current.rows:null
+ });
+ if(typeof window!=='undefined')
+  window.addEventListener('apex:decision-quality-checked',()=>render());
  const favoriteList=()=>normalizedFavorites(getFavorites?.());
  const same=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&
   a.length===b.length&&a.every(x=>b.includes(x));
@@ -147,13 +155,13 @@ export function initOverviewResearchProgress({getFavorites,
   list.replaceChildren();
   if(!favorites.length){
    status.textContent='Добавьте актив в избранное для учёта наблюдений.';
-   return;
+   renderQuality();return;
   }
   const counts=measureResearchExperience(current,asset);
   if(counts.state!=='COUNTS_AVAILABLE'){
    status.textContent=lastError||
     'Ожидаем сохранённую сводку Room по избранному.';
-   return;
+   renderQuality();return;
   }
   const cachedAge=now()-current.sampledAt;
   const prefix=cachedAge>OVERVIEW_EXPERIENCE_RULES.refreshIntervalMs?
@@ -190,6 +198,7 @@ export function initOverviewResearchProgress({getFavorites,
    }
    list.append(wrap);
   }
+  renderQuality();
  }
  async function poll(force=false){
   if(busy)return;

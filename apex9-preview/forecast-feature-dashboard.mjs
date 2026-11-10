@@ -12,6 +12,7 @@ import {canDraftShadow,inspectShadowProposal,evaluateShadowProposal}
 import {assessShadowTemporalMonitor} from './forecast-shadow-monitor.mjs';
 import {explainShadowEvidence} from './forecast-shadow-explanation.mjs';
 import {renderProbabilityReadiness} from './forecast-probability-dashboard.mjs';
+import {saveDecisionQualityAudit} from './overview-decision-quality.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -360,8 +361,13 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     ' ТФ с достаточной описательной выборкой. ' +
     'Автоматическое изменение прогнозов отключено.';
    render(report);
+   const auditedAt=Date.now();
    renderProbabilityReadiness(archive,asset,
-    get('forecast-probability-report'),{now:Date.now()});
+    get('forecast-probability-report'),{now:auditedAt});
+   // Persist only the verified manual full-archive comparison. No silent
+   // overview archive fetch, retraining, trading, or model promotion.
+   if(token===serial&&getFavorites?.().includes(asset))
+    saveDecisionQualityAudit(archive,asset,{now:auditedAt});
    await renderShadowState(asset,archive,report,token);
   }catch(error){
    if(token===serial){

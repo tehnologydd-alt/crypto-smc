@@ -3227,6 +3227,18 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .overview-experience-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .overview-experience-counts span{font-size:9px;line-height:1.4;color:#a6c9cc;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .overview-experience-caveat{font-size:9px;color:#e2ca96;line-height:1.4}
+.overview-decision-quality{display:grid;gap:8px;border-top:1px solid #ffffff1b;padding-top:11px}
+.overview-quality-heading{font-weight:750;font-size:13px;color:#e3f7f0}
+.overview-quality-frame{display:grid;gap:6px;padding:9px 11px;border:1px solid #365e69;border-radius:10px;background:#102936}
+.overview-quality-line{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.overview-quality-line strong{font-size:12px;color:#e1f6ee}
+.overview-quality-verdict{font-size:10px;font-weight:700;color:#a0ded3}
+.overview-quality-hint{display:block;font-size:10px;line-height:1.45;color:#accbd2}
+.overview-quality-windows{display:flex;gap:5px}
+.overview-quality-window{height:7px;flex:1;border-radius:9px;background:#4b5968}
+.overview-quality-window.is-positive{background:#43c5a7}
+.overview-quality-window.is-negative{background:#ca8479}
+.overview-quality-open{width:100%;min-height:33px;font-size:11px}
 .overview-experience-details{border-top:1px solid #ffffff1b;padding-top:7px}
 .overview-experience-details>summary{font-size:11px;font-weight:650;color:#b9e8d9;cursor:pointer;min-height:32px}
 .overview-experience-details p{font-size:10px;color:#accbd2;line-height:1.55;margin:7px 0}
