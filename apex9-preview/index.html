@@ -420,34 +420,47 @@
     <section class="view hidden" id="view-forecasts" aria-labelledby="forecasts-title">
       <div class="section-title"><h2 id="forecasts-title">Прогнозы APEX</h2><span>Автоматические исследования</span></div>
       <article class="card block forecast-intro">
-        <div class="section-title"><h3>Избранные активы · до 10</h3><span>Android First</span></div>
-        <p>APEX самостоятельно исследует сохранённые активы, формирует сценарии по завершённым H1-свечам и наблюдает за результатами. Пользователю не нужно создавать прогнозы вручную.</p>
-        <p class="footnote">«Ожидает» — предварительный прогноз H1. «Лимитный» — первая полностью закрытая M5 после публикации проверена, уровни зафиксированы, вход ещё не отмечен. «Активный» — касание точки входа отмечено по M5, но это не означает исполненную сделку. Старый архив хранится отдельно.</p>
+        <div class="section-title"><h3>Избранные активы · до 10</h3></div>
         <div class="forecast-stats">
           <div><span>В избранном</span><strong id="forecast-favorites-count">0 / 10</strong></div>
           <div><span>В работе</span><strong id="forecast-pending-count">—</strong></div>
           <div><span>Завершено</span><strong id="forecast-evaluated-count">—</strong></div>
         </div>
-        <p id="forecast-action-status" class="chart-status" role="status" aria-live="polite">Локальный журнал проверяется при открытии приложения и периодически, пока оно активно. Фоновые проверки зависят от разрешений Android.</p>
+        <details class="forecast-technical-notes" id="forecast-system-details">
+          <summary>Состояние автоматической проверки</summary>
+          <p id="forecast-action-status" class="chart-status" role="status" aria-live="polite">Доступные исследования проверяются автоматически. Фоновая синхронизация зависит от разрешений Android.</p>
+          <p>Направление формируется по закрытым H1, порядок касаний проверяется по закрытым M5. Касания уровней не являются исполненными сделками.</p>
+        </details>
       </article>
-      <article class="card block quality-entry">
-        <div class="quality-entry-heading"><span class="quality-entry-icon" aria-hidden="true">◈</span><div><h3>Качество исследований</h3><p>Evidence Lab · проверка данных и гипотез</p></div></div>
-        <p class="muted">Проверьте достоверность истории, результаты опубликованных сценариев и устойчивость методов на трёх исторических периодах.</p>
-        <button type="button" class="quality-open" data-go="quality">Открыть качество исследований <span aria-hidden="true">›</span></button>
-      </article>
-      <article class="card block forecast-observed-statistics">
-        <div class="section-title"><h3>Результаты прогнозов</h3><span id="forecast-quality-current-scope">Все прогнозы</span></div>
-        <div class="forecast-mode-tabs" role="group" aria-label="Показывать сценарии и их результаты">
-          <button class="forecast-mode selected" data-forecast-mode="all" aria-pressed="true" type="button">Все</button>
-          <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
+
+      <section class="forecast-insights" aria-label="Результаты и качество прогнозов">
+        <div class="forecast-insights-switch" role="group" aria-label="Карточка сводки">
+          <button type="button" class="is-active" data-insight-slide="0" aria-pressed="true">Результаты</button>
+          <button type="button" data-insight-slide="1" aria-pressed="false">Качество</button>
         </div>
-        <div id="forecast-stat-all" class="forecast-observation-stat"></div>
-        <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
-        <p class="footnote">Переключатель «Все / Отмеченные» действует одновременно на сводку и журнал ниже. История H1 учитывается отдельно от M5. Восстановленные задним числом уровни старых гипотез не учитываются как результаты опубликованных направленных прогнозов. Это наблюдения, а не реальные сделки или прогноз доходности.</p>
-      </article>
+        <div class="forecast-insights-track" id="forecast-insights-track" tabindex="0" aria-label="Свайпайте для смены карточки">
+          <article class="card block forecast-observed-statistics forecast-insight-slide" data-insight-panel="0" aria-label="Результаты прогнозов">
+            <div class="section-title"><h3>Результаты прогнозов</h3><span id="forecast-quality-current-scope">Все прогнозы</span></div>
+            <div class="forecast-mode-tabs" role="group" aria-label="Показывать сценарии и их результаты">
+              <button class="forecast-mode selected" data-forecast-mode="all" aria-pressed="true" type="button">Все</button>
+              <button class="forecast-mode" data-forecast-mode="tracked" aria-pressed="false" type="button">Отмеченные</button>
+            </div>
+            <div id="forecast-stat-all" class="forecast-observation-stat"></div>
+            <div id="forecast-stat-tracked" class="forecast-observation-stat"></div>
+          </article>
+          <article class="card block quality-entry forecast-insight-slide" data-insight-panel="1" aria-label="Качество исследований">
+            <div class="quality-entry-heading"><span class="quality-entry-icon" aria-hidden="true">◈</span><div><h3>Качество исследований</h3></div></div>
+            <p class="muted">Проверка достоверности данных, истории сценариев и устойчивости методов.</p>
+            <button type="button" class="quality-open" data-go="quality">Открыть качество исследований <span aria-hidden="true">›</span></button>
+          </article>
+        </div>
+      </section>
       <article class="card block forecast-workspace">
-        <div class="section-title"><h3>Журнал сценариев</h3><span>Только реальные наблюдения</span></div>
-        <p class="muted">Новый прогноз фиксирует одно направление по H1 и опорную цену, TP1–TP3, SL. «Лимитный» ожидает входа, «Активный» — касание входа отмечено по закрытой M5. Неизвестный порядок касаний не засчитывается как подтверждённый.</p>
+        <div class="section-title"><h3>Журнал сценариев</h3></div>
+        <details class="forecast-technical-notes">
+          <summary>Как проверяются сценарии</summary>
+          <p>Направление и уровни входа, TP1–TP3 и SL фиксируются при публикации. Лимитный сценарий ожидает касания входа по закрытой M5, активный отслеживает следующие уровни. Неизвестный порядок событий не засчитывается как подтверждённый исход.</p>
+        </details>
 
         <div class="forecast-compact-stages" role="group" aria-label="Стадия наблюдения">
           <button class="forecast-compact-stage active" type="button" data-journal-stage="PENDING_CONFIRMATION">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
