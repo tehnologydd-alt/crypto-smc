@@ -58,6 +58,8 @@ jobs:
           node --check apex9-preview/forecast-probability-dashboard.mjs
           node --check apex9-preview/forecast-preoutcome-strength.mjs
           node --check apex9-preview/forecast-feature-ablation.mjs
+          node --check apex9-preview/forecast-feature-rolling.mjs
+          node --test apex9-preview/test-forecast-feature-rolling.mjs
           node --test apex9-preview/test-forecast-feature-ablation.mjs
           node --test apex9-preview/test-forecast-preoutcome-strength.mjs
           node --test apex9-preview/test-forecast-probability-readiness.mjs
