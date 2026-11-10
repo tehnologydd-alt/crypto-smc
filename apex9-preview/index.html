@@ -469,6 +469,16 @@
           <p class="forecast-confluence-caveat">Учитываются только записи, существовавшие до публикации. Свежесть не означает достоверность направления. Новые показатели пока не управляют прогнозом.</p>
           <div id="forecast-evidence-cohorts" class="forecast-evidence-cohorts" aria-live="polite"></div>
         </details>
+        <details class="forecast-confluence-details" id="forecast-feature-audit">
+          <summary>Проверка полезности источников · M15 / H1 / H4</summary>
+          <p class="forecast-confluence-caveat">Исследование по полному архиву одного избранного актива. Сравниваем ранний и последующий периоды без пересечения горизонтов. Никакие выводы не меняют прогнозы автоматически.</p>
+          <div class="forecast-feature-controls">
+            <select id="feature-holdout-asset" aria-label="Актив для временной проверки"></select>
+            <button type="button" id="feature-holdout-run">Исследовать полный архив</button>
+          </div>
+          <p id="feature-holdout-status" class="forecast-confluence-caveat" role="status" aria-live="polite"></p>
+          <div id="feature-holdout-report" class="forecast-feature-report"></div>
+        </details>
       </article>
       <article class="card block forecast-workspace">
         <div class="section-title"><h3>Журнал сценариев</h3></div>
