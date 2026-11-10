@@ -686,12 +686,39 @@
         <p class="footnote">Android устанавливает обновления только после вашего подтверждения. Для сохранения данных нужны тот же идентификатор приложения, постоянная подпись и более высокий номер версии.</p>
       </article>
       <article class="card block">
-        <h3>Следующие исследовательские слои</h3>
-        <div class="data-row"><span>Отслеживание известных крупных кошельков</span><span class="planned">Не подключено</span></div>
-        <div class="data-row"><span>Социальные настроения</span><span class="planned">Не подключено</span></div>
-        <div class="data-row"><span>Деривативы и ликвидации</span><span class="planned">Не подключено</span></div>
-        <div class="data-row"><span>Макроэкономические публикации</span><span class="planned">Не подключено</span></div>
-        <p class="footnote">Ограничения сети, CORS и региона отображаются как ошибки. Отсутствующие наблюдения никогда не заменяются вымышленными показателями.</p>
+        <h3>Дополнительные исследовательские источники</h3>
+        <p class="muted">Каждый источник проверяется отдельно по кнопке. Отсутствие данных, лимит, кеш и реальный ответ API отображаются разными состояниями.</p>
+        <section class="research-layer-row" aria-label="Публичные кошельки">
+          <div class="research-layer-head"><strong>Публичные адреса BTC и Ethereum</strong><span id="research-wallet-state" class="research-layer-state is-neutral">НЕ НАСТРОЕНО</span></div>
+          <p id="research-wallet-detail" class="muted" role="status">Укажите публичный адрес. Не вводите приватные ключи или seed-фразы. Владелец и статус крупного кошелька не устанавливаются автоматически.</p>
+          <div class="research-layer-actions">
+            <input id="research-wallet-address" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="90" placeholder="Публичный адрес BTC или 0x… ETH" aria-label="Публичный адрес кошелька для исследования">
+            <button type="button" class="ghost" id="research-wallet-check">Проверить адрес</button>
+            <button type="button" class="ghost" id="research-wallet-clear">Очистить</button>
+          </div>
+          <div id="research-wallet-metrics" class="research-layer-metrics"></div>
+          <p class="footnote">Адрес сохраняется только на устройстве после проверки. Для запроса публичного баланса он передаётся соответствующему блокчейн-обозревателю. Полный поток переводов и метки владельца пока не подключены.</p>
+        </section>
+        <section class="research-layer-row" aria-label="Социальные обсуждения">
+          <div class="research-layer-head"><strong>Социальные настроения · Bluesky</strong><span id="research-social-state" class="research-layer-state is-neutral">НЕ ПРОВЕРЕНО</span></div>
+          <p id="research-social-detail" class="muted" role="status">Проверяем реальные публичные сообщения. Счёт слов не означает оценку настроения всего рынка.</p>
+          <button type="button" class="ghost research-layer-check" id="research-social-check">Проверить обсуждения актива</button>
+          <div id="research-social-metrics" class="research-layer-metrics"></div>
+          <p class="footnote">Reddit требует одобренного доступа, поэтому не обозначается подключённым.</p>
+        </section>
+        <section class="research-layer-row" aria-label="Публичные показатели деривативов">
+          <div class="research-layer-head"><strong>Деривативы · открытый интерес и финансирование</strong><span id="research-derivatives-state" class="research-layer-state is-neutral">НЕ ПРОВЕРЕНО</span></div>
+          <p id="research-derivatives-detail" class="muted" role="status">Публичные данные линейных контрактов. Поток ликвидаций пока не подтверждён и отображается отдельно.</p>
+          <button type="button" class="ghost research-layer-check" id="research-derivatives-check">Проверить рыночные показатели</button>
+          <div id="research-derivatives-metrics" class="research-layer-metrics"></div>
+        </section>
+        <section class="research-layer-row" aria-label="Макроэкономика США">
+          <div class="research-layer-head"><strong>Макроэкономика · BLS и СМИ</strong><span id="research-macro-state" class="research-layer-state is-neutral">НЕ ПРОВЕРЕНО</span></div>
+          <p id="research-macro-detail" class="muted" role="status">Официальный календарь BLS, месячные показатели и упоминания в СМИ. Время наблюдения не приравнивается ко времени публикации.</p>
+          <button type="button" class="ghost research-layer-check" id="research-macro-check">Проверить календарь и показатели</button>
+          <div id="research-macro-metrics" class="research-layer-metrics"></div>
+        </section>
+        <p class="footnote">Это исследовательские сведения, не торговые рекомендации. Ограничения сети, CORS, тарифов и региона показываются как ошибки, без вымышленных показателей.</p>
       </article>
     </section>
   </main>
