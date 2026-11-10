@@ -11,19 +11,19 @@ function segment(start,end){
  assert.ok(a>=0&&b>a,start);
  return html.slice(a,b);
 }
-test('five primary destinations include a direct research screen',()=>{
+test('four primary destinations and favorites-only entry to Asset',()=>{
  const dock=segment('<nav class="tabs bottom-dock"','</nav>');
  const tabs=[...dock.matchAll(/data-tab="([^"]+)"/g)].map(x=>x[1]);
- assert.deepEqual(tabs,['overview','radar','asset','forecasts','quality']);
+ assert.deepEqual(tabs,['overview','radar','forecasts','quality']);
  assert.equal(tabs.filter(x=>x==='quality').length,1);
  assert.ok(app.includes('tab.dataset.tab===activeDock(view)'));
- assert.ok(css.includes('grid-template-columns:repeat(5,minmax(0,1fr))'));
+ assert.ok(css.includes('.tabs.bottom-dock{grid-template-columns:repeat(4,minmax(0,1fr))'));
 });
 test('asset has three one-level sections and every original card remains',()=>{
  const section=segment('id="view-asset"','id="view-forecasts"');
  assert.deepEqual([...section.matchAll(/data-asset-area-button="([^"]+)"/g)]
   .map(x=>x[1]),['chart','structure','data']);
- assert.equal((section.match(/data-asset-pane="chart"/g)||[]).length,2);
+ assert.equal((section.match(/data-asset-pane="chart"/g)||[]).length,3);
  assert.equal((section.match(/data-asset-pane="structure"/g)||[]).length,3);
  assert.equal((section.match(/data-asset-pane="data"/g)||[]).length,4);
  const articles=[...section.matchAll(/<article class="card block[^>]+>/g)];
