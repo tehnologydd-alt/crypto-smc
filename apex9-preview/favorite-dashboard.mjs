@@ -961,6 +961,43 @@ export function initFavoriteResearch({
      ' · другие '+record.unknown));
    qualitySlot.append(tile);
   }
+  const evidenceSlot=id('forecast-evidence-cohorts');
+  if(evidenceSlot){
+   evidenceSlot.replaceChildren();
+   const cohorts=evidenceCohorts(scoped);
+   const feedNames={market:'Рынок',liquidity:'Стакан',onchain:'Сеть',
+    news:'Новости',macro:'Макро',social:'Соцсети'};
+   for(const [frame,label] of [['15m','M15'],['1h','H1'],['4h','H4']]){
+    const q=cohorts[frame],tile=create('section','forecast-evidence-cohort');
+    tile.append(create('strong','',label+' · снимки '+q.verified+'/'+q.published),
+     create('small','',
+      'Сохранённые завершения: '+q.completed+
+      ' · TP3 '+q.tp3+' · SL '+q.sl+
+      ' · прочие '+q.other));
+    const names=create('div','forecast-evidence-feeds');
+    for(const key of ['market','liquidity','onchain','news','macro','social']){
+     const item=q.feeds[key];
+     names.append(create('span','',
+      feedNames[key]+': '+item.observed+'/'+q.verified));
+    }
+    tile.append(names,create('small','',
+     'Радар M15/H1/H4/D1: '+
+     ['15m','1h','4h','1d'].map(tf=>
+      q.frames[tf].observed+'/'+q.verified).join(' · ')));
+    if(q.legacy||q.invalid)
+     tile.append(create('small','forecast-quality-warning',
+      'Без снимка: '+q.legacy+' · повреждённых: '+q.invalid));
+    evidenceSlot.append(tile);
+   }
+   if(lastTotal>lastRows.length)
+    evidenceSlot.append(create('p','forecast-quality-warning',
+     'Анализ частичный: доступны только загруженные '+lastRows.length+
+     ' из '+lastTotal+' записей. Это не оценка эффективности модели.'));
+   evidenceSlot.append(create('p','forecast-confluence-caveat',
+    'Числа означают наличие своевременно сохранённых источников. '+
+    'Новости и соцсети не считаются подтверждённым настроением; '+
+    'TP не равен результату реальной сделки.'));
+  }
   if(lastTotal>lastRows.length)
    summary.append(create('p','forecast-quality-warning',
     'Частичный журнал: загружены последние '+lastRows.length+
