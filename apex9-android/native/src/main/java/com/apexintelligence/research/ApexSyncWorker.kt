@@ -11,15 +11,17 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
  * Opt-in periodic refresh: public Binance Spot 24h prices ONLY for the
  * currently saved favorites (max 10). The manually selected asset is never
  * added to this background workload. WorkManager is periodic (15m minimum).
- * All failures are per asset; one unavailable ticker cannot hide other favorites.
+ * One batched ticker GET limits network usage. A failed GET preserves Room data.
  */
 class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -34,32 +36,36 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
         return try {
             val dao = ApexDatabase.get(applicationContext).researchDao()
             withContext(Dispatchers.IO) {
-                for (asset in favorites) {
-                    // Never retry the whole favorite set for an individual HTTP error.
-                    val record = try {
-                        val url = URL("https://data-api.binance.vision/api/v3/ticker/24hr?symbol=$asset")
-                        val connection = (url.openConnection() as HttpURLConnection).apply {
-                            requestMethod = "GET"
-                            connectTimeout = 7500
-                            readTimeout = 7500
-                            useCaches = false
-                            setRequestProperty("Accept", "application/json")
-                        }
-                        try {
-                            if (connection.responseCode != 200) null
-                            else {
-                                val json = JSONObject(connection.inputStream.bufferedReader()
-                                    .use { it.readText() })
-                                val received = System.currentTimeMillis()
+                // The public Binance REST API accepts an exact JSON symbol list.
+                // One 24h request serves at most ten favorites; no catalog-wide GET.
+                try {
+                    val symbols = URLEncoder.encode(JSONArray(favorites).toString(), "UTF-8")
+                    val url = URL("https://data-api.binance.vision/api/v3/ticker/24hr?symbols=$symbols")
+                    val connection = (url.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 7500
+                        readTimeout = 7500
+                        useCaches = false
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    try {
+                        if (connection.responseCode == 200) {
+                            val rows = JSONArray(connection.inputStream.bufferedReader()
+                                .use { it.readText() })
+                            val received = System.currentTimeMillis()
+                            val allowed = favorites.toSet()
+                            for (i in 0 until minOf(rows.length(), ApexPreferences.MAX_FAVORITES)) {
+                                val json = rows.optJSONObject(i) ?: continue
+                                val asset = json.optString("symbol")
+                                if (asset !in allowed) continue
                                 val observed = json.optLong("closeTime", -1L)
                                 val price = json.optString("lastPrice", "").toDoubleOrNull()
                                 val percent = json.optString("priceChangePercent", "").toDoubleOrNull()
-                                if (json.optString("symbol") != asset ||
-                                    observed < received - 180_000L ||
+                                if (observed < received - 180_000L ||
                                     observed > received + 60_000L ||
                                     price == null || price <= 0 || !price.isFinite() ||
-                                    percent == null || !percent.isFinite()) null
-                                else ResearchObservation(
+                                    percent == null || !percent.isFinite()) continue
+                                dao.saveObservation(ResearchObservation(
                                     id = "background:$asset:$observed",
                                     asset = asset,
                                     source = "binance:spot:24h",
@@ -73,15 +79,12 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                         .put("symbol", asset)
                                         .put("source", "Binance 24h spot ticker")
                                         .toString()
-                                )
+                                ))
                             }
-                        } finally { connection.disconnect() }
-                    } catch (_: Exception) {
-                        null
-                    }
-                    if (record != null) {
-                        dao.saveObservation(record)
-                    }
+                        }
+                    } finally { connection.disconnect() }
+                } catch (_: Exception) {
+                    // Keep previously saved prices and continue favorite-only H1/M5.
                 }
                 dao.pruneObservations(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(14))
             }
