@@ -46,7 +46,10 @@ export function measureResearchExperience(data,asset){
  const missing=reason=>({state:'INVALID',reason,frames:null,
   trained:false,calibratedProbability:null});
  if(data?.complete!==true||data.source!=='LOCAL_ROOM_PROGRESS_V1'||
-  !Array.isArray(data.favorites)||!Array.isArray(data.rows)||
+  !Array.isArray(data.favorites)||data.favorites.length>10||
+  data.favorites.some(x=>!assetOK(x))||
+  new Set(data.favorites).size!==data.favorites.length||
+  !Array.isArray(data.rows)||
   !data.favorites.includes(asset)||!validTime(data.sampledAt)||
   data.registrationAt!==Date.UTC(2026,10,11,0,0,0)||
   data.rows.length>30)return missing('Недоступна подтверждённая сводка Room.');
@@ -99,7 +102,8 @@ export function initOverviewResearchProgress({getFavorites,
   favoritesChanged(){},researchUpdated(){}};
  let current=null,busy=false,lastReadAt=0,request=0,lastError=null;
  const favoriteList=()=>normalizedFavorites(getFavorites?.());
- const same=(a,b)=>a.length===b.length&&a.every(x=>b.includes(x));
+ const same=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&
+  a.length===b.length&&a.every(x=>b.includes(x));
  function fromCache(favorites){
   let cache;
   try{
