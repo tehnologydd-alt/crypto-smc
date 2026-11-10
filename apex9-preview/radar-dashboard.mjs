@@ -457,7 +457,8 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   sort=event.target.value;render();
  });
  id('radar-refresh').addEventListener('click',()=>void scan({force:true,frame:interval}));
- render();
+ // Do not call render() here: favorites manager initializes later in app.mjs.
+ // start() renders only AFTER native favorites have loaded, avoiding a TDZ crash.
  return {
   start(){
    if(started)return;
