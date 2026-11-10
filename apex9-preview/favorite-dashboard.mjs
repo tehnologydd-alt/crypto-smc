@@ -562,6 +562,19 @@ export function initFavoriteResearch({
   });
  }
 
+ function updateFavoriteControls(){
+  id('favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
+  id('forecast-favorites-count').textContent=favorites.length+' / '+FAVORITES_MAX;
+  const selected=favorites.includes(getSelectedSymbol());
+  const toggle=id('favorite-toggle');
+  toggle.disabled=!native||busy||(!selected&&favorites.length>=FAVORITES_MAX);
+  toggle.textContent=selected?'★ Убрать из избранного':
+   favorites.length>=FAVORITES_MAX?'Максимум 10 активов':'☆ Добавить в избранное';
+  toggle.setAttribute('aria-pressed',selected?'true':'false');
+  status(native?'Избрано '+favorites.length+' из '+FAVORITES_MAX+
+   ' · сохраняется на Android-телефоне':
+   'Android-хранилище недоступно. Избранное не сохраняется в веб-просмотре.');
+ }
  function renderFavorites(){
   const rail=id('favorite-rail');
   const previousScrollLeft=rail.scrollLeft;
@@ -571,6 +584,34 @@ export function initFavoriteResearch({
   const focusedRole=focused?.classList?.contains('favorite-radar-link')?
    'radar':focused?.classList?.contains('favorite-open')?'open':
     focused?.classList?.contains('favorite-explain')?'explain':'card';
+  const existing=[...rail.children].filter(x=>x.classList?.contains('favorite-card'));
+  const unchanged=favorites.length>0&&existing.length===favorites.length&&
+   existing.every((card,i)=>card.dataset.symbol===favorites[i]);
+  if(unchanged){
+   const updates=radarNotices(),bySymbol=new Map(updates.map(x=>[x.symbol,x]));
+   renderRadarSummary(updates);
+   for(const card of existing){
+    const symbol=card.dataset.symbol,notice=bySymbol.get(symbol);
+    card.classList.toggle('selected',symbol===getSelectedSymbol());
+    card.classList.toggle('has-radar-update',Boolean(notice));
+    const old=card.querySelector('.favorite-radar-link');
+    const key=notice?notice.frame+':'+notice.interval+':'+notice.label:null;
+    if(old&&old.dataset.noticeKey!==key)old.remove();
+    if(notice&&!card.querySelector('.favorite-radar-link')){
+     const btn=create('button','favorite-radar-link',
+      '◉ '+notice.frame+' · '+notice.label);
+     btn.type='button';btn.dataset.noticeKey=key;
+     btn.title='Изменение Радара по закрытым свечам · '+notice.label;
+     btn.addEventListener('click',e=>{
+      e.stopPropagation();onOpenRadar?.(symbol,notice.interval);
+     });
+     card.append(btn);
+    }
+    paintFavoritePrice(symbol,card);
+   }
+   updateFavoriteControls();
+   return;
+  }
   clear(rail);
   const notices=radarNotices();
   const bySymbol=new Map(notices.map(x=>[x.symbol,x]));
@@ -653,15 +694,7 @@ export function initFavoriteResearch({
     break;
    }
   }
-  const selected=favorites.includes(getSelectedSymbol());
-  const toggle=id('favorite-toggle');
-  toggle.disabled=!native||busy||(!selected&&favorites.length>=FAVORITES_MAX);
-  toggle.textContent=selected?'★ Убрать из избранного':
-   favorites.length>=FAVORITES_MAX?'Максимум 10 активов':'☆ Добавить в избранное';
-  toggle.setAttribute('aria-pressed',selected?'true':'false');
-  status(native?'Избрано '+favorites.length+' из '+FAVORITES_MAX+
-   ' · сохраняется на Android-телефоне':
-   'Android-хранилище недоступно. Избранное не сохраняется в веб-просмотре.');
+  updateFavoriteControls();
  }
  async function updateFavorite(symbol,add){
   if(!native||busy)return false;
