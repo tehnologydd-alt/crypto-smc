@@ -755,8 +755,7 @@ export function initFavoriteResearch({
     !q.finished?'Нет завершённых M5':
     q.finished<12?'Мало завершённых наблюдений':
     'Описательная статистика M5';
-   study.append(create('p','forecast-quality-coverage',
-    evidenceLabel+' · без оценки вероятности или доходности'));
+   study.append(create('p','forecast-quality-coverage',evidenceLabel));
    if(!q.published){
     study.append(create('p','forecast-quality-empty',
      'Пока нет подтверждённых исследований по M5. Новые наблюдения появятся '+
@@ -765,7 +764,7 @@ export function initFavoriteResearch({
    const basics=create('div','forecast-quality-kpis');
    for(const [label,count] of [
     ['Опубликовано',q.published],['С входом',q.entered],
-    ['Завершено',q.finished],['В наблюдении',q.awaiting]]){
+    ['Завершено',q.finished]]){
     const metric=create('div','forecast-quality-kpi');
     metric.append(create('span','',label),
      create('strong','',fmt(count,0)));basics.append(metric);
@@ -909,6 +908,34 @@ export function initFavoriteResearch({
    if(stats.truncated)slot.append(create('p','forecast-quality-warning',
     'Показатели рассчитаны только по загруженным '+lastRows.length+
     ' из '+lastTotal+' записей. Общая история больше открытой выборки.'));
+   // Summary is the default view. Keep original Room evidence, per-asset
+   // comparisons and archived methods available without a crowded screen.
+   const glance=create('div','forecast-quality-glance');
+   glance.setAttribute('aria-label','Касания целей и исходы');
+   for(const [label,count] of [
+    ['TP1 · касания',q.tp1],['TP2 · касания',q.tp2],
+    ['TP3 · касания',q.tp3],['SL · исход',q.stop]]){
+    const metric=create('div','forecast-quality-glance-item');
+    metric.append(create('span','',label),create('strong','',fmt(count,0)));
+    glance.append(metric);
+   }
+   basics.after(glance);
+   const full=create('details','forecast-quality-expansion');
+   full.append(create('summary','',
+    'Развернуть все результаты и методику'));
+   // Preserve all existing nested evidence panels, including incomplete
+   // and archived observations. Nothing in this change alters counts.
+   const essential=new Set([heading,basics,glance]);
+   for(const child of [...study.children]){
+    if(essential.has(child)||child.classList.contains('forecast-quality-coverage')||
+     child.classList.contains('forecast-quality-empty'))continue;
+    full.append(child);
+   }
+   for(const child of [...slot.children]){
+    if(child!==study)full.append(child);
+   }
+   study.append(full);
+   slot.replaceChildren(study);
   }
  }
  function renderRows(){
@@ -992,6 +1019,12 @@ export function initFavoriteResearch({
  function message(text,error=false){
   const node=id('forecast-action-status');
   node.textContent=text;node.classList.toggle('is-offline',error);
+  // Routine diagnostics remain folded; real synchronization failures must
+  // become visible so the user is not left with silently stale information.
+  if(error){
+   const details=id('forecast-system-details');
+   if(details)details.open=true;
+  }
  }
  async function sync(force=false){
   if(document.hidden||syncing||!native||favorites.length===0)return;

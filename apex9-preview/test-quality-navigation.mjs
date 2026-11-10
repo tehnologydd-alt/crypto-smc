@@ -82,3 +82,24 @@ test('synthesis displays a brief before collapsed source evidence',()=>{
  assert.ok(dashboard.indexOf('renderBrief(report);')<
   dashboard.indexOf("metric('Актив',short(report.asset))"));
 });
+
+test('forecast screen leads with a swipeable results slide and hides explanations',()=>{
+ const css=readFileSync(new URL('./styles.css',import.meta.url),'utf8');
+ const favorites=readFileSync(new URL('./favorite-dashboard.mjs',import.meta.url),'utf8');
+ const section=html.slice(html.indexOf('id="view-forecasts"'),
+  html.indexOf('id="view-quality"'));
+ assert.ok(section.indexOf('data-insight-panel="0"')<
+  section.indexOf('data-insight-panel="1"'));
+ assert.ok(section.indexOf('forecast-observed-statistics')<
+  section.indexOf('class="card block quality-entry"'));
+ assert.ok(section.includes('id="forecast-insights-track"'));
+ assert.ok(section.includes('id="forecast-system-details"'));
+ assert.ok(section.includes('class="forecast-technical-notes"'));
+ assert.ok(section.includes('id="forecast-action-status"'));
+ assert.ok(app.includes("insightTrack.addEventListener('scroll'"));
+ assert.ok(css.includes('scroll-snap-type:x mandatory'));
+ assert.ok(css.includes('.forecast-insights-track>.card'));
+ assert.ok(favorites.includes("const full=create('details','forecast-quality-expansion')"));
+ assert.ok(favorites.includes("basics.after(glance)"));
+ assert.ok(favorites.includes('if(details)details.open=true'));
+});
