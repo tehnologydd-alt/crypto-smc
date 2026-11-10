@@ -721,6 +721,27 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Imported on app resume; only native observed closed-candle snapshots
+     * belonging to currently selected favorites are exposed to WebView.
+     * No extra HTTP calls are made by this read-only bridge method.
+     */
+    @PluginMethod
+    fun getRadarHistory(call: PluginCall) {
+        tasks.launch {
+            try {
+                val app=context.applicationContext
+                val favorites=ApexPreferences.read(app).favorites
+                val records=ApexRadarMonitor.read(app,favorites)
+                call.resolve(JSObject()
+                    .put("native",true)
+                    .put("source","ANDROID_NATIVE_RADAR")
+                    .put("records",records))
+            } catch (e: Exception) {
+                call.reject("Radar archive unavailable: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
     /** Update favorites atomically; no arbitrary UI-side 10-item enforcement. */
     @PluginMethod
     fun changeResearchFavorite(call: PluginCall) {
