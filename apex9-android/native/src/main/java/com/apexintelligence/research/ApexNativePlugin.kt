@@ -2,6 +2,7 @@ package com.apexintelligence.research
 
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
+import org.json.JSONObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
