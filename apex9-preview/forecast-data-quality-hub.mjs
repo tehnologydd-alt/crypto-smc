@@ -181,6 +181,10 @@ export function summarizeResearchDataQuality(archive,{
    return blocked('INVALID','Недоступен проверенный результат '+key+'.');
  }
  const coverage=asPublishedCoverage(archive.forecasts);
+ for(const tf of DATA_QUALITY_HUB_RULES.frames){
+  if(reports.probability.frames[tf]?.published!==coverage[tf].published)
+   return blocked('INVALID','Несогласованная выборка прогнозов для '+tf+'.');
+ }
  const frames=Object.fromEntries(DATA_QUALITY_HUB_RULES.frames.map(tf=>[
   tf,frameOverview(tf,coverage[tf],reports)
  ]));
