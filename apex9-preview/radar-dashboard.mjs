@@ -292,7 +292,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   status('Запрашиваем публичный список торговых пар…');
   const favorites=getFavorites();
   const allow=new Set(Array.isArray(favorites)?favorites.slice(0,10):[]);
-  const catalog=getCatalog().filter(symbol=>allow.has(symbol));
+  const catalog=[...allow].filter(symbol=>/^[A-Z0-9]{2,16}USDT$/.test(symbol));
   if(!allow.size){
    status('Радар анализирует только избранное. Добавьте актив через каталог.');
    if(generation===request){controller=null;id('radar-refresh').disabled=false;}
@@ -394,6 +394,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   focus(symbol,frame){
    if(typeof symbol!=='string'||!/^[A-Z0-9]{5,20}$/.test(symbol)||
     !validRadarInterval(frame))return false;
+   if(!getFavorites().includes(symbol))return false;
    focusedSymbol=symbol;focusedInterval=frame;
    interval=frame;filter='all';lastScanAt=0;lastInterval=null;
    render();
