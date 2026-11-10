@@ -12,6 +12,7 @@ import {attachSparkline} from './sparkline.mjs';
 import {attachAssetLogo} from './asset-logo.mjs';
 import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
+import {scenarioJournalState} from './scenario-journal-state.mjs';
 import {directionalQualitySummary} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
@@ -741,6 +742,9 @@ export function initFavoriteResearch({
   const quality=directionalQualitySummary(lastRows,{selectedIds:chosen,now});
   const scopedRows=journalMode==='tracked'?
    lastRows.filter(row=>selected.has(row.id)):lastRows;
+  const live=scenarioJournalState(lastRows,{
+   selectedIds:[...selected],mode:journalMode,stage,now
+  });
   const comparisons=compareScenarioConditions(scopedRows,{now});
   const byAsset=summarizeAssetQuality(scopedRows,{now,totalLoaded:lastTotal});
   id('forecast-quality-current-scope').textContent=
@@ -753,11 +757,11 @@ export function initFavoriteResearch({
    const study=create('section','forecast-quality-summary');
    study.setAttribute('aria-label','Качество прогнозов · H1 → M5');
    const heading=create('div','forecast-quality-heading');
-   heading.append(create('strong','','Качество прогнозов · H1 → M5'),
+   heading.append(create('strong','','Качество прогнозов · H1 → M5 · история'),
     create('small','',name==='tracked'?'Отмеченные · Room':'Все · Room'));
    study.append(heading);
    const unavailable=q.invalid+q.unverified;
-   const evidenceLabel=stats.truncated?'Частичный журнал':
+   const evidenceLabel=stats.truncated?'Частичный журнал · последние '+lastRows.length+' записей':
     unavailable?'Есть записи без полной проверки':
     !q.finished?'Нет завершённых M5':
     q.finished<12?'Мало завершённых наблюдений':
@@ -770,8 +774,9 @@ export function initFavoriteResearch({
    }
    const basics=create('div','forecast-quality-kpis');
    for(const [label,count] of [
-    ['Опубликовано',q.published],['С входом',q.entered],
-    ['Завершено',q.finished]]){
+    ['Опубликовано H1',q.published],
+    ['В работе сейчас · все ТФ',live.inWork],
+    ['Завершено H1',q.finished]]){
     const metric=create('div','forecast-quality-kpi');
     metric.append(create('span','',label),
      create('strong','',fmt(count,0)));basics.append(metric);
@@ -822,6 +827,10 @@ export function initFavoriteResearch({
     'TP3 и SL — разные конечные исходы. TP1–TP2 могут быть достигнуты '+
     'раньше SL; неопределённый порядок не считается успехом.'));
    details.append(outcomes);
+   details.append(create('p','forecast-quality-note',
+    'Касание входа за всю историю H1 → M5: '+q.entered+
+    ' (включая завершённые сценарии). Это не число прогнозов в работе. '+
+    '«В работе сейчас» относится только к видимому журналу выбранного режима.'));
    if(q.invalid||q.unverified){
     study.append(create('p','forecast-quality-warning',
      'Не включены в расчёт: несогласованные записи · '+q.invalid+
@@ -1039,25 +1048,31 @@ export function initFavoriteResearch({
    const on=b.dataset.forecastMode===journalMode;
    b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on?'true':'false');
   }
-  const visible=lastRows.filter(row=>forecastStage(row)===stage&&
-   (journalMode==='all'||selected.has(row.id)));
+  const view=scenarioJournalState(lastRows,{
+   selectedIds:[...selected],mode:journalMode,stage
+  });
+  for(const [key,count] of Object.entries(view.counts))
+   id('stage-count-'+key).textContent=String(count);
+  // Header, badges and list refer to the same records and chosen mode.
+  id('forecast-pending-count').textContent=String(view.inWork);
+  id('forecast-evaluated-count').textContent=String(view.completed);
+  const visible=view.visible;
   const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
   const multi=visible.filter(row=>Boolean(multiFrameHypothesis(row)));
-  const legacy=visible.filter(row=>!directionalHypothesis(row)&&
-   !multiFrameHypothesis(row));
+  const legacy=view.archive;
   const renderCard=row=>cardForForecast(row,{
    tracked:selected.has(row.id),
    onToggle:key=>{
     if(selected.has(key))selected.delete(key);else selected.add(key);
-    persistSelected();renderStats();renderRows();
+    persistSelected();renderRows();
    },
    onOpen:onSelectSymbol,getMini:renderMini
   });
   if(!directed.length&&!multi.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
-     'На этом этапе нет отмеченных односторонних сценариев. Новые TP/SL доступны после публикации направленной гипотезы.':
-     'На этом этапе пока нет новых направленных сценариев. APEX публикует рост или снижение с TP1–TP3 и SL только при достаточном подтверждении закрытыми H1.'));
+     'На выбранном этапе нет отмеченных направленных сценариев. Счётчики показывают только отмеченные карточки загруженного журнала.':
+     'На выбранном этапе нет направленных сценариев M15, H1 или H4.'));
   }else {
    for(const row of directed)box.append(renderCard(row));
    for(const row of multi)box.append(renderCard(row));
@@ -1093,15 +1108,10 @@ export function initFavoriteResearch({
   }
   lastRows=Array.isArray(data.forecasts)?data.forecasts:[];
   lastTotal=data.publishedCount||lastRows.length;
-  const counts=journalCounts(lastRows);
-  for(const [x,num] of Object.entries(counts))
-   id('stage-count-'+x).textContent=String(num);
-  id('forecast-pending-count').textContent=fmt(counts.PENDING_CONFIRMATION+counts.CONFIRMED+counts.ACTIVE,0);
-  id('forecast-evaluated-count').textContent=fmt(data.evaluatedCount,0);
-  if(!stageTouched&&!counts.PENDING_CONFIRMATION){
-   stage=counts.CONFIRMED?'CONFIRMED':counts.ACTIVE?'ACTIVE':
-    counts.COMPLETED?'COMPLETED':'PENDING_CONFIRMATION';
-  }
+  const scope=scenarioJournalState(lastRows,{
+   selectedIds:[...selected],mode:journalMode,stage
+  });
+  if(!stageTouched)stage=scope.preferred;
   for(const b of document.querySelectorAll('[data-forecast-stage]')){
    const on=b.dataset.forecastStage===stage;
    b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');
@@ -1169,7 +1179,12 @@ export function initFavoriteResearch({
  }
  for(const button of document.querySelectorAll('[data-forecast-mode]')){
   button.addEventListener('click',()=>{
-   journalMode=button.dataset.forecastMode;renderRows();
+   journalMode=button.dataset.forecastMode;
+   const view=scenarioJournalState(lastRows,{
+    selectedIds:[...selected],mode:journalMode,stage
+   });
+   if(!view.counts[stage])stage=view.preferred;
+   renderRows();
   });
  }
  id('favorite-toggle').addEventListener('click',()=>{
