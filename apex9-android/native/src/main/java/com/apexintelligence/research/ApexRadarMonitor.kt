@@ -197,16 +197,23 @@ object ApexRadarMonitor {
                         catch (_: Exception){null}
                     if (cached != null && cached.optLong("candleAt",0) >= expected)
                         continue
-                    val attempts=prefs.getLong("attempt:$key",0L)
-                    // One attempt per expected close unless the last call was >15m ago;
-                    // after a rate limit or outage no fast retry loop is possible.
-                    if (attempts >= expected && now-attempts<15*60_000L) continue
                     val rows=if (frame=="1h") {
+                        // H1 reuses closed Room candles; no extra network request.
                         dao.candles(asset,frame,LIMIT).reversed()
                     } else {
                         if (networkCalls >= MAX_HTTP_PER_WORK) continue
+                        // Persist a per-close attempt counter. A failed request can
+                        // retry once >=15 min later, but must not repeat every job.
+                        val closeKey="attempt:$key:close"
+                        val countKey="attempt:$key:count"
+                        val timeKey="attempt:$key:at"
+                        val same=prefs.getLong(closeKey,-1L)==expected
+                        val count=if (same) prefs.getInt(countKey,0) else 0
+                        val last=prefs.getLong(timeKey,0L)
+                        if (count>=2 || count>0 && now-last<15*60_000L) continue
+                        if (!prefs.edit().putLong(closeKey,expected)
+                            .putInt(countKey,count+1).putLong(timeKey,now).commit()) continue
                         networkCalls++
-                        prefs.edit().putLong("attempt:$key",now).commit()
                         try{download(asset,frame,now)}catch (_: Exception){null}
                     }
                     if (rows==null) continue
