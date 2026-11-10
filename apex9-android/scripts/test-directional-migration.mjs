@@ -48,7 +48,12 @@ test('one V2 at a time still uses its immutable H1 lifecycle',()=>{
 });
 test('old range studies do not occupy the visible forecast list by default',()=>{
  assert.ok(ui.includes('const directed=visible.filter(row=>Boolean(directionalHypothesis(row)))'));
- assert.ok(ui.includes('const legacy=visible.filter(row=>!directionalHypothesis(row)&&'));
+ assert.ok(ui.includes('const legacy=view.archive;'));
+ const journal=readFileSync(new URL('../../apex9-preview/scenario-journal-state.mjs',
+  import.meta.url),'utf8');
+ assert.ok(journal.includes('const archive=all.filter(row=>!directionalHypothesis(row)&&'));
+ assert.ok(journal.includes('const scenarios=all.filter(row=>Boolean(directionalHypothesis(row)||'));
+ assert.ok(journal.includes('const scoped=isTracked?scenarios.filter(row=>marked.has(row.id)):scenarios;'));
  assert.ok(ui.includes("const archive=create('details','forecast-range-archive')"));
  assert.ok(ui.includes("for(const row of directed)box.append(renderCard(row))"));
  assert.ok(ui.includes("for(const row of legacy)archive.append(renderCard(row))"));
