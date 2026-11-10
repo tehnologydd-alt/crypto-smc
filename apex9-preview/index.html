@@ -224,7 +224,8 @@
     </section>
 
     <section class="view hidden" id="view-asset" data-asset-area="chart" aria-labelledby="asset-title">
-      <div class="section-title"><h2 id="asset-title">Актив</h2><button type="button" class="ghost" data-go="catalog">Выбрать другой</button></div>
+      <div class="section-title"><h2 id="asset-title">Актив</h2><span class="asset-picker-hint">Избранное · свайпайте</span></div>
+      <div id="asset-favorite-strip" class="asset-favorite-strip" role="group" aria-label="Избранные активы"></div>
       <nav id="asset-workspace-anchor" class="asset-workspace-nav" role="group" aria-label="Разделы анализа выбранного актива">
         <button type="button" class="asset-workspace-button is-active" data-asset-area-button="chart" aria-pressed="true" aria-label="График: закрытые свечи и сценарии"><span>График</span><small>Свечи · сценарии</small></button>
         <button type="button" class="asset-workspace-button" data-asset-area-button="structure" aria-pressed="false" aria-label="Структура: режим рынка, скорость и BOS CHoCH"><span>Структура</span><small>Режим · BOS</small></button>
@@ -248,15 +249,11 @@
       </div>
     </section>
 
-      <div id="load-message" class="notice" role="status" aria-live="polite">Проверяем данные выбранного актива.</div>
-      <section class="asset-explain-panel" aria-label="Проверка объяснений выбранного актива">
-        <div class="asset-explain-copy">
-          <strong>Почему APEX пришёл к этим наблюдениям?</strong>
-          <p id="asset-quality-status" data-state="NOT_RUN" role="status" aria-live="polite">Историческая проверка не запускалась</p>
-          <small id="asset-quality-detail">Откройте объяснение, чтобы проверить закрытый H1-архив на устройстве.</small>
-        </div>
-        <button id="asset-explain" type="button">Объяснить исследования</button>
-      </section>
+      <details class="asset-quiet-detail" id="asset-source-diagnostics">
+        <summary>Состояние источников</summary>
+        <div id="load-message" class="notice" role="status" aria-live="polite">Проверяем данные выбранного актива.</div>
+      </details>
+
 
       <article class="card block candle-panel" data-asset-pane="chart">
         <div class="chart-heading">
@@ -275,11 +272,11 @@
           <canvas id="candle-canvas" width="680" height="330" tabindex="0" aria-label="Свечной график. Перетаскивайте для просмотра истории, увеличивайте двумя пальцами.">График требует Canvas</canvas>
         </div>
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
-        <p class="footnote">Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p>
+        <details class="asset-quiet-detail"><summary>О графике и сохранённой истории</summary><p class="footnote">Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p></details>
       </article>
       <article class="card block asset-scenarios" data-asset-pane="chart">
         <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
-        <div id="asset-scenario-status" class="muted">Проверяем локальные сценарии выбранного актива…</div>
+        <details class="asset-quiet-detail"><summary>Статус проверки сценариев</summary><div id="asset-scenario-status" class="muted">Проверяем сохранённые сценарии…</div></details>
         <div class="scenario-map-toolbar" role="group" aria-label="Сценарии на графике">
           <button type="button" class="scenario-map-filter selected" data-scenario-map-mode="all" aria-pressed="true">Все сценарии</button>
           <button type="button" class="scenario-map-filter" data-scenario-map-mode="tracked" aria-pressed="false">★ Отмеченные</button>
@@ -293,8 +290,16 @@
           <p id="scenario-replay-warning" class="scenario-replay-warning" aria-live="polite"></p>
           <p class="footnote">Replay использует только ранее закрытые свечи, сохранённые на устройстве. Точка H1 №3 — промежуточное наблюдение, не самостоятельное подтверждение. Пропуски не интерполируются; исход журнала сверяется с фактическим последним закрытием.</p>
         </section>
-        <p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p>
+        <details class="asset-quiet-detail"><summary>Условные обозначения сценариев</summary><p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p></details>
       </article>
+      <details class="asset-explain-panel asset-explain-fold" data-asset-pane="chart" aria-label="Объяснения исторического исследования">
+        <summary>Почему APEX пришёл к этим наблюдениям?</summary>
+        <div class="asset-explain-copy">
+          <p id="asset-quality-status" data-state="NOT_RUN" role="status" aria-live="polite">Историческая проверка не запускалась</p>
+          <small id="asset-quality-detail">Объяснение использует сохранённый архив завершённых свечей.</small>
+        </div>
+        <button id="asset-explain" type="button">Объяснить исследования</button>
+      </details>
       <article class="card block market-core-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Market Core · локальная математика</h3><span id="market-core-interval">H1</span></div>
         <p id="market-core-status" class="muted" aria-live="polite">Ожидаем завершённые свечи выбранного таймфрейма.</p>
@@ -314,17 +319,17 @@
       </article>
       <article class="card block market-matrix-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Согласованность горизонтов</h3><span>М15 · H1 · H4 · D1</span></div>
-        <p id="market-matrix-status" class="muted" aria-live="polite">Сравнение выполняется по запросу, чтобы экономить интернет и заряд батареи.</p>
-        <button class="ghost matrix-run asset-manual-control" id="market-matrix-run" type="button">Сравнить 4 периода</button>
+        <p id="market-matrix-status" class="muted" aria-live="polite">Показываем последнее подтверждённое сравнение, обновляем по завершённым свечам.</p>
+        <button class="ghost matrix-run" id="market-matrix-run" type="button">Обновить сравнение</button>
         <div id="market-matrix-items" class="market-matrix-list" aria-live="polite"></div>
-        <p id="market-matrix-summary" class="muted">Данных для сравнения ещё нет.</p>
-        <p class="footnote">Считаются только свежие завершённые свечи каждого горизонта. Старый локальный кэш показывается отдельно, но не засчитывается как текущее подтверждение.</p>
+        <p id="market-matrix-summary" class="muted">Сведения обновляются только после появления завершённых свечей.</p>
+        <details class="asset-quiet-detail"><summary>Методика расчёта</summary><p class="footnote">Считаются только свежие завершённые свечи каждого горизонта. Старый локальный кэш показывается отдельно, но не засчитывается как текущее подтверждение.</p></details>
       </article>
       <article class="card block structure-panel" data-asset-pane="structure">
         <div class="section-title"><h3>Рыночная структура</h3><span>По завершённым свечам</span></div>
         <p id="structure-summary" class="muted">Недостаточно исторических данных.</p>
         <div id="structure-events" class="structure-events"></div>
-        <p class="footnote">BOS и CHoCH — ретроспективные отметки пробоя подтверждённых экстремумов, не сигналы покупки или продажи. Последняя незакрытая свеча в расчёте не участвует.</p>
+        <details class="asset-quiet-detail"><summary>Методика расчёта</summary><p class="footnote">BOS и CHoCH — ретроспективные отметки пробоя подтверждённых экстремумов, не сигналы покупки или продажи. Последняя незакрытая свеча в расчёте не участвует.</p></details>
       </article>
       <article class="card block asset-events-panel" data-asset-pane="data">
         <div class="section-title"><h3>События и обсуждения актива</h3><span>Новости · экономика · соцсети</span></div>
@@ -384,7 +389,7 @@
         <p class="footnote">Это ограниченные публичные снимки видимых заявок, а не карта скрытой ликвидности или ликвидаций. Пропуски в истории не заполняются. Старая запись не считается текущим состоянием стакана.</p>
       </article>
       <article class="card block network-panel" id="onchain-network-panel" data-asset-pane="data">
-        <div class="section-title"><h3>On-Chain Core · сеть</h3><span>BTC · ETH · GRAM</span></div>
+        <div class="section-title"><h3>On-Chain · сеть актива</h3><span id="network-supported-chains">Подтверждённые сети</span></div>
         <p class="muted" id="network-status" role="status" aria-live="polite">Проверяем доступность сетевого адаптера…</p>
         <div class="network-heading">
           <strong id="network-name">Сетевая статистика</strong>
