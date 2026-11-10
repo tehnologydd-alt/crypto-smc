@@ -6,11 +6,11 @@ const read=x=>readFileSync(new URL(x,import.meta.url),'utf8');
 const html=read('./index.html'),app=read('./app.mjs'),
  dashboard=read('./radar-dashboard.mjs'),css=read('./styles.css');
 const packager=read('../apex9-android/scripts/prepare-web.mjs');
-test('five direct destinations, sources retained via research entry',()=>{
+test('four direct destinations, asset opens from favorites, sources stay in research',()=>{
  const dock=html.slice(html.indexOf('<nav class="tabs bottom-dock"'),
   html.indexOf('</nav>',html.indexOf('<nav class="tabs bottom-dock"')));
  assert.deepEqual([...dock.matchAll(/data-tab="([^"]+)"/g)].map(x=>x[1]),
-  ['overview','radar','asset','forecasts','quality']);
+  ['overview','radar','forecasts','quality']);
  assert.equal(html.split('id="view-radar"').length-1,1);
  assert.equal(html.split('id="view-sources"').length-1,1);
  assert.ok(html.includes('class="ghost quality-sources-link" data-go="sources"'));
