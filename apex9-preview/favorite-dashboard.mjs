@@ -1190,12 +1190,13 @@ export function initFavoriteResearch({
   const scope=scenarioJournalState(lastRows,{
    selectedIds:[...selected],mode:journalMode,stage
   });
-  if(!stageTouched)stage=scope.preferred;
+  if(!stageTouched&&journalMode==='all')stage=scope.preferred;
   for(const b of document.querySelectorAll('[data-forecast-stage]')){
    const on=b.dataset.forecastStage===stage;
    b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');
   }
-  renderRows();
+  if(journalMode==='tracked')void loadMarkedRows({force:true});
+  else renderRows();
  }
  function getScenarioRows(asset){
   return lastRows.filter(x=>x.asset===asset&&
@@ -1259,11 +1260,22 @@ export function initFavoriteResearch({
  for(const button of document.querySelectorAll('[data-forecast-mode]')){
   button.addEventListener('click',()=>{
    journalMode=button.dataset.forecastMode;
-   const view=scenarioJournalState(lastRows,{
-    selectedIds:[...selected],mode:journalMode,stage
-   });
-   if(!view.counts[stage])stage=view.preferred;
-   renderRows();
+   if(journalMode==='tracked'){
+    if(markedReadyFor===selectedKey()&&!markedError){
+     const view=scenarioJournalState(displayedJournal(),{
+      selectedIds:[...selected],mode:journalMode,stage
+     });
+     if(!view.counts[stage]&&view.scenarios.length)
+      stage=view.preferred;
+     renderRows();
+    }else void loadMarkedRows();
+   }else{
+    const view=scenarioJournalState(lastRows,{
+     selectedIds:[...selected],mode:journalMode,stage
+    });
+    if(!view.counts[stage])stage=view.preferred;
+    renderRows();
+   }
   });
  }
  id('favorite-toggle').addEventListener('click',()=>{
