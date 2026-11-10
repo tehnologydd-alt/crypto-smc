@@ -44,6 +44,7 @@ jobs:
           node --check apex9-preview/favorite-ticker.mjs
           node --check apex9-preview/asset-logo.mjs
           node --check apex9-preview/favorite-dashboard.mjs
+          node --check apex9-preview/forecast-directional-card.mjs
           node --check apex9-preview/radar-core.mjs
           node --check apex9-preview/radar-dashboard.mjs
           node --check apex9-preview/radar-auto-policy.mjs
@@ -52,6 +53,12 @@ jobs:
           node --check apex9-preview/market-matrix-cache.mjs
           node --check apex9-preview/onchain-chain-head.mjs
           node --check apex9-preview/onchain-dashboard.mjs
+      - name: Compact forecast and quality UI regression
+        run: |
+          node --test \
+            apex9-preview/test-quality-navigation.mjs \
+            apex9-preview/test-forecast-event-timeline.mjs \
+            apex9-preview/test-forecast-quality.mjs
       - name: News and asset attribution regression tests
         run: |
           node --test \
