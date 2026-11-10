@@ -36,7 +36,7 @@ const quotaLine=(r,mode)=>{
  return ' · запросов '+v.used+' / '+EDITORIAL_POLICY[mode].daily+
   ' за сутки (UTC)'+next;
 };
-export function initEditorialDashboard({getSymbol,onNewsObservation}={}){
+export function initEditorialDashboard({getSymbol,onNewsObservation,onMacroObservation}={}){
  let storage=null;
  try{storage=window.localStorage;}catch{}
  const budget=createEditorialBudget({storage});
@@ -45,6 +45,7 @@ export function initEditorialDashboard({getSymbol,onNewsObservation}={}){
  const gatewayEnabled=document.querySelector('meta[name="apex-news-gateway-mode"]')?.content==='same-origin';
  let active=0,controller=null;
  let latestNews=null;
+ let latestMacro=null;
  function recordNews(news){
   latestNews={...news,checkedAt:Date.now()};
   if(typeof onNewsObservation==='function')onNewsObservation(latestNews);
@@ -355,6 +356,8 @@ export function initEditorialDashboard({getSymbol,onNewsObservation}={}){
     archive.captureGlobal({news:merged});
    }else showFeed(mode,results[0]);
    if(mode==='macro'){
+    latestMacro={news:results[0],indicators:results[1],calendar:results[2],checkedAt:Date.now()};
+    if(typeof onMacroObservation==='function')onMacroObservation(latestMacro);
     archive.captureGlobal({macro:results[0],calendar:results[2]});
     showEventHistory();
     showIndicators(results[1]);
@@ -364,6 +367,9 @@ export function initEditorialDashboard({getSymbol,onNewsObservation}={}){
    if(seq!==active)return;
    showFeed(mode,{state:'OFFLINE',reason:String(e?.message||e).slice(0,140)});
    if(mode==='macro'){
+    latestMacro={news:{state:'OFFLINE'},indicators:{state:'OFFLINE'},
+     calendar:{state:'OFFLINE'},checkedAt:Date.now()};
+    if(typeof onMacroObservation==='function')onMacroObservation(latestMacro);
     showIndicators({state:'OFFLINE'});
     showCalendar({state:'OFFLINE'});
    }
@@ -422,5 +428,6 @@ export function initEditorialDashboard({getSymbol,onNewsObservation}={}){
  for(const mode of ['news','macro'])
   get('editorial-'+mode+'-refresh')?.addEventListener('click',
    ()=>void open(mode,{force:true}));
- return {open,openOverview,getNewsObservation:()=>latestNews};
+ return {open,openOverview,getNewsObservation:()=>latestNews,
+  getMacroObservation:()=>latestMacro};
 }
