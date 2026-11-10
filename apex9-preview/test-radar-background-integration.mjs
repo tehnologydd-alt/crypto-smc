@@ -13,7 +13,7 @@ const bundle=read('../apex9-android/scripts/prepare-web.mjs');
 const html=read('./index.html');
 test('Radar starts on app init, NOT navigation, and scans while other views are open',()=>{
  assert.ok(app.includes('radarDashboard.start()'));
- assert.ok(app.includes('onFavoritesChanged:()=>radarDashboard.favoritesChanged()'));
+ assert.ok(app.includes('onFavoritesChanged:()=>{radarDashboard.favoritesChanged();assetFavoritePicker?.render();}'));
  assert.ok(radar.includes('timer=setInterval(autoTick,60000)'));
  assert.ok(radar.includes('selectRadarAutoFrame(getFavorites(),checkpoints'));
  assert.ok(radar.includes('document.hidden'));
