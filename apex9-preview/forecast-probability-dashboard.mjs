@@ -2,6 +2,7 @@
 import {auditProbabilityReadiness} from './forecast-probability-readiness.mjs';
 import {auditPreOutcomeStrength} from './forecast-preoutcome-strength.mjs';
 import {auditFeatureContribution} from './forecast-feature-ablation.mjs';
+import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -236,6 +237,60 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
    abody.append(panel);
   }
  }
+ const repeat=auditRollingFeatureEvidence(archive?.forecasts,{
+  asset,complete:archive?.complete,
+  publishedCount:archive?.publishedCount,now});
+ const follow=element('section','forecast-probability-frame');
+ follow.append(element('strong','',
+  'Устойчивость признаков · три последовательных периода'));
+ if(!repeat.frames){
+  follow.append(element('p','forecast-quality-warning',repeat.reason));
+ }else{
+  follow.append(element('small','',
+   'Дополнительная проверка на новых данных: три независимые '+
+   'по горизонту группы без подгонки весов.'));
+  const readable={
+   OBSERVED_IN_ALL_THREE:'Улучшение наблюдалось во всех трёх периодах',
+   RECENT_DETERIORATION:'На последнем периоде признак ухудшил AUC',
+   EARLIER_ONLY:'Раннее улучшение не повторилось',
+   LATE_ONLY:'Улучшение есть только на последнем периоде',
+   NO_REPEATED_VALUE:'Повторяющейся пользы не обнаружено'
+  };
+  const fmt=x=>typeof x==='number'&&Number.isFinite(x)?
+   (x>=0?'+':'')+x.toFixed(3):'—';
+  for(const tf of ['15m','1h','4h']){
+   const window=repeat.frames[tf],tile=element('div','forecast-feature-period');
+   tile.append(element('strong','',
+    label[tf]+' · '+window.scored+' / 120 сохранённых баллов'),
+    element('small','',window.reason));
+   if(window.windows){
+    const counters=element('div','forecast-feature-periods');
+    for(let i=0;i<3;i++){
+     const section=element('div','forecast-feature-period'),part=window.windows[i];
+     section.append(element('span','','Период '+(i+1)),
+      element('small','',
+       'TP3 '+part.tp3+' · SL '+part.stop+
+       ' · непроверенных '+part.invalid+
+       ' · пропущено '+(part.purged+part.lateRecorded)));
+     counters.append(section);
+    }
+    tile.append(counters);
+   }
+   if(window.state==='DESCRIPTIVE'){
+    for(const feature of window.features){
+     tile.append(element('strong','',feature.label),
+      element('small','',readable[feature.state]||
+       'Нет однозначного заключения'),
+      element('span','',
+       'ΔAUC: '+feature.deltaAuc.map(fmt).join(' / ')));
+    }
+   }
+   follow.append(tile);
+  }
+ }
+ follow.append(element('p','forecast-confluence-caveat',
+  repeat.note||'Обучение и изменение прогнозов отключены.'));
+ abody.append(follow);
  abody.append(element('p','forecast-confluence-caveat',
   contribution.note||'Прогнозы, веса и исходы не менялись.'));
  ablation.append(abody);slot.append(ablation);
