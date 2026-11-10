@@ -114,7 +114,7 @@ test('independent audit results are reused instead of rerunning archive comparis
  const source=readFileSync(new URL('./forecast-feature-dashboard.mjs',import.meta.url),'utf8');
  const render=readFileSync(new URL('./forecast-probability-dashboard.mjs',import.meta.url),'utf8');
  assert.ok(source.includes('audits:verifiedAudits'));
- assert.ok(render.includes("onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner,calibration})"));
+ assert.ok(render.includes("onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner,calibration,release})"));
 });
 test('manual audit of an empty complete archive stores only collecting states',()=>{
  const map=new Map();
@@ -208,4 +208,37 @@ test('cached history is only created after a successful complete audit',()=>{
  assert.ok(source.includes('rememberDecisionHistory(result,{storage,now})'));
  assert.ok(source.includes('readDecisionHistory(asset,{storage,now})'));
  assert.ok(!source.includes('getMobileAssetResearchArchive('));
+});
+
+
+test('stage 5 frozen release summary persists only bounded valid audit states',async()=>{
+ const mkRelease=()=>({asset,frames:Object.fromEntries([
+  '15m','1h','4h'].map(tf=>[tf,{
+   state:'COLLECTING',newScored:10,learnerScored:20,required:240
+  }]))});
+ const summary=summarizeDecisionQuality({
+  asset,archive,challenge:mk(),regimes:mode(),now,
+  release:mkRelease()
+ });
+ assert.equal(summary.frames['15m'].release.state,'COLLECTING');
+ assert.equal(summary.frames['15m'].release.learnerScored,20);
+ const storage=new Map(),client={
+  getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)
+ };
+ client.setItem(DECISION_QUALITY_KEY,JSON.stringify({
+  version:summary.version,summaries:{[asset]:summary}
+ }));
+ assert.equal(readDecisionQuality(asset,{storage:client,now})
+  .frames['15m'].release.required,240);
+ summary.frames['15m'].release.learnerScored=-2;
+ client.setItem(DECISION_QUALITY_KEY,JSON.stringify({
+  version:summary.version,summaries:{[asset]:summary}
+ }));
+ assert.equal(readDecisionQuality(asset,{storage:client,now}),null);
+ const mismatch=mkRelease();mismatch.asset='ETHUSDT';
+ const rejected=summarizeDecisionQuality({
+  asset,archive,challenge:mk(),regimes:mode(),now,
+  release:mismatch
+ });
+ assert.equal(rejected.frames['15m'].release,null);
 });

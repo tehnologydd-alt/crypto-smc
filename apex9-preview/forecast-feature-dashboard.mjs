@@ -13,6 +13,7 @@ import {assessShadowTemporalMonitor} from './forecast-shadow-monitor.mjs';
 import {explainShadowEvidence} from './forecast-shadow-explanation.mjs';
 import {renderProbabilityReadiness} from './forecast-probability-dashboard.mjs';
 import {saveDecisionQualityAudit} from './overview-decision-quality.mjs';
+import {inspectResearchArchive} from './forecast-release-readiness.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -346,10 +347,12 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
       'Проверяем архив '+asset+': '+loaded+' / '+total;
     }});
    if(token!==serial||!getFavorites?.().includes(asset))return;
-   if(!archive.native||archive.error||archive.complete!==true){
-    status.textContent='Аудит не выполнен: полный архив недоступен.';
+   const preflight=inspectResearchArchive(archive,asset,{
+    now:Date.now()});
+   if(!preflight.ready){
+    status.textContent='Аудит не выполнен: '+preflight.state+'.';
     root.append(node('p','forecast-quality-warning',
-     archive.error||'Достигнут лимит чтения 1500 записей или история неполная.'));
+     preflight.reason));
     return;
    }
    const report=analyzeForecastFeatureHoldout(archive.forecasts,{
@@ -369,7 +372,8 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     });
    // Persist only the verified manual full-archive comparison. No silent
    // overview archive fetch, retraining, trading, or model promotion.
-   if(token===serial&&getFavorites?.().includes(asset))
+   if(token===serial&&verifiedAudits?.release&&
+    getFavorites?.().includes(asset))
     saveDecisionQualityAudit(archive,asset,{
      now:auditedAt,audits:verifiedAudits
     });

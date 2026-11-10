@@ -21,6 +21,8 @@ import {SHADOW_LEARNER_VERSION}
  from './forecast-shadow-probability-learner.mjs';
 import {SHADOW_CALIBRATION_VERDICTS}
  from './forecast-shadow-calibration.mjs';
+import {RESEARCH_RELEASE_VERSION}
+ from './forecast-release-readiness.mjs';
 
 export const DECISION_QUALITY_VERSION='APEX_OVERVIEW_DECISION_QUALITY_V1';
 export const DECISION_QUALITY_KEY='apex9:decision-quality:v1';
@@ -33,6 +35,11 @@ const validAsset=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const count=x=>Number.isSafeInteger(x)&&x>=0;
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const auc=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1;
+const releaseStates=['CHECK_DATA','REVIEWED','NEEDS_REVIEW','COLLECTING'];
+const validRelease=x=>x===undefined||x===null||(
+ releaseStates.includes(x?.state)&&
+ count(x.newScored)&&count(x.learnerScored)&&
+ x.required===240);
 const calibrationStates=['COLLECTING','CHECK_DATA','NEED_RADAR',
  'REVIEW_REGIME','REVIEW','RESEARCH_PASSED'];
 const validCalibration=x=>x===undefined||x===null||(
@@ -82,6 +89,7 @@ function validFrame(f){
   f.regimeRepeatedModels<=f.repeatedModels&&
   validDiagnosis(f.diagnosis)&&validPairs(f.pairs)&&validRegimes(f.pairRegimes)&&
   validLearner(f.learner)&&validCalibration(f.calibration)&&
+  validRelease(f.release)&&
   (f.baselineAuc===undefined||f.baselineAuc===null||
    (Array.isArray(f.baselineAuc)&&f.baselineAuc.length===3&&
     f.baselineAuc.every(auc)))&&
@@ -92,7 +100,7 @@ function validFrame(f){
 }
 export function summarizeDecisionQuality({archive,asset,challenge,regimes,
  diagnostics=null,pairs=null,pairRegimes=null,shadowLearner=null,
- calibration=null,now=Date.now()}={}){
+ calibration=null,release=null,now=Date.now()}={}){
  if(!validAsset(asset)||!time(now)||archive?.complete!==true||
   !Array.isArray(archive.forecasts)||!count(archive.publishedCount)||
   archive.publishedCount!==archive.forecasts.length||
@@ -177,6 +185,12 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
     {state:calibrationFrame.state,scored:calibrationFrame.scored,
      required:calibrationFrame.required,
      ...(calibrationFrame.verdict?{verdict:calibrationFrame.verdict}:{})}:null;
+  const releaseFrame=release?.asset===asset?
+   release.frames?.[tf]:null;
+  const releaseSummary=releaseFrame?{
+   state:releaseFrame.state,newScored:releaseFrame.newScored,
+   learnerScored:releaseFrame.learnerScored,
+   required:releaseFrame.required}:null;
   const diagnosticFrame=diagnostics?.asset===asset?
    diagnostics.frames?.[tf]:null;
   frames[tf]={state,published,recordedTerminal,
@@ -187,6 +201,7 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
    pairRegimes:validRegimes(regimeSummary)?regimeSummary:null,
    learner:validLearner(learnerSummary)?learnerSummary:null,
    calibration:validCalibration(calibrationSummary)?calibrationSummary:null,
+   release:validRelease(releaseSummary)?releaseSummary:null,
    diagnosis:diagnosticFrame&&validDiagnosis(diagnosticFrame)?
     {state:diagnosticFrame.state,codes:diagnosticFrame.codes.slice(0,5)}:null};
   if(!validFrame(frames[tf]))return null;
@@ -297,7 +312,7 @@ export function saveDecisionQualityAudit(archive,asset,{
   diagnostics:audits?.diagnostics,pairs:audits?.pairs,
   pairRegimes:audits?.pairRegimes,
   shadowLearner:audits?.shadowLearner,
-  calibration:audits?.calibration,now});
+  calibration:audits?.calibration,release:audits?.release,now});
  if(!result)return false;
  let previous={};
  try{
@@ -468,6 +483,17 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
    row.append(setText('small','Калибровка: '+
     (frame.calibration.verdict||'накапливаются исходы')+
     ' · исследование, не торговая вероятность',
+    'overview-quality-hint'));
+  }
+  if(!frame.outOfDate&&frame.release){
+   const state=frame.release.state;
+   const title=state==='CHECK_DATA'?'Нужна проверка данных':
+    state==='REVIEWED'?'Исследование проверено':
+    state==='NEEDS_REVIEW'?'Есть ограничения исследования':
+    'Продолжается сбор новых наблюдений';
+   row.append(setText('small',
+    'Этап 5 · '+title+' · '+frame.release.learnerScored+
+    ' / 240 публикаций с признаками · без автоматических сделок',
     'overview-quality-hint'));
   }
   const trend=assessBaselineRankTrend(frame.baselineAuc);

@@ -15,6 +15,8 @@ import {auditShadowProbabilityLearner}
  from './forecast-shadow-probability-learner.mjs';
 import {auditShadowCalibration}
  from './forecast-shadow-calibration.mjs';
+import {inspectResearchRelease}
+ from './forecast-release-readiness.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -366,7 +368,7 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  abody.append(arena);
  const regimes=auditShadowRegimes(archive?.forecasts,{
   asset,complete:archive?.complete,
-  publishedCount:archive?.publishedCount,now});
+  publishedCount:archive?.publishedCount,now,challenger:challenge});
  const modes=element('details',
   'forecast-probability-details forecast-shadow-regime-detail');
  modes.append(element('summary','',
@@ -706,6 +708,24 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  calibrationBody.append(element('p','forecast-confluence-caveat',
   calibration.note||'Экспериментальная калибровка недоступна.'));
  calibrationPanel.append(calibrationBody);
+ const release=inspectResearchRelease({asset,archive,quality,
+  challenge,regimes,shadowLearner,calibration,checkedAt:now});
+ const releasePanel=element('section','forecast-release-gate');
+ releasePanel.append(element('strong','',
+  'Этап 5 из 5 · итоговая проверка исследования'));
+ releasePanel.append(element('p','',
+  'Состояние: '+release.state+' · архив '+(release.records||0)+
+  ' записей, только избранный актив. '+
+  'Техническая готовность не равна доказанному качеству модели.'));
+ for(const tf of ['15m','1h','4h']){
+  const f=release.frames?.[tf];
+  releasePanel.append(element('small','',
+   label[tf]+' · '+(f?.state||release.state)+
+   (f?' · '+f.learnerScored+'/240 новых наблюдений. ':' · ')+
+   (f?.reason||release.reason)));
+ }
+ releasePanel.append(element('small','',
+  release.note||'Проверка целостности недоступна.'));
  const diagnosis=diagnoseQualityFactors({asset,quality,challenge,regimes});
  const diagnosticRoot=element('details','forecast-quality-diagnostics');
  diagnosticRoot.append(element('summary','',
@@ -729,9 +749,9 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  diagnosticBody.append(element('p','forecast-confluence-caveat',
   diagnosis.note||'Ни одна формула не изменяется.'));
  diagnosticRoot.append(diagnosticBody);
- slot.prepend(calibrationPanel,learned,diagnosticRoot,pairPanel,qualityRoot);
+ slot.prepend(releasePanel,calibrationPanel,learned,diagnosticRoot,pairPanel,qualityRoot);
  // Reuse already computed independent audits in the explicit manual workflow;
  // avoid repeating three full 1500-row passes on a slow Android device.
- if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner,calibration});
+ if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2,shadowLearner,calibration,release});
  return report;
 }

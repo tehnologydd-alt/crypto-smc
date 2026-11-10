@@ -10,7 +10,7 @@ import {inspectPreOutcomeStrength} from './forecast-preoutcome-strength.mjs';
 import {featureFrameOf,featureWindowAudit,rankingAuc}
  from './forecast-feature-ablation.mjs';
 import {
- auditShadowChallengers,SHADOW_CHALLENGER_REGISTRATION,
+ auditShadowChallengers,SHADOW_CHALLENGER_VERSION,SHADOW_CHALLENGER_REGISTRATION,
  SHADOW_CHALLENGER_RECIPES,SHADOW_CHALLENGER_RULES,
  challengerScore
 } from './forecast-shadow-challengers.mjs';
@@ -121,14 +121,26 @@ function regimeComparison(windows,mode){
   models};
 }
 export function auditShadowRegimes(rows,{
- asset,complete=false,publishedCount=null,now=Date.now()
+ asset,complete=false,publishedCount=null,now=Date.now(),
+ challenger=null
 }={}){
- const core=auditShadowChallengers(rows,{asset,complete,publishedCount,now});
+ // The manual full-archive audit has already computed this report.
+ // Reusing it avoids a second O(n) challenger pass on Android.
+ const core=challenger??auditShadowChallengers(rows,{
+  asset,complete,publishedCount,now
+ });
  const blocked=(state,reason)=>({
   version:SHADOW_REGIMES_VERSION,asset,state,reason,
   frames:null,autoPromoted:false,modelChanged:false,
   calibratedProbability:null,rules:SHADOW_REGIMES_RULES
  });
+ if(challenger&&(core.version!==SHADOW_CHALLENGER_VERSION||
+  core.asset!==asset||
+  core.registeredAt!==SHADOW_CHALLENGER_REGISTRATION||
+  core.autoPromoted!==false||core.modelChanged!==false||
+  !core.frames))
+  return blocked('INVALID_EVIDENCE',
+   'Несогласованный исходный аудит Shadow. Повторите полный архив.');
  if(!core.frames)return blocked(core.state,core.reason);
  const frames={};
  for(const tf of ['15m','1h','4h']){
