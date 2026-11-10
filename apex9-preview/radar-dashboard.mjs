@@ -1,9 +1,14 @@
 /**
  * APEX Radar page — research-only market discovery.
- * No orders, AI votes, fabricated confidence, or hidden background scanning.
- * One timeframe and at most 12 pairs / 3 concurrent candle requests.
+ * No orders, AI votes, or fabricated confidence. Automatic research scans
+ * only saved favorites and only confirmed closed candle timeframes.
  */
 import {fetchCandles} from './candles.mjs';
+import {getMobileRadarHistory} from './mobile-bridge.mjs';
+import {validateRadarObservation} from './radar-changes.mjs';
+import {createRadarDisplayCache} from './radar-display-cache.mjs';
+import {readRadarAutoCheckpoints,writeRadarAutoCheckpoint,
+ selectRadarAutoFrame} from './radar-auto-policy.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {readRadarChanges,saveRadarChanges,mergeRadarObservation,
  createRadarObservation,radarChangeCount} from './radar-changes.mjs';
@@ -30,7 +35,7 @@ const nicePair=s=>s.endsWith('USDT')?s.slice(0,-4)+'/USDT':s;
 const DIRECTION=Object.freeze({UP:'↑ Рост',DOWN:'↓ Снижение',FLAT:'→ Боковое',UNKNOWN:'—'});
 const MODE=Object.freeze({DIRECTIONAL:'Направленный участок',RANGE:'Диапазон',MIXED:'Смешанный',UNKNOWN:'—'});
 const FRAME=Object.freeze({'15m':'M15','1h':'H1','4h':'H4','1d':'D1'});
-const REFRESH_MS=3*60000,UNIVERSE_MS=8*60000;
+const UNIVERSE_MS=8*60000;
 const ALIGNMENT_STATE=Object.freeze({
  INSUFFICIENT:'Недостаточно подтверждений',DIVERGENT:'Разнонаправленные таймфреймы',
  UP_CONTEXT:'Преобладает наблюдаемый рост',
@@ -51,10 +56,28 @@ const EVENT_TEXT=Object.freeze({
 
 export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpenAsset=()=>{}}={}){
  let lastUniverseSymbols='',interval='1h',filter='all',sort='turnover',request=0,controller=null,
-  active=false,rows=[],lastScanAt=0,lastInterval=null,
+  active=false,started=false,rows=[],lastScanAt=0,lastInterval=null,
   universe=null,universeAt=0,failures=0,total=0;
  const storage=(()=>{try{return globalThis.localStorage||null;}catch{return null;}})();
  const history=readRadarChanges(storage);
+ const displayCache=createRadarDisplayCache({storage});
+ const checkpoints=readRadarAutoCheckpoints(storage);
+ const frameRows=new Map(),frameChecked=new Map();
+ let timer=null;
+ function uiRows(frame){
+  return frameRows.get(frame)||displayCache.read(frame,getFavorites());
+ }
+ function syncUi(){
+  if(!active)return;
+  rows=uiRows(interval);
+  render();
+  const latest=frameChecked.get(interval);
+  const label=latest?date(latest):
+   rows.length?'Сохранённые наблюдения, обновление будет после закрытой свечи':
+   'Ожидаются первые автоматические проверки';
+  status(latest?'Последняя проверка · '+label+' · '+FRAME[interval]+
+   ' · только завершённые свечи':label);
+ }
  const alignment=new Map();
  let alignmentController=null,alignmentGeneration=0,alignmentSymbol=null;
  let focusedSymbol=null,focusedInterval=null;
@@ -89,7 +112,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   }
   panel.append(events);
   panel.append(create('p','radar-focus-note',
-   'Сохранённое наблюдение. Радар проверяет до 12 пар с крупнейшим оборотом, поэтому выбранный актив может отсутствовать в текущем списке. Это не прогноз.'));
+   'Проверены только избранные активы. Сохранённое сравнение завершённых свечей не является прогнозом.'));
   const action=create('button','radar-focus-open','Открыть страницу актива');
   action.type='button';
   action.addEventListener('click',()=>onOpenAsset(focusedSymbol));
@@ -170,7 +193,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   renderFocus();
   const root=id('radar-results');root.replaceChildren();
   const valid=rows.filter(row=>row.analysis?.state==='OK');
-  id('radar-coverage').textContent=valid.length+' из '+total+' проверенных активов';
+  id('radar-coverage').textContent=valid.length+' из '+(getFavorites()?.length||0)+' избранных';
   id('radar-change-count').textContent=radarChangeCount(rows)+' с изменениями';
   const sorted=filterRadarRows(rows,{filter,sort});
   if(!sorted.length){
@@ -186,7 +209,9 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
    const top=create('div','radar-record-top');
    const names=create('div','radar-record-name');
    names.append(create('strong','',nicePair(row.symbol)),
-    create('small','',FRAME[interval]+' · Binance Spot'));
+    create('small','',FRAME[interval]+' · Binance Spot'+
+     (row.saved?' · сохранённый снимок':'')));
+
    const direction=create('span','radar-direction dir-'+row.analysis.direction.toLowerCase(),
     DIRECTION[row.analysis.direction]||'—');
    top.append(names,direction);card.append(top);
@@ -208,7 +233,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
    const meta=create('div','radar-record-meta');
    meta.append(create('small','','Закрытие свечи: '+date(row.analysis.lastClosedAt)),
     create('small','','Изменение тикера 24 ч: '+
-     (row.change24h>0?'+':'')+fmt(row.change24h,2)+'%'));
+     (Number.isFinite(row.change24h)?(row.change24h>0?'+':'')+fmt(row.change24h,2)+'%':'нет снимка')));
    card.append(meta);
    const changeBox=create('div','radar-change-box');
    const compare=row.change;
