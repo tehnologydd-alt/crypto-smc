@@ -743,17 +743,20 @@ export function initFavoriteResearch({
  }
  function renderStats(){
   const now=Date.now(),chosen=[...selected];
-  const stats=journalObservedStats(lastRows,{
-   selectedIds:chosen,totalPublished:lastTotal,now
+  const scopedJournal=displayedJournal();
+  const stats=journalObservedStats(scopedJournal,{
+   selectedIds:chosen,
+   totalPublished:journalMode==='tracked'?null:lastTotal,now
   });
-  const quality=directionalQualitySummary(lastRows,{selectedIds:chosen,now});
+  const quality=directionalQualitySummary(scopedJournal,{selectedIds:chosen,now});
   const scopedRows=journalMode==='tracked'?
-   lastRows.filter(row=>selected.has(row.id)):lastRows;
-  const live=scenarioJournalState(lastRows,{
-   selectedIds:[...selected],mode:journalMode,stage,now
+   scopedJournal.filter(row=>selected.has(row.id)):scopedJournal;
+  const live=scenarioJournalState(scopedJournal,{
+   selectedIds:chosen,mode:journalMode,stage,now
   });
   const comparisons=compareScenarioConditions(scopedRows,{now});
-  const byAsset=summarizeAssetQuality(scopedRows,{now,totalLoaded:lastTotal});
+  const byAsset=summarizeAssetQuality(scopedRows,{now,
+   totalLoaded:journalMode==='tracked'?scopedRows.length:lastTotal});
   id('forecast-quality-current-scope').textContent=
    journalMode==='tracked'?'Отмеченные':'Все прогнозы';
   for(const [name,value] of [['all',stats.all],['tracked',stats.tracked]]){
@@ -968,7 +971,7 @@ export function initFavoriteResearch({
   if(!summary||!qualitySlot)return;
   summary.replaceChildren();qualitySlot.replaceChildren();
   const scoped=journalMode==='tracked'?
-   lastRows.filter(x=>selected.has(x.id)):lastRows;
+   displayedJournal().filter(x=>selected.has(x.id)):lastRows;
   const stats=multiFrameQuality(scoped);
   for(const [frame,label] of [['15m','M15'],['4h','H4']]){
    const record=stats[frame],tile=create('div','forecast-confluence-kpi');
@@ -1008,7 +1011,7 @@ export function initFavoriteResearch({
       'Без снимка: '+q.legacy+' · повреждённых: '+q.invalid));
     evidenceSlot.append(tile);
    }
-   if(lastTotal>lastRows.length)
+   if(journalMode==='all'&&lastTotal>lastRows.length)
     evidenceSlot.append(create('p','forecast-quality-warning',
      'Анализ частичный: доступны только загруженные '+lastRows.length+
      ' из '+lastTotal+' записей. Это не оценка эффективности модели.'));
@@ -1017,7 +1020,7 @@ export function initFavoriteResearch({
     'Новости и соцсети не считаются подтверждённым настроением; '+
     'TP не равен результату реальной сделки.'));
   }
-  if(lastTotal>lastRows.length)
+  if(journalMode==='all'&&lastTotal>lastRows.length)
    summary.append(create('p','forecast-quality-warning',
     'Частичный журнал: загружены последние '+lastRows.length+
     ' из '+lastTotal+' записей. Совпадения могут быть неполными.'));
