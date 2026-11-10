@@ -4,6 +4,10 @@ import {readFileSync} from 'node:fs';
 import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {auditRollingFeatureEvidence,ROLLING_FEATURE_VERSION,
  ROLLING_FEATURE_RULES} from './forecast-feature-rolling.mjs';
+import {
+ auditShadowChallengers,challengerScore,SHADOW_CHALLENGER_VERSION,
+ SHADOW_CHALLENGER_RECIPES,SHADOW_CHALLENGER_REGISTRATION
+} from './forecast-shadow-challengers.mjs';
 
 const M=900000,H=3600000,H4=14400000;
 const asset='BTCUSDT',now=1900000000000;
@@ -11,8 +15,8 @@ const tfStep=tf=>tf==='15m'?M:tf==='4h'?H4:H;
 const clean=x=>Number(x.toPrecision(13));
 function scenario(tf,i,{efficiency=i%2===0?.9:.1,
  travelNorm=.5,volumeNorm=.5,volumeAvailable=true,
- outcome=i%2===0?'TP3':'STOP',offset=0}={}){
- const step=tfStep(tf),a=Math.floor(1760000000000/step)*step-1+
+ outcome=i%2===0?'TP3':'STOP',offset=0,baseEpoch=1760000000000}={}){
+ const step=tfStep(tf),a=Math.floor(baseEpoch/step)*step-1+
   (25*i+offset)*step;
  const publishedAt=a+2000,horizon=tf==='15m'?16:24;
  const end=a+horizon*step,observe=tf==='1h'?300000:step;
@@ -72,7 +76,10 @@ const group=(tf,n=150,options={})=>Array.from({length:n},(_,i)=>
  scenario(tf,i,{...options,
   outcome:options.outcomeOf?.(i)??(i%2===0?'TP3':'STOP'),
   efficiency:options.efficiencyOf?.(i)??(i%2===0?.9:.1),
-  volumeAvailable:options.volumeOf?.(i)??true
+  volumeAvailable:options.volumeOf?.(i)??true,
+  volumeNorm:options.volumeNormOf?.(i)??.5,
+  travelNorm:options.travelNormOf?.(i)??.5,
+  baseEpoch:options.baseEpoch??1760000000000
  }));
 const audit=rows=>auditRollingFeatureEvidence(rows,{
  asset,complete:true,publishedCount:rows.length,now});
@@ -182,4 +189,120 @@ test('manual UI and APK include the same frozen triple-window logic',()=>{
  assert.ok(ui.includes('Устойчивость признаков · три последовательных периода'));
  assert.ok(ui.includes('ΔAUC:'));
  assert.ok(web.includes("'forecast-feature-rolling.mjs'"));
+});
+
+
+const futureEpoch=Date.UTC(2026,10,12,0,0,0);
+const shadow=rows=>auditShadowChallengers(rows,{
+ asset,complete:true,publishedCount:rows.length,now});
+const challengers=tf=>group(tf,150,{
+ baseEpoch:futureEpoch,
+ efficiencyOf:i=>i%2===0?.6:.4,
+ volumeNormOf:i=>i%2===0?0:1
+});
+test('shadow recipes are frozen, preregistered and never probabilities',()=>{
+ assert.equal(SHADOW_CHALLENGER_VERSION,'APEX_SHADOW_CHALLENGERS_V1');
+ assert.equal(SHADOW_CHALLENGER_REGISTRATION,Date.UTC(2026,10,11));
+ assert.deepEqual(SHADOW_CHALLENGER_RECIPES.map(x=>x.id),[
+  'CURRENT_V1','STRUCTURE_V1','IMPULSE_V1','VOLUME_V1']);
+ assert.equal(SHADOW_CHALLENGER_RECIPES[0].weights.efficiency,.5);
+ assert.equal(Object.isFrozen(SHADOW_CHALLENGER_RECIPES[0].weights),true);
+ assert.equal(challengerScore({efficiency:.6,travelNorm:.5,
+  volumeNorm:0},SHADOW_CHALLENGER_RECIPES[0]),.45);
+ assert.equal(challengerScore({efficiency:NaN,travelNorm:.5,
+  volumeNorm:1},SHADOW_CHALLENGER_RECIPES[0]),null);
+});
+test('old pre-registration forecasts cannot be used even when their outcomes are known',()=>{
+ const old=group('15m',150);
+ const report=shadow(old);
+ const x=report.frames['15m'];
+ assert.equal(x.historicalExcluded,150);
+ assert.equal(x.futurePublished,0);
+ assert.equal(x.newScored,0);
+ assert.equal(x.state,'COLLECTING');
+ assert.equal(x.models.length,0);
+ assert.equal(report.autoPromoted,false);
+});
+test('future-only STRUCTURE challenger beats same baseline in three windows',()=>{
+ const rows=challengers('15m'),report=shadow(rows);
+ const frame=report.frames['15m'];
+ assert.equal(report.state,'DESCRIPTIVE');
+ assert.equal(frame.state,'DESCRIPTIVE');
+ assert.equal(frame.futurePublished,150);
+ assert.equal(frame.newScored,150);
+ assert.deepEqual(frame.windows.map(w=>w.decisive),[40,40,40]);
+ assert.deepEqual(frame.windows.map(w=>w.tp3),[20,20,20]);
+ assert.equal(frame.models.length,3);
+ const structure=frame.models.find(x=>x.id==='STRUCTURE_V1');
+ assert.equal(structure.state,'OBSERVED_THREE_TIMES');
+ assert.deepEqual(structure.baselineAuc,[0,0,0]);
+ assert.deepEqual(structure.challengerAuc,[1,1,1]);
+ assert.deepEqual(structure.deltaAuc,[1,1,1]);
+ assert.ok(frame.models.every(m=>m.promoted===false));
+ assert.equal(frame.modelChanged,false);
+ assert.equal(report.calibratedProbability,null);
+});
+test('late change reverses comparison: no model is promoted',()=>{
+ const rows=group('15m',150,{
+  baseEpoch:futureEpoch,
+  efficiencyOf:i=>i%2===0?.6:.4,
+  volumeNormOf:i=>i%2===0?0:1,
+  outcomeOf:i=>i>=100?
+   (i%2===0?'STOP':'TP3'):(i%2===0?'TP3':'STOP')
+ });
+ const report=shadow(rows),struct=report.frames['15m'].models.find(x=>
+  x.id==='STRUCTURE_V1');
+ assert.equal(struct.state,'RECENTLY_WORSE');
+ assert.deepEqual(struct.deltaAuc,[1,1,-1]);
+ assert.equal(report.autoPromoted,false);
+});
+test('post-registration M15 H1 and H4 use separate fixed observations',()=>{
+ const rows=[
+  ...challengers('15m'),...challengers('1h'),...challengers('4h')
+ ];
+ const report=shadow(rows);
+ for(const tf of ['15m','1h','4h']){
+  const f=report.frames[tf];
+  assert.equal(f.state,'DESCRIPTIVE');
+  assert.deepEqual(f.windows.map(w=>w.decisive),[40,40,40]);
+  assert.equal(f.models.find(x=>x.id==='STRUCTURE_V1').state,
+   'OBSERVED_THREE_TIMES');
+ }
+});
+test('future outcome timestamps are embargoed and cannot influence earlier window',()=>{
+ const rows=challengers('15m');
+ const nextWindowStart=rows[70].publishedAt; // first of the last 120/3 windows
+ rows[31].evaluation.evaluatedAt=nextWindowStart+1000;
+ const f=shadow(rows).frames['15m'];
+ assert.equal(f.state,'DESCRIPTIVE');
+ assert.equal(f.windows[0].lateRecorded,1);
+ assert.equal(f.windows[0].decisive,39);
+});
+test('unknown volume never produces a claimed challenger winner',()=>{
+ const rows=group('15m',150,{
+  baseEpoch:futureEpoch,volumeOf:i=>i%2===0
+ });
+ const f=shadow(rows).frames['15m'];
+ assert.equal(f.state,'LOW_COVERAGE');
+ assert.equal(f.models.length,0);
+ assert.equal(f.windows[2].volumeCoverage,.5);
+});
+test('incomplete archive, duplicate IDs and forged scores block shadow comparison',()=>{
+ const rows=challengers('15m');
+ assert.equal(auditShadowChallengers(rows,{
+  asset,complete:false,publishedCount:150,now}).state,'INCOMPLETE');
+ assert.equal(shadow([...rows.slice(0,-1),rows[0]]).state,'INVALID');
+ const forged=structuredClone(rows);
+ forged[50].hypothesis.preOutcomeStrength.score=99;
+ assert.equal(shadow(forged).frames['15m'].state,'INVALID_EVIDENCE');
+});
+test('new challenger module is present in manual research and APK packaging',()=>{
+ const panel=readFileSync(new URL('./forecast-probability-dashboard.mjs',
+  import.meta.url),'utf8');
+ const builder=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',
+  import.meta.url),'utf8');
+ assert.ok(panel.includes('auditShadowChallengers(archive?.forecasts'));
+ assert.ok(panel.includes('Shadow Challenger · три экспериментальные формулы'));
+ assert.ok(panel.includes('Регистрация 11.11.2026, 00:00 UTC'));
+ assert.ok(builder.includes("'forecast-shadow-challengers.mjs'"));
 });
