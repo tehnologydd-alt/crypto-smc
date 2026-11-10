@@ -469,7 +469,7 @@ export function initFavoriteResearch({
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
   archiveExpanded=false,lastRows=[],lastTotal=0;
- const MINI_CACHE=new Map(),MINI_LOADING=new Set();
+ const MINI_CACHE=new Map(),MINI_LOADING=new Set(),MINI_AT=new Map();
  let localStore=null;
  try{localStore=globalThis.localStorage;}catch{}
  const favoriteTickers=createFavoriteTickerFeed({storage:localStore});
@@ -513,17 +513,21 @@ export function initFavoriteResearch({
    JSON.stringify([...selected].slice(-300)));}catch{}
  };
  function renderMini(symbol,slot){
-  if(MINI_CACHE.has(symbol)){attachSparkline(slot,MINI_CACHE.get(symbol));return;}
-  attachSparkline(slot,[]);
-  if(MINI_LOADING.has(symbol))return;
-  MINI_LOADING.add(symbol);
+  const prior=MINI_CACHE.get(symbol);
+  if(prior)attachSparkline(slot,prior);
+  else attachSparkline(slot,[]);
+  const at=Date.now();
+  if(MINI_LOADING.has(symbol)||MINI_AT.has(symbol)&&
+   at-MINI_AT.get(symbol)<5*60000)return;
+  MINI_LOADING.add(symbol);MINI_AT.set(symbol,at);
   void getMobileCandles(symbol,'1h',60).then(r=>{
-   MINI_CACHE.set(symbol,r.candles||[]);
-   const nodes=document.querySelectorAll('[data-spark-symbol]');
-   for(const n of nodes)
-    if(n.dataset.sparkSymbol===symbol)attachSparkline(n,MINI_CACHE.get(symbol));
-  }).catch(()=>MINI_CACHE.set(symbol,[]))
-   .finally(()=>MINI_LOADING.delete(symbol));
+   const rows=Array.isArray(r?.candles)?r.candles.filter(x=>x?.closed===true):[];
+   // A temporary missing/failed Room read must never erase a real old chart.
+   if(!r?.native||r.error||rows.length<3)return;
+   MINI_CACHE.set(symbol,rows);MINI_AT.set(symbol,Date.now());
+   for(const n of document.querySelectorAll('[data-spark-symbol]'))
+    if(n.dataset.sparkSymbol===symbol)attachSparkline(n,rows);
+  }).catch(()=>{}).finally(()=>MINI_LOADING.delete(symbol));
  }
  const status=text=>{id('favorite-selection-status').textContent=text;};
  let undoSymbol=null,undoTimer=0,summaryNotice=null;
@@ -705,7 +709,7 @@ export function initFavoriteResearch({
    priceRequest++;
    renderFavorites();
    if(add)refreshFavoritePrices({force:true});
-   if(!add)offerUndo(symbol);
+   if(!add){MINI_CACHE.delete(symbol);MINI_AT.delete(symbol);offerUndo(symbol);}
    await loadJournal();
    if(add)void sync(true);
    return true;
@@ -1005,7 +1009,16 @@ export function initFavoriteResearch({
     '. TP1–TP3 и SL появляются только в новых направленных сценариях.');
   }catch(e){
    message('Проверка избранного: '+String(e?.message||e),true);
-  }finally{syncing=false;await loadJournal();}
+  }finally{
+   syncing=false;await loadJournal();
+   if(document.body.dataset.view==='overview')
+    for(const symbol of favorites){
+     MINI_AT.delete(symbol);
+     const slot=[...document.querySelectorAll('[data-spark-symbol]')]
+      .find(n=>n.dataset.sparkSymbol===symbol);
+     if(slot)renderMini(symbol,slot);
+    }
+  }
  }
  for(const button of document.querySelectorAll('[data-forecast-stage]')){
   button.addEventListener('click',()=>{
@@ -1046,6 +1059,13 @@ export function initFavoriteResearch({
   getScenarioRows,
   refreshJournal:loadJournal,
   renderMini,
-  openOverviewSummary:()=>{renderFavorites();refreshFavoritePrices();void loadJournal();}
+  openOverviewSummary:()=>{
+   renderFavorites();refreshFavoritePrices();void loadJournal();
+   for(const symbol of favorites){
+    const slot=[...document.querySelectorAll('[data-spark-symbol]')]
+     .find(n=>n.dataset.sparkSymbol===symbol);
+    if(slot)renderMini(symbol,slot);
+   }
+  }
  };
 }
