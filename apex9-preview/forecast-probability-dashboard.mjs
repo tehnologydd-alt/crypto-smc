@@ -3,6 +3,7 @@ import {auditProbabilityReadiness} from './forecast-probability-readiness.mjs';
 import {auditPreOutcomeStrength} from './forecast-preoutcome-strength.mjs';
 import {auditFeatureContribution} from './forecast-feature-ablation.mjs';
 import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
+import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -291,6 +292,65 @@ export function renderProbabilityReadiness(archive,asset,slot,{now=Date.now()}={
  follow.append(element('p','forecast-confluence-caveat',
   repeat.note||'Обучение и изменение прогнозов отключены.'));
  abody.append(follow);
+ const challenge=auditShadowChallengers(archive?.forecasts,{
+  asset,complete:archive?.complete,
+  publishedCount:archive?.publishedCount,now});
+ const arena=element('section','forecast-probability-frame');
+ arena.append(element('strong','',
+  'Shadow Challenger · три экспериментальные формулы'),
+  element('small','',
+   'Регистрация 11.11.2026, 00:00 UTC. Для сравнения учитываются только '+
+   'опубликованные ПОСЛЕ неё прогнозы. Ни одна формула не используется '+
+   'для изменения сценариев.'));
+ if(!challenge.frames){
+  arena.append(element('p','forecast-quality-warning',challenge.reason));
+ }else{
+  const labels={
+   OBSERVED_THREE_TIMES:'Прирост AUC наблюдался в трёх периодах',
+   RECENTLY_WORSE:'В последнем периоде AUC ниже контроля',
+   NO_LONGER_BETTER:'Раннее улучшение не повторилось',
+   LATE_ONLY:'Улучшение только в позднем периоде',
+   NOT_BETTER:'Прирост AUC не подтверждён'
+  };
+  const df=n=>typeof n==='number'&&Number.isFinite(n)?
+   (n>=0?'+':'')+n.toFixed(3):'—';
+  for(const tf of ['15m','1h','4h']){
+   const item=challenge.frames[tf];
+   const group=element('div','forecast-feature-period');
+   group.append(element('strong','',
+    label[tf]+' · новых баллов после регистрации: '+
+    item.newScored+' / 120'),
+    element('small','',item.reason));
+   if(item.windows){
+    const measure=element('div','forecast-feature-periods');
+    for(let i=0;i<3;i++){
+     const x=item.windows[i],period=element('div','forecast-feature-period');
+     period.append(element('span','','Период '+(i+1)),
+      element('small','',
+       'TP3 '+x.tp3+' · SL '+x.stop+
+       ' · без данных '+(x.invalid+x.missingVolume)+
+       ' · пересечения '+(x.overlap+x.purged)));
+     measure.append(period);
+    }
+    group.append(measure);
+   }
+   if(item.state==='DESCRIPTIVE'){
+    for(const challenger of item.models){
+     const row=element('div','forecast-feature-period');
+     row.append(element('strong','',challenger.name),
+      element('small','',labels[challenger.state]||'Нет заключения'),
+      element('span','',
+       'ΔAUC с контролем: '+challenger.deltaAuc.map(df).join(' / ')));
+     group.append(row);
+    }
+   }
+   arena.append(group);
+  }
+ }
+ arena.append(element('p','forecast-confluence-caveat',
+  challenge.note||
+   'Все альтернативы остаются исследовательскими.'));
+ abody.append(arena);
  abody.append(element('p','forecast-confluence-caveat',
   contribution.note||'Прогнозы, веса и исходы не менялись.'));
  ablation.append(abody);slot.append(ablation);
