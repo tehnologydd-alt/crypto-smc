@@ -56,7 +56,11 @@ test('copying a conditionally selected research side preserves provenance',()=>{
 test('visual card uses the real tracked ID set and only original Room H1',()=>{
  assert.ok(favorites.includes("tracked?'")||favorites.includes("tracked?\n"));
  assert.ok(favorites.includes('onToggle?.(row.id)'));
- assert.ok(favorites.includes('persistSelected();renderStats();renderRows()'));
+ // One render pass now updates the Marked journal, its badges and quality
+ // statistics together; calling renderStats beforehand showed stale totals.
+ assert.ok(favorites.includes('persistSelected();renderRows();'));
+ assert.ok(favorites.includes('renderStats();'));
+ assert.ok(favorites.includes('scenarioJournalState(lastRows,'));
  assert.ok(favorites.includes('details.append(renderLevelSequence(row))'));
  assert.ok(favorites.includes('analyzeResearchLevelSequence(plan,archive.candles'));
  assert.ok(favorites.includes('if(!archive.native||archive.error||!archive.complete)'));
