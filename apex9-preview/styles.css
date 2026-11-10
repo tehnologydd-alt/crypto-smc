@@ -2953,3 +2953,35 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  .forecast-confluence-kpi{padding:9px 7px}
  .forecast-confluence-state{max-width:115px}
 }
+
+/* Provenance snapshots are available on demand, never an extra dashboard wall. */
+.forecast-evidence-cohorts{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;padding:0 10px 12px
+}
+.forecast-evidence-cohort{
+ display:flex;flex-direction:column;gap:6px;min-width:0;
+ border:1px solid #3d6570;background:#102b37;border-radius:11px;padding:11px
+}
+.forecast-evidence-cohort>strong{font-size:13px;color:#d6f9ed}
+.forecast-evidence-cohort>small{
+ font-size:10px;color:#a4cbd0;line-height:1.55
+}
+.forecast-evidence-feeds{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px
+}
+.forecast-evidence-feeds span{
+ min-width:0;overflow-wrap:anywhere;font-size:10px;color:#b4ddd6;
+ border-radius:7px;background:#153843;padding:5px 6px
+}
+#forecast-evidence-details>.forecast-confluence-caveat{
+ padding:0 12px;margin-top:0
+}
+@media(max-width:730px){
+ .forecast-evidence-cohorts{grid-template-columns:1fr}
+ .forecast-evidence-cohort{padding:11px}
+ .forecast-evidence-feeds{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:350px){
+ .forecast-evidence-feeds{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
