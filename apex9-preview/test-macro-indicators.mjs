@@ -38,5 +38,6 @@ test('malformed, mislabeled and invalid periods cannot create macro values',()=>
 });
 test('429 and unavailable provider never substitute imaginary readings',async()=>{
  assert.equal((await fetchBlsIndicators({fetchImpl:async()=>({ok:false,status:429})})).state,'RATE_LIMITED');
+ assert.equal((await fetchBlsIndicators({fetchImpl:async()=>({ok:false,status:403})})).state,'ACCESS_DENIED');
  assert.equal((await fetchBlsIndicators({fetchImpl:async()=>{throw Error('offline');}})).state,'OFFLINE');
 });
