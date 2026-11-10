@@ -53,6 +53,8 @@ export async function fetchBlsIndicators({fetchImpl=fetch,now=()=>Date.now(),sig
    credentials:'omit',cache:'no-store',signal});
   if(response?.status===429||response?.status===418)
    return {state:'RATE_LIMITED',indicators:[],reason:'BLS request limit'};
+  if([401,403,451].includes(response?.status))
+   return {state:'ACCESS_DENIED',indicators:[],reason:'BLS HTTP '+response.status};
   if(!response?.ok)return {state:'OFFLINE',indicators:[],
    reason:'BLS HTTP '+String(response?.status||'?')};
   return parseBlsIndicators(await response.json(),{receivedAt:now()});
