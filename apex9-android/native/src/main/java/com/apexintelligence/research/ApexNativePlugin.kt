@@ -532,6 +532,116 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Explicit user opt-in; candidate never controls forecast or exchange. */
+    @PluginMethod
+    fun registerShadowCandidate(call: PluginCall) {
+        val asset = call.getString("asset")
+        val frame = call.getString("interval")
+        val feature = call.getString("featureId")
+        val association = call.getString("association")
+        val version = call.getString("evidenceVersion")
+        val sourceAt = call.data.optLong("sourceCutoffAt", 0L)
+        val historySize = call.data.optInt("historySize", -1)
+        val step = when (frame) {
+            "15m" -> 900_000L
+            "1h" -> 3_600_000L
+            "4h" -> 14_400_000L
+            else -> 0L
+        }
+        val bars = when (frame) { "15m" -> 16; "1h", "4h" -> 24; else -> 0 }
+        if (asset == null || !assetRegex.matches(asset) ||
+            feature !in setOf("sameRadar", "higherRadar", "marketDay", "visibleDepth") ||
+            association !in setOf("MATCH_MORE_TP3", "MISMATCH_MORE_TP3") ||
+            version != "APEX_SHADOW_FORWARD_V1" ||
+            step == 0L || bars == 0 || sourceAt <= 0L ||
+            historySize < 1 || historySize > 1500) {
+            call.reject("Invalid frozen shadow proposal")
+            return
+        }
+        tasks.launch {
+            try {
+                val app = context.applicationContext
+                val favoriteAssets = ApexPreferences.read(app).favorites
+                if (!favoriteAssets.contains(asset)) {
+                    call.reject("Only favorite assets may be researched")
+                    return@launch
+                }
+                val dao = ApexDatabase.get(app).researchDao()
+                val latest = dao.researchForecastsForAsset(asset, 1).firstOrNull()
+                val currentTime = System.currentTimeMillis()
+                if (latest == null || latest.publishedAt != sourceAt ||
+                    sourceAt > currentTime ||
+                    dao.forecastCountForAsset(asset) != historySize) {
+                    call.reject("Research archive changed after review; rerun the audit")
+                    return@launch
+                }
+                val existing = dao.shadowCandidate(asset, frame!!, feature!!)
+                if (existing != null) {
+                    call.resolve(JSObject()
+                        .put("created", false).put("assetScoped", true)
+                        .put("proposal", shadowCandidateJson(existing)))
+                    return@launch
+                }
+                val registeredAt = System.currentTimeMillis()
+                val id = "shadow1:$asset:$frame:$feature:$registeredAt"
+                val record = ResearchShadowCandidate(
+                    id, asset, frame, feature, association!!, registeredAt,
+                    registeredAt + step * bars, sourceAt, historySize, version!!
+                )
+                val inserted = dao.registerShadowCandidate(record)
+                val stored = if (inserted != -1L) record else
+                    dao.shadowCandidate(asset, frame, feature)
+                if (stored == null) {
+                    call.reject("Shadow candidate was not saved in Room")
+                    return@launch
+                }
+                call.resolve(JSObject().put("created", inserted != -1L)
+                    .put("assetScoped", true).put("proposal", shadowCandidateJson(stored)))
+            } catch (e: Exception) {
+                call.reject("Shadow candidate storage unavailable: " +
+                    (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    private fun shadowCandidateJson(row: ResearchShadowCandidate): JSObject =
+        JSObject().put("id", row.id).put("asset", row.asset)
+            .put("interval", row.interval).put("featureId", row.featureId)
+            .put("association", row.association)
+            .put("registeredAt", row.registeredAt)
+            .put("embargoUntil", row.embargoUntil)
+            .put("sourceCutoffAt", row.sourceCutoffAt)
+            .put("historySize", row.historySize)
+            .put("evidenceVersion", row.evidenceVersion)
+            .put("source", "IMMUTABLE_LOCAL_ROOM_V5")
+
+    /** Read only the elected asset's frozen challenger hypotheses. */
+    @PluginMethod
+    fun getShadowCandidates(call: PluginCall) {
+        val asset = call.getString("asset")
+        if (asset == null || !assetRegex.matches(asset)) {
+            call.reject("Invalid shadow asset")
+            return
+        }
+        tasks.launch {
+            try {
+                val app = context.applicationContext
+                if (!ApexPreferences.read(app).favorites.contains(asset)) {
+                    call.reject("Only favorite assets may be researched")
+                    return@launch
+                }
+                val rows = ApexDatabase.get(app).researchDao().shadowCandidates(asset)
+                val proposals = JSArray()
+                for (row in rows) proposals.put(shadowCandidateJson(row))
+                call.resolve(JSObject().put("asset", asset).put("assetScoped", true)
+                    .put("source", "IMMUTABLE_LOCAL_ROOM_V5").put("proposals", proposals))
+            } catch (e: Exception) {
+                call.reject("Shadow research archive unavailable: " +
+                    (e.message ?: "unknown"))
+            }
+        }
+    }
+
     /** Read the whole immutable history. No loss/profit/trading statistics. */
     @PluginMethod
     fun getResearchForecasts(call: PluginCall) {
