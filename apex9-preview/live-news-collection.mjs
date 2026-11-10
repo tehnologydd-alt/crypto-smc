@@ -48,7 +48,7 @@ export function sourceStatusLine(sources={}){
   STALE:'только архив',WAIT_INTERVAL:'пауза локального лимита',
   DAILY_LIMIT:'суточный лимит',MONTHLY_LIMIT:'месячный лимит',
   LIMIT_REACHED:'суточный лимит',RATE_LIMITED:'429 от сервиса',
-  OFFLINE:'нет ответа',INVALID:'неподходящий ответ',
+  OFFLINE:'нет ответа',ACCESS_DENIED:'отказ в доступе',INVALID:'неподходящий ответ',
   NOT_CONFIGURED:'ключ не настроен',ANDROID_ONLY:'нужна новая Android APK',
   UNAVAILABLE:'не удалось получить',NOT_QUERIED:'не запрашивался',
   FORBIDDEN_OR_LIMITED:'нет доступа по тарифу',
