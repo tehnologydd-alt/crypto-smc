@@ -23,6 +23,8 @@ import {readRadarChanges} from './radar-changes.mjs';
 import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.mjs';
 import {directionalHypothesis} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
+import {multiFrameHypothesis,multiFrameForecastCard,multiFrameQuality,
+ multiFrameAgreement} from './forecast-multiframe.mjs';
 import {bindFavoriteHoldSwipe} from './favorite-gesture.mjs';
 
 const id=name=>document.getElementById(name);
@@ -265,6 +267,8 @@ async function copyResearchText(value){
 }
 /** Single card; "Отмеченные" and "демо-журнал" are one and the same saved ID set. */
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
+ if(multiFrameHypothesis(row))
+  return multiFrameForecastCard(row,{tracked,onToggle,onOpen});
  if(directionalHypothesis(row))
   return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
    sourceH1,sourceM5,copyText:copyResearchText});
@@ -938,6 +942,51 @@ export function initFavoriteResearch({
    slot.replaceChildren(study);
   }
  }
+ function renderMultiFrame(){
+  const summary=id('forecast-confluence-summary');
+  const qualitySlot=id('forecast-multiframe-quality');
+  if(!summary||!qualitySlot)return;
+  summary.replaceChildren();qualitySlot.replaceChildren();
+  const scoped=journalMode==='tracked'?
+   lastRows.filter(x=>selected.has(x.id)):lastRows;
+  const stats=multiFrameQuality(scoped);
+  for(const [frame,label] of [['15m','M15'],['4h','H4']]){
+   const record=stats[frame],tile=create('div','forecast-confluence-kpi');
+   tile.append(create('strong','',label),
+    create('span','','Прогнозов: '+record.published),
+    create('span','','С входом: '+record.entered),
+    create('span','','Завершено: '+record.completed),
+    create('small','','TP3 '+record.tp3+' · SL '+record.stop+
+     ' · другие '+record.unknown));
+   qualitySlot.append(tile);
+  }
+  if(lastTotal>lastRows.length)
+   summary.append(create('p','forecast-quality-warning',
+    'Частичный журнал: загружены последние '+lastRows.length+
+    ' из '+lastTotal+' записей. Совпадения могут быть неполными.'));
+  if(!favorites.length){
+   summary.append(create('p','muted','Добавьте активы в избранное.'));
+   return;
+  }
+  for(const asset of favorites){
+   const evidence=multiFrameAgreement(scoped,asset);
+   const line=create('section','forecast-confluence-row');
+   line.append(create('strong','',displayPair(asset)),
+    create('span','forecast-confluence-state'+
+     (evidence.aligned?' is-aligned':evidence.conflict?' is-conflict':''),
+     evidence.aligned?
+      'Совпадают '+evidence.active+'/3 · '+(evidence.side==='UP'?'рост':'снижение'):
+      evidence.conflict?'Направления расходятся':
+      'Нет двух актуальных направлений'));
+   const frames=create('div','forecast-confluence-frames');
+   for(const signal of evidence.signals){
+    const title=signal.frame==='15m'?'M15':signal.frame==='4h'?'H4':'H1';
+    frames.append(create('small','',title+': '+
+     (signal.side==='UP'?'↑':signal.side==='DOWN'?'↓':'—')));
+   }
+   line.append(frames);summary.append(line);
+  }
+ }
  function renderRows(){
   const box=id('research-forecast-list');box.replaceChildren();
   for(const b of document.querySelectorAll('[data-journal-stage]')){
@@ -952,7 +1001,9 @@ export function initFavoriteResearch({
   const visible=lastRows.filter(row=>forecastStage(row)===stage&&
    (journalMode==='all'||selected.has(row.id)));
   const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
-  const legacy=visible.filter(row=>!directionalHypothesis(row));
+  const multi=visible.filter(row=>Boolean(multiFrameHypothesis(row)));
+  const legacy=visible.filter(row=>!directionalHypothesis(row)&&
+   !multiFrameHypothesis(row));
   const renderCard=row=>cardForForecast(row,{
    tracked:selected.has(row.id),
    onToggle:key=>{
@@ -961,12 +1012,15 @@ export function initFavoriteResearch({
    },
    onOpen:onSelectSymbol,getMini:renderMini
   });
-  if(!directed.length){
+  if(!directed.length&&!multi.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
      'На этом этапе нет отмеченных односторонних сценариев. Новые TP/SL доступны после публикации направленной гипотезы.':
      'На этом этапе пока нет новых направленных сценариев. APEX публикует рост или снижение с TP1–TP3 и SL только при достаточном подтверждении закрытыми H1.'));
-  }else for(const row of directed)box.append(renderCard(row));
+  }else {
+   for(const row of directed)box.append(renderCard(row));
+   for(const row of multi)box.append(renderCard(row));
+  }
   if(legacy.length){
    const archive=create('details','forecast-range-archive');
    archive.open=archiveExpanded;
@@ -979,6 +1033,7 @@ export function initFavoriteResearch({
    box.append(archive);
   }
   renderStats();
+  renderMultiFrame();
  }
  async function loadJournal(){
   const seq=++journalGeneration;
