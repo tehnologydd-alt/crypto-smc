@@ -28,6 +28,7 @@ import {createEventHistory} from './event-history.mjs';
 import {initFreeSourceDashboard} from './free-source-dashboard.mjs';
 import {initResearchLayersDashboard} from './research-layer-dashboard.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
+import {createOverviewCache} from './overview-cache.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
@@ -348,6 +349,7 @@ function ensureAssetNewsFeed({force=false}={}){
 // The high-frequency price refresh must NEVER generate unbounded GDELT queries.
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
+const overviewCache=createOverviewCache({storage:editorialStorage});
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
 const bitcoinBackgroundGate=createBitcoinBackgroundGate();
 el('asset-news-check').addEventListener('click',()=>ensureAssetNewsFeed({force:true}));
@@ -360,7 +362,7 @@ researchLayersDashboard=initResearchLayersDashboard({
  checkMacro:()=>editorialDashboard.open('macro')
 });
 const radarDashboard=initRadarDashboard({
- getCatalog:()=>catalog,
+ getCatalog:()=>catalog,getFavorites:()=>favoriteManager.getFavorites(),
  onOpenAsset:symbol=>{void investigate(symbol);navigate('asset','structure');}
 });
 const candleView=new CandleChart(el('candle-canvas'),{
@@ -888,6 +890,7 @@ function openAssetExplanation(value){
 function navigate(view,targetId){
  if(view!=='radar')radarDashboard.close();
  if(view==='catalog'){
+  if(!catalog.length)void loadCatalog().catch(()=>{});
   el('asset-input').value='';
   catalogPage=1;
   renderCatalog();
@@ -1073,7 +1076,12 @@ const contextSources={
 };
 const usd=(x)=>Number.isFinite(x)?new Intl.NumberFormat('ru-RU',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(x):'—';
 function renderGlobalOverview(context){
- const view=globalMarketSnapshot(context,{now:Date.now()});
+ const live=globalMarketSnapshot(context,{now:Date.now()});
+ if(live.state==='OK')overviewCache.saveGlobal(live);
+ const saved=overviewCache.readGlobal();
+ const useCache=live.state!=='OK'&&Boolean(saved);
+ const view=useCache?{...saved.value,state:'STALE',
+  reason:'Сохранённая сводка CoinGecko · нет свежего подтверждённого ответа'}:live;
  const state=el('overview-global-state');
  state.dataset.state=view.state;
  state.textContent=view.reason;
@@ -1088,7 +1096,7 @@ function renderGlobalOverview(context){
   view.marketCapChange24hPercent>0?' positive':
    view.marketCapChange24hPercent<0?' negative':'':'');
  text('overview-global-updated',available?
-  'По времени CoinGecko: '+time(view.observedAt)+
+  (useCache?'Сохранено на устройстве · ':'По времени CoinGecko: ')+time(view.observedAt)+
    (view.state==='STALE'?' · данные устарели':''):
   'Нет подтверждённого обновления общего рынка.');
 }
