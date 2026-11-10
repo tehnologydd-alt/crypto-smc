@@ -464,7 +464,8 @@ function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
  return card;
 }
 export function initFavoriteResearch({
- getSelectedSymbol,onSelectSymbol,onForecastStage,onExplainSymbol,onOpenRadar
+ getSelectedSymbol,onSelectSymbol,onForecastStage,onExplainSymbol,onOpenRadar,
+ onFavoritesChanged
 }){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
@@ -710,6 +711,7 @@ export function initFavoriteResearch({
   try{
    const result=await changeMobileFavorite(symbol,add);
    favorites=sanitizeFavorites(result.favorites);
+   onFavoritesChanged?.(favorites.slice());
    priceRequest++;
    renderFavorites();
    if(add)refreshFavoritePrices({force:true});
@@ -1050,6 +1052,7 @@ export function initFavoriteResearch({
   async initialize(){
    const result=await getMobileFavorites();
    native=result.native;favorites=sanitizeFavorites(result.favorites);
+   onFavoritesChanged?.(favorites.slice());
    renderFavorites();refreshFavoritePrices();await loadJournal();
    void sync(true);
   },
