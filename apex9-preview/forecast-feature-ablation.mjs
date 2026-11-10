@@ -124,7 +124,8 @@ export function featureWindowAudit(rows,{now,cutAt=null}){
   metrics.decisive++;
   if(source.outcome==='TP3')metrics.tp3++;
   else metrics.stop++;
-  samples.push({outcome:source.outcome,features:frozen.features});
+  samples.push({id:row.id,publishedAt:row.publishedAt,
+   outcome:source.outcome,features:frozen.features});
  }
  metrics.volumeCoverage=metrics.eligible?
   validVolume/metrics.eligible:null;
