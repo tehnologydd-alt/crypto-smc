@@ -7,6 +7,7 @@ import {chainForAsset,collectOnChainNetwork,summarizeOnChainHistory,
 import {getMobileOnChainHistory,saveMobileOnChainObservation} from './mobile-bridge.mjs';
 import {initOnChainMarketDashboard} from './onchain-market-dashboard.mjs';
 import {chainHeadSourceForAsset,collectChainHead,createChainHeadCache} from './onchain-chain-head.mjs';
+import {collectDexMarket} from './onchain-dex-discovery.mjs';
 const get=id=>document.getElementById(id);
 const fmt=(v,digits=2)=>Number.isFinite(v)?
  new Intl.NumberFormat('ru-RU',{maximumFractionDigits:digits}).format(v):'—';
@@ -109,6 +110,8 @@ export function initOnChainDashboard(){
  let storage=null;
  try{storage=globalThis.localStorage;}catch{}
  const headCache=createChainHeadCache({storage});
+ const dexCache=new Map(); // bounded user-visible foreground results
+ const DEX_TTL=4*60000;
  let generation=0,lastAsset='',lastFetchedAt=0,abort=null,rows=[],activeChain=null;
  const canvas=get('network-history-chart');
  const redraw=()=>draw(canvas,rows,activeChain);
@@ -206,7 +209,22 @@ export function initOnChainDashboard(){
    'Архивная запись; свежий блок пока не подтверждён.':
    'Номер блока — состояние сети, не движения токена и не торговый прогноз.'));
  }
- async function refresh(asset,force=false){
+ function renderDexReport(report){
+  const container=get('network-metrics');
+  container.replaceChildren();
+  for(const source of report.sources){
+   const label=source.provider==='dexscreener'?'DEX Screener':'GeckoTerminal';
+   const group=node('div','network-warning');
+   group.append(node('strong','',label+' · '+source.state));
+   if(source.state==='CANDIDATES'){
+    group.append(node('p','',
+     'Найдено совпадений тикера: '+source.candidatesTotal+
+     '. Контракт не проверен.'));
+    for(const pool of source.pools){
+     const item=node('div','network-stat');
+     item.append(node('span','',
+      pool.pair+' · '+pool.chain+' · '+(pool.dex||'DEX')+
+      ' · ликвидность 
   const chain=chainForAsset(asset);
   if(asset!==lastAsset){
    generation++;abort?.abort();abort=null;rows=[];activeChain=null;lastFetchedAt=0;
@@ -219,13 +237,7 @@ export function initOnChainDashboard(){
     await refreshHead(asset,force,seq);
     return;
    }
-   get('network-supported-chains').textContent='Источник ещё не подтверждён';
-   get('network-name').textContent='Адаптер сети не подключён';
-   get('network-history-count').textContent='0 записей';
-   get('network-history-note').textContent='Не подставляем сведения чужой блокчейн-сети.';
-   renderMetrics(null,null,true);
-   rows=[];activeChain=null;redraw();
-   setStatus('Для '+asset+' нет прямого проверенного ончейн-источника. История другой сети не подставляется.',true);
+   await refreshDex(asset,force,seq);
    return;
   }
   get('network-supported-chains').textContent=chainNames[chain];
@@ -288,16 +300,250 @@ export function initOnChainDashboard(){
   const nativeChain=chainForAsset(asset);
   get('network-history-count').textContent=String(rows.length)+' записей';
   get('network-name').textContent=source?.label||
-   (nativeChain?chainNames[nativeChain]:'Сетевой адаптер недоступен');
+   (nativeChain?chainNames[nativeChain]:'DEX-пулы · '+asset);
   get('network-supported-chains').textContent=source?.label||
-   (nativeChain?chainNames[nativeChain]:'Для актива нет прямого источника');
+   (nativeChain?chainNames[nativeChain]:'DEX Screener / GeckoTerminal');
   setStatus(source||nativeChain?
    'Источник выбран · откройте сведения сети для обновления':
-   'Для '+asset+' нет прямого проверенного ончейн-адаптера. '+
-    'История токена не заменяется метриками чужой сети.',!source&&!nativeChain);
+   'Доступен поиск DEX-пулов двух публичных источников; '+
+    'контракт токена пока не подтверждён.',!source&&!nativeChain);
   get('network-history-note').textContent=source||nativeChain?
    (rows.length?'Сохранённые сетевые снимки':'Сетевые наблюдения пока не получены'):
-   '0 записей · требуется адаптер именно этого токена или сети';
+   '0 сетевых записей · DEX-пулы показываются отдельно от истории блокчейна';
+  redraw();
+ }};
+}
++fmt(pool.liquidityUsd,0)+
+      ' · объём 24 ч 
+  const chain=chainForAsset(asset);
+  if(asset!==lastAsset){
+   generation++;abort?.abort();abort=null;rows=[];activeChain=null;lastFetchedAt=0;
+   lastAsset=asset;
+   marketComparison.setAsset(asset);
+  }
+  const seq=++generation;
+  if(!chain){
+   if(chainHeadSourceForAsset(asset)){
+    await refreshHead(asset,force,seq);
+    return;
+   }
+   await refreshDex(asset,force,seq);
+   return;
+  }
+  get('network-supported-chains').textContent=chainNames[chain];
+  get('network-name').textContent=chainNames[chain];
+  marketComparison.runAuto();
+  setStatus('Проверяем сохранённые наблюдения '+chainNames[chain]+'…');
+  let cached=null;
+  try{cached=await readCache(asset,chain,seq);}catch(e){
+   if(seq===generation)setStatus('Локальная история недоступна: '+String(e?.message||e),true);
+  }
+  if(seq!==generation)return;
+  if(!force&&lastFetchedAt&&Date.now()-lastFetchedAt<4*60000){
+   if(cached?.latest)setStatus('Показаны наблюдения сети из локальной базы · '+stamp(cached.lastCapturedAt));
+   return;
+  }
+  lastFetchedAt=Date.now();
+  abort?.abort();
+  const controller=new AbortController();abort=controller;
+  const timeout=setTimeout(()=>controller.abort(),11000);
+  setStatus('Получаем публичные сетевые показатели '+chainNames[chain]+'…');
+  try{
+   const result=await collectOnChainNetwork(asset,{
+    now:()=>Date.now(),signal:controller.signal
+   });
+   if(seq!==generation)return;
+   if(result.state!=='OK'){
+    setStatus('Источник недоступен ('+result.state+'). '+
+     (cached?.latest?'Отображается исторический снимок с телефона.':'Свежих сведений нет.'),true);
+    return;
+   }
+   // Render real provider data even if Android storage is not available.
+   renderMetrics(chain,result.data,false);
+   const saved=await saveMobileOnChainObservation(asset,result);
+   if(seq!==generation)return;
+   if(saved.native&&saved.saved){
+    await readCache(asset,chain,seq);
+    if(seq!==generation)return;
+    setStatus(chainNames[chain]+' · данные получены и сохранены · '+stamp(result.data.collectedAt));
+   }else{
+    setStatus(chainNames[chain]+' · получены '+stamp(result.data.collectedAt)+
+     ' · локальное сохранение недоступно'+(saved.error?': '+saved.error:''));
+   }
+  }catch(e){
+   if(seq===generation)setStatus('Сбой источника, исторические наблюдения сохранены: '+
+    String(e?.message||e),true);
+  }finally{
+   clearTimeout(timeout);
+   if(seq===generation)abort=null;
+  }
+ }
+ get('network-refresh').addEventListener('click',()=>void refresh(lastAsset,true));
+ return {refresh,clear(asset){
+  generation++;abort?.abort();abort=null;lastAsset=asset;
+  marketComparison.setAsset(asset);
+  lastFetchedAt=0;rows=[];activeChain=null;
+  const source=chainHeadSourceForAsset(asset);
+  const saved=source?headCache.history(asset):[];
+  if(saved.length){rows=saved;activeChain=source.chain;renderHead(saved.at(-1),true);}
+  else get('network-metrics').replaceChildren();
+  const nativeChain=chainForAsset(asset);
+  get('network-history-count').textContent=String(rows.length)+' записей';
+  get('network-name').textContent=source?.label||
+   (nativeChain?chainNames[nativeChain]:'DEX-пулы · '+asset);
+  get('network-supported-chains').textContent=source?.label||
+   (nativeChain?chainNames[nativeChain]:'DEX Screener / GeckoTerminal');
+  setStatus(source||nativeChain?
+   'Источник выбран · откройте сведения сети для обновления':
+   'Доступен поиск DEX-пулов двух публичных источников; '+
+    'контракт токена пока не подтверждён.',!source&&!nativeChain);
+  get('network-history-note').textContent=source||nativeChain?
+   (rows.length?'Сохранённые сетевые снимки':'Сетевые наблюдения пока не получены'):
+   '0 сетевых записей · DEX-пулы показываются отдельно от истории блокчейна';
+  redraw();
+ }};
+}
++fmt(pool.volume24hUsd,0)));
+     group.append(item);
+    }
+   }else group.append(node('p','',source.reason||
+    'Источник не вернул проверенных кандидатов.'));
+   container.append(group);
+  }
+  container.append(node('p','network-warning',report.note));
+ }
+ async function refreshDex(asset,force,seq){
+  activeChain=null;rows=[];redraw();
+  get('network-name').textContent='Публичный DEX-рынок · '+asset;
+  get('network-supported-chains').textContent='DEX Screener / GeckoTerminal';
+  get('network-history-count').textContent='0 сетевых записей';
+  get('network-history-note').textContent=
+   'DEX-пулы — не транзакции токена. Их снимки не сохраняются как ончейн-история Room.';
+  const cached=dexCache.get(asset);
+  const now=Date.now();
+  if(!force&&cached&&now-cached.at<DEX_TTL){
+   renderDexReport(cached.report);
+   setStatus('DEX-пулы · сохранённый результат '+stamp(cached.at),
+    cached.report.state!=='CANDIDATES');
+   return;
+  }
+  if(force&&cached&&now-cached.at<90000){
+   renderDexReport(cached.report);
+   setStatus('Повторная проверка DEX пока ограничена · '+stamp(cached.at));
+   return;
+  }
+  const controller=new AbortController();abort?.abort();abort=controller;
+  const timer=setTimeout(()=>controller.abort(),11000);
+  setStatus('Проверяем DEX-пулы двух публичных источников для '+asset+'…');
+  try{
+   const report=await collectDexMarket(asset,{signal:controller.signal,
+    now:()=>Date.now()});
+   if(seq!==generation)return;
+   dexCache.delete(asset);
+   dexCache.set(asset,{at:Date.now(),report});
+   if(dexCache.size>8)dexCache.delete(dexCache.keys().next().value);
+   renderDexReport(report);
+   setStatus(report.state==='CANDIDATES'?
+    'DEX-пулы найдены · совпадения тикера, не подтверждённые контракты · '+
+     report.totalCandidates+' кандидатов':
+    report.state==='NO_MATCH'?
+     'DEX-пулы с данным точным базовым тикером не найдены':
+     'DEX: часть источников недоступна или не вернула данные',
+    report.state!=='CANDIDATES');
+  }catch(e){
+   if(seq===generation)setStatus('Сбой DEX-проверки: '+
+    String(e?.message||e).slice(0,120),true);
+  }finally{
+   clearTimeout(timer);
+   if(seq===generation)abort=null;
+  }
+ }
+ async function refresh(asset,force=false){
+  const chain=chainForAsset(asset);
+  if(asset!==lastAsset){
+   generation++;abort?.abort();abort=null;rows=[];activeChain=null;lastFetchedAt=0;
+   lastAsset=asset;
+   marketComparison.setAsset(asset);
+  }
+  const seq=++generation;
+  if(!chain){
+   if(chainHeadSourceForAsset(asset)){
+    await refreshHead(asset,force,seq);
+    return;
+   }
+   await refreshDex(asset,force,seq);
+   return;
+  }
+  get('network-supported-chains').textContent=chainNames[chain];
+  get('network-name').textContent=chainNames[chain];
+  marketComparison.runAuto();
+  setStatus('Проверяем сохранённые наблюдения '+chainNames[chain]+'…');
+  let cached=null;
+  try{cached=await readCache(asset,chain,seq);}catch(e){
+   if(seq===generation)setStatus('Локальная история недоступна: '+String(e?.message||e),true);
+  }
+  if(seq!==generation)return;
+  if(!force&&lastFetchedAt&&Date.now()-lastFetchedAt<4*60000){
+   if(cached?.latest)setStatus('Показаны наблюдения сети из локальной базы · '+stamp(cached.lastCapturedAt));
+   return;
+  }
+  lastFetchedAt=Date.now();
+  abort?.abort();
+  const controller=new AbortController();abort=controller;
+  const timeout=setTimeout(()=>controller.abort(),11000);
+  setStatus('Получаем публичные сетевые показатели '+chainNames[chain]+'…');
+  try{
+   const result=await collectOnChainNetwork(asset,{
+    now:()=>Date.now(),signal:controller.signal
+   });
+   if(seq!==generation)return;
+   if(result.state!=='OK'){
+    setStatus('Источник недоступен ('+result.state+'). '+
+     (cached?.latest?'Отображается исторический снимок с телефона.':'Свежих сведений нет.'),true);
+    return;
+   }
+   // Render real provider data even if Android storage is not available.
+   renderMetrics(chain,result.data,false);
+   const saved=await saveMobileOnChainObservation(asset,result);
+   if(seq!==generation)return;
+   if(saved.native&&saved.saved){
+    await readCache(asset,chain,seq);
+    if(seq!==generation)return;
+    setStatus(chainNames[chain]+' · данные получены и сохранены · '+stamp(result.data.collectedAt));
+   }else{
+    setStatus(chainNames[chain]+' · получены '+stamp(result.data.collectedAt)+
+     ' · локальное сохранение недоступно'+(saved.error?': '+saved.error:''));
+   }
+  }catch(e){
+   if(seq===generation)setStatus('Сбой источника, исторические наблюдения сохранены: '+
+    String(e?.message||e),true);
+  }finally{
+   clearTimeout(timeout);
+   if(seq===generation)abort=null;
+  }
+ }
+ get('network-refresh').addEventListener('click',()=>void refresh(lastAsset,true));
+ return {refresh,clear(asset){
+  generation++;abort?.abort();abort=null;lastAsset=asset;
+  marketComparison.setAsset(asset);
+  lastFetchedAt=0;rows=[];activeChain=null;
+  const source=chainHeadSourceForAsset(asset);
+  const saved=source?headCache.history(asset):[];
+  if(saved.length){rows=saved;activeChain=source.chain;renderHead(saved.at(-1),true);}
+  else get('network-metrics').replaceChildren();
+  const nativeChain=chainForAsset(asset);
+  get('network-history-count').textContent=String(rows.length)+' записей';
+  get('network-name').textContent=source?.label||
+   (nativeChain?chainNames[nativeChain]:'DEX-пулы · '+asset);
+  get('network-supported-chains').textContent=source?.label||
+   (nativeChain?chainNames[nativeChain]:'DEX Screener / GeckoTerminal');
+  setStatus(source||nativeChain?
+   'Источник выбран · откройте сведения сети для обновления':
+   'Доступен поиск DEX-пулов двух публичных источников; '+
+    'контракт токена пока не подтверждён.',!source&&!nativeChain);
+  get('network-history-note').textContent=source||nativeChain?
+   (rows.length?'Сохранённые сетевые снимки':'Сетевые наблюдения пока не получены'):
+   '0 сетевых записей · DEX-пулы показываются отдельно от истории блокчейна';
   redraw();
  }};
 }
