@@ -1102,6 +1102,7 @@ export function initFavoriteResearch({
    id('forecast-evaluated-count').textContent='—';
    id('forecast-quality-current-scope').textContent='Отмеченные';
    id('forecast-stat-all').replaceChildren();
+   id('forecast-stat-all').hidden=true;
    const tracked=id('forecast-stat-tracked');
    tracked.hidden=false;
    tracked.replaceChildren(create('p','forecast-quality-note',label));
