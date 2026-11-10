@@ -49,8 +49,8 @@ const EVENT_TEXT=Object.freeze({
  VOLUME_UP:'Рост относительного объёма',VOLUME_DOWN:'Снижение относительного объёма'
 });
 
-export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
- let interval='1h',filter='all',sort='turnover',request=0,controller=null,
+export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpenAsset=()=>{}}={}){
+ let lastUniverseSymbols='',interval='1h',filter='all',sort='turnover',request=0,controller=null,
   active=false,rows=[],lastScanAt=0,lastInterval=null,
   universe=null,universeAt=0,failures=0,total=0;
  const storage=(()=>{try{return globalThis.localStorage||null;}catch{return null;}})();
@@ -290,17 +290,26 @@ export function initRadarDashboard({getCatalog=()=>[],onOpenAsset=()=>{}}={}){
   lastScanAt=0;lastInterval=null;
   render();id('radar-refresh').disabled=true;
   status('Запрашиваем публичный список торговых пар…');
-  const catalog=getCatalog();
-  if(!catalog?.length){
-   status('Каталог Spot загружается. Радар начнёт проверку после получения списка.',true);
+  const favorites=getFavorites();
+  const allow=new Set(Array.isArray(favorites)?favorites.slice(0,10):[]);
+  const catalog=getCatalog().filter(symbol=>allow.has(symbol));
+  if(!allow.size){
+   status('Радар анализирует только избранное. Добавьте актив через каталог.');
+   if(generation===request){controller=null;id('radar-refresh').disabled=false;}
+   return;
+  }
+  if(!catalog.length){
+   status('Для избранных Spot-пар пока нет подтверждённого каталога.',true);
    if(generation===request){controller=null;id('radar-refresh').disabled=false;}
    return;
   }
   try{
-   const fresh=force||!universe||Date.now()-universeAt>UNIVERSE_MS;
+   const currentSet=catalog.slice().sort().join(',');
+   const fresh=force||!universe||Date.now()-universeAt>UNIVERSE_MS||
+    lastUniverseSymbols!==currentSet;
    if(fresh){
     universe=await fetchRadarUniverse({catalog,signal:local.signal});
-    if(universe.state==='OK')universeAt=Date.now();
+    if(universe.state==='OK'){universeAt=Date.now();lastUniverseSymbols=currentSet;}
    }
    if(generation!==request||local.signal.aborted)return;
    if(universe.state!=='OK'){
