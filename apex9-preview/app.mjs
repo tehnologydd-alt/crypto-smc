@@ -847,9 +847,12 @@ const favoriteManager=initFavoriteResearch({
  onExplainSymbol:symbol=>openAssetExplanation(symbol),
  onOpenRadar:(symbol,interval)=>{
   if(radarDashboard.focus(symbol,interval))navigate('radar','radar-focus-panel');
- }
+ },
+ onFavoritesChanged:()=>radarDashboard.favoritesChanged()
 });
 void favoriteManager.initialize().then(()=>{
+ // Starts outside the Radar page; no page-open network kick-off.
+ radarDashboard.start();
  if(document.body.dataset.view==='catalog')renderCatalog();
  const saved=favoriteManager.getFavorites();
  if(!saved.length){renderGlobalOverview(null);return;}
