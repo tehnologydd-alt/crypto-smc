@@ -62,8 +62,10 @@ function inspectFeature(frame,definition){
  }
  if(ref.yes<STABILITY_RULES.minReferenceArm||
   ref.no<STABILITY_RULES.minReferenceArm||
-  [val,confirm].some(p=>p.yes<STABILITY_RULES.minValidationArm||
-   p.no<STABILITY_RULES.minConfirmationArm)){
+  val.yes<STABILITY_RULES.minValidationArm||
+  val.no<STABILITY_RULES.minValidationArm||
+  confirm.yes<STABILITY_RULES.minConfirmationArm||
+  confirm.no<STABILITY_RULES.minConfirmationArm){
   return {...result,state:'INSUFFICIENT',
    reason:'В одной из групп слишком мало TP3/SL'};
  }
