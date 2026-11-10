@@ -10,6 +10,7 @@ import {assessFeatureStability} from './forecast-feature-stability.mjs';
 import {canDraftShadow,inspectShadowProposal,evaluateShadowProposal}
  from './forecast-shadow-forward.mjs';
 import {assessShadowTemporalMonitor} from './forecast-shadow-monitor.mjs';
+import {explainShadowEvidence} from './forecast-shadow-explanation.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -290,6 +291,35 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
    card.append(evidenceBox,
     node('small','forecast-confluence-caveat',
      monitor.reason+' Никакие веса и прогнозы не изменяются.'));
+   const explanation=explainShadowEvidence(proposal,observation,monitor);
+   const why=node('details','forecast-shadow-explanation');
+   why.append(node('summary','','Почему такой вывод · источник и данные'));
+   const body=node('div','forecast-shadow-explanation-body');
+   body.append(node('strong','',explanation.headline),
+    node('p','',explanation.conclusion||'Нет подтверждённого заключения.'));
+   if(explanation.sourceTitle){
+    body.append(node('strong','',explanation.sourceTitle),
+     node('p','',explanation.sourceExplanation),
+     node('small','',explanation.observedAssociation));
+   }
+   if(explanation.requirements?.length){
+    const list=node('div','forecast-shadow-requirements');
+    for(const requirement of explanation.requirements){
+     const item=node('div','forecast-shadow-requirement');
+     const label=node('span','',requirement.label);
+     const value=node('strong','',
+      requirement.done+' / '+requirement.required);
+     item.append(label,value);list.append(item);
+    }
+    body.append(node('strong','','Сколько ещё нужно собрать'),list);
+   }
+   for(const warning of explanation.warnings||[]){
+    body.append(node('p','forecast-confluence-caveat',warning));
+   }
+   body.append(node('small','',
+    explanation.recommendedAction||
+     'Нет оснований изменять действующую исследовательскую модель.'));
+   why.append(body);card.append(why);
    slot.append(card);
   }
   label.textContent='Room: '+existing.length+
