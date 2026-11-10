@@ -755,8 +755,7 @@ export function initFavoriteResearch({
     !q.finished?'Нет завершённых M5':
     q.finished<12?'Мало завершённых наблюдений':
     'Описательная статистика M5';
-   study.append(create('p','forecast-quality-coverage',
-    evidenceLabel+' · без оценки вероятности или доходности'));
+   study.append(create('p','forecast-quality-coverage',evidenceLabel));
    if(!q.published){
     study.append(create('p','forecast-quality-empty',
      'Пока нет подтверждённых исследований по M5. Новые наблюдения появятся '+
@@ -1020,6 +1019,12 @@ export function initFavoriteResearch({
  function message(text,error=false){
   const node=id('forecast-action-status');
   node.textContent=text;node.classList.toggle('is-offline',error);
+  // Routine diagnostics remain folded; real synchronization failures must
+  // become visible so the user is not left with silently stale information.
+  if(error){
+   const details=id('forecast-system-details');
+   if(details)details.open=true;
+  }
  }
  async function sync(force=false){
   if(document.hidden||syncing||!native||favorites.length===0)return;
