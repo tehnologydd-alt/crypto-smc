@@ -174,7 +174,11 @@ test('unknown and delayed outcomes do not count as TP3 improvements',()=>{
  list[4].evaluation.evaluatedAt=
   list[4].hypothesis.targetCloseAt+2000;
  const f=run(list).frames['15m'];
- assert.equal(f.state,'INVALID_EVIDENCE'); // TP1 and TP2 remain after terminal timeline tampering
+ // An entered scenario that expires after TP1/TP2 is a valid OTHER outcome,
+ // not a TP3 win or a corrupt Room record.
+ assert.equal(f.state,'DESCRIPTIVE');
+ assert.equal(f.reference.other,1);
+ assert.equal(f.reference.decisive,71);
  const old=rows('15m');
  old[0].evaluation.evaluatedAt=old[72].publishedAt+1000;
  const g=run(old).frames['15m'];
