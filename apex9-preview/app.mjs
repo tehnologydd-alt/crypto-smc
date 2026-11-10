@@ -6,6 +6,7 @@ import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
+import {initOverviewResearchProgress} from './overview-research-progress.mjs';
 import {initAssetFavoritePicker} from './asset-favorites-picker.mjs';
 import {createMarketMatrixCache,matrixFromNativeRadar} from './market-matrix-cache.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
@@ -927,6 +928,7 @@ el('chart-reset').addEventListener('click',()=>{
 
 
 let assetFavoritePicker=null;
+let experienceOverview=null;
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
  onSelectSymbol:(symbol,researchId=null)=>{
@@ -940,7 +942,15 @@ const favoriteManager=initFavoriteResearch({
  onOpenRadar:(symbol,interval)=>{
   if(radarDashboard.focus(symbol,interval))navigate('radar','radar-focus-panel');
  },
- onFavoritesChanged:()=>{radarDashboard.favoritesChanged();assetFavoritePicker?.render();}
+ onFavoritesChanged:()=>{
+  radarDashboard.favoritesChanged();
+  assetFavoritePicker?.render();
+  experienceOverview?.favoritesChanged();
+ },
+ onResearchSynced:()=>experienceOverview?.researchUpdated()
+});
+experienceOverview=initOverviewResearchProgress({
+ getFavorites:()=>favoriteManager.getFavorites()
 });
 assetFavoritePicker=initAssetFavoritePicker({
  getFavorites:()=>favoriteManager.getFavorites(),
@@ -1046,6 +1056,7 @@ function navigate(view,targetId){
   }
   if(view==='overview'){
    favoriteManager.openOverviewSummary();
+   experienceOverview?.openOverview();
    void editorialDashboard.openOverview();
    void freeSourceDashboard.openOverview();
   }
