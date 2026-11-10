@@ -45,6 +45,7 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
    }
    if(favorites.includes(old))select.value=old;
    root.replaceChildren();
+   get('forecast-probability-report')?.replaceChildren();
    get('feature-shadow-content')?.replaceChildren();
    if(get('feature-shadow-status'))
     get('feature-shadow-status').textContent='';
@@ -333,6 +334,7 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
   const asset=select.value;
   if(!asset||!getFavorites?.().includes(asset))return;
   running=true;button.disabled=true;root.replaceChildren();
+  get('forecast-probability-report')?.replaceChildren();
   const token=++serial;
   status.textContent='Читаем исходные записи Room '+asset+'…';
   try{
@@ -358,6 +360,8 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     ' ТФ с достаточной описательной выборкой. ' +
     'Автоматическое изменение прогнозов отключено.';
    render(report);
+   renderProbabilityReadiness(archive,asset,
+    get('forecast-probability-report'),{now:Date.now()});
    await renderShadowState(asset,archive,report,token);
   }catch(error){
    if(token===serial){
@@ -371,6 +375,7 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
  });
  select.addEventListener('change',()=>{
   serial++;root.replaceChildren();
+  get('forecast-probability-report')?.replaceChildren();
   get('feature-shadow-content')?.replaceChildren();
   if(get('feature-shadow-status'))
    get('feature-shadow-status').textContent='';
