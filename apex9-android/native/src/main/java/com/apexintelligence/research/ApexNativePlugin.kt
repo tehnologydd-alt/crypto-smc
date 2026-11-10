@@ -756,6 +756,59 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /**
+     * Overview experience gauges: a single indexed Room aggregate over the
+     * actual favorites, without reading scenarios, stage logs or network.
+     * Counts are preliminary, not independently verified outcomes.
+     */
+    @PluginMethod
+    fun getResearchProgress(call: PluginCall) {
+        tasks.launch {
+            try {
+                val favorites = ApexPreferences.read(context.applicationContext)
+                    .favorites.filter { assetRegex.matches(it) }
+                    .distinct().take(ApexPreferences.MAX_FAVORITES)
+                val dao = ApexDatabase.get(context).researchDao()
+                val registeredAt = 1_794_355_200_000L // Shadow registration 2026-11-11 UTC
+                val counts = if (favorites.isEmpty())
+                    emptyList<ResearchProgressCount>()
+                else dao.researchProgressForFavorites(favorites, registeredAt)
+                val rows = JSArray()
+                for (item in counts) {
+                    if (item.asset !in favorites ||
+                        item.interval !in setOf("15m", "1h", "4h") ||
+                        item.published < 0 || item.recordedTerminal < 0 ||
+                        item.recordedTerminal > item.published ||
+                        item.newPublished < 0 || item.newPublished > item.published) {
+                        call.reject("Inconsistent Room progress aggregate")
+                        return@launch
+                    }
+                    rows.put(JSObject()
+                        .put("asset", item.asset)
+                        .put("interval", item.interval)
+                        .put("published", item.published)
+                        .put("recordedTerminal", item.recordedTerminal)
+                        .put("newPublished", item.newPublished)
+                        .put("latestPublishedAt", item.latestPublishedAt))
+                }
+                val result = JSObject()
+                result.put("source", "LOCAL_ROOM_PROGRESS_V1")
+                result.put("sampledAt", System.currentTimeMillis())
+                result.put("registrationAt", registeredAt)
+                result.put("favorites", JSArray().apply {
+                    for (symbol in favorites) put(symbol)
+                })
+                result.put("rows", rows)
+                result.put("verifiedOutcomeRate", JSONObject.NULL)
+                result.put("modelTrainingEnabled", false)
+                call.resolve(result)
+            } catch (error: Exception) {
+                call.reject("Research progress unavailable: " +
+                    (error.message ?: "unknown"))
+            }
+        }
+    }
+
     @PluginMethod
     fun getResearchForecasts(call: PluginCall) {
         // Legacy global query remains available when no asset was supplied.

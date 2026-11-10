@@ -69,6 +69,26 @@
 
     <section class="view" id="view-overview" aria-labelledby="overview-title">
       <div class="section-title"><h2 id="overview-title">Рынок в целом</h2><span>Только проверенные сведения</span></div>
+      <article class="card block overview-experience-panel" aria-label="Прогресс накопления исследовательских наблюдений APEX">
+        <div class="overview-experience-top">
+          <div>
+            <h3>Опыт исследований APEX</h3>
+            <small>Сколько данных накоплено для проверки моделей</small>
+          </div>
+          <div class="overview-experience-actions">
+            <label for="overview-experience-asset">Актив</label>
+            <select id="overview-experience-asset" aria-label="Избранный актив для исследования"></select>
+            <button type="button" id="overview-experience-refresh" class="ghost" aria-label="Обновить прогресс исследований из Room">Обновить</button>
+          </div>
+        </div>
+        <p id="overview-experience-status" class="overview-experience-status" role="status" aria-live="polite">Читаем сохранённые наблюдения...</p>
+        <div id="overview-experience-bars" class="overview-experience-bars" aria-label="Шкалы накопленных записей M15 H1 H4"></div>
+        <details class="overview-experience-details">
+          <summary>Что означают проценты?</summary>
+          <p>Шкалы показывают заполнение трёх порогов количества записей Room: опубликованные сценарии, записанные исходы TP3/SL и новые сценарии для Shadow Challenger. Это не обученность ИИ, не проверенная точность и не вероятность прибыльного результата.</p>
+          <p>Записанные исходы ещё нуждаются в проверке последовательности событий. Полное исследование находится во вкладке «Сценарии».</p>
+        </details>
+      </article>
       <article class="card block overview-global-panel" aria-label="Сводка мирового крипторынка">
         <div class="overview-global-top">
           <span class="overview-global-source">CoinGecko · глобальный крипторынок</span>

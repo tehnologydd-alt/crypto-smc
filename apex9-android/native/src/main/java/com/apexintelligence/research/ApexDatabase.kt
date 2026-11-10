@@ -113,6 +113,20 @@ data class ResearchShadowCandidate(
     val evidenceVersion: String
 )
 
+/**
+ * Fast, read-only overview counters for directional M15/H1/H4 research.
+ * "recordedTerminal" is a Room outcome count, NOT independent verification
+ * of the stage sequence or a measured forecast probability.
+ */
+data class ResearchProgressCount(
+    val asset: String,
+    val interval: String,
+    val published: Int,
+    val recordedTerminal: Int,
+    val newPublished: Int,
+    val latestPublishedAt: Long
+)
+
 @Dao
 interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -226,6 +240,29 @@ interface ResearchDao {
     /** Deterministic, bounded journal page; no table migration. */
     @Query("SELECT * FROM research_forecasts WHERE asset = :asset ORDER BY publishedAt DESC, id DESC LIMIT :limit OFFSET :offset")
     suspend fun researchForecastPage(asset: String, limit: Int, offset: Int): List<ResearchForecast>
+
+    /**
+     * One indexed aggregate for up to 10 favorites. Never serializes all
+     * stage events or scans nonfavorite assets for overview progress.
+     */
+    @Query(
+        "SELECT f.asset AS asset, f.horizon AS interval, " +
+        "COUNT(*) AS published, " +
+        "COALESCE(SUM(CASE WHEN r.outcome IN ('TP3','STOP') " +
+        "THEN 1 ELSE 0 END), 0) AS recordedTerminal, " +
+        "COALESCE(SUM(CASE WHEN f.publishedAt > :registeredAt " +
+        "THEN 1 ELSE 0 END), 0) AS newPublished, " +
+        "MAX(f.publishedAt) AS latestPublishedAt " +
+        "FROM research_forecasts AS f " +
+        "LEFT JOIN research_forecast_results AS r ON r.forecastId = f.id " +
+        "WHERE f.asset IN (:assets) AND " +
+        "((f.horizon = '1h' AND f.id LIKE 'direction2:%') OR " +
+        "(f.horizon IN ('15m','4h') AND f.id LIKE 'direction3:%')) " +
+        "GROUP BY f.asset, f.horizon"
+    )
+    suspend fun researchProgressForFavorites(
+        assets: List<String>, registeredAt: Long
+    ): List<ResearchProgressCount>
 
     @Query("SELECT COUNT(*) FROM research_forecasts WHERE asset = :asset")
     suspend fun forecastCountForAsset(asset: String): Int

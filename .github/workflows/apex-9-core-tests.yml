@@ -51,6 +51,7 @@ jobs:
           node --test apex9-preview/test-forecast-feature-ablation.mjs
           node --test apex9-preview/test-forecast-feature-rolling.mjs
           node --test apex9-preview/test-forecast-data-quality-hub.mjs
+          node --test apex9-preview/test-overview-research-progress.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/favorite-dashboard.mjs

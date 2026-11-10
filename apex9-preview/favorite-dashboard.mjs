@@ -473,7 +473,7 @@ function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
 }
 export function initFavoriteResearch({
  getSelectedSymbol,onSelectSymbol,onForecastStage,onExplainSymbol,onOpenRadar,
- onFavoritesChanged
+ onFavoritesChanged,onResearchSynced
 }){
  let favorites=[],native=false,busy=false,syncing=false,lastSyncAt=0,
   stage='PENDING_CONFIRMATION',stageTouched=false,journalMode='all',journalGeneration=0,
@@ -1245,6 +1245,7 @@ export function initFavoriteResearch({
    message('Проверка избранного: '+String(e?.message||e),true);
   }finally{
    syncing=false;await loadJournal();
+   onResearchSynced?.();
    if(document.body.dataset.view==='overview')
     for(const symbol of favorites){
      MINI_AT.delete(symbol);

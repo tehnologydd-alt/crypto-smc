@@ -216,6 +216,62 @@ export async function getMobileMarkedResearchForecasts(ids){
  }
 }
 
+/**
+ * Fast favorites-only Room milestones. A terminal count is NOT proof of
+ * complete stage verification; full archived research remains manual.
+ */
+export async function getMobileResearchProgress(expectedFavorites=[]){
+ const native=plugin();
+ const empty={native:Boolean(native),source:'LOCAL_ROOM_PROGRESS_V1',
+  favorites:[],rows:[],complete:false};
+ if(!native)return {...empty,error:'Данные опыта доступны в Android APK.'};
+ const validAsset=value=>typeof value==='string'&&
+  /^[A-Z0-9]{5,20}$/.test(value);
+ if(!Array.isArray(expectedFavorites)||expectedFavorites.length>10||
+  expectedFavorites.some(x=>!validAsset(x))||
+  new Set(expectedFavorites).size!==expectedFavorites.length)
+  return {...empty,error:'Некорректное избранное.'};
+ try{
+  const result=await native.getResearchProgress();
+  const favorites=result?.favorites;
+  if(result?.source!=='LOCAL_ROOM_PROGRESS_V1'||
+   !Array.isArray(favorites)||favorites.length>10||
+   favorites.some(x=>!validAsset(x))||
+   new Set(favorites).size!==favorites.length||
+   expectedFavorites.length!==favorites.length||
+   expectedFavorites.some(x=>!favorites.includes(x))||
+   !Number.isSafeInteger(result?.sampledAt)||
+   result.sampledAt<=0||
+   result.sampledAt>Date.now()+60000||
+   result.registrationAt!==Date.UTC(2026,10,11,0,0,0)||
+   !Array.isArray(result?.rows)||result.rows.length>30||
+   result.modelTrainingEnabled!==false||
+   result.verifiedOutcomeRate!==null)
+   throw Error('Несогласованная сводка Room или изменилось избранное.');
+  const keys=new Set();
+  for(const row of result.rows){
+   const fields=['published','recordedTerminal','newPublished'];
+   if(!favorites.includes(row?.asset)||
+    !['15m','1h','4h'].includes(row?.interval)||
+    fields.some(k=>!Number.isSafeInteger(row[k])||row[k]<0)||
+    row.recordedTerminal>row.published||
+    row.newPublished>row.published||
+    !Number.isSafeInteger(row.latestPublishedAt)||
+    row.latestPublishedAt<result.registrationAt-10*365*86400000||
+    row.latestPublishedAt>result.sampledAt+60000)
+    throw Error('В сводке Room повреждены счётчики.');
+   const key=row.asset+':'+row.interval;
+   if(keys.has(key))throw Error('Дублируются строки опыта.');
+   keys.add(key);
+  }
+  return {...empty,complete:true,favorites:[...favorites],
+   sampledAt:result.sampledAt,registrationAt:result.registrationAt,
+   rows:result.rows.map(row=>({...row}))};
+ }catch(error){
+  return {...empty,error:String(error?.message||error)};
+ }
+}
+
 export async function getMobileResearchForecasts(limit=40){
  const native=plugin();
  if(!native)return {native:false,forecasts:[],publishedCount:0,evaluatedCount:0};
