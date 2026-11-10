@@ -32,6 +32,10 @@ test('Only favorites and source-validated closed candles produce Radar history',
 test('Android background persists native history using close-time-aware source analysis',()=>{
  assert.ok(worker.includes('ApexRadarMonitor.sync(applicationContext, favorites, dao)'));
  assert.ok(native.includes('MAX_HTTP_PER_WORK = 16'));
+ assert.ok(native.includes('putLong(closeKey,expected)'));
+ assert.ok(native.includes('if (count>=2 || count>0 && now-last<15*60_000L) continue'));
+ assert.equal(native.includes('if (attempts >= expected'),false);
+ assert.ok(radar.includes('markRadarAutoFailure(storage,checkpoints,plan,Date.now())'));
  assert.ok(native.includes('for (frame in listOf("15m","1h","4h","1d"))'));
  assert.ok(native.includes('dao.candles(asset,frame,LIMIT).reversed()'));
  assert.ok(native.includes('if (last.closeTime > now'));
