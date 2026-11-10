@@ -134,6 +134,8 @@ object ApexMultiFrameForecast {
             .put("stageSemantics",SEMANTICS).put("levelStudy",controls)
             .put("sampleBars",SAMPLE).put("empiricalSamples",changes.size)
             .put("historicalPercentile",.8).put("empiricalWidth",width)
+            .put("preOutcomeStrength",
+                ApexPreOutcomeStrength.snapshot(candles,width,now))
             .put("calibratedProbability",JSONObject.NULL)
             .put("contextAsPublished",contextAtPublication(context,asset,now))
             .put("evidenceAsPublished",
