@@ -16,6 +16,14 @@ const checks=[
    return {state:now-end<20*60000?'OK':'STALE',count:bars.length,
      observedAt:end};
  }],
+ ['mempool.space BTC network','https://mempool.space/api/mempool','json',data=>{
+   if(!Number.isSafeInteger(data?.count)||data.count<0||
+      !Number.isSafeInteger(data?.vsize)||data.vsize<0||
+      !Number.isFinite(data?.total_fee)||data.total_fee<0)
+     return {state:'INVALID',reason:'Invalid Bitcoin mempool counts'};
+   return {state:'OK',count:data.count,
+     scope:'BITCOIN_NETWORK_ONLY',observedAt:null};
+ }],
  ['CoinGecko global','https://api.coingecko.com/api/v3/global','json',data=>{
    const row=data?.data,stamp=Number(row?.updated_at)*1000;
    if(!row||!Number.isFinite(row.total_market_cap?.usd)||!Number.isSafeInteger(stamp))
