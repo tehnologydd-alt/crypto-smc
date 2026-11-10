@@ -3244,6 +3244,9 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .overview-quality-diagnosis{border-top:1px dashed #466173;padding-top:7px}
 .overview-quality-diagnosis>summary{font-size:11px;color:#a3e3db;cursor:pointer}
 .overview-quality-diagnosis>small{display:block;padding:4px 0}
+.forecast-quality-stage2{display:grid;gap:7px;padding:11px;border:1px solid #3d867a;border-radius:10px;background:#14333a}
+.forecast-quality-stage2>strong{font-size:12px;color:#c5f3e8}
+.forecast-quality-stage2>p{margin:0;font-size:11px;line-height:1.5;color:#b8d3db}
 .forecast-quality-pairs{border:1px solid #325f68;border-radius:10px;margin:8px 0;background:#0b2630}
 .forecast-quality-pairs>summary{padding:12px;cursor:pointer;color:#b4e8dc;font-size:12px;font-weight:750}
 .forecast-quality-pairs-body{padding:0 10px 10px;display:grid;gap:8px}

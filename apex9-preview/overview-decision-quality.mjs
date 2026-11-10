@@ -15,6 +15,8 @@ import {DIAGNOSTIC_CODES,DIAGNOSTIC_LABELS}
  from './forecast-quality-diagnostics.mjs';
 import {FEATURE_PAIRS,FEATURE_PAIR_STATES}
  from './forecast-feature-pairs.mjs';
+import {FEATURE_REGIME_STATES}
+ from './forecast-feature-regime-review.mjs';
 
 export const DECISION_QUALITY_VERSION='APEX_OVERVIEW_DECISION_QUALITY_V1';
 export const DECISION_QUALITY_KEY='apex9:decision-quality:v1';
@@ -27,6 +29,12 @@ const validAsset=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const count=x=>Number.isSafeInteger(x)&&x>=0;
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const auc=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1;
+const validRegimes=p=>p===undefined||p===null||(
+ Array.isArray(p)&&p.length===3&&p.every((item,i)=>
+  item?.id===FEATURE_PAIRS[i].id&&
+  FEATURE_REGIME_STATES.includes(item.state)&&
+  Number.isSafeInteger(item.comparableModes)&&
+  item.comparableModes>=0&&item.comparableModes<=3));
 const validPairs=p=>p===undefined||p===null||(
  Array.isArray(p)&&p.length===3&&p.every((item,i)=>
   item?.id===FEATURE_PAIRS[i].id&&
@@ -53,7 +61,7 @@ function validFrame(f){
   f.newScored<=f.newPublished&&count(f.repeatedModels)&&
   f.repeatedModels<=3&&count(f.regimeRepeatedModels)&&
   f.regimeRepeatedModels<=f.repeatedModels&&
-  validDiagnosis(f.diagnosis)&&validPairs(f.pairs)&&
+  validDiagnosis(f.diagnosis)&&validPairs(f.pairs)&&validRegimes(f.pairRegimes)&&
   (f.baselineAuc===undefined||f.baselineAuc===null||
    (Array.isArray(f.baselineAuc)&&f.baselineAuc.length===3&&
     f.baselineAuc.every(auc)))&&
@@ -63,7 +71,7 @@ function validFrame(f){
      x>=-1&&x<=1)));
 }
 export function summarizeDecisionQuality({archive,asset,challenge,regimes,
- diagnostics=null,pairs=null,now=Date.now()}={}){
+ diagnostics=null,pairs=null,pairRegimes=null,now=Date.now()}={}){
  if(!validAsset(asset)||!time(now)||archive?.complete!==true||
   !Array.isArray(archive.forecasts)||!count(archive.publishedCount)||
   archive.publishedCount!==archive.forecasts.length||
@@ -125,6 +133,15 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
      id:FEATURE_PAIRS[i].id,state:p.state,
      latestGain:Math.round(p.periods[2].gain*10000)/10000
     })):null;
+  const regimeFrame=pairRegimes?.asset===asset&&
+   pairRegimes.frames?.[tf]?.state==='DESCRIPTIVE'?
+    pairRegimes.frames[tf]:null;
+  const regimeSummary=Array.isArray(regimeFrame?.pairs)&&
+   regimeFrame.pairs.length===FEATURE_PAIRS.length?
+    regimeFrame.pairs.map((p,i)=>({
+     id:FEATURE_PAIRS[i].id,state:p.state,
+     comparableModes:p.comparableModes
+    })):null;
   const diagnosticFrame=diagnostics?.asset===asset?
    diagnostics.frames?.[tf]:null;
   frames[tf]={state,published,recordedTerminal,
@@ -132,6 +149,7 @@ export function summarizeDecisionQuality({archive,asset,challenge,regimes,
    newScored:compared.newScored,repeatedModels:repeated.length,
    regimeRepeatedModels:regimeSupport.length,structureDelta,baselineAuc,
    pairs:validPairs(pairSummary)?pairSummary:null,
+   pairRegimes:validRegimes(regimeSummary)?regimeSummary:null,
    diagnosis:diagnosticFrame&&validDiagnosis(diagnosticFrame)?
     {state:diagnosticFrame.state,codes:diagnosticFrame.codes.slice(0,5)}:null};
   if(!validFrame(frames[tf]))return null;
@@ -239,7 +257,8 @@ export function saveDecisionQualityAudit(archive,asset,{
  const regimes=audits?.regimes||
   auditShadowRegimes(archive?.forecasts,opts);
  const result=summarizeDecisionQuality({archive,asset,challenge,regimes,
-  diagnostics:audits?.diagnostics,pairs:audits?.pairs,now});
+  diagnostics:audits?.diagnostics,pairs:audits?.pairs,
+  pairRegimes:audits?.pairRegimes,now});
  if(!result)return false;
  let previous={};
  try{
@@ -390,6 +409,13 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
      item.latestGain.toFixed(3),'overview-quality-hint'));
    }
    row.append(details);
+  }
+  if(!frame.outOfDate&&frame.pairRegimes?.length){
+   const section=setText('small','Проверка сочетаний по режимам: '+
+    frame.pairRegimes.filter(x=>x.state==='REPEATED_TWO_MODES').length+
+    ' из 3 пар повторились минимум в двух режимах (описательно)',
+    'overview-quality-hint');
+   row.append(section);
   }
   const trend=assessBaselineRankTrend(frame.baselineAuc);
   if(!frame.outOfDate&&trend.state==='DECLINING')

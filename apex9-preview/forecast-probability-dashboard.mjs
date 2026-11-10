@@ -9,6 +9,8 @@ import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
 import {diagnoseQualityFactors,DIAGNOSTIC_LABELS}
  from './forecast-quality-diagnostics.mjs';
 import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
+import {auditFeaturePairRegimes,summarizeFeatureStageTwo}
+ from './forecast-feature-regime-review.mjs';
 
 const label={'15m':'M15','1h':'H1','4h':'H4'};
 const element=(tag,klass='',value)=>{
@@ -559,6 +561,50 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  pairBody.append(element('small','forecast-confluence-caveat',
   pairs.note||'Неполный архив не позволяет сравнить признаки.'));
  pairPanel.append(pairBody);
+ const pairRegimes=auditFeaturePairRegimes(archive?.forecasts,{
+  asset,complete:archive?.complete,publishedCount:archive?.publishedCount,
+  now,challenge,pairs,regimes
+ });
+ const stage2=summarizeFeatureStageTwo(asset,pairs,pairRegimes);
+ const stagePanel=element('section','forecast-quality-stage2');
+ stagePanel.append(element('strong','',
+  'Этап 2 из 5 · исследование сочетаний признаков'));
+ stagePanel.append(element('p','',
+  'Проверено '+stage2.checkedFrames+' / 3 таймфреймов · '+
+  'состояние исходов: '+stage2.state+
+  '. Готовность к оценке не означает, что модель обучилась.'));
+ const reviewBody=element('details','forecast-probability-details');
+ reviewBody.append(element('summary','','Повторяемость пар по рыночным режимам'));
+ const reviewContent=element('div','forecast-quality-pairs-body');
+ for(const tf of ['15m','1h','4h']){
+  const item=pairRegimes.frames?.[tf];
+  const panel=element('section','forecast-quality-pairs-frame');
+  panel.append(element('strong','',label[tf]+' · '+
+   (item?.state||pairRegimes.state)+
+   ' · режимов с проверкой: '+(item?.availableModes||0)+'/3'));
+  if(item?.state==='DESCRIPTIVE'){
+   for(const p of item.pairs){
+    const line=element('div','forecast-quality-pair');
+    line.append(element('b','',p.label),
+     element('small','',
+      ({REPEATED_TWO_MODES:'Повторение в двух режимах (описательно)',
+       CONFLICTING_REGIMES:'Противоречие: в одном режиме результат ухудшился',
+       LIMITED_SUPPORT:'Поддержка только в части режимов',
+       NO_REPEATED_GAIN:'Повторение преимущества не найдено',
+       NEED_TWO_MODES:'Нужно больше проверенных режимов'})[p.state]),
+     element('small','',
+      'Проверено режимов: '+p.comparableModes+
+      ' · с повторением: '+p.supportingModes.length));
+    panel.append(line);
+   }
+  }else panel.append(element('small','',item?.reason||pairRegimes.reason));
+  reviewContent.append(panel);
+ }
+ reviewContent.append(element('p','forecast-confluence-caveat',
+  pairRegimes.note||
+   'Без трёх проверенных периодов APEX не делает выводов по режимам.'));
+ reviewBody.append(reviewContent);stagePanel.append(reviewBody);
+ pairBody.prepend(stagePanel);
  const diagnosis=diagnoseQualityFactors({asset,quality,challenge,regimes});
  const diagnosticRoot=element('details','forecast-quality-diagnostics');
  diagnosticRoot.append(element('summary','',
@@ -585,6 +631,6 @@ export function renderProbabilityReadiness(archive,asset,slot,{
  slot.prepend(diagnosticRoot,pairPanel,qualityRoot);
  // Reuse already computed independent audits in the explicit manual workflow;
  // avoid repeating three full 1500-row passes on a slow Android device.
- if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs});
+ if(typeof onAudits==='function')onAudits({challenge,regimes,diagnostics:diagnosis,pairs,pairRegimes,stage2});
  return report;
 }

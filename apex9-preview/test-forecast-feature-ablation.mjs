@@ -291,3 +291,83 @@ test('feature pairs appear only in explicit manual full-archive audit',()=>{
  const prepared=read('../apex9-android/scripts/prepare-web.mjs');
  assert.ok(prepared.includes("'forecast-feature-pairs.mjs'"));
 });
+
+
+test('two regimes need actual independent prepublished evidence, not hindsight',async()=>{
+ const {auditFeaturePairRegimes,summarizeFeatureStageTwo,
+  assessRegimePairReplication}=await import('./forecast-feature-regime-review.mjs');
+ const {auditShadowRegimes}=await import('./forecast-shadow-regimes.mjs');
+ const {auditShadowChallengers,SHADOW_CHALLENGER_REGISTRATION}
+  =await import('./forecast-shadow-challengers.mjs');
+ const {auditFeaturePairs}=await import('./forecast-feature-pairs.mjs');
+ const {EVIDENCE_VERSION,EVIDENCE_FEEDS,EVIDENCE_FRAMES}
+  =await import('./forecast-evidence-context.mjs');
+ const tf='15m';
+ const all=Array.from({length:120},(_,i)=>scenario(tf,i,{
+  offset:42000,efficiency:i%2===0?.92:.08,
+  travelNorm:i%2===0?.87:.13,
+  volumeNorm:i%2===0?.85:.15
+ }));
+ const frame=900000;
+ const modes=['DIRECTIONAL','RANGE','MIXED'];
+ for(let i=0;i<all.length;i++){
+  const row=all[i],h=row.hypothesis,
+   mode=modes[i%3];
+  h.evidenceAsPublished={
+   version:EVIDENCE_VERSION,capturedAt:row.publishedAt,
+   policy:'DESCRIPTIVE_CONTEXT_ONLY_NO_FUTURE_LEAKAGE',
+   feeds:Object.fromEntries(EVIDENCE_FEEDS.map(k=>[k,{state:'MISSING'}])),
+   radar:Object.fromEntries(EVIDENCE_FRAMES.map(k=>[k,{state:'MISSING'}]))
+  };
+  h.evidenceAsPublished.radar[tf]={
+   state:'OBSERVED',source:'ANDROID_NATIVE_RADAR',
+   candleAt:h.anchorCloseAt,observedAt:h.anchorCloseAt+500,
+   direction:'UP',mode,movement:.3,acceleration:.05,
+   volumeRatio:1
+  };
+ }
+ assert.ok(all.every(x=>x.publishedAt>SHADOW_CHALLENGER_REGISTRATION));
+ const options={asset,complete:true,publishedCount:all.length,now};
+ const challenge=auditShadowChallengers(all,options);
+ const pair=auditFeaturePairs(all,{...options,challenge});
+ const regime=auditShadowRegimes(all,options);
+ const result=auditFeaturePairRegimes(all,{
+  ...options,challenge,pairs:pair,regimes:regime});
+ assert.equal(regime.frames[tf].state,'DESCRIPTIVE');
+ assert.equal(result.frames[tf].state,'DESCRIPTIVE');
+ assert.equal(result.frames[tf].availableModes,3);
+ assert.equal(result.frames[tf].pairs.length,3);
+ assert.equal(result.frames[tf].pairs[0].state,'NO_REPEATED_GAIN');
+ assert.equal(result.frames[tf].modeResults.DIRECTIONAL.state,'DESCRIPTIVE');
+ const stage=summarizeFeatureStageTwo(asset,pair,result);
+ assert.equal(stage.checkedFrames,1);
+ assert.equal(stage.frames['1h'].state,'COLLECTING');
+ assert.equal(stage.frames['15m'].state,'CHECKED');
+ assert.equal(stage.trained,false);
+ // A future-dated radar capture is *invalid*, not copied from later periods.
+ const edited=structuredClone(all);
+ edited[0].hypothesis.evidenceAsPublished.radar[tf].observedAt=
+  edited[0].publishedAt+1000;
+ const unsafeRegime=auditShadowRegimes(edited,options);
+ const unsafe=auditFeaturePairRegimes(edited,{
+  ...options,challenge,pairs:pair,regimes:unsafeRegime});
+ assert.notEqual(unsafe.frames[tf].state,'DESCRIPTIVE');
+ // Repeated combined improvement alone is not cross-regime proof.
+ const fake=assessRegimePairReplication([
+  {id:'EFFICIENCY_TRAVEL',state:'REPEATED_ADDITION'},
+  {id:'EFFICIENCY_VOLUME',state:'REPEATED_ADDITION'},
+  {id:'TRAVEL_VOLUME',state:'REPEATED_ADDITION'}
+ ],[{mode:'DIRECTIONAL',pairs:[]},{mode:'RANGE',pairs:[]}]);
+ assert.equal(fake[0].state,'NEED_TWO_MODES');
+});
+test('stage 2 complete UI shows quality gates and regime-aware pair report',()=>{
+ const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
+ const ui=read('./forecast-probability-dashboard.mjs');
+ const overview=read('./overview-decision-quality.mjs');
+ const web=read('../apex9-android/scripts/prepare-web.mjs');
+ assert.ok(ui.includes('auditFeaturePairRegimes(archive?.forecasts'));
+ assert.ok(ui.includes('summarizeFeatureStageTwo(asset,pairs,pairRegimes)'));
+ assert.ok(ui.includes('Этап 2 из 5'));
+ assert.ok(overview.includes('pairRegimes:audits?.pairRegimes'));
+ assert.ok(web.includes("'forecast-feature-regime-review.mjs'"));
+});

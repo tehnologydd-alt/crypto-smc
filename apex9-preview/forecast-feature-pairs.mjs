@@ -70,17 +70,19 @@ export function spearmanPair(samples,a,b){
  }
  return xx>0&&yy>0?round(numerator/Math.sqrt(xx*yy)):null;
 }
-export function comparePairWindows(windows){
+export function comparePairWindows(windows,{
+ minDecisive=SHADOW_CHALLENGER_RULES.minDecisivePerWindow,
+ minTp3=SHADOW_CHALLENGER_RULES.minTp3PerWindow,
+ minStop=SHADOW_CHALLENGER_RULES.minStopPerWindow
+}={}){
  if(!Array.isArray(windows)||windows.length!==3||
-  windows.some(w=>!Array.isArray(w)||w.length<
-   SHADOW_CHALLENGER_RULES.minDecisivePerWindow||
+  ![minDecisive,minTp3,minStop].every(x=>Number.isSafeInteger(x)&&x>0)||
+  windows.some(w=>!Array.isArray(w)||w.length<minDecisive||
    w.some(s=>!['TP3','STOP'].includes(s?.outcome)||
     !s.features||Object.keys(weights).some(k=>
      !normalized(s.features[k])))||
-   w.filter(s=>s.outcome==='TP3').length<
-    SHADOW_CHALLENGER_RULES.minTp3PerWindow||
-   w.filter(s=>s.outcome==='STOP').length<
-    SHADOW_CHALLENGER_RULES.minStopPerWindow))
+   w.filter(s=>s.outcome==='TP3').length<minTp3||
+   w.filter(s=>s.outcome==='STOP').length<minStop))
   return null;
  const pairs=[];
  for(const pair of FEATURE_PAIRS){
