@@ -26,6 +26,7 @@ import {discussionEvidence} from './discussion-evidence.mjs';
 import {createEditorialBudget} from './editorial-budget.mjs';
 import {createEventHistory} from './event-history.mjs';
 import {initFreeSourceDashboard} from './free-source-dashboard.mjs';
+import {initResearchLayersDashboard} from './research-layer-dashboard.mjs';
 import {globalMarketSnapshot} from './market-overview.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
@@ -323,8 +324,10 @@ function setQualityArea(requested){
 }
 
 let recentAssetContext=null;
+let researchLayersDashboard=null;
 const editorialDashboard=initEditorialDashboard({
  getSymbol:()=>chosen,
+ onMacroObservation:report=>researchLayersDashboard?.setMacro(report),
  onNewsObservation:()=>{
   // Shared headlines are already fetched; never refresh market or forecasts.
   if(recentAssetContext?.symbol===chosen)
@@ -351,6 +354,11 @@ el('asset-news-check').addEventListener('click',()=>ensureAssetNewsFeed({force:t
 const newsM5Panel=initNewsM5Panel({getSymbol:()=>chosen,storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
 const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
+researchLayersDashboard=initResearchLayersDashboard({
+ getSymbol:()=>chosen,storage:editorialStorage,
+ checkSocial:asset=>loadAssetSocial(asset),
+ checkMacro:()=>editorialDashboard.open('macro')
+});
 const radarDashboard=initRadarDashboard({
  getCatalog:()=>catalog,
  onOpenAsset:symbol=>{void investigate(symbol);navigate('asset','structure');}
@@ -906,7 +914,10 @@ function navigate(view,targetId){
    }
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
-  if(view==='sources')void freeSourceDashboard.checkPublicSources(chosen);
+  if(view==='sources'){
+   researchLayersDashboard?.open(chosen);
+   void freeSourceDashboard.checkPublicSources(chosen);
+  }
   if(view==='forecasts')favoriteManager.openForecasts();
   if(view==='quality'){
    evidenceDashboard.open();
@@ -1124,6 +1135,7 @@ async function loadAssetSocial(symbol){
   ()=>fetchBlueskyPosts(symbol),{key:symbol});
  if(symbol!==chosen)return;
  freeSourceDashboard.setSocial(symbol,result);
+ researchLayersDashboard?.setSocial(symbol,result);
  assetEventArchive.captureAsset(symbol,{social:result});
  showAssetEventHistory();
  if(!['OK','EMPTY','STALE'].includes(result.state)){
