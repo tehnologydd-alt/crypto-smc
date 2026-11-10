@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {scenarioJournalRows,scenarioJournalState}
  from './scenario-journal-state.mjs';
+import {getMobileMarkedResearchForecasts} from './mobile-bridge.mjs';
 
 const M=900000,H4=14400000;
 const anchor=Math.floor(1760000000000/H4)*H4-1;
@@ -116,4 +117,56 @@ test('native exact-ID lookup, mobile validation and on-demand UI all exist',()=>
  assert.ok(ui.includes('getMobileMarkedResearchForecasts([...selected])'));
  assert.ok(ui.includes("archive.open=journalMode==='tracked'||archiveExpanded"));
  assert.ok(ui.includes("if(journalMode==='tracked')void loadMarkedRows({force:true})"));
+});
+
+
+test('native bridge restores 80 bookmarks with two bounded batches and missing IDs',async()=>{
+ const previous=globalThis.window;
+ const saved=Array.from({length:80},(_,i)=>
+  'direction3:ADAUSDT:15m:'+(1760000000000+i*M));
+ const calls=[];
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  async getMarkedResearchForecasts({ids}){
+   calls.push([...ids]);
+   const found=ids.filter(x=>x!==saved[10]);
+   return {source:'LOCAL_ROOM_MARKED_JOURNAL',requestedCount:ids.length,
+    foundCount:found.length,missingIds:ids.filter(x=>x===saved[10]),
+    forecasts:found.map((id,i)=>({id,asset:'ADAUSDT',
+     publishedAt:Number(id.split(':').at(-1)),stageEvents:[],
+     status:'COMPLETED',interval:'15m'}))};
+  }
+ }}}};
+ try{
+  const result=await getMobileMarkedResearchForecasts(saved);
+  assert.equal(result.complete,true);
+  assert.equal(result.forecasts.length,79);
+  assert.deepEqual(result.missingIds,[saved[10]]);
+  assert.deepEqual(calls.map(x=>x.length),[75,5]);
+  assert.equal(new Set(result.forecasts.map(x=>x.id)).size,79);
+  assert.ok(result.forecasts[0].publishedAt>
+   result.forecasts.at(-1).publishedAt);
+ }finally{
+  if(previous===undefined)delete globalThis.window;
+  else globalThis.window=previous;
+ }
+});
+test('native marked bridge rejects forged unexpected Room rows and duplicates',async()=>{
+ const previous=globalThis.window;
+ const id='direction3:ADAUSDT:15m:1760000000000';
+ globalThis.window={Capacitor:{Plugins:{ApexNative:{
+  async getMarkedResearchForecasts(){
+   return {source:'LOCAL_ROOM_MARKED_JOURNAL',requestedCount:1,
+    foundCount:1,missingIds:[],
+    forecasts:[{id:'direction3:BTCUSDT:15m:1760000000000',
+     asset:'BTCUSDT',publishedAt:1760000000000}]};
+  }
+ }}}};
+ try{
+  assert.equal((await getMobileMarkedResearchForecasts([id])).complete,false);
+  assert.ok((await getMobileMarkedResearchForecasts([id])).error);
+  assert.ok((await getMobileMarkedResearchForecasts([id,id])).error);
+ }finally{
+  if(previous===undefined)delete globalThis.window;
+  else globalThis.window=previous;
+ }
 });
