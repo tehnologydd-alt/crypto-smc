@@ -8,6 +8,21 @@ import {directionalHypothesis} from './directional-scenario.mjs';
 import {multiFrameHypothesis} from './forecast-multiframe.mjs';
 
 const stageOrder=['PENDING_CONFIRMATION','CONFIRMED','ACTIVE','COMPLETED'];
+/**
+ * "All" remains fast: last 75. "Marked" adds exact, older Room rows,
+ * preferring the fresh exact-ID record on duplicate IDs, never duplicates.
+ */
+export function scenarioJournalRows(recent,bookmarked,{mode='all'}={}){
+ const latest=Array.isArray(recent)?recent:[];
+ if(mode!=='tracked')return latest;
+ const byId=new Map();
+ for(const row of [...latest,...(Array.isArray(bookmarked)?bookmarked:[])]){
+  if(row&&typeof row.id==='string')byId.set(row.id,row);
+ }
+ return [...byId.values()].sort((a,b)=>
+  (b.publishedAt||0)-(a.publishedAt||0)||b.id.localeCompare(a.id));
+}
+
 export function scenarioJournalState(rows,{
  selectedIds=[],mode='all',stage='PENDING_CONFIRMATION',now=Date.now()
 }={}){
@@ -20,9 +35,11 @@ export function scenarioJournalState(rows,{
  const scoped=isTracked?scenarios.filter(row=>marked.has(row.id)):scenarios;
  const stages=journalCounts(scoped,{now});
  const visible=scoped.filter(row=>forecastStage(row,{now})===stage);
+ // When viewing saved records, the legacy archive must remain accessible
+ // regardless of the active directed stage tab (which it never contributes to).
  const archive=all.filter(row=>!directionalHypothesis(row)&&
   !multiFrameHypothesis(row)&&(!isTracked||marked.has(row.id))&&
-  forecastStage(row,{now})===stage);
+  (isTracked||forecastStage(row,{now})===stage));
  const preferred=stageOrder.find(key=>stages[key]>0)||stageOrder[0];
  const inWork=stages.PENDING_CONFIRMATION+stages.CONFIRMED+stages.ACTIVE;
  return {scenarios:scoped,visible,archive,counts:stages,
