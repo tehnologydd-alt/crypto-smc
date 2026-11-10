@@ -136,6 +136,8 @@ object ApexMultiFrameForecast {
             .put("historicalPercentile",.8).put("empiricalWidth",width)
             .put("calibratedProbability",JSONObject.NULL)
             .put("contextAsPublished",contextAtPublication(context,asset,now))
+            .put("evidenceAsPublished",
+                ApexEvidenceContext.capture(context,dao,asset,now))
             .put("source","Binance Spot closed "+frame+" candles")
         val inserted=dao.publishResearchForecast(ResearchForecast(
             id,asset,frame,"PUBLISHED",now,now,published.toString()))

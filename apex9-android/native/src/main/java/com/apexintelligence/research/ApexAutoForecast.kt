@@ -44,7 +44,7 @@ object ApexAutoForecast {
             val reports = mutableListOf<Report>()
             for (asset in unique) {
                 try {
-                    reports.add(syncOne(asset, dao))
+                    reports.add(syncOne(context, asset, dao))
                 } catch (e: SourceUnavailable) {
                     reports.add(Report(asset, "SOURCE_UNAVAILABLE", "UNKNOWN", e.message ?: "Нет данных"))
                     if (e.message?.contains("429") == true) break
@@ -114,7 +114,7 @@ object ApexAutoForecast {
         }
     }
 
-    private suspend fun syncOne(asset: String, dao: ResearchDao): Report {
+    private suspend fun syncOne(context: Context, asset: String, dao: ResearchDao): Report {
         val now = System.currentTimeMillis()
         val rows = download(asset, now)
         if (rows.size < SAMPLE) return Report(asset, "INSUFFICIENT", "UNKNOWN", "Мало завершённых H1-свечей")
@@ -206,6 +206,8 @@ object ApexAutoForecast {
             .put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)
+            .put("evidenceAsPublished",
+                ApexEvidenceContext.capture(context,dao,asset,now))
         val inserted=dao.publishResearchForecast(ResearchForecast(
             id=id,asset=asset,horizon="1h",status="PUBLISHED",
             publishedAt=now,updatedAt=now,hypothesisJson=payload.toString()
