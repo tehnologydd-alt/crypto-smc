@@ -2738,3 +2738,152 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  body[data-view="asset"] .structure-event{padding:10px 9px}
  body[data-view="asset"] .structure-event b{font-size:12px}
 }
+
+
+/* Compact scenarios & evidence carousel — mobile-first, swipe and tap. */
+#view-forecasts .forecast-intro{padding:15px 14px}
+#view-forecasts .forecast-intro .section-title{margin-bottom:0}
+#view-forecasts .forecast-intro .forecast-stats{margin-top:12px}
+.forecast-technical-notes{
+ margin-top:10px;border-top:1px solid #345661;padding-top:5px;
+ color:#98b8c0;font-size:11px;line-height:1.5
+}
+.forecast-technical-notes>summary{
+ cursor:pointer;min-height:38px;display:flex;align-items:center;
+ color:#98bdc5;font-weight:650;font-size:11px
+}
+.forecast-technical-notes>p{font-size:11px;line-height:1.6;margin:8px 0}
+.forecast-technical-notes[open]{padding-bottom:6px}
+#view-forecasts .forecast-workspace>.section-title{margin-bottom:3px}
+#view-forecasts .forecast-workspace>.forecast-technical-notes{margin-bottom:12px}
+.forecast-insights{min-width:0;margin:13px 0 18px}
+.forecast-insights-switch{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:7px;margin-bottom:11px
+}
+.forecast-insights-switch>button{
+ min-width:0;min-height:43px;border-radius:12px;border:1px solid #376875;
+ background:#112832;color:#a5c8d1;font-size:12px;font-weight:740;
+ cursor:pointer
+}
+.forecast-insights-switch>button.is-active{
+ border-color:#5fcac9;background:#145157;color:#e0fffa
+}
+.forecast-insights-switch>button:focus-visible{
+ outline:2px solid #7be6d9;outline-offset:2px
+}
+.forecast-insights-track{
+ display:flex;position:relative;gap:11px;min-width:0;
+ overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+ scroll-padding-inline:0;overscroll-behavior-x:contain;
+ touch-action:pan-x;-webkit-overflow-scrolling:touch;
+ scrollbar-width:none
+}
+.forecast-insights-track::-webkit-scrollbar{display:none}
+.forecast-insight-slide{
+ flex:0 0 100%;width:100%;max-width:100%;min-width:0;
+ scroll-snap-align:start;box-sizing:border-box;margin:0!important;
+ align-self:flex-start
+}
+#view-forecasts .forecast-observed-statistics{
+ padding:14px 12px!important
+}
+#view-forecasts .forecast-observed-statistics .section-title h3{font-size:17px}
+#view-forecasts .forecast-observed-statistics .section-title span{font-size:10px}
+#view-forecasts .forecast-mode-tabs{margin:10px 0}
+#view-forecasts .forecast-mode{min-height:40px}
+#view-forecasts .forecast-quality-summary{
+ margin:8px 0 0;padding:10px 8px
+}
+#view-forecasts .forecast-quality-heading{margin-bottom:7px}
+#view-forecasts .forecast-quality-heading strong{font-size:12px}
+#view-forecasts .forecast-quality-coverage{
+ font-size:10px;line-height:1.4;margin:0 0 8px
+}
+#view-forecasts .forecast-quality-kpis{
+ grid-template-columns:repeat(3,minmax(0,1fr));gap:5px
+}
+#view-forecasts .forecast-quality-kpi{
+ padding:9px 6px;gap:4px;text-align:center;border-radius:10px
+}
+#view-forecasts .forecast-quality-kpi span{font-size:10px}
+#view-forecasts .forecast-quality-kpi strong{font-size:19px}
+.forecast-quality-glance{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:6px;margin:10px 0
+}
+.forecast-quality-glance-item{
+ display:flex;justify-content:space-between;align-items:center;
+ gap:8px;min-width:0;padding:10px 9px;border:1px solid #365a66;
+ border-radius:10px;background:#0b2731
+}
+.forecast-quality-glance-item span{
+ color:#a8cbd1;font-size:10px;line-height:1.35
+}
+.forecast-quality-glance-item strong{
+ flex:none;color:#daf7f0;font-size:17px;font-variant-numeric:tabular-nums
+}
+.forecast-quality-expansion{
+ margin:11px 0 0;border:1px solid #3e6a74;border-radius:12px;
+ overflow:hidden;background:#0d2631
+}
+.forecast-quality-expansion>summary{
+ cursor:pointer;min-height:45px;padding:13px 12px;
+ color:#b6efdf;font-size:12px;font-weight:750;
+ display:flex;align-items:center;justify-content:space-between
+}
+.forecast-quality-expansion>summary::after{content:"⌄";font-size:20px}
+.forecast-quality-expansion[open]>summary::after{transform:rotate(180deg)}
+.forecast-quality-expansion[open]>*:not(summary){
+ margin-left:9px;margin-right:9px
+}
+#view-forecasts .quality-entry{
+ padding:17px 14px!important
+}
+#view-forecasts .quality-entry .quality-entry-heading{margin-bottom:9px}
+#view-forecasts .quality-entry .muted{
+ font-size:12px;line-height:1.55;margin:7px 0 16px
+}
+#view-forecasts .quality-entry .quality-open{min-height:45px}
+@media(max-width:360px){
+ #view-forecasts .forecast-intro{padding:12px 10px}
+ #view-forecasts .forecast-observed-statistics{padding:12px 9px!important}
+ .forecast-quality-glance-item{padding:8px 6px}
+ .forecast-quality-glance-item strong{font-size:15px}
+}
+
+/* Finished scenarios show terminal evidence, not an entire journal by default. */
+.forecast-visual.is-completed{
+ background:linear-gradient(140deg,#26303a,#19232c 76%)!important;
+ border-color:#5a6b78!important
+}
+.forecast-visual.is-completed .forecast-visual-state.finished{
+ background:#46535e;color:#e0e7eb
+}
+.forecast-visual.is-completed .forecast-visual-identity strong{
+ font-size:clamp(18px,4.7vw,23px)
+}
+.forecast-final-snapshot{
+ display:grid;gap:7px;margin-top:13px;padding:12px;
+ border:1px solid #647582;border-radius:13px;background:#253540
+}
+.forecast-final-snapshot[hidden]{display:none!important}
+.forecast-final-reason{font-size:13px;line-height:1.55;color:#edf4f5}
+.forecast-final-source{font-size:10px;line-height:1.5;color:#b7cbd0}
+.forecast-card-fold>summary{
+ cursor:pointer;min-height:43px;padding:13px 9px 9px;
+ font-size:12px;font-weight:750;color:#bddde4;
+ border-bottom:1px solid #53606d
+}
+.forecast-card-fold[open]>summary{margin-bottom:13px}
+.forecast-visual:not(.is-completed)>.forecast-card-fold>summary{
+ display:none
+}
+.forecast-visual.is-completed .forecast-visual-actions{margin-top:12px}
+.forecast-visual.is-completed .forecast-visual-actions>button{
+ min-height:40px
+}
+.forecast-visual.is-completed .forecast-card-actions{margin-top:7px}
+@media(prefers-reduced-motion:reduce){
+ .forecast-insights-track{scroll-behavior:auto}
+}
