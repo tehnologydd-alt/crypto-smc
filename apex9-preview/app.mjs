@@ -37,8 +37,21 @@ import {buildScenarioReplay} from './scenario-replay.mjs';
 import {directionalOutcomeLabel} from './directional-scenario.mjs';
 
 const el=(id)=>document.getElementById(id);
+/** Keep technical notes accessible without showing every warning as a paragraph. */
+function foldAssetTechnicalNotes(){
+ for(const note of document.querySelectorAll('#view-asset .footnote')){
+  if(note.closest('details')||note.closest('summary'))continue;
+  const fold=document.createElement('details');
+  fold.className='asset-quiet-detail';
+  const title=document.createElement('summary');
+  title.textContent='Методика и источники';
+  note.replaceWith(fold);fold.append(title,note);
+ }
+}
+foldAssetTechnicalNotes();
 const fmt=(value,digits=8)=>Number.isFinite(value)
  ?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:digits}).format(value):'—';
+const fmtPrice=(value)=>fmt(value,value>=1?2:value>=0.01?4:8);
 const time=(ms)=>Number.isFinite(ms)
  ?new Date(ms).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
 const layerNames={
@@ -562,14 +575,16 @@ function renderScenarioMap(asset){
      ' · '+sc.milestones.length+' из 4 событий'));
   const middle=create('span','scenario-map-item-range',
    sc.model==='DIRECTIONAL'?
-    'Вход '+fmt(sc.levels.entry)+' · TP1 '+fmt(sc.levels.tp1)+
-    ' · TP2 '+fmt(sc.levels.tp2)+' · TP3 '+fmt(sc.levels.tp3)+
-    ' · SL '+fmt(sc.levels.sl):
+    'Вход '+fmtPrice(sc.levels.entry)+' · TP1 '+fmtPrice(sc.levels.tp1)+
+    ' · TP2 '+fmtPrice(sc.levels.tp2)+' · TP3 '+fmtPrice(sc.levels.tp3)+
+    ' · SL '+fmtPrice(sc.levels.sl):
     fmt(sc.bandLow)+' — '+fmt(sc.bandHigh)+' USDT');
   const detail=create('span','scenario-map-item-time',
    'Опорная свеча: '+new Date(sc.anchorCloseAt).toLocaleString('ru-RU')+
    ' · публикация: '+new Date(sc.publishedAt).toLocaleString('ru-RU'));
   button.append(top,middle,detail);
+  if(sc.model==='DIRECTIONAL')button.title='Точные исходные уровни: '+
+   JSON.stringify(sc.levels);
   if(sc.result)button.append(create('span','scenario-map-item-result',
    (sc.model==='DIRECTIONAL'?
     directionalOutcomeLabel(sc.result.outcome):
