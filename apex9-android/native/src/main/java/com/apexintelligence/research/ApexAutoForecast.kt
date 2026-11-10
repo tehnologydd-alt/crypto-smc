@@ -206,6 +206,8 @@ object ApexAutoForecast {
             .put("sampleBars",SAMPLE)
             .put("empiricalSamples",changes.size).put("historicalPercentile",.8)
             .put("calibratedProbability",JSONObject.NULL).put("source",SOURCE)
+            .put("evidenceAsPublished",
+                ApexEvidenceContext.capture(context,dao,asset,now))
         val inserted=dao.publishResearchForecast(ResearchForecast(
             id=id,asset=asset,horizon="1h",status="PUBLISHED",
             publishedAt=now,updatedAt=now,hypothesisJson=payload.toString()
