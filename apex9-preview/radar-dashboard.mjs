@@ -3,7 +3,7 @@
  * No orders, AI votes, or fabricated confidence. Automatic research scans
  * only saved favorites and only confirmed closed candle timeframes.
  */
-import {fetchCandles} from './candles.mjs';
+import {fetchCandles,CANDLE_INTERVALS} from './candles.mjs';
 import {getMobileRadarHistory} from './mobile-bridge.mjs';
 import {validateRadarObservation} from './radar-changes.mjs';
 import {createRadarDisplayCache} from './radar-display-cache.mjs';
@@ -194,7 +194,13 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   const root=id('radar-results');root.replaceChildren();
   const valid=rows.filter(row=>row.analysis?.state==='OK');
   id('radar-coverage').textContent=valid.length+' из '+(getFavorites()?.length||0)+' избранных';
-  id('radar-change-count').textContent=radarChangeCount(rows)+' с изменениями';
+  const currentlyObserved=rows.filter(row=>{
+   const at=row.analysis?.lastClosedAt,step=CANDLE_INTERVALS[interval];
+   return row.change?.state==='CHANGED'&&Number.isSafeInteger(at)&&
+    Number.isSafeInteger(step)&&Date.now()>=at&&
+    Date.now()-at<=2*step+60000;
+  }).length;
+  id('radar-change-count').textContent=currentlyObserved+' актуальных изменений';
   const sorted=filterRadarRows(rows,{filter,sort});
   if(!sorted.length){
    root.append(create('p','radar-empty',rows.length?
@@ -240,7 +246,7 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
    if(compare?.state==='CHANGED'){
     changeBox.classList.add('has-changes');
     changeBox.append(create('strong','radar-change-title',
-     'Изменения между закрытыми свечами: '+date(compare.beforeAt)+
+     (row.saved?'История · изменения между закрытыми свечами: ':'Изменения между закрытыми свечами: ')+date(compare.beforeAt)+
      ' → '+date(compare.afterAt)));
     const tags=create('div','radar-change-tags');
     for(const item of compare.events){
