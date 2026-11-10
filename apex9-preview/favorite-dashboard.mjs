@@ -1053,6 +1053,7 @@ export function initFavoriteResearch({
   */
  async function loadMarkedRows({force=false}={}){
   const key=selectedKey();
+  if(markedLoading&&!force)return;
   if(!force&&markedReadyFor===key&&!markedError){
    if(journalMode==='tracked')renderRows();
    return;
@@ -1130,6 +1131,13 @@ export function initFavoriteResearch({
   const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
   const multi=visible.filter(row=>Boolean(multiFrameHypothesis(row)));
   const legacy=view.archive;
+  if(journalMode==='tracked'){
+   box.append(create('p','forecast-marked-restored',
+    'Сохранено отметок: '+selected.size+
+    ' · найдено в Room: '+markedRows.length+
+    (markedMissing.length?' · недоступно: '+markedMissing.length:'')+
+    '. Архивные исследования показаны отдельно от этапов.'));
+  }
   const renderCard=row=>cardForForecast(row,{
    tracked:selected.has(row.id),
    onToggle:key=>{
