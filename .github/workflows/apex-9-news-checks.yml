@@ -52,6 +52,8 @@ jobs:
           node --check apex9-preview/forecast-feature-stability.mjs
           node --check apex9-preview/forecast-shadow-forward.mjs
           node --check apex9-preview/forecast-shadow-monitor.mjs
+          node --check apex9-preview/forecast-shadow-explanation.mjs
+          node --test apex9-preview/test-forecast-shadow-explanation.mjs
           node --test apex9-preview/test-forecast-shadow-forward.mjs
           node --test apex9-preview/test-forecast-feature-stability.mjs
           node --check apex9-preview/forecast-feature-dashboard.mjs
