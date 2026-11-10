@@ -2572,3 +2572,40 @@ body:not([data-view="catalog"]) #view-catalog{display:none!important}
 .news-m5-step strong{font-size:13px;color:#cfebe6}
 .news-m5-step small{font-size:11px;line-height:1.6;color:#9fc2c5;
  overflow-wrap:anywhere}
+
+/* Explicit source-by-source research layers — no misleading static OK badges. */
+.research-layer-row{border-top:1px solid #28505c;padding:15px 0;
+ display:grid;gap:10px;min-width:0}
+.research-layer-head{display:flex;align-items:center;justify-content:space-between;
+ gap:10px;flex-wrap:wrap}
+.research-layer-head strong{font-size:14px;line-height:1.5;color:#d5e9eb}
+.research-layer-state{display:inline-flex;align-items:center;
+ border-radius:10px;border:1px solid #536a72;padding:6px 9px;
+ font-size:10px;line-height:1.4;font-weight:700;color:#c6d8dc;
+ overflow-wrap:anywhere;max-width:100%}
+.research-layer-state.is-ok{color:#a5f6dd;background:#0e3c38;
+ border-color:#245c53}
+.research-layer-state.is-other{color:#ffcc8c;background:#3a2c22;
+ border-color:#71543a}
+.research-layer-state.is-neutral{color:#b0c6cc;background:#17313a}
+.research-layer-row .muted,.research-layer-row .footnote{
+ margin:0;font-size:12px;line-height:1.7}
+.research-layer-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.research-layer-actions input{flex:1 1 210px;min-width:0;
+ border:1px solid #376371;background:#0c2029;color:#e5f2f3;
+ padding:11px;border-radius:10px;font-size:12px}
+.research-layer-actions button,.research-layer-check{min-height:38px;font-size:12px;
+ max-width:100%}
+.research-layer-metrics{display:grid;gap:7px}
+.research-layer-metric{display:flex;justify-content:space-between;gap:12px;
+ flex-wrap:wrap;padding:9px 11px;background:#0d2028;
+ border:1px solid #25424c;border-radius:10px}
+.research-layer-metric span,.research-layer-metric strong{
+ font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.research-layer-metric span{color:#9eb7bd}
+.research-layer-metric strong{color:#d7ece9;text-align:right;max-width:100%}
+@media(max-width:560px){
+ .research-layer-actions input{flex-basis:100%}
+ .research-layer-metric{display:grid;gap:5px}
+ .research-layer-metric strong{text-align:left}
+}
