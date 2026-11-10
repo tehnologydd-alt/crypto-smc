@@ -31,15 +31,15 @@ class FakeCard{
 const touch=(x,y,identifier=1)=>({clientX:x,clientY:y,identifier});
 const target={closest:()=>null};
 
-test('five navigation destinations fit in one dock row, overview returns to favorites',()=>{
+test('four navigation destinations fit in one dock row, overview returns to favorites',()=>{
  const dock=css.slice(css.indexOf('.tabs.bottom-dock{'),css.indexOf('.bottom-dock .tab{'));
- assert.match(dock,/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+ assert.match(dock,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
  assert.ok(html.includes('id="overview-favorites-anchor"'));
  assert.ok(app.includes("const node=view==='overview'?"));
  assert.ok(app.includes("el('overview-favorites-anchor')"));
  const nav=html.slice(html.indexOf('<nav class="tabs bottom-dock"'),
   html.indexOf('</nav>',html.indexOf('<nav class="tabs bottom-dock"')));
- assert.equal([...nav.matchAll(/data-tab="[^"]+"/g)].length,5);
+ assert.equal([...nav.matchAll(/data-tab="[^"]+"/g)].length,4);
  assert.ok(nav.includes('aria-label="Исследования"'));
 });
 test('swipe requires hold and mostly upward movement',()=>{
