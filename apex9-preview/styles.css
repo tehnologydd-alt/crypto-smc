@@ -282,7 +282,7 @@ body{
  position:fixed;z-index:50;left:50%;transform:translateX(-50%);
  bottom:max(11px,env(safe-area-inset-bottom));
  width:min(calc(100% - 22px),480px);max-width:480px;
- display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;
  padding:8px;border:1px solid #3f929b80;border-radius:25px;
  background:linear-gradient(160deg,#152e38e8,#0c1c25f4);
  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
@@ -1616,7 +1616,7 @@ body[data-view="asset"] .chart-toolbar .chart-reset{margin-left:auto}
 
 /* APEX Flat Workspaces / Android UX — direct task switches, no nested menus.
  * Keep every source-backed DOM node mounted: only visibility changes. */
-.tabs.bottom-dock{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;
+.tabs.bottom-dock{grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;
  width:min(calc(100% - 14px),520px);padding:7px 5px}
 .bottom-dock .tab{min-width:0;min-height:58px;border-radius:15px;
  padding:7px 0 6px;font-size:9px;line-height:1.35;overflow-wrap:anywhere;
