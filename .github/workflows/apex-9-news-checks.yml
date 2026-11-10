@@ -48,6 +48,10 @@ jobs:
           node --check apex9-preview/radar-dashboard.mjs
           node --check apex9-preview/radar-auto-policy.mjs
           node --check apex9-preview/radar-display-cache.mjs
+          node --check apex9-preview/asset-favorites-picker.mjs
+          node --check apex9-preview/market-matrix-cache.mjs
+          node --check apex9-preview/onchain-chain-head.mjs
+          node --check apex9-preview/onchain-dashboard.mjs
       - name: News and asset attribution regression tests
         run: |
           node --test \
@@ -85,3 +89,12 @@ jobs:
             apex9-preview/test-radar-background-integration.mjs \
             apex9-preview/test-radar-changes.mjs \
             apex9-preview/test-radar-core.mjs
+      - name: Asset cleanup and keyless chain snapshots
+        run: |
+          node --test \
+            apex9-preview/test-asset-favorites-picker.mjs \
+            apex9-preview/test-market-matrix-cache.mjs \
+            apex9-preview/test-onchain-chain-head.mjs \
+            apex9-preview/test-radar-navigation.mjs \
+            apex9-preview/test-mobile-navigation.mjs \
+            apex9-preview/test-onchain-core.mjs
