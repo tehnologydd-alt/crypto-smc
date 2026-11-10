@@ -29,5 +29,5 @@ test('actual BLS labels survive and unrelated or invented events do not appear',
 test('bad calendar and provider HTTP failures do not generate scheduled releases',async()=>{
  assert.equal(parseBlsCalendar('<html>error</html>',{now:t}).state,'INVALID');
  const state=await loadBlsCalendar({fetchImpl:async()=>({ok:false,status:403}),now:()=>t});
- assert.equal(state.state,'OFFLINE');assert.equal(state.events.length,0);
+ assert.equal(state.state,'ACCESS_DENIED');assert.equal(state.events.length,0);
 });
