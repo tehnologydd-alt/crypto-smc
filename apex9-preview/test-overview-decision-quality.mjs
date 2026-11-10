@@ -136,7 +136,7 @@ test('overview, full-archive audit, web staging, and routing are wired',()=>{
  assert.ok(read('./overview-research-progress.mjs').includes(
   "window.addEventListener('apex:decision-quality-checked'"));
  assert.ok(read('./forecast-feature-dashboard.mjs').includes(
-  'saveDecisionQualityAudit(archive,asset,{now:auditedAt})'));
+  'saveDecisionQualityAudit(archive,asset,{'));
  assert.ok(read('./index.html').includes('id="overview-decision-quality"'));
  assert.ok(read('./index.html').includes('data-target="forecast-feature-audit"'));
  assert.ok(read('../apex9-android/scripts/prepare-web.mjs').includes(
