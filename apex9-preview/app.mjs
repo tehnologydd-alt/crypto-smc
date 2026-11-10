@@ -1,5 +1,5 @@
 import {collectAsset,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
-import {collectContext} from './context-sources.mjs';
+import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
@@ -307,6 +307,7 @@ function setAssetArea(requested){
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
    void loadAssetSocial(chosen);
+   void ensureAssetNewsFeed();
   });
  }
 }
@@ -330,10 +331,22 @@ const editorialDashboard=initEditorialDashboard({
    renderAssetNews(recentAssetContext.sources?.find(s=>s.id==='gdelt-news'));
  }
 });
+/** Request RSS/news only when the user opens asset Data or taps refresh.
+ * A 15-minute shared observation avoids repeated requests between assets.
+ */
+function ensureAssetNewsFeed({force=false}={}){
+ const previous=editorialDashboard.getNewsObservation();
+ const recent=Number.isSafeInteger(previous?.checkedAt)&&
+  Date.now()-previous.checkedAt>=0&&
+  Date.now()-previous.checkedAt<15*60000;
+ if(!force&&recent)return;
+ void editorialDashboard.open('news');
+}
 // The high-frequency price refresh must NEVER generate unbounded GDELT queries.
 let editorialStorage=null;
 try{editorialStorage=window.localStorage;}catch{}
 const assetNewsBudget=createEditorialBudget({storage:editorialStorage});
+const bitcoinBackgroundGate=createBitcoinBackgroundGate();
 const newsM5Panel=initNewsM5Panel({getSymbol:()=>chosen,storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
 const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
@@ -888,6 +901,7 @@ function navigate(view,targetId){
     void onChainDashboard.refresh(chosen);
     void loadAssetSocial(chosen);
     void freeSourceDashboard.openAsset(chosen);
+    void ensureAssetNewsFeed();
    }
    if(!lastLoad||Date.now()-lastLoad>90000)void investigate(chosen);
   }
@@ -1042,7 +1056,7 @@ function renderSources(snapshot){
 
 const contextSources={
  'coingecko-global':'CoinGecko · глобальная статистика',
- 'bitcoin-mempool':'mempool.space · сеть Bitcoin',
+ 'bitcoin-mempool':'mempool.space · сеть Bitcoin (общий рынок)',
  'gdelt-news':'GDELT · упоминания в СМИ'
 };
 const usd=(x)=>Number.isFinite(x)?new Intl.NumberFormat('ru-RU',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:2}).format(x):'—';
@@ -1183,6 +1197,32 @@ function renderAssetNews(gdelt){
   dest.append(row);
  }
 }
+function contextSourceExplanation(item){
+ if(item?.id==='bitcoin-mempool'&&item?.state==='OK'){
+  const scope=item.data?.assetSpecific?
+   'сеть выбранного BTC':'сеть Bitcoin, не блокчейн выбранной монеты';
+  return 'Реальные показатели · '+scope+
+   (item.access==='CACHE'?' · локальный кеш (до 2 мин)':' · ответ API')+
+   ' · получено '+time(item.data.receivedAt);
+ }
+ if(item?.id==='gdelt-news'&&
+  ['WAIT_INTERVAL','LIMIT_REACHED','STALE'].includes(item?.state)){
+  const nextAt=item.quota?.nextAt;
+  return (item.state==='STALE'?'Архив: новые публикации пока не проверены':
+   item.state==='LIMIT_REACHED'?'Локальный суточный лимит запросов':'Локальная пауза GDELT')+
+   (Number.isSafeInteger(nextAt)&&nextAt>Date.now()?
+    ' · следующая попытка после '+time(nextAt):'')+
+   ' · RSS проверяется отдельно';
+ }
+ if(item?.state==='OK')return 'Сведения получены'+
+  (item.access==='CACHE'?' · локальный кеш':'');
+ if(item?.state==='EMPTY')return 'Источник ответил, совпадений нет';
+ if(item?.state==='UNSUPPORTED')return 'Не поддерживается для выбранного актива';
+ if(item?.state==='RATE_LIMITED')return 'Ограничение запросов на стороне сервиса';
+ if(item?.state==='OFFLINE')return 'Нет ответа API · '+(item.error||item.reason||'проверьте сеть');
+ if(item?.state==='INVALID')return 'Некорректный ответ источника';
+ return item?.reason||item?.error||'Нет доступных сведений';
+}
 function renderContext(context){
  recentAssetContext=context;
  renderGlobalOverview(context);
@@ -1208,11 +1248,8 @@ function renderContext(context){
  const marketOk=current?.sources?.filter(x=>x.state==='OK').length||0;
  text('top-status',(marketOk+good)+' / 6 источников');
  for(const item of context.sources){
-  let detail=item.state==='OK'?'Сведения получены':'Нет доступных сведений';
-  if(item.state==='EMPTY')detail='Совпадений по запросу не найдено';
-  if(item.state==='UNSUPPORTED')detail='Источник не подходит для этого актива';
-  if(item.error)detail=item.error;
-  list.append(sourceRow(contextSources[item.id]||item.id,item.state,detail));
+  list.append(sourceRow(contextSources[item.id]||item.id,item.state,
+   contextSourceExplanation(item)));
  }
  const g=data['coingecko-global'];
  if(g?.state==='OK'&&g.data){
@@ -1230,6 +1267,9 @@ function renderContext(context){
   appendLine(chain,'Виртуальный размер',fmt(b.data.virtualSizeVBytes,0)+' vB');
   appendLine(chain,'Сумма комиссий',fmt(b.data.totalFeesSats,0)+' сатоши');
   appendLine(chain,'Время получения',time(b.data.receivedAt));
+  appendLine(chain,'Область данных',b.data.assetSpecific?
+   'Сеть выбранного BTC':'Общая сеть BTC, не блокчейн выбранной монеты');
+  if(b.access==='CACHE')appendLine(chain,'Источник','Локальный кеш · до 2 минут');
  }else chain.append(create('p','muted',
   b?.state==='UNSUPPORTED'?'Показатели сети Bitcoin доступны только для BTC.':
   'mempool.space: '+(b?.state||'OFFLINE')+(b?.error?' · '+b.error:'')));
@@ -1343,7 +1383,7 @@ async function investigate(value){
    collectAsset(chosen,{signal:local.signal,now:()=>Date.now()}),
    collectContext(chosen,{signal:local.signal,now:()=>Date.now(),
     newsGate:(symbol,fetcher)=>assetNewsBudget.load('assetNews',fetcher,
-     {key:symbol})})
+     {key:symbol}),bitcoinNetworkGate:bitcoinBackgroundGate})
   ]);
   if(active!==pending)return;
   renderSnapshot(snapshot);
