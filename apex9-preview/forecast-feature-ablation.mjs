@@ -31,7 +31,7 @@ const FRAMES=['15m','1h','4h'];
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const finite=x=>typeof x==='number'&&Number.isFinite(x);
 const validAsset=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
-const frame=row=>{
+export const featureFrameOf=row=>{
  if(multiFrameHypothesis(row)&&['15m','4h'].includes(row.interval))
   return row.interval;
  if(directionalHypothesis(row)&&row.interval==='1h')return '1h';
@@ -78,7 +78,7 @@ export function frozenRankScore(features,omitted=null){
  }
  return weights>0?sum/weights:null;
 }
-function windowAudit(rows,{now,cutAt=null}){
+export function featureWindowAudit(rows,{now,cutAt=null}){
  const metrics=blank(),samples=[];
  let occupied=-Infinity,validVolume=0;
  const sorted=rows.slice().sort((a,b)=>a.publishedAt-b.publishedAt||
@@ -87,12 +87,12 @@ function windowAudit(rows,{now,cutAt=null}){
  for(const row of sorted){
   const frozen=inspectPreOutcomeStrength(row);
   if(frozen.state!=='VERIFIED'){metrics.invalid++;continue;}
-  const source=frame(row)==='1h'?
+  const source=featureFrameOf(row)==='1h'?
    verifiedDirectionalEvidence(row,{now}):multiFrameEvidence(row,{now});
   if(source.state!=='OBSERVED'||!source.plan){
    metrics.invalid++;continue;
   }
-  if(frame(row)==='1h'&&source.source!=='M5'){
+  if(featureFrameOf(row)==='1h'&&source.source!=='M5'){
    metrics.legacyH1++;continue;
   }
   const target=source.plan.targetCloseAt;
@@ -195,7 +195,7 @@ export function auditFeatureContribution(rows,{
   return fail('INVALID','Повторяющиеся идентификаторы Room.');
  const frames={};
  for(const tf of FRAMES){
-  const items=rows.filter(x=>frame(x)===tf)
+  const items=rows.filter(x=>featureFrameOf(x)===tf)
    .sort((a,b)=>a.publishedAt-b.publishedAt||a.id.localeCompare(b.id));
   const eligible=items.filter(x=>
    inspectPreOutcomeStrength(x).state==='VERIFIED');
@@ -223,8 +223,8 @@ export function auditFeatureContribution(rows,{
     reason:'Не удалось разбить публикации на непересекающиеся временные выборки.'};
    continue;
   }
-  const reference=windowAudit(eligible.slice(0,split),{now,cutAt});
-  const recent=windowAudit(eligible.slice(split),{now});
+  const reference=featureWindowAudit(eligible.slice(0,split),{now,cutAt});
+  const recent=featureWindowAudit(eligible.slice(split),{now});
   const result=examine(reference,recent);
   frames[tf]={...base,...result,cutAt,
    reference:reference.metrics,recent:recent.metrics,
