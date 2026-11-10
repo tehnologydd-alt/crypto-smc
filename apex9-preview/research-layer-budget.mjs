@@ -73,5 +73,10 @@ export function createResearchLayerBudget({storage,now=()=>Date.now()}={}){
   pending.set(identity,task);
   try{return await task}finally{pending.delete(identity)}
  }
- return {load,status};
+ function clear(mode,key){
+  if(!LAYER_POLICY[mode]||!validKey(key)||!storage?.removeItem)return false;
+  try{storage.removeItem(CACHE+mode+':'+key);return true}
+  catch{return false}
+ }
+ return {load,status,clear};
 }
