@@ -303,105 +303,149 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   request++;
   id('radar-refresh').disabled=false;
  }
- async function scan({force=false}={}){
-  if(!active)return;
-  if(!force&&lastInterval===interval&&lastScanAt&&
-   Date.now()-lastScanAt<REFRESH_MS){render();return;}
-  clearRun();
-  const generation=request,chosen=interval;
-  const local=new AbortController();
-  controller=local;rows=[];failures=0;total=0;
-  alignment.clear();
-  lastScanAt=0;lastInterval=null;
-  render();id('radar-refresh').disabled=true;
-  status('Запрашиваем публичный список торговых пар…');
+ /** Merge only validated native closed-candle observations for currently
+  * saved favorites, never synthesize a tick or relabel a historical record.
+  */
+ async function syncNative(){
+  const native=await getMobileRadarHistory();
+  if(!native.native)return;
+  const allowed=new Set(getFavorites());
+  let updated=false;
+  for(const pair of native.records){
+   const latest=pair?.latest,previous=pair?.previous;
+   if(!validateRadarObservation(latest)||!allowed.has(latest.symbol))continue;
+   const key=latest.symbol+'|'+latest.interval;
+   const old=history[key];
+   if(old?.latest?.candleAt>=latest.candleAt)continue;
+   if(validateRadarObservation(previous)&&
+    previous.symbol===latest.symbol&&previous.interval===latest.interval&&
+    (!old||old.latest.candleAt<previous.candleAt)){
+    mergeRadarObservation(history,previous);
+   }
+   mergeRadarObservation(history,latest);
+   updated=true;
+  }
+  if(!updated)return;
+  saveRadarChanges(storage,history);
+  for(const frame of ['15m','1h','4h','1d']){
+   const selected=new Set(getFavorites());
+   const entries=Object.values(history).filter(item=>
+    item?.latest?.interval===frame&&selected.has(item.latest.symbol));
+   if(entries.length)displayCache.save(frame,entries);
+   frameRows.delete(frame);
+  }
+  syncUi();
+  window.dispatchEvent(new CustomEvent('apex-radar-updated'));
+ }
+ function progress(frame,message,warning=false){
+  if(active&&interval===frame)status(message,warning);
+ }
+ async function scan({force=false,frame=interval}={}){
+  if(!started||document.hidden)return;
+  // Manual refresh may replace one background request, not create another.
+  if(controller){
+   if(!force)return;
+   clearRun();
+  }
   const favorites=getFavorites();
-  const allow=new Set(Array.isArray(favorites)?favorites.slice(0,10):[]);
-  const catalog=[...allow].filter(symbol=>/^[A-Z0-9]{2,16}USDT$/.test(symbol));
-  if(!allow.size){
-   status('Радар анализирует только избранное. Добавьте актив через каталог.');
-   if(generation===request){controller=null;id('radar-refresh').disabled=false;}
-   return;
-  }
+  const allowed=new Set(favorites);
+  const catalog=[...allowed].filter(symbol=>/^[A-Z0-9]{2,16}USDT$/.test(symbol));
   if(!catalog.length){
-   status('Для избранных Spot-пар пока нет подтверждённого каталога.',true);
-   if(generation===request){controller=null;id('radar-refresh').disabled=false;}
+   progress(frame,'Радар наблюдает только избранные. Добавьте актив в каталоге.');
    return;
   }
+  const generation=++request,local=new AbortController();
+  controller=local;
+  if(active&&interval===frame)id('radar-refresh').disabled=true;
+  const selectedFrame=frame,desired=catalog.slice().sort().join(',');
+  progress(frame,'Проверяем завершённые свечи '+FRAME[frame]+' у избранных…');
   try{
-   const currentSet=catalog.slice().sort().join(',');
    const fresh=force||!universe||Date.now()-universeAt>UNIVERSE_MS||
-    lastUniverseSymbols!==currentSet;
+    lastUniverseSymbols!==desired;
    if(fresh){
-    universe=await fetchRadarUniverse({catalog,signal:local.signal});
-    if(universe.state==='OK'){universeAt=Date.now();lastUniverseSymbols=currentSet;}
+    const next=await fetchRadarUniverse({catalog,signal:local.signal});
+    if(next.state==='OK'){
+     universe=next;universeAt=Date.now();lastUniverseSymbols=desired;
+    }else if(!universe||lastUniverseSymbols!==desired){
+     progress(frame,'Публичные тикеры недоступны: '+next.reason,true);
+     return;
+    }
    }
    if(generation!==request||local.signal.aborted)return;
-   if(universe.state!=='OK'){
-    status('Проверка рынка недоступна: '+universe.reason,true);return;
-   }
-   total=universe.rows.length;render();
-   status('Проверяем '+total+' активов · '+FRAME[chosen]+
-    ' · не более трёх запросов одновременно.');
+   const candidate=universe.rows.filter(row=>allowed.has(row.symbol));
+   const freshRows=[], failures=[];
    let stopForLimit=false;
-   // Bounded batches prevent phone bandwidth and API exhaustion.
-   for(let offset=0;offset<universe.rows.length;offset+=3){
+   for(let offset=0;offset<candidate.length;offset+=3){
     if(local.signal.aborted||generation!==request)break;
-    const batch=universe.rows.slice(offset,offset+3);
-    const received=await Promise.all(batch.map(async ticker=>{
-     const response=await fetchCandles(ticker.symbol,chosen,{
+    const batch=candidate.slice(offset,offset+3);
+    const checked=await Promise.all(batch.map(async ticker=>{
+     const received=await fetchCandles(ticker.symbol,selectedFrame,{
       signal:local.signal,limit:64
      });
-     if(response.state!=='OK'){
-      return {ticker,state:response.state,reason:response.error};
-     }
-     const raw=analyzeMarketFrame(response.candles,chosen,{
-      now:response.receivedAt,source:'Binance Spot'
+     if(received.state!=='OK')return {ticker,state:received.state};
+     const measured=analyzeMarketFrame(received.candles,selectedFrame,{
+      now:received.receivedAt,source:'Binance Spot'
      });
-     const analysis=describeRadarFrame(raw);
+     const analysis=describeRadarFrame(measured);
      return {ticker,state:analysis.state,analysis};
     }));
-    if(generation!==request||local.signal.aborted)break;
-    for(const item of received){
+    if(local.signal.aborted||generation!==request)break;
+    for(const item of checked){
      if(item.state==='RATE_LIMITED')stopForLimit=true;
-     if(item.state!=='OK'){failures++;continue;}
-     const next={...item.ticker,analysis:item.analysis};
-     const record=createRadarObservation(next,chosen,{now:Date.now()});
-     next.change=record?mergeRadarObservation(history,record):
+     if(item.state!=='OK'){failures.push(item.ticker.symbol+': '+item.state);continue;}
+     // A favorite may have been removed while the HTTP request was in flight.
+     if(!getFavorites().includes(item.ticker.symbol))continue;
+     const row={...item.ticker,analysis:item.analysis,saved:false};
+     const observation=createRadarObservation(row,selectedFrame,{now:Date.now()});
+     row.change=observation?mergeRadarObservation(history,observation):
       {state:'INVALID',events:[],reason:'Снимок не прошёл проверку истории'};
-     rows.push(next);
+     freshRows.push(row);
     }
-    render();
-    status('Проверено '+Math.min(offset+batch.length,total)+' из '+total+
-     ' · доступны '+rows.length+(failures?' · без подтверждения '+failures:'')+
-     ' · '+FRAME[chosen],Boolean(failures));
     if(stopForLimit)break;
    }
    if(generation!==request||local.signal.aborted)return;
-   if(saveRadarChanges(storage,history)){
-    // Same-document Android favorites react to committed, validated research only.
+   const still=new Set(getFavorites());
+   const preserved=displayCache.read(selectedFrame,getFavorites());
+   const byName=new Map(preserved.map(row=>[row.symbol,row]));
+   for(const row of freshRows)if(still.has(row.symbol))byName.set(row.symbol,row);
+   const merged=[...byName.values()].filter(row=>still.has(row.symbol));
+   frameRows.set(selectedFrame,merged);
+   frameChecked.set(selectedFrame,Date.now());
+   if(freshRows.length){
+    saveRadarChanges(storage,history);
+    displayCache.save(selectedFrame,Object.values(history).filter(pair=>
+     pair?.latest?.interval===selectedFrame&&still.has(pair.latest.symbol)));
     window.dispatchEvent(new CustomEvent('apex-radar-updated'));
    }
-   lastScanAt=Date.now();lastInterval=chosen;
-   status('Сканирование завершено · '+rows.length+' из '+total+
-    ' активов с актуальными свечами'+
-    (stopForLimit?' · лимит API, часть пар не проверена':
-      failures?' · '+failures+' без достаточных данных':'')+
-    ' · '+new Date(lastScanAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),
-    Boolean(failures));
+   if(active&&interval===selectedFrame){
+    rows=merged;render();
+   }
+   progress(selectedFrame,'Автопроверка '+FRAME[selectedFrame]+' · '+freshRows.length+
+    ' свежих из '+catalog.length+
+    (failures.length?' · '+failures.length+' без подтверждения':'')+
+    ' · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),
+    Boolean(failures.length));
   }catch(e){
    if(generation===request&&!local.signal.aborted)
-    status('Не удалось проверить рынок: '+String(e?.message||e).slice(0,160),true);
+    progress(frame,'Проверка недоступна: '+String(e?.message||e).slice(0,125),true);
   }finally{
-   if(generation===request){controller=null;id('radar-refresh').disabled=false;}
+   if(generation===request){
+    controller=null;id('radar-refresh').disabled=false;
+   }
   }
+ }
+ function autoTick(){
+  if(!started||document.hidden||controller)return;
+  const plan=selectRadarAutoFrame(getFavorites(),checkpoints,{now:Date.now()});
+  if(plan.state!=='DUE')return;
+  writeRadarAutoCheckpoint(storage,checkpoints,plan,Date.now());
+  void scan({frame:plan.frame});
  }
  for(const button of document.querySelectorAll('[data-radar-frame]')){
   button.addEventListener('click',()=>{
    const next=button.dataset.radarFrame;
    if(!validRadarInterval(next)||interval===next)return;
-   interval=next;lastScanAt=0;updateButtons();
-   void scan({force:false});
+   interval=next;rows=uiRows(next);updateButtons();syncUi();
   });
  }
  for(const button of document.querySelectorAll('[data-radar-filter]')){
@@ -412,23 +456,46 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
  id('radar-sort').addEventListener('change',event=>{
   sort=event.target.value;render();
  });
- id('radar-refresh').addEventListener('click',()=>void scan({force:true}));
+ id('radar-refresh').addEventListener('click',()=>void scan({force:true,frame:interval}));
  render();
  return {
-  open(){active=true;renderFocus();void scan();},
+  start(){
+   if(started)return;
+   started=true;
+   for(const frame of ['15m','1h','4h','1d']){
+    const restored=displayCache.read(frame,getFavorites());
+    if(restored.length)frameRows.set(frame,restored);
+   }
+   rows=uiRows(interval);render();
+   void syncNative();
+   autoTick();
+   timer=setInterval(autoTick,60000);
+   document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden){void syncNative();autoTick();}
+    else if(controller){controller.abort();}
+   });
+  },
+  open(){active=true;syncUi();void syncNative();},
   focus(symbol,frame){
    if(typeof symbol!=='string'||!/^[A-Z0-9]{5,20}$/.test(symbol)||
     !validRadarInterval(frame))return false;
    if(!getFavorites().includes(symbol))return false;
-   focusedSymbol=symbol;focusedInterval=frame;
-   interval=frame;filter='all';lastScanAt=0;lastInterval=null;
-   render();
+   focusedSymbol=symbol;focusedInterval=frame;interval=frame;filter='all';
+   rows=uiRows(frame);syncUi();
    return true;
   },
-  close(){active=false;
-   if(controller)clearRun();
-   else cancelAlignment();
+  close(){active=false;cancelAlignment();},
+  favoritesChanged(){
+   const allowed=new Set(getFavorites());
+   for(const [frame,list] of frameRows)
+    frameRows.set(frame,list.filter(row=>allowed.has(row.symbol)));
+   rows=uiRows(interval);
+   // Never display removed favorites or keep stale archive entries as current.
+   syncUi();
+   autoTick();
   },
-  catalogChanged(){if(active&&!controller&&!rows.length)void scan();}
+  syncNative,
+  catalogChanged(){},
+  autoTick
  };
 }
