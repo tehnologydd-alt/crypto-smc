@@ -570,7 +570,8 @@ class ApexNativePlugin : Plugin() {
                     )
                     val limitSemantics = try {
                         org.json.JSONObject(forecast.hypothesisJson)
-                            .optString("stageSemantics") == "LIMIT_READY_M5_V1"
+                            .optString("stageSemantics") in listOf(
+                                "LIMIT_READY_M5_V1","SAME_FRAME_LIMIT_V1")
                     } catch (_: Exception) { false }
                     val finalStage = if (limitSemantics) {
                         when {
@@ -773,6 +774,10 @@ class ApexNativePlugin : Plugin() {
             try {
                 val favorites = ApexPreferences.read(context.applicationContext).favorites
                 val reports = ApexAutoForecast.syncAll(context.applicationContext, favorites)
+                val dao = ApexDatabase.get(context).researchDao()
+                ApexRadarMonitor.sync(context.applicationContext, favorites, dao)
+                val multi = ApexMultiFrameForecast.syncAll(
+                    context.applicationContext, favorites, dao)
                 val items = JSArray()
                 for (report in reports) {
                     val item = JSObject()
@@ -785,6 +790,15 @@ class ApexNativePlugin : Plugin() {
                 val result = JSObject()
                 result.put("checked", reports.size)
                 result.put("reports", items)
+                val multiItems = JSArray()
+                for (report in multi) {
+                    multiItems.put(JSObject()
+                        .put("asset", report.asset)
+                        .put("interval", report.interval)
+                        .put("state", report.state)
+                        .put("stage", report.stage))
+                }
+                result.put("multiFrameReports", multiItems)
                 result.put("favoritesLimit", ApexPreferences.MAX_FAVORITES)
                 call.resolve(result)
             } catch (e: Exception) {

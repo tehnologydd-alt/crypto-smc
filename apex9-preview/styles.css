@@ -2887,3 +2887,69 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 @media(prefers-reduced-motion:reduce){
  .forecast-insights-track{scroll-behavior:auto}
 }
+
+
+/* APEX independent forward-only M15/H1/H4 research cohorts. */
+.forecast-confluence{border:1px solid #356d75;background:#0d2631}
+.forecast-confluence .section-title{align-items:flex-start;gap:12px}
+.forecast-confluence .section-title h3{font-size:clamp(15px,4.5vw,20px)}
+.forecast-confluence .section-title span{font-size:10px}
+.forecast-confluence-caveat{
+ font-size:11px;color:#9fc3c7;line-height:1.55;margin:5px 0 13px
+}
+.forecast-confluence-quality{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+}
+.forecast-confluence-kpi{
+ border:1px solid #345e69;border-radius:12px;background:#0d303b;
+ display:flex;flex-direction:column;gap:5px;padding:11px;min-width:0
+}
+.forecast-confluence-kpi strong{color:#ddfcf5;font-size:14px}
+.forecast-confluence-kpi span{color:#bfd2da;font-size:11px}
+.forecast-confluence-kpi small{
+ color:#8bc9bc;font-size:10px;line-height:1.45
+}
+.forecast-confluence-details{
+ border:1px solid #335e67;border-radius:13px;
+ background:#0a2630;margin-top:12px
+}
+.forecast-confluence-details>summary{
+ cursor:pointer;color:#b9ebe1;font-weight:740;font-size:12px;
+ padding:13px;min-height:46px
+}
+.forecast-confluence-list{display:grid;gap:8px;padding:0 9px 10px}
+.forecast-confluence-row{
+ border:1px solid #355861;background:#112e38;
+ border-radius:10px;padding:10px 9px;
+ display:grid;grid-template-columns:1fr auto;gap:7px;min-width:0
+}
+.forecast-confluence-row>strong{
+ color:#d8f3ec;min-width:0;font-size:12px;overflow-wrap:anywhere
+}
+.forecast-confluence-state{
+ font-size:10px;color:#aecbd0;align-self:center;text-align:right;
+ max-width:165px;line-height:1.35
+}
+.forecast-confluence-state.is-aligned{color:#88e1d2}
+.forecast-confluence-state.is-conflict{color:#efbb99}
+.forecast-confluence-frames{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.forecast-confluence-frames small{
+ background:#1a3741;border:1px solid #395b68;border-radius:8px;
+ color:#d0e2e6;font-size:10px;padding:5px 9px
+}
+.forecast-multiframe>.forecast-final-reason{
+ color:#d9eee9;font-size:13px;margin:11px 0 5px
+}
+.forecast-multiframe:not(.is-completed)>.forecast-card-fold>summary{
+ display:block;border:1px solid #335f65;border-radius:10px
+}
+.forecast-multiframe .forecast-event-timeline{margin-top:13px}
+.forecast-multiframe .forecast-event-note{
+ margin:5px 0;font-size:11px;color:#b0ccd0
+}
+@media(max-width:360px){
+ .forecast-confluence{padding:13px 10px!important}
+ .forecast-confluence-quality{gap:6px}
+ .forecast-confluence-kpi{padding:9px 7px}
+ .forecast-confluence-state{max-width:115px}
+}
