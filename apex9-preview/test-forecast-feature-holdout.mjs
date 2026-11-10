@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {inspectEvidenceContext} from './forecast-evidence-context.mjs';
+import {assessFeatureStability} from './forecast-feature-stability.mjs';
 import {observedFeatureMatch,analyzeForecastFeatureHoldout,
  FEATURE_HOLDOUT_RULES,FEATURE_DEFINITIONS} from './forecast-feature-holdout.mjs';
 
@@ -155,4 +156,47 @@ test('on-demand UI, Android packaging and declared caps are present',()=>{
  assert.ok(favorites.includes('initFeatureHoldoutDashboard('));
  assert.equal(FEATURE_HOLDOUT_RULES.referenceFraction,.6);
  assert.equal(FEATURE_HOLDOUT_RULES.minGroup,12);
+});
+
+
+test('fixed 60/20/20 publication split preserves entire holdout and embargo',()=>{
+ const audit=analyzeForecastFeatureHoldout(archive,{
+  asset:'BTCUSDT',complete:true,publishedCount:archive.length,now:current});
+ const frame=audit.frames['15m'];
+ assert.equal(frame.reference.counters.candidates,60);
+ assert.equal(frame.holdout.counters.candidates,40);
+ assert.equal(frame.validation.counters.candidates,20);
+ assert.equal(frame.confirmation.counters.candidates,20);
+ assert.equal(frame.validation.counters.decisive,20);
+ assert.equal(frame.confirmation.counters.decisive,20);
+ assert.equal(frame.purgedValidation,0);
+ assert.equal(frame.confirmationAt,archive[80].publishedAt);
+ assert.ok(frame.splitAt<frame.confirmationAt);
+ const quality=assessFeatureStability(audit);
+ const feature=quality.frames['15m'].features.find(f=>f.id==='sameRadar');
+ // Although its sign repeats, this deliberately uneven small sample
+ // changes effect size by >20 percentage points between the two late windows.
+ // The gate must label it DRIFTING instead of promoting a convenient pattern.
+ assert.equal(feature.state,'DRIFTING');
+ assert.equal(feature.approvedForForecast,false);
+ assert.equal(quality.approvedForForecast,false);
+});
+test('second boundary purges crossing horizon before confirmation',()=>{
+ const copies=archive.map(x=>({...x,hypothesis:{...x.hypothesis}}));
+ // The candidate is removed based on its original published target horizon,
+ // never because of its observed result.
+ copies[79].hypothesis.targetCloseAt=archive[80].publishedAt+1;
+ const audit=analyzeForecastFeatureHoldout(copies,{
+  asset:'BTCUSDT',complete:true,publishedCount:copies.length,now:current});
+ const frame=audit.frames['15m'];
+ assert.equal(frame.purgedValidation,1);
+ assert.equal(frame.validation.counters.candidates,19);
+ assert.equal(frame.holdout.counters.candidates,40);
+});
+test('source snapshots and outcome labels remain read-only during stability',()=>{
+ const before=JSON.stringify(archive);
+ const audit=analyzeForecastFeatureHoldout(archive,{
+  asset:'BTCUSDT',complete:true,publishedCount:archive.length,now:current});
+ assessFeatureStability(audit);
+ assert.equal(JSON.stringify(archive),before);
 });

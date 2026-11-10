@@ -156,6 +156,7 @@ jobs:
           npm run build:web
           test -s dist/forecast-directional-card.mjs
           test -s dist/forecast-feature-holdout.mjs
+          test -s dist/forecast-feature-stability.mjs
           test -s dist/forecast-feature-dashboard.mjs
           node -e "import('./scripts/verify-web-modules.mjs').then(m=>{let result=m.verifyWebModuleGraph('./dist');console.log('Verified WebView modules:',result.modules);})"
           npx cap add android

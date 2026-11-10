@@ -5,6 +5,7 @@
  */
 import {getMobileAssetResearchArchive} from './mobile-bridge.mjs';
 import {analyzeForecastFeatureHoldout} from './forecast-feature-holdout.mjs';
+import {assessFeatureStability} from './forecast-feature-stability.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -55,6 +56,7 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
  }
  function render(report){
   root.replaceChildren();
+  const quality=assessFeatureStability(report);
   if(!report.frames){
    root.append(node('p','forecast-quality-warning',
     report.reason||'Полная история недоступна.'));
@@ -116,7 +118,46 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
     comparable?'Сопоставимых признаков: '+comparable+' из '+r.features.length+
      '. Это историческая ассоциация, не доказательство улучшения.':
      'Пока ни один признак не прошёл порог достаточности обеих выборок.'));
-   panel.append(choices);root.append(panel);
+   panel.append(choices);
+   const check=quality.frames?.[tf];
+   const stability=node('details','forecast-feature-stability');
+   const findings=check?.features?.filter(f=>f.state==='REPEATED')||[];
+   stability.append(node('summary','',
+    'Устойчивость на трёх периодах · '+findings.length+
+    '/4 повторяющихся наблюдений'));
+   stability.append(node('p','forecast-confluence-caveat',
+    'Опорный 60% · проверочный A 20% · проверочный Б 20%. '+
+    'Каждый участок очищен от пересекающихся сценариев. '+
+    'Совпадение не доказывает прогнозируемость.'));
+   if(!check?.features?.length)
+    stability.append(node('p','forecast-quality-warning',
+     check?.reason||'Недостаточно истории для проверки устойчивости.'));
+   else {
+    const descriptions={
+     REPEATED:'Повторяется описательно · дополнительная проверка нужна',
+     CONFLICTING:'Направление связи меняется',
+     DRIFTING:'Связь неустойчива по величине',
+     WEAK:'Слабое различие между группами',
+     LOW_COVERAGE:'Не хватает сохранённых источников',
+     INSUFFICIENT:'Недостаточно проверенных исходов'
+    };
+    for(const candidate of check.features){
+     const item=node('div','forecast-feature-stability-row');
+     item.append(node('strong','',candidate.label),
+      node('span','',descriptions[candidate.state]||
+       'Нельзя сделать вывод'));
+     const observations=node('small','',
+      'Ранний '+pp(candidate.reference?.differencePp)+
+      ' · A '+pp(candidate.validation?.differencePp)+
+      ' · Б '+pp(candidate.confirmation?.differencePp));
+     item.append(observations);
+     stability.append(item);
+    }
+   }
+   stability.append(node('p','forecast-confluence-caveat',
+    'Изменения весов прогноза и автоматическое обучение отключены.'));
+   panel.append(stability);
+   root.append(panel);
   }
   root.append(node('p','forecast-confluence-caveat',
    report.note||'Никакие результаты не используются для новых прогнозов.'));
@@ -149,7 +190,8 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
    if(token!==serial)return;
    status.textContent='Проверен локальный архив '+asset+' · '+
     archive.forecasts.length+' записей · '+(report.readyFrames||0)+
-    ' ТФ с достаточной описательной выборкой.';
+    ' ТФ с достаточной описательной выборкой. ' +
+    'Автоматическое изменение прогнозов отключено.';
    render(report);
   }catch(error){
    if(token===serial){

@@ -47,6 +47,8 @@ jobs:
           node --check apex9-preview/forecast-multiframe.mjs
           node --check apex9-preview/forecast-evidence-context.mjs
           node --check apex9-preview/forecast-feature-holdout.mjs
+          node --check apex9-preview/forecast-feature-stability.mjs
+          node --test apex9-preview/test-forecast-feature-stability.mjs
           node --check apex9-preview/forecast-feature-dashboard.mjs
           node --test apex9-preview/test-forecast-evidence-context.mjs
           node --test apex9-preview/test-forecast-feature-holdout.mjs
