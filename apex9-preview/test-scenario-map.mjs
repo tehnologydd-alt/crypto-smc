@@ -147,7 +147,7 @@ test('chart M15/H4 shows its own immutable forecasts with correct candle markers
  const chart=await import('node:fs');
  const source=chart.readFileSync(new URL('./candle-chart.mjs',import.meta.url),'utf8');
  const app=chart.readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
- assert.ok(source.includes("this.scenarios.filter(sc=>sc.sourceInterval===this.interval)"));
+ assert.ok(source.includes("this.scenarios.filter(sc=>sc.sourceInterval===this.interval||"));
  assert.ok(app.includes('getMobileAssetResearchForecasts(asset,75)'));
  assert.ok(app.includes('interval:candleInterval'));
 });

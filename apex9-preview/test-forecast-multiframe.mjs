@@ -153,14 +153,14 @@ test('M15/H4 newly published studies use M5 while preserving old studies',()=>{
   assert.equal(planMultiFrameForecast(missing,{now}).state,'INVALID');
  }
 });
-test('native M15/H4 now store as-published M5 method, old cohorts never recast',()=>{
+test('native M15/H4 publish M1 method while archived M5 cohorts are preserved',()=>{
  const base='../apex9-android/native/src/main/java/com/apexintelligence/research/';
  const read=f=>readFileSync(new URL(base+f,import.meta.url),'utf8');
  const evaluator=read('ApexM5Evaluation.kt');
  const engine=read('ApexMultiFrameForecast.kt');
  const plugin=read('ApexNativePlugin.kt');
  assert.ok(engine.includes('M5_CLOSED_LIMIT_V2'));
- assert.ok(engine.includes('.put("evaluationInterval",ApexM5Evaluation.INTERVAL)'));
+ assert.ok(engine.includes('.put("evaluationInterval",ApexM1Evaluation.INTERVAL)'));
  assert.ok(engine.includes('horizonMs=spec.step*spec.bars'));
  assert.ok(engine.includes('if(m5)return ApexM5Evaluation.progress('));
  assert.ok(engine.includes('val legacy='));
@@ -170,4 +170,5 @@ test('native M15/H4 now store as-published M5 method, old cohorts never recast',
  assert.ok(evaluator.includes('candle.openTime < forecast.publishedAt) {'));
  assert.ok(!evaluator.includes('Часть первой M5 до публикации:'));
  assert.ok(plugin.includes('"M5_CLOSED_LIMIT_V2"'));
+ assert.ok(plugin.includes('"M1_CLOSED_LIMIT_V1"'));
 });

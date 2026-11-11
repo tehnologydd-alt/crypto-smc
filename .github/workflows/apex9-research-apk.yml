@@ -1,6 +1,13 @@
 name: APEX 9 Research - Android APK
 
 on:
+  pull_request:
+    branches: [apex-9-evolution]
+    paths:
+      - 'apex9-android/**'
+      - 'apex9-preview/**'
+      - 'updates/v90-*.mjs'
+      - '.github/workflows/apex9-research-apk.yml'
   push:
     branches: [apex-9-evolution]
     paths:
@@ -65,6 +72,7 @@ jobs:
           grep -Fq 'name="apex-news-gateway-mode" content="disabled"' apex9-preview/index.html
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
+          node --test apex9-preview/test-source-reliability.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/research.mjs

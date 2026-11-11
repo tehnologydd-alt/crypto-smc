@@ -532,7 +532,7 @@ function renderScenarioMap(asset){
   focusId:focusedScenarioId,now:Date.now(),max:3,
   interval:candleInterval
  });
- const chartSupported=['15m','1h','4h'].includes(candleInterval);
+ const chartSupported=['1m','15m','1h','4h'].includes(candleInterval);
  if(map.scenarios.length&&!map.scenarios.some(sc=>sc.focused)){
   map.scenarios[0].focused=true;
   focusedScenarioId=map.scenarios[0].id;
@@ -546,7 +546,7 @@ function renderScenarioMap(asset){
   drawnCandleInterval===candleInterval&&candleView.data.length)
   candleView.focusOnScenario(focus.anchorCloseAt);
  const context=chartSupported?' · показываем закрытые свечи '+
-  candleInterval.toUpperCase():' · метки доступны для M15, H1, H4';
+  candleInterval.toUpperCase():' · метки доступны для M1, M15, H1, H4';
  text('asset-scenario-status',map.state==='INVALID'?
   'Параметры карты не прошли проверку.':
   map.available?

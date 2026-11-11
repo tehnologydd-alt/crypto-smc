@@ -35,11 +35,14 @@ export function planMultiFrameForecast(row,{now=Date.now()}={}){
  const spec=MULTIFRAME_SPEC[row.interval];
  const legacy=h.evaluationInterval===row.interval&&
   h.stageSemantics==='SAME_FRAME_LIMIT_V1';
+ const fineM1=h.evaluationInterval==='1m'&&
+  h.stageSemantics==='M1_CLOSED_LIMIT_V1'&&
+  h.observationMethod==='M1_CLOSED_LEVEL_ORDER_V1';
  const fine=h.evaluationInterval==='5m'&&
   h.stageSemantics==='M5_CLOSED_LIMIT_V2'&&
   h.observationMethod==='M5_CLOSED_LEVEL_ORDER_V1';
  if(!spec||h.interval!==row.interval||
-  !(legacy||fine)||
+  !(legacy||fine||fineM1)||
   h.decisionMethod!=='SIX_BAR_EFFICIENCY_V1'||
   h.horizonBars!==spec.bars||h.sampleBars!==96||
   h.historicalPercentile!==.8||h.empiricalSamples!==92||
@@ -97,7 +100,8 @@ export function multiFrameEvidence(row,{now=Date.now()}={}){
  if(!Array.isArray(row.stageEvents))return {state:'UNVERIFIED',reason:'Нет этапов Room'};
  for(const item of row.stageEvents){
   if(!STAGES.includes(item?.stage))continue;
-  const evaluationStep=plan.evaluationInterval==='5m'?300000:
+  const evaluationStep=plan.evaluationInterval==='1m'?60000:
+   plan.evaluationInterval==='5m'?300000:
    plan.spec.step;
   if(events.has(item.stage)||!time(item.observedAt)||!time(item.recordedAt)||
    item.observedAt<plan.publishedAt||item.observedAt>plan.targetCloseAt||
@@ -229,7 +233,8 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  const title=MULTIFRAME_SPEC[row.interval]?.title||row.interval;
  const complete=evidence.state==='OBSERVED'&&evidence.finished;
  const {plan}=evidence.state==='OBSERVED'?evidence:{plan:null};
- const sourceFrame=plan?.evaluationInterval==='5m'?'M5':title;
+ const sourceFrame=plan?.evaluationInterval==='1m'?'M1':
+  plan?.evaluationInterval==='5m'?'M5':title;
  const completion=completedResearchPresentation({
   outcome:evidence.outcome,verified:complete,entered:evidence.entered,
   touched:evidence.touched||[],frame:sourceFrame
@@ -269,7 +274,7 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   card.append(el('p','forecast-quality-warning',
    explanation||'Порядок в исходной свече неизвестен. '+
     'Старые H4/M15 архивы проверялись собственным таймфреймом; '+
-    'новые публикации проверяются по закрытым M5.'));
+    'новые публикации проверяются по закрытым M1.'));
  }
  const show=el('details','forecast-card-fold');
  show.open=!complete;
@@ -313,7 +318,8 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   'Опубликовано '+fmt(plan.publishedAt)+
   ' · последний срок '+fmt(plan.targetCloseAt)+
   ' · контроль по закрытым '+
-   (plan.evaluationInterval==='5m'?'M5':'архивным '+title)+
+   (plan.evaluationInterval==='1m'?'M1':
+    plan.evaluationInterval==='5m'?'M5':'архивным '+title)+
    ' · порядок внутри свечи не предполагается.'));
  const history=el('div','forecast-event-timeline');
  for(const event of [...evidence.events.values()].sort((a,b)=>a.observedAt-b.observedAt)){

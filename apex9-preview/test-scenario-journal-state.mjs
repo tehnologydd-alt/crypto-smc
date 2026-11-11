@@ -129,7 +129,7 @@ test('scenario UI, APK module manifest and Room labels remain synchronized',()=>
  assert.ok(!ui.includes('const counts=journalCounts(lastRows);'));
  assert.ok(ui.includes("if(!view.counts[stage])stage=view.preferred"));
  assert.ok(ui.includes("['В работе сейчас · все ТФ',live.inWork]"));
- assert.ok(ui.includes('Касание входа за всю историю H1 → M5'));
+ assert.ok(ui.includes("Касание входа за всю историю H1 → '+frameLabel"));
  assert.ok(card.includes("evidence.events.has('LIMIT_READY')?'Лимитный'"));
  assert.ok(card.includes('multiFrameCardActions(row,{tracked,onToggle,onOpen})'));
  assert.ok(card.includes('shortPrice(plan[key])'));

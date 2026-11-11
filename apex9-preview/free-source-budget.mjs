@@ -20,7 +20,7 @@ const fresh=at=>({day:day(at),month:month(at),
  monthly:Object.fromEntries(modes.map(k=>[k,0])),
  last:Object.fromEntries(modes.map(k=>[k,0]))});
 const good=r=>r&&['OK','EMPTY'].includes(r.state);
-export function createFreeSourceBudget({storage,now=()=>Date.now()}={}){
+export function createFreeSourceBudget({storage,now=()=>Date.now(),onNetworkResult=null}={}){
  const inFlight=new Map();
  function read(key){
   if(!storage?.getItem||!storage?.setItem)throw Error('PERSISTENCE_UNAVAILABLE');
@@ -99,6 +99,12 @@ export function createFreeSourceBudget({storage,now=()=>Date.now()}={}){
    let r;
    try{r=await fetcher();}
    catch(e){r={state:'OFFLINE',reason:String(e?.message||e).slice(0,110)};}
+   // One receipt per actually attempted request, including 429/invalid when
+   // the user subsequently sees a stale fallback. Cache/quotas never count.
+   if(typeof onNetworkResult==='function')try{
+    onNetworkResult({provider:mode,asset:key,result:r,at,
+     latencyMs:Math.max(0,now()-at)});
+   }catch{ /* Reliability logging must not interrupt a market request. */ }
    if(!good(r))return stale(r?.state||'INVALID',r?.reason||'Source returned no valid data');
    try{write(CACHE+identity,{at,data:r});}catch{}
    return {...r,source:'NETWORK',fetchedAt:at,quota:q};

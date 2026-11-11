@@ -19,7 +19,8 @@ object ApexMultiFrameForecast {
     const val MODEL="EMPIRICAL_MULTIFRAME_DIRECTION_V1"
     const val LEVEL_VERSION="MULTIFRAME_SINGLE_LEVELS_V1"
     const val SEMANTICS="SAME_FRAME_LIMIT_V1" // immutable legacy studies
-    const val M5_SEMANTICS="M5_CLOSED_LIMIT_V2" // new studies only
+    const val M5_SEMANTICS="M5_CLOSED_LIMIT_V2" // immutable M5 cohort
+    const val M1_SEMANTICS="M1_CLOSED_LIMIT_V1" // newly published studies
     private const val SAMPLE=96
     private val precision=MathContext(13)
     private val mutex=Mutex()
@@ -90,6 +91,16 @@ object ApexMultiFrameForecast {
             // may skip runs; repair missing source-time pages on demand.
             val hypothesis=try{JSONObject(latest.hypothesisJson)}
                            catch (_:Exception){JSONObject()}
+            if(hypothesis.optString("evaluationInterval")==ApexM1Evaluation.INTERVAL){
+                try {
+                    ApexM1Evaluation.downloadAndSave(asset, dao, now)
+                    ApexM1Evaluation.ensureWindow(asset,dao,now,
+                        hypothesis.optLong("anchorCloseAt",-1L),
+                        hypothesis.optLong("targetCloseAt",-1L))
+                } catch (_:Exception) {
+                    return Report(asset,spec.interval,"M1_UNAVAILABLE","DUE_UNVERIFIED")
+                }
+            }
             if(hypothesis.optString("evaluationInterval")==ApexM5Evaluation.INTERVAL){
                 try {
                     ApexM5Evaluation.ensureWindow(asset,dao,now,
@@ -144,9 +155,9 @@ object ApexMultiFrameForecast {
             .put("decisionMethod","SIX_BAR_EFFICIENCY_V1")
             .put("anchorCloseAt",anchor).put("anchorClose",entry)
             .put("targetCloseAt",anchor+spec.step*spec.bars)
-            .put("horizonBars",spec.bars).put("evaluationInterval",ApexM5Evaluation.INTERVAL)
-            .put("observationMethod",ApexM5Evaluation.METHOD)
-            .put("stageSemantics",M5_SEMANTICS).put("levelStudy",controls)
+            .put("horizonBars",spec.bars).put("evaluationInterval",ApexM1Evaluation.INTERVAL)
+            .put("observationMethod",ApexM1Evaluation.METHOD)
+            .put("stageSemantics",M1_SEMANTICS).put("levelStudy",controls)
             .put("sampleBars",SAMPLE).put("empiricalSamples",changes.size)
             .put("historicalPercentile",.8).put("empiricalWidth",width)
             .put("preOutcomeStrength",
@@ -177,6 +188,9 @@ object ApexMultiFrameForecast {
         val m5=h.optString("evaluationInterval")==ApexM5Evaluation.INTERVAL&&
             h.optString("observationMethod")==ApexM5Evaluation.METHOD&&
             h.optString("stageSemantics")==M5_SEMANTICS
+        val m1=h.optString("evaluationInterval")==ApexM1Evaluation.INTERVAL&&
+            h.optString("observationMethod")==ApexM1Evaluation.METHOD&&
+            h.optString("stageSemantics")==M1_SEMANTICS
         val legacy=h.optString("evaluationInterval")==frame&&
             h.optString("stageSemantics")==SEMANTICS
         val ordered=if(side=="UP")
@@ -188,7 +202,7 @@ object ApexMultiFrameForecast {
                      catch (_:Exception){return "INVALID"}
         val originalId="direction3:"+row.asset+":"+frame+":"+anchor
         if(h.optString("model")!=MODEL||h.optString("interval")!=frame||
-            !(legacy||m5)||
+            !(legacy||m5||m1)||
             h.optString("decisionMethod")!="SIX_BAR_EFFICIENCY_V1"||
             h.optInt("sampleBars")!=SAMPLE||h.optInt("horizonBars")!=spec.bars||
             row.horizon!=frame||row.id!=originalId||
@@ -204,6 +218,10 @@ object ApexMultiFrameForecast {
             })return "INVALID"
         val baseline=dao.candleAtClose(row.asset,frame,anchor)?:return "DUE_UNVERIFIED"
         if(!near(baseline.close,entry))return "DUE_UNVERIFIED"
+        if(m1)return ApexM1Evaluation.progress(
+            row,dao,now,anchor,target,side,entry,sl,tp,
+            limitSemantics=true,horizonMs=spec.step*spec.bars
+        )
         if(m5)return ApexM5Evaluation.progress(
             row,dao,now,anchor,target,side,entry,sl,tp,
             limitSemantics=true,horizonMs=spec.step*spec.bars

@@ -12,6 +12,12 @@ on:
       - 'apex9-news-gateway/**'
       - 'apex9-cloudflare/**'
       - '.github/workflows/apex-9-core-tests.yml'
+  pull_request:
+    branches: [apex-9-evolution]
+    paths:
+      - 'apex9-preview/**'
+      - 'apex9-android/**'
+      - '.github/workflows/apex-9-core-tests.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -37,6 +43,8 @@ jobs:
           for module in apex9-cloudflare/*.mjs; do node --check "$module"; done
           node --test apex9-cloudflare/test-worker.mjs
           python3 apex9-cloudflare/test-sqlite-quota.py
+          node --test apex9-preview/test-source-reliability.mjs
+          node --test apex9-preview/test-directional-m1.mjs
           node --test apex9-preview/test-forecast-multiframe.mjs
           node --test apex9-preview/test-forecast-level-metrics.mjs
           node --test apex9-preview/test-scenario-journal-state.mjs

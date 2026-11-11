@@ -6,7 +6,7 @@
 import {getMobileFavorites,changeMobileFavorite,
  syncMobileFavoriteResearch,getMobileResearchForecasts,
  getMobileMarkedResearchForecasts,getMobileCandles,
- getMobileCandleArchive,getMobileM5Window} from './mobile-bridge.mjs';
+ getMobileCandleArchive,getMobileM5Window,getMobileM1Window} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
@@ -115,16 +115,18 @@ async function sourceH1(asset){
 const M5_WINDOW_CACHE=new Map(),M5_INFLIGHT=new Map();
 /** Exactly the closed M5 bars belonging to the published 24h scenario. */
 async function sourceM5(plan){
- const STEP=300000;
+ const STEP=plan.evaluationInterval==='1m'?60000:300000;
  const start=plan.anchorCloseAt+1;
  const end=Math.min(plan.targetCloseAt+1,
   Math.floor(Date.now()/STEP)*STEP);
  if(end<=start)return {native:true,complete:true,candles:[]};
- const key=plan.asset+':'+start+':'+end;
+ const key=plan.asset+':'+plan.evaluationInterval+':'+start+':'+end;
  const cached=M5_WINDOW_CACHE.get(key);
  if(cached&&Date.now()-cached.at<45000)return cached.data;
  if(M5_INFLIGHT.has(key))return M5_INFLIGHT.get(key);
- const request=getMobileM5Window(plan.asset,start,end)
+ const request=(plan.evaluationInterval==='1m'?
+  getMobileM1Window(plan.asset,start,end):
+  getMobileM5Window(plan.asset,start,end))
   .then(data=>{
    if(data.native&&data.complete&&!data.error){
     if(M5_WINDOW_CACHE.size>35)M5_WINDOW_CACHE.clear();
@@ -275,7 +277,7 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
   return multiFrameForecastCard(row,{tracked,onToggle,onOpen});
  if(directionalHypothesis(row))
   return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
-   sourceH1,sourceM5,copyText:copyResearchText});
+   sourceH1,sourceM5,sourceM1:sourceM5,copyText:copyResearchText});
  return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
 }
 function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
@@ -763,23 +765,26 @@ export function initFavoriteResearch({
    const slot=id('forecast-stat-'+name);slot.replaceChildren();
    slot.hidden=name!==journalMode;
    if(name!==journalMode)continue;
-   const q=name==='all'?quality.all:quality.tracked;
+   const useM1=quality.m1.published>0;
+   const frameLabel=useM1?'M1':'M5 · архив';
+   const q=useM1?(name==='all'?quality.m1:quality.trackedM1):
+    (name==='all'?quality.all:quality.tracked);
    const study=create('section','forecast-quality-summary');
-   study.setAttribute('aria-label','Качество прогнозов · H1 → M5');
+   study.setAttribute('aria-label','Качество прогнозов · H1 → '+frameLabel);
    const heading=create('div','forecast-quality-heading');
-   heading.append(create('strong','','Качество прогнозов · H1 → M5 · история'),
+   heading.append(create('strong','','Качество прогнозов · H1 → '+frameLabel+' · история'),
     create('small','',name==='tracked'?'Отмеченные · Room':'Все · Room'));
    study.append(heading);
    const unavailable=q.invalid+q.unverified;
    const evidenceLabel=stats.truncated?'Частичный журнал · последние '+lastRows.length+' записей':
     unavailable?'Есть записи без полной проверки':
-    !q.finished?'Нет завершённых M5':
+    !q.finished?'Нет завершённых '+frameLabel:
     q.finished<12?'Мало завершённых наблюдений':
-    'Описательная статистика M5';
+    'Описательная статистика '+frameLabel;
    study.append(create('p','forecast-quality-coverage',evidenceLabel));
    if(!q.published){
     study.append(create('p','forecast-quality-empty',
-     'Пока нет подтверждённых исследований по M5. Новые наблюдения появятся '+
+     'Пока нет подтверждённых исследований по '+frameLabel+'. Новые наблюдения появятся '+
      'после публикации направленного прогноза и проверки реальных свечей.'));
    }
    const basics=create('div','forecast-quality-kpis');
@@ -794,7 +799,7 @@ export function initFavoriteResearch({
    study.append(basics);
    const levels=create('div','forecast-quality-targets');
    levels.append(create('strong','forecast-quality-subtitle',
-    'Касания TP · по закрытым M5'));
+    'Касания TP · по закрытым '+frameLabel));
    const tracks=create('div','forecast-quality-tracks');
    for(const [label,number] of [
     ['TP1',q.tp1],['TP2',q.tp2],['TP3',q.tp3]]){
@@ -838,7 +843,7 @@ export function initFavoriteResearch({
     'раньше SL; неопределённый порядок не считается успехом.'));
    details.append(outcomes);
    details.append(create('p','forecast-quality-note',
-    'Касание входа за всю историю H1 → M5: '+q.entered+
+    'Касание входа за всю историю H1 → '+frameLabel+': '+q.entered+
     ' (включая завершённые сценарии). Это не число прогнозов в работе. '+
     '«В работе сейчас» относится только к видимому журналу выбранного режима.'));
    if(q.invalid||q.unverified){
@@ -849,17 +854,21 @@ export function initFavoriteResearch({
    if(quality.archivedH1&&name==='all')
     study.append(create('p','forecast-quality-note',
      'Направленных сценариев со старой проверкой H1: '+
-     quality.archivedH1+'. Они не смешиваются со статистикой M5.'));
+     quality.archivedH1+'. Они не смешиваются со статистикой '+frameLabel+'.'));
+   if(quality.archivedM5&&useM1)
+    study.append(create('p','forecast-quality-note',
+     'Архивные сценарии с проверкой M5: '+quality.archivedM5+
+     '. Они не смешиваются с новым набором M1.'));
    details.append(create('p','forecast-quality-method',
     'Исследовательские наблюдения, а не исполненные ордера. '+
-    'Оценка по сохранённым событиям закрытых M5; '+
+    'Оценка по сохранённым событиям закрытых '+frameLabel+'; '+
     'при пропусках данных исход не засчитывается.'));
    // Compare cohorts with verified, immutable M5 evidence and only
    // H1 characteristics recorded before later outcomes.
    {
     const panel=create('section','forecast-condition-comparison');
     panel.append(create('strong','forecast-quality-subtitle',
-     'Сравнение условий формирования · H1 → M5'));
+     'Сравнение условий формирования · архив H1 → M5'));
     panel.append(create('p','forecast-quality-note',
      'Группы по направлению H1 и ширине диапазона при публикации. '+
      'TP и SL здесь — наблюдения, не исполненные сделки.'));

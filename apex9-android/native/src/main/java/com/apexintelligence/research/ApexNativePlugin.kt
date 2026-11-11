@@ -283,7 +283,7 @@ class ApexNativePlugin : Plugin() {
     }
 
     private val intervals = mapOf(
-        "5m" to 300_000L, "15m" to 900_000L, "1h" to 3_600_000L,
+        "1m" to 60_000L, "5m" to 300_000L, "15m" to 900_000L, "1h" to 3_600_000L,
         "4h" to 14_400_000L, "1d" to 86_400_000L
     )
 
@@ -333,7 +333,9 @@ class ApexNativePlugin : Plugin() {
                 dao.saveCandles(candles)
                 // Preserve up to 4,320 historical intervals (H1 ~ 180 days).
                 // Older missing source bars are not silently regenerated.
-                val cutoff = maxOf(0L, candles.last().openTime - 4_320L * step)
+                val cutoff = if (interval == "1m")
+                    maxOf(0L, now - 7L * 24 * 3_600_000L)
+                else maxOf(0L, candles.last().openTime - 4_320L * step)
                 dao.pruneCandles(asset, interval, cutoff)
                 val result = JSObject()
                 result.put("saved", candles.size)
@@ -424,12 +426,12 @@ class ApexNativePlugin : Plugin() {
         val step = intervals[interval]
         val startTime = call.data.optLong("startTime", -1L)
         val endExclusive = call.data.optLong("endExclusive", -1L)
-        if (!assetRegex.matches(asset) || interval != "5m" || step == null ||
+        if (!assetRegex.matches(asset) || (interval != "5m" && interval != "1m") || step == null ||
             startTime <= 0 || startTime % step != 0L ||
             endExclusive <= startTime || endExclusive % step != 0L ||
-            endExclusive - startTime > 290L * step ||
+            endExclusive - startTime > (if (interval == "1m") 500L else 290L) * step ||
             endExclusive > System.currentTimeMillis() + step) {
-            call.reject("Invalid M5 candle window")
+            call.reject("Invalid closed-candle window")
             return
         }
         tasks.launch {
@@ -451,7 +453,7 @@ class ApexNativePlugin : Plugin() {
                     .put("startTime", startTime).put("endExclusive", endExclusive)
                     .put("candles", items).put("source", "LOCAL_ROOM_CACHE"))
             } catch (e: Exception) {
-                call.reject("M5 window unavailable: " + (e.message ?: "unknown"))
+                call.reject("Candle window unavailable: " + (e.message ?: "unknown"))
             }
         }
     }
@@ -666,8 +668,9 @@ class ApexNativePlugin : Plugin() {
             val limitSemantics = try {
                 org.json.JSONObject(forecast.hypothesisJson)
                     .optString("stageSemantics") in listOf(
-                        "LIMIT_READY_M5_V1","SAME_FRAME_LIMIT_V1",
-                        "M5_CLOSED_LIMIT_V2")
+                        "LIMIT_READY_M5_V1","LIMIT_READY_M1_V1",
+                        "SAME_FRAME_LIMIT_V1","M5_CLOSED_LIMIT_V2",
+                        "M1_CLOSED_LIMIT_V1")
             } catch (_: Exception) { false }
             val finalStage = if (limitSemantics) {
                 when {

@@ -416,6 +416,46 @@ export async function getMobileM5Window(asset,startTime,endExclusive){
  }
 }
 
+/** Paginated, strictly verified M1 candle history, without interpolation. */
+export async function getMobileM1Window(asset,startTime,endExclusive){
+ const native=plugin(),M=60000,max=4*24*60;
+ const empty={native:Boolean(native),asset,interval:'1m',candles:[],
+  complete:false,source:'LOCAL_ROOM_CACHE'};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{5,20}$/.test(asset)||
+  !Number.isSafeInteger(startTime)||startTime<=0||startTime%M!==0||
+  !Number.isSafeInteger(endExclusive)||endExclusive<=startTime||
+  endExclusive%M!==0||endExclusive-startTime>max*M)
+  return {...empty,error:'Неверные границы архива M1.'};
+ if(!native)return {...empty,error:'Нужен Android APK с архивом M1.'};
+ const rows=[];
+ try{
+  for(let start=startTime;start<endExclusive;start+=450*M){
+   const end=Math.min(endExclusive,start+450*M);
+   const data=await native.getCandlesWindow({
+    asset,interval:'1m',startTime:start,endExclusive:end
+   });
+   if(data?.asset!==asset||data?.interval!=='1m'||
+    data?.startTime!==start||data?.endExclusive!==end||
+    !Array.isArray(data.candles)||data.candles.length!==(end-start)/M)
+    throw Error('Неполный архив M1: отсутствуют закрытые свечи.');
+   for(let i=0;i<data.candles.length;i++){
+    const b=data.candles[i],t=start+i*M;
+    if(b?.t!==t||b.closeAt!==t+M-1||b.closed!==true||
+     ![b.open,b.high,b.low,b.close,b.volume]
+      .every(x=>typeof x==='number'&&Number.isFinite(x))||
+     b.low<=0||b.volume<0||
+     b.high<Math.max(b.open,b.close,b.low)||
+     b.low>Math.min(b.open,b.close))
+     throw Error('Повреждённая закрытая свеча M1.');
+    rows.push(b);
+   }
+  }
+  return {...empty,candles:rows,complete:true};
+ }catch(error){
+  return {...empty,error:String(error?.message||error).slice(0,180)};
+ }
+}
+
 /** Offline source candles only. No interpolation of missing H1 records. */
 export async function getMobileCandleArchive(asset,interval='1h',{
  pageSize=500,maxRows=4800,onProgress=null

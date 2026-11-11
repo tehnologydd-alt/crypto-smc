@@ -10,6 +10,7 @@ import {initPersonalNewsControls} from './personal-news-controls.mjs';
 import {fetchCmcKeyless} from './cmc-keyless.mjs';
 import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 import {sourceHealth} from './source-health.mjs';
+import {createSourceReliability} from './source-reliability.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
@@ -33,7 +34,11 @@ const isPresent=r=>['OK','STALE','EMPTY'].includes(r?.state);
 export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  let storage=provided??null;
  if(!storage)try{storage=window.localStorage;}catch{}
- const budget=createFreeSourceBudget({storage});
+ const reliability=createSourceReliability({storage});
+ const budget=createFreeSourceBudget({storage,onNetworkResult:({provider,result,at,latencyMs})=>{
+  reliability.record({provider,result,at,latencyMs});
+  renderReliability();
+ }});
  const overviewCache=createOverviewCache({storage});
  const latest=new Map();
  let assetSeq=0,globalSeq=0,checkingPublic=null;
@@ -45,7 +50,77 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   latest.set(mode,sourceHealth(r,{asset}));
   refreshCenter();
  }
+ /** The ledger is observational. Source agreement is NOT accuracy. */
+ function renderReliability(){
+  const box=el('api-reliability-list');
+  const status=el('api-reliability-status');
+  if(!box||!status)return;
+  const report=reliability.overview();
+  const names={fear:'Alternative.me',dex:'DEX Screener',
+   gecko:'GeckoTerminal',okx:'OKX Spot',paprika:'CoinPaprika',
+   cmc:'CoinMarketCap','binance-ticker':'Binance Spot · цена',
+   'binance-depth':'Binance Spot · стакан',
+   'bybit-depth':'Bybit Spot · стакан',
+   'coingecko-global':'CoinGecko · рынок',
+   'bitcoin-mempool':'mempool.space · BTC',
+   'gdelt-news':'GDELT · новости'};
+  box.replaceChildren();
+  let mature=0,attempts=0;
+  for(const row of report.rows){
+   attempts+=row.attempts;
+   if(row.state==='OBSERVED')mature++;
+   const item=div('article','api-reliability-row');
+   const header=div('div','api-reliability-heading');
+   header.append(div('strong','',names[row.provider]),
+    div('span','',row.state==='OBSERVED'?
+     'Доступность '+row.availabilityPercent+'%':
+     'Накопление данных'));
+   const details=div('p','',
+    'Сетевых запросов '+row.attempts+' · проверенных ответов '+
+    row.ok+' · ошибок '+row.failures+
+    ' (формат '+row.invalid+', лимит '+row.rateLimited+')');
+   item.append(header,details);
+   if(row.state==='OBSERVED'){
+    const track=div('div','api-reliability-track');
+    track.setAttribute('role','meter');
+    track.setAttribute('aria-label',names[row.provider]+': доля проверенных ответов');
+    track.setAttribute('aria-valuemin','0');
+    track.setAttribute('aria-valuemax','100');
+    track.setAttribute('aria-valuenow',String(row.availabilityPercent));
+    const bar=div('span','api-reliability-fill');
+    bar.style.width=row.availabilityPercent+'%';
+    track.append(bar);item.append(track);
+   }else item.append(div('small','',
+    'Для процентной оценки требуется минимум 12 сетевых ответов за 2 разных дня.'));
+   const diagnostics=[];
+   if(row.latencyMedianMs!==null)
+    diagnostics.push('медиана ответа '+row.latencyMedianMs+' мс');
+   if(row.freshness.checked)
+    diagnostics.push('время поставщика: свежих '+row.freshness.confirmed+
+     '/'+row.freshness.checked);
+   else diagnostics.push('свежесть по метке поставщика пока не подтверждена');
+   if(row.trend)
+    diagnostics.push('последние 10 / предыдущие 10: '+
+     row.trend.latestPercent+'% / '+row.trend.priorPercent+'%');
+   item.append(div('small','',diagnostics.join(' · ')));
+   box.append(item);
+  }
+  const comp=report.comparisons;
+  status.textContent='Операционная статистика за 30 дней · '+attempts+
+   ' фактических запросов · '+mature+' из '+report.rows.length+
+   ' с достаточной выборкой. '+
+   (report.persisted?'История сохранена на устройстве.':
+   'Хранилище недоступно: история только в текущем сеансе.');
+  const comparison=el('api-reliability-comparison');
+  if(comparison)comparison.textContent=comp.count?
+   'CoinPaprika ↔ CoinMarketCap: '+comp.count+
+   ' одновременных проверок USD · медианное расхождение '+
+   comp.medianDeltaPercent.toFixed(3)+
+   '%. Без независимого эталона нельзя определить, кто ошибся.':
+   'Расхождение USD-оценок: ждём два реальных сопоставимых сетевых ответа.';
+ }
  function refreshCenter(){
+  renderReliability();
   const container=el('free-provider-center'),timeStatus=el('free-provider-center-status');
   if(!container||!timeStatus)return;
   container.replaceChildren();
@@ -212,11 +287,25 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  function setSnapshot(symbol,snapshot){
   if(getSymbol?.()!==symbol)return;
   marketMeasurements=snapshot&&snapshot.symbol===symbol?snapshot:null;
+  if(marketMeasurements&&Array.isArray(marketMeasurements.sources)){
+   for(const source of marketMeasurements.sources)
+    reliability.record({provider:source.id,result:source});
+   renderReliability();
+  }
   renderReconciliation(symbol);
  }
  function setContext(symbol,context){
   if(getSymbol?.()!==symbol)return;
   contextMeasurements=context&&context.symbol===symbol?context:null;
+  if(contextMeasurements&&Array.isArray(contextMeasurements.sources)){
+   for(const source of contextMeasurements.sources){
+    // Memoized network gates and budget fallbacks are not new API attempts.
+    if(source.access==='CACHE'||source.source==='CACHE'||
+     source.source==='STALE_CACHE')continue;
+    reliability.record({provider:source.id,result:source});
+   }
+   renderReliability();
+  }
   renderReconciliation(symbol);
  }
  async function openOverview(){
@@ -250,6 +339,16 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   if(seq!==assetSeq||getSymbol?.()!==symbol)return;
   const modes=['okx','paprika','cmc','dex','gecko'];
   assetMeasurements={symbol,results:Object.fromEntries(modes.map((k,i)=>[k,responses[i]]))};
+  const paprika=assetMeasurements.results.paprika,cmc=assetMeasurements.results.cmc;
+  const t1=paprika?.data?.observedAt,t2=cmc?.data?.observedAt;
+  if(paprika?.source==='NETWORK'&&cmc?.source==='NETWORK'&&
+   paprika.state==='OK'&&cmc.state==='OK'&&
+   Number.isSafeInteger(t1)&&Number.isSafeInteger(t2)&&
+   Math.abs(t1-t2)<=2*3600000){
+   reliability.compareUsd({asset:symbol,one:paprika.data.priceUsd,
+    two:cmc.data.priceUsd});
+   renderReliability();
+  }
   for(const [i,mode] of modes.entries()){
    const r=responses[i];
    list.append(cardResult(mode,r,symbol));
