@@ -110,10 +110,10 @@ export function createForegroundBookStreams({
   lanes.clear();active=false;
   if(clearAsset)current='';
  }
- function reject(venue,lane,status){
+ function reject(venue,lane,status,error=''){
   if(lanes.get(venue)!==lane)return;
   nextAllowed.set(venue+':'+current,now()+LIVE_BOOK_POLICY.reconnectGapMs);
-  state(venue,status);
+  state(venue,status,String(error).slice(0,90));
   try{lane.ws.close();}catch{}
   lanes.delete(venue);
  }
@@ -156,7 +156,7 @@ export function createForegroundBookStreams({
    if(result.state==='KEEPALIVE'){lane.awaitingPong=false;return;}
    if(result.state==='ACK')return;
    if(result.state!=='OK'){
-    reject(venue,lane,result.state);return;
+    reject(venue,lane,result.state,result.error||'');return;
    }
    const book=result.data;
    if(venue==='binance'&&lane.lastSequence!==null&&
