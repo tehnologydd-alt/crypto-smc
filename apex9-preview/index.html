@@ -435,6 +435,16 @@
           <p class="muted" id="whale-status" role="status" aria-live="polite">
             Для выбранного избранного актива проверяем публичные транзакции BTC или ETH.
           </p>
+          <section class="whale-analysis" aria-label="Исследование последующих изменений цены">
+            <div class="section-title"><h4>Поведение крупных переводов</h4><span>Этап 2 · проверка истории</span></div>
+            <div class="whale-analysis-metrics" id="whale-analysis-metrics"><p class="muted">История источников ещё не прочитана.</p></div>
+            <p class="muted whale-analysis-repeated" id="whale-analysis-repeated">Повторяющиеся адреса пока не исследованы.</p>
+            <div class="section-title"><h4>Рынок после наблюдения</h4><span>H1 / 4 часа</span></div>
+            <p class="muted" id="whale-market-status" role="status" aria-live="polite">Сопоставление выполняется только с достоверными закрытыми H1-свечами.</p>
+            <div class="whale-market-results" id="whale-market-report"></div>
+            <button id="whale-market-check" class="ghost asset-manual-control" type="button">Проверить связь с H1</button>
+            <p class="footnote">Отбор по первой записи телефона, без использования будущих данных. Временные выборки не пересекаются. Недоступные события нельзя считать отсутствием китов, а корреляцию — прогнозом или причинностью.</p>
+          </section>
           <div id="whale-history" class="whale-event-list">
             <p class="muted">История крупных переводов пока не накоплена.</p>
           </div>

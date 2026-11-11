@@ -3430,3 +3430,20 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .whale-event-meta{line-height:1.55;display:block}
 #whale-refresh{max-width:100%;margin-top:3px}
 @media(max-width:480px){.whale-panel{padding:11px}.whale-event-title strong{font-size:14px}}
+
+/* Whale Intelligence Stage 2: short, source-scoped summaries on existing Data. */
+.whale-analysis{margin:12px 0 16px;padding:11px;border:1px solid #335c70;border-radius:12px;background:#0b1e2b99}
+.whale-analysis>.section-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:6px}
+.whale-analysis>.section-title h4{margin:0;font-size:13px}
+.whale-analysis-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+.whale-analysis-stat{display:flex;flex-direction:column;gap:4px;border:1px solid #315167;border-radius:9px;padding:9px;background:#132a39}
+.whale-analysis-stat small{font-size:10px;color:#a5bfcb}
+.whale-analysis-stat strong{font-size:17px;font-variant-numeric:tabular-nums;color:#b7f1df}
+.whale-analysis-repeated{overflow-wrap:anywhere;font-size:11px;line-height:1.55}
+.whale-market-results{display:grid;gap:8px;margin:10px 0}
+.whale-market-cohort{border-radius:9px;padding:10px;background:#102936;border:1px solid #35536d}
+.whale-market-cohort strong{display:block;color:#d5ece8;font-size:12px}
+.whale-market-cohort p{font-size:12px;line-height:1.5;margin:6px 0}
+.whale-market-cohort small{font-size:11px;color:#acc5d1;line-height:1.5;display:block}
+#whale-market-check{margin-bottom:7px;max-width:100%}
+@media(max-width:360px){.whale-analysis-metrics{grid-template-columns:minmax(0,1fr)}}

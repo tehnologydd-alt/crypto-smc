@@ -177,7 +177,8 @@ test('stage 1 is favorite-only, separate from forecast outcomes and chart render
  assert.ok(native.includes('fun getWhaleHistory(call: PluginCall)'));
  assert.ok(native.includes('validatedWhalePayload('));
  assert.ok(dao.includes('suspend fun whaleHistoryForSource('));
- assert.ok(pack.includes("'whale-observer.mjs','whale-dashboard.mjs'"));
+ assert.ok(pack.includes("'whale-observer.mjs'"));
+ assert.ok(pack.includes("'whale-dashboard.mjs'"));
  assert.equal(daemon.includes('collectWhaleObservations'),false);
  assert.equal(read('./whale-observer.mjs').includes('setInterval('),false);
 });
