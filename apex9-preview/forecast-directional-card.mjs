@@ -7,7 +7,7 @@ import {planDirectionalScenario,auditDirectionalScenario,directionalOutcomeLabel
  from './directional-scenario.mjs';
 import {forecastStage} from './favorite-logic.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
-import {displayPair,priceText} from './forecast-card-ux.mjs';
+import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
  completedResearchPresentation,renderCompletedResearchPanel}
  from './forecast-level-metrics.mjs';
@@ -74,7 +74,8 @@ export function directionalForecastCard(row,{
  const plan=verified.plan;
  const isM5=plan?.evaluationInterval==='5m';
  const isM1=plan?.evaluationInterval==='1m';
- const sourceFrame=isM1?'M1':isM5?'M5':'H1';
+ const control=controlMethodLabel(plan?.evaluationInterval);
+ const sourceFrame=control.frame;
  const timeline=buildForecastEventTimeline(row,{now:Date.now()});
  const visibleStage=forecastStage(row);
  const finishedNative=visibleStage==='COMPLETED'&&
@@ -94,7 +95,7 @@ export function directionalForecastCard(row,{
  const names=create('div','forecast-visual-identity');
  names.append(create('strong','',displayPair(row.asset)+
   (plan?' · H1 · '+(plan.side==='DOWN'?'SHORT':'LONG'):'')),
-  create('small','',plan?'Контроль '+sourceFrame+' · '+labelForSide(plan.side):
+  create('small','',plan?control.label+' · '+labelForSide(plan.side):
    'Сценарий · проверка целостности'));
  const state=create('span','forecast-visual-state '+(finishedRoom?
   'finished tone-'+completion.tone:'active'),

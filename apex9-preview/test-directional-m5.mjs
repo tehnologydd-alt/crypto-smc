@@ -135,7 +135,9 @@ test('room bridge, M5 native publisher and card routing are all connected',()=>{
  assert.ok(bridge.includes('export async function getMobileM5Window('));
  assert.ok(favorites.includes("getMobileM5Window(plan.asset,start,end)"));
  assert.ok(cards.includes('const reader=isM1?sourceM1:isM5?sourceM5:sourceH1'));
- assert.ok(cards.includes("const sourceFrame=isM1?'M1':isM5?'M5':'H1'"));
+ assert.ok(cards.includes("const control=controlMethodLabel(plan?.evaluationInterval)"));
+ assert.ok(cards.includes("const sourceFrame=control.frame"));
+ assert.ok(cards.includes("control.label+' · '+labelForSide(plan.side)"));
 });
 
 test('M5 source window backfill is paged and never creates synthetic candles',()=>{

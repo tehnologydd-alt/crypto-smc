@@ -9,6 +9,18 @@ export function displayPair(asset){
  if(typeof asset!=='string')return '—';
  return asset.endsWith('USDT')?asset.slice(0,-4)+'/USDT':asset;
 }
+/**
+ * The evaluation interval is immutable metadata captured at publication.
+ * Old M5/H1 or same-frame M15/H4 outcomes MUST NOT be renamed M1.
+ */
+export function controlMethodLabel(interval,{fallback='H1'}={}){
+ if(interval==='1m')
+  return {frame:'M1',label:'Контроль M1 · новый метод',archived:false};
+ if(interval==='5m')
+  return {frame:'M5',label:'Архивный прогноз · контроль M5',archived:true};
+ return {frame:fallback,label:'Архивный прогноз · контроль '+fallback,archived:true};
+}
+
 export function priceText(value){
  if(typeof value!=='number'||!Number.isFinite(value)||value<=0)return '—';
  const normalized=Number(value.toPrecision(10));
