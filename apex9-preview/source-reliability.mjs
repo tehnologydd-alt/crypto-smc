@@ -87,7 +87,11 @@ export function createSourceReliability({storage,now=()=>Date.now()}={}){
    at>now()+60000||at<now()-WINDOW||!TERMINAL.has(result?.state))
    return false;
   const data=result?.data;
-  const observedAt=Number.isSafeInteger(data?.observedAt)?data.observedAt:
+  // Some adapters stamp local reception time into observedAt. It MUST NOT
+  // become a fabricated source-freshness success.
+  const providerTimestamped=['fear','paprika','cmc'].includes(provider);
+  const observedAt=!providerTimestamped?null:
+   Number.isSafeInteger(data?.observedAt)?data.observedAt:
    Number.isSafeInteger(data?.providerObservedAt)?data.providerObservedAt:null;
   let ageMs=null,isFresh=null;
   if(['OK','EMPTY'].includes(result.state)&&validTime(observedAt)&&
