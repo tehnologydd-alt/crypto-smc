@@ -19,7 +19,7 @@ const create=(tag,cls,value)=>{
 };
 const timestamp=n=>Number.isSafeInteger(n)?
  new Date(n).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
-const VENUES={binance:'Binance Spot',okx:'OKX Spot',bybit:'Bybit · архив'};
+const VENUES={binance:'Binance Spot',okx:'OKX Spot'}; // current UI only; historical Bybit remains in Room
 const statusLabels={
  OBSERVED:'Последние наблюдения',
  HISTORICAL:'Только история',
