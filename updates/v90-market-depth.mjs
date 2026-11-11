@@ -6,7 +6,8 @@
  */
 const HOSTS=Object.freeze({
  binance:'https://data-api.binance.vision',
- bybit:'https://api.bybit.com'
+ okx:'https://www.okx.com',
+ bybit:'https://api.bybit.com' // legacy parser only; no active Stage 3 polling
 });
 const validSymbol=(x)=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const positive=(x)=>Number.isFinite(x)&&x>0;
@@ -54,11 +55,16 @@ function selectedVisibleLevels(rows,side){
 export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
  if(!Object.hasOwn(HOSTS,venue)||!validSymbol(symbol)||
     !Number.isSafeInteger(receivedAt)||receivedAt<=0)throw Error('invalid request metadata');
- const data=venue==='binance'?payload:payload?.result;
+ const data=venue==='binance'?payload:
+  venue==='okx'?payload?.data?.[0]:payload?.result;
+ if(venue==='okx'&&
+  (payload?.code!=='0'||!Array.isArray(payload?.data)||
+   payload.data.length!==1))
+  throw Error('OKX invalid response');
  if(venue==='bybit'&&(payload?.retCode!==0||data?.s!==symbol))throw Error('Bybit invalid response');
  if(!data||typeof data!=='object')throw Error('missing orderbook data');
- const bids=parseLevels(venue==='binance'?data.bids:data.b,'bids');
- const asks=parseLevels(venue==='binance'?data.asks:data.a,'asks');
+ const bids=parseLevels(venue==='bybit'?data.b:data.bids,'bids');
+ const asks=parseLevels(venue==='bybit'?data.a:data.asks,'asks');
  const highestBid=Math.max(...bids.map(x=>x.price));
  const lowestAsk=Math.min(...asks.map(x=>x.price));
  if(highestBid>=lowestAsk)throw Error('crossed orderbook snapshot');
@@ -67,10 +73,12 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
  const sum=bidNotional+askNotional;
  if(!positive(sum)||!Number.isFinite(sum))throw Error('invalid depth totals');
  const mid=(highestBid+lowestAsk)/2;
- const rawTs=venue==='bybit'?(data.ts??payload.ts):null;
- const exchangeTimestamp=venue==='bybit'?safeInteger(rawTs):null;
- if(venue==='bybit'&&(!exchangeTimestamp||exchangeTimestamp<=0))
-  throw Error('Bybit missing/invalid exchange timestamp');
+ const rawTs=venue==='bybit'?(data.ts??payload.ts):
+  venue==='okx'?data.ts:null;
+ const exchangeTimestamp=venue==='bybit'||venue==='okx'?
+  safeInteger(rawTs):null;
+ if((venue==='bybit'||venue==='okx')&&(!exchangeTimestamp||exchangeTimestamp<=0))
+  throw Error(venue.toUpperCase()+' missing/invalid exchange timestamp');
  const providerTime=venue==='bybit'?safeInteger(payload.time):null;
  if(providerTime!==null&&Math.abs(providerTime-exchangeTimestamp)>180000)
   throw Error('Bybit inconsistent server/orderbook timestamps');
@@ -82,7 +90,8 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
   throw Error(providerTime!==null&&
    Math.abs(providerTime-exchangeTimestamp)<=180000?
    'device clock ahead of exchange time':'stale exchange snapshot');
- const updateId=venue==='binance'?data.lastUpdateId:data.u;
+ const updateId=venue==='binance'?data.lastUpdateId:
+  venue==='okx'?data.seqId:data.u;
  return {
   venue,symbol,market:'SPOT',receivedAt,exchangeTimestamp,
   updateId:safeInteger(updateId),
@@ -108,9 +117,18 @@ export async function fetchPublicDepth(venue,symbol,{
  if(!Object.hasOwn(HOSTS,venue)||!validSymbol(symbol)){
   return {state:'INVALID',venue,symbol,error:'unsupported venue or symbol',data:null};
  }
+ const okxPair=(s)=>{
+  const m=/^([A-Z0-9]{2,16})(USDT|USDC|EUR|BTC)$/.exec(s);
+  return m?m[1]+'-'+m[2]:null;
+ };
+ const instId=venue==='okx'?okxPair(symbol):null;
+ if(venue==='okx'&&!instId)
+  return {state:'INVALID',venue,symbol,error:'Unsupported OKX instrument syntax',data:null};
  const path=venue==='binance'
-  ?'/api/v3/depth?symbol='+encodeURIComponent(symbol)+'&limit=100'
-  :'/v5/market/orderbook?category=spot&symbol='+encodeURIComponent(symbol)+'&limit=50';
+  ?'/api/v3/depth?symbol='+encodeURIComponent(symbol)+'&limit=100':
+  venue==='okx'
+   ?'/api/v5/market/books?instId='+encodeURIComponent(instId)+'&sz=50'
+   :'/v5/market/orderbook?category=spot&symbol='+encodeURIComponent(symbol)+'&limit=50';
  const url=HOSTS[venue]+path;
  try{
   const response=await fetchImpl(url,{method:'GET',signal,cache:'no-store',credentials:'omit'});
@@ -129,6 +147,15 @@ export async function fetchPublicDepth(venue,symbol,{
    return {state:'OFFLINE',venue,symbol,error:'HTTP '+response.status,data:null};
   }
   const payload=await response.json();
+  if(venue==='okx'){
+   if(payload?.code==='50011')
+    return {state:'RATE_LIMITED',venue,symbol,error:'OKX rate limit',data:null};
+   if(payload?.code==='51001')
+    return {state:'NOT_LISTED',venue,symbol,error:'OKX Spot instrument unavailable',data:null};
+   if(payload?.code!=='0')
+    return {state:'INVALID',venue,symbol,error:'OKX '+String(payload?.code||'?')+
+     ' · '+String(payload?.msg||'invalid response').slice(0,90),data:null};
+  }
   if(venue==='bybit'){
    if(payload?.retCode===10006)
     return {state:'RATE_LIMITED',venue,symbol,error:'Bybit API rate limited',data:null};
