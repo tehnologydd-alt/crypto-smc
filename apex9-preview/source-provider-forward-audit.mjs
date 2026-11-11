@@ -187,14 +187,15 @@ export function auditProviderForwardValue(archive,{asset,now=Date.now()}={}){
     }
     const strength=inspectPreOutcomeStrength(row);
     if(strength.state==='INVALID')counts.invalidStrength++;
-    else if(strength.state!=='VERIFIED')counts.missingStrength++;
+    else if(strength.state!=='VERIFIED'||
+     strength.features?.volumeAvailable!==true)counts.missingStrength++;
     const checks=Object.fromEntries(PROVIDER_FORWARD_TESTS.map(d=>
      [d.id,providerAlignment(evidence,plan,d)]));
     for(const def of PROVIDER_FORWARD_TESTS){
      const p=providers[def.id],v=checks[def.id];
      if(v.state==='MEASURED')p.observed++;
+     else if(v.state==='NEUTRAL'){p.observed++;p.neutral++;}
      else if(v.state==='STALE')p.stale++;
-     else if(v.state==='NEUTRAL')p.neutral++;
      else p.missing++;
     }
     const result=getOutcome(row,tf,now);
@@ -208,7 +209,8 @@ export function auditProviderForwardValue(archive,{asset,now=Date.now()}={}){
     counts.decisive++;
     if(result.outcome==='TP3')counts.tp3++;
     else counts.stop++;
-    if(strength.state!=='VERIFIED')continue;
+    if(strength.state!=='VERIFIED'||
+     strength.features?.volumeAvailable!==true)continue;
     const baseline=frozenRankScore(strength.features);
     if(!number(baseline)){counts.invalidStrength++;continue;}
     for(const def of PROVIDER_FORWARD_TESTS){
