@@ -188,3 +188,53 @@ test('Bybit 10001 Not supported symbols is unavailable Spot, not malformed book'
  assert.match(request[0],/category=spot&symbol=ZECUSDT/);
  assert.equal(error.state,'NOT_LISTED');
 });
+
+const okx={code:'0',msg:'',data:[{asks:[['101','2','0','3'],['102','1','0','1']],
+ bids:[['100','3','0','2'],['99','1','0','1']],ts:String(now-100),seqId:44}]};
+test('OKX v5 public SPOT book retains exchange timestamp, price levels and no trade scope',()=>{
+ const r=parseDepthSnapshot('okx','BTCUSDT',okx,now);
+ assert.equal(r.market,'SPOT');
+ assert.equal(r.venue,'okx');
+ assert.equal(r.bestBid,100);
+ assert.equal(r.bestAsk,101);
+ assert.equal(r.exchangeTimestamp,now-100);
+ assert.equal(r.updateId,44);
+ assert.equal(r.sampleScope,'LIMITED_PUBLIC_SNAPSHOT');
+ assert.equal(r.levelSelection,'TOP_8_NOTIONAL_PER_SIDE');
+ assert.equal(r.calibratedProbability,null);
+ assert.equal(r.topVisibleLevels.length,4);
+});
+test('OKX public GET uses Spot instId and no credentials',async()=>{
+ let request;
+ const r=await fetchPublicDepth('okx','BTCUSDT',{now:()=>now,
+  fetchImpl:async(url,opts)=>{
+   request={url,opts};
+   return {ok:true,status:200,json:async()=>okx};
+  }});
+ assert.equal(r.state,'OK');
+ assert.equal(request.url,
+  'https://www.okx.com/api/v5/market/books?instId=BTC-USDT&sz=50');
+ assert.deepEqual(request.opts,{method:'GET',signal:undefined,
+  cache:'no-store',credentials:'omit'});
+});
+test('OKX errors are explicit: unlisted, rate limited, denied, stale and skewed',async()=>{
+ const response=async payload=>fetchPublicDepth('okx','BTCUSDT',{
+  now:()=>now,
+  fetchImpl:async()=>({ok:true,status:200,json:async()=>payload})
+ });
+ assert.equal((await response({code:'51001',msg:'Instrument ID does not exist',data:[]})).state,'NOT_LISTED');
+ assert.equal((await response({code:'50011',msg:'Rate limit',data:[]})).state,'RATE_LIMITED');
+ assert.equal((await response({code:'51000',msg:'Bad parameter',data:[]})).state,'INVALID');
+ assert.equal((await fetchPublicDepth('okx','BTCUSDT',{
+  fetchImpl:async()=>({ok:false,status:451})})).state,'ACCESS_DENIED');
+ assert.equal((await response({code:'0',data:[{...okx.data[0],ts:String(now-600000)}]})).state,'STALE');
+ assert.equal((await response({code:'0',data:[{...okx.data[0],ts:String(now+70000)}]})).state,'CLOCK_SKEW');
+ assert.equal((await response({code:'0',data:[{...okx.data[0],bids:[]}]})).state,'INVALID');
+ assert.equal((await fetchPublicDepth('okx','BTCUSDT&pass=123',{
+  fetchImpl:async()=>{throw Error('unexpected network call')}})).state,'INVALID');
+});
+test('legacy Bybit response remains parseable for historical regressions but not live collection',()=>{
+ const legacy=parseDepthSnapshot('bybit','BTCUSDT',bybit,now);
+ assert.equal(legacy.exchangeTimestamp,now-100);
+ assert.equal(legacy.venue,'bybit');
+});
