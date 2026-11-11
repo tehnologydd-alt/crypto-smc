@@ -35,6 +35,7 @@
     <p class="muted">Режим обновления рынка и фоновые задачи на Android.</p>
     <div class="apex-setting-line"><span>Цена выбранного актива</span><strong>≈ 30 секунд · при открытом приложении</strong></div>
     <div class="apex-setting-line"><span>Все рыночные данные</span><strong>≈ 10 минут · при открытом приложении</strong></div>
+    <div class="apex-setting-line"><span>Стакан избранного актива</span><strong>Поток WS на странице «Данные» · REST при сбоях</strong></div>
     <label class="apex-setting-toggle"><input type="checkbox" id="apex-settings-background" disabled><span>Фоновая синхронизация<small>WorkManager · около 15 минут, Android может отложить запуск</small></span></label>
     <p id="apex-settings-background-status" class="muted" role="status">Проверяем состояние Android…</p>
     <div class="apex-settings-divider"></div>
@@ -395,8 +396,12 @@
       </article>
       <article class="card block" data-asset-pane="data">
         <h3>Стаканы разных площадок</h3>
+        <p class="muted" id="depth-stream-status" role="status" aria-live="polite">
+          Публичные потоки Binance/OKX доступны при открытом избранном активе;
+          резерв — проверенные REST-снимки.
+        </p>
         <div id="depth-list" class="stack"><p class="muted">Снимки глубины ещё не получены.</p></div>
-        <p class="footnote">Отображается лишь ограниченный публичный срез заявок. Это не полная карта ликвидности, не скрытые ордера и не карта ликвидаций.</p>
+        <p class="footnote">WebSocket: Binance — до 20 уровней, OKX — до 5 уровней, ограниченные снимки при изменении стакана. История Room сохраняет контрольные срезы не чаще 1 раза в 30 секунд на источник. REST при недоступном или устаревшем потоке; глубины этих источников не считаются одинаковыми. Это не все заявки и не карта ликвидаций.</p>
       </article>
       <article class="card block liquidity-history-panel" id="liquidity-history-panel" data-asset-pane="data">
         <div class="section-title"><h3>История видимой ликвидности</h3><span>Локально · Room</span></div>
