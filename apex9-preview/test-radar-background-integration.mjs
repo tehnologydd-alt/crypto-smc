@@ -41,7 +41,8 @@ test('Android background persists native history using close-time-aware source a
  assert.ok(native.includes('for (frame in listOf("15m","1h","4h","1d"))'));
  assert.ok(native.includes('dao.candles(asset,frame,LIMIT).reversed()'));
  assert.ok(native.includes('if (last.closeTime > now'));
- assert.ok(native.includes('connection.responseCode != 200'));
+ assert.ok(native.includes('probe.httpStatus(http)'));
+ assert.ok(native.includes('if (http != 200) return@observe null'));
  assert.ok(native.includes('if (last.optString("symbol") in selected)'));
  assert.ok(native.includes('.put("source","Binance Spot")'));
  assert.equal(worker.includes('ApexRadarMonitor.sync(applicationContext, settings.asset'),false);
