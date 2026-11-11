@@ -81,7 +81,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    gecko:'GeckoTerminal',okx:'OKX Spot',paprika:'CoinPaprika',
    cmc:'CoinMarketCap','binance-ticker':'Binance Spot · цена',
    'binance-depth':'Binance Spot · стакан',
-   'bybit-depth':'Bybit Spot · стакан',
+   'okx-depth':'OKX Spot · стакан',
+   'bybit-depth':'Bybit · исторический источник',
    'coingecko-global':'CoinGecko · рынок',
    'bitcoin-mempool':'mempool.space · BTC',
    'gdelt-news':'GDELT · новости'};
@@ -128,7 +129,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
       ' / '+value.required+' независимых публикаций'));
      lab.append(div('small','',
       'Исследование зарегистрировано заранее. Не хватает данных — '+
-      'результат не вычисляем; качество API и влияние на прогноз различаются.'));
+      'результат не вычисляем; качество API и влияние на прогноз различаются. '+
+      'Bybit здесь — исходный архивный протокол V1; новые стаканы собираются с OKX.'));
      for(const study of value.studies){
       const meanings={
        COLLECTING:'сбор проверенных исходов',
