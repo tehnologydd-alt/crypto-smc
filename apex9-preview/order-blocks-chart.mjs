@@ -44,40 +44,53 @@ export function analyzeStructuralOrderBlocks(candles,{
  if(bars.length<10)return {state:'COLLECTING',zones:[],interval};
  const structure=analyzeStructure(bars,{left:2,right:2});
  if(structure.status!=='OK')return {state:'COLLECTING',zones:[],interval};
- const step=CANDLE_INTERVALS[interval],byClose=new Map(bars.map((b,i)=>[b.closeAt,i]));
+ const step=CANDLE_INTERVALS[interval];
  const zones=[];
- const events=structure.events.filter(e=>['BOS','CHoCH'].includes(e.type));
- for(const e of events){
-  // Structure event.confirmedAt is the *pivot confirmation* time.
-  // A block is only knowable on the BREAK candle itself (event.time).
-  // Using pivot time here creates look-ahead zones on a live chart.
-  const breakIndex=byClose.get(e.time);
-  if(breakIndex===undefined)continue;
-  let found=null;
-  for(let i=breakIndex-1;i>=Math.max(0,breakIndex-ORDER_BLOCK_RULES.originLookback);i--){
-   if(bars[i+1].t-bars[i].t!==step)break;
-   if(opposite(bars[i],e.direction)){found=i;break;}
-  }
-  if(found===null)continue;
-  const origin=bars[found],kind=e.direction==='UP'?'DEMAND':'SUPPLY';
-  const low=kind==='DEMAND'?origin.low:Math.min(origin.open,origin.close);
-  const high=kind==='DEMAND'?Math.max(origin.open,origin.close):origin.high;
-  if(!positive(low)||!positive(high)||high<=low)continue;
-  // A historical close through the zone invalidates its future activity
-  // label, but the original break/zone remains an immutable observation.
-  let invalidatedAt=null;
-  for(let k=breakIndex+1;k<bars.length;k++){
-   if(bars[k].t-bars[k-1].t!==step)break;
-   if(kind==='DEMAND'?bars[k].close<low:bars[k].close>high){
-    invalidatedAt=bars[k].closeAt;break;
+ let continuousRuns=0;
+ // A gap in the source bars ends a complete structural experiment.
+ // Neither the swing confirmation nor the break may bridge missing bars.
+ let from=0;
+ for(let to=1;to<=bars.length;to++){
+  if(to<bars.length&&bars[to].t-bars[to-1].t===step)continue;
+  const segment=bars.slice(from,to);
+  from=to;
+  if(segment.length<10)continue;
+  continuousRuns++;
+  const breakByClose=new Map(segment.map((b,i)=>[b.closeAt,i]));
+  const structure=analyzeStructure(segment,{left:2,right:2});
+  if(structure.status!=='OK')continue;
+  for(const e of structure.events.filter(e=>['BOS','CHoCH'].includes(e.type))){
+   // 'confirmedAt' in an analyzeStructure event is when the PIVOT became
+   // known. 'time' is the later actual BOS/CHoCH break close.
+   const breakIndex=breakByClose.get(e.time);
+   if(breakIndex===undefined)continue;
+   let found=null;
+   for(let i=breakIndex-1;i>=Math.max(0,
+     breakIndex-ORDER_BLOCK_RULES.originLookback);i--){
+    if(opposite(segment[i],e.direction)){found=i;break;}
    }
+   if(found===null)continue;
+   const origin=segment[found],kind=e.direction==='UP'?'DEMAND':'SUPPLY';
+   const low=kind==='DEMAND'?origin.low:Math.min(origin.open,origin.close);
+   const high=kind==='DEMAND'?Math.max(origin.open,origin.close):origin.high;
+   if(!positive(low)||!positive(high)||high<=low)continue;
+   let invalidatedAt=null;
+   for(let k=breakIndex+1;k<segment.length;k++){
+    if(kind==='DEMAND'?segment[k].close<low:segment[k].close>high){
+     invalidatedAt=segment[k].closeAt;break;
+    }
+   }
+   zones.push({version:ORDER_BLOCK_VERSION,
+    id:kind+':'+origin.t+':'+e.time,
+    kind,low,high,originCloseAt:origin.closeAt,
+    confirmedAt:e.time,pivotKnownAt:e.confirmedAt,
+    breakType:e.type,invalidatedAt,
+    coverageEndsAt:segment.at(-1).closeAt,
+    interval,source:'BINANCE_SPOT_CLOSED_OHLC',
+    inferredOrders:false,whaleAttributed:false,predictive:false});
   }
-  zones.push({version:ORDER_BLOCK_VERSION,id:kind+':'+origin.t+':'+e.time,
-   kind,low,high,originCloseAt:origin.closeAt,
-   confirmedAt:e.time,
-   breakType:e.type,invalidatedAt,interval,source:'BINANCE_SPOT_CLOSED_OHLC',
-   inferredOrders:false,whaleAttributed:false,predictive:false});
  }
+ if(!continuousRuns)return {state:'COLLECTING',zones:[],interval};
  const unique=new Map();
  for(const z of zones)unique.set(z.id,z);
  return {state:'DESCRIPTIVE',interval,
@@ -102,14 +115,23 @@ export function mapOrderBlocksToViewport(zones,bars,{
    !time(zone.confirmedAt)||!time(zone.originCloseAt)||zone.originCloseAt>=zone.confirmedAt)
    continue;
   const segments=[];let active=null;
-  const stop=zone.invalidatedAt??Infinity;
+  const stop=Math.min(zone.invalidatedAt??Infinity,
+   zone.coverageEndsAt??Infinity);
+  // Show only verified continuous coverage. A missing candle means
+  // the state after the gap is UNKNOWN: never reconnect an old zone.
+  let lastTime=null,stopped=false;
   for(let i=0;i<bars.length;i++){
-   const b=bars[i];
-   const ok=b?.closed===true&&time(b.closeAt)&&
-    b.closeAt>=zone.confirmedAt&&b.closeAt<=stop;
-   if(!ok){if(active){segments.push(active);active=null;}continue;}
-   if(active&&b.closeAt-bars[i-1].closeAt===step)active.to=i;
-   else {if(active)segments.push(active);active={from:i,to:i};}
+   if(stopped)break;
+   const bar=bars[i];
+   if(bar?.closed!==true||!time(bar.closeAt))continue;
+   if(bar.closeAt<zone.confirmedAt)continue;
+   if(bar.closeAt>stop)break;
+   if(lastTime!==null&&bar.closeAt-lastTime!==step){
+    stopped=true;break;
+   }
+   lastTime=bar.closeAt;
+   if(active)active.to=i;
+   else active={from:i,to:i};
   }
   if(active)segments.push(active);
   if(segments.length)result.push({...zone,segments});
