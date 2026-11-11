@@ -81,7 +81,7 @@ export class CandleChart {
   this.schedule();
  }
  focusOnScenario(anchorCloseAt){
-  if(!['15m','1h','4h'].includes(this.interval))return false;
+  if(!['1m','15m','1h','4h'].includes(this.interval))return false;
   const index=this.data.findIndex(c=>c?.closed===true&&c.closeAt===anchorCloseAt);
   if(index<0)return false;
   this.offset=this.clampOffset(this.data.length-index-Math.floor(this.visible/2));
@@ -144,8 +144,9 @@ export class CandleChart {
   const priceY=p=>14+(high-p)/(high-low)*(mainH-22);
   const step=plotW/bars.length;
   // Every shaded segment corresponds to real consecutive closed source-TF candles.
-  const overlays=['15m','1h','4h'].includes(this.interval)?
-    this.scenarios.filter(sc=>sc.sourceInterval===this.interval).map(sc=>({
+  const overlays=['1m','15m','1h','4h'].includes(this.interval)?
+    this.scenarios.filter(sc=>sc.sourceInterval===this.interval||
+      (this.interval==='1m'&&sc.evaluationInterval==='1m')).map(sc=>({
    sc,geometry:mapScenarioToViewport(sc,bars,{interval:this.interval})
   })).filter(x=>x.geometry.visible):[];
   for(const {sc,geometry} of overlays){

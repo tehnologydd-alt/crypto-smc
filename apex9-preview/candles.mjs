@@ -3,7 +3,7 @@
  * Research-only market structure, no trading instructions.
  * API: read-only GET /api/v3/klines. Closed candles only enter analysis.
  */
-export const CANDLE_INTERVALS=Object.freeze({'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000});
+export const CANDLE_INTERVALS=Object.freeze({'1m':60000,'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000});
 const BASE_URL='https://data-api.binance.vision/api/v3/klines';
 const validNumber=n=>typeof n==='number'&&Number.isFinite(n);
 const positive=n=>validNumber(n)&&n>0;

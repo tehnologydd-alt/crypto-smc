@@ -7,7 +7,7 @@ import {directionalHypothesis,planDirectionalScenario} from './directional-scena
 import {forecastStage} from './favorite-logic.mjs';
 import {multiFrameHypothesis,multiFrameEvidence}
  from './forecast-multiframe.mjs';
-const STEPS=Object.freeze({'15m':900000,'1h':3600000,'4h':14400000});
+const STEPS=Object.freeze({'1m':60000,'15m':900000,'1h':3600000,'4h':14400000});
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const assetOK=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const label={PUBLISHED:'Публикация',CONFIRMED:'H1 №1',
@@ -23,7 +23,13 @@ export function buildScenarioMap(rows,{asset,selectedIds=[],mode='all',
  const selected=new Set(Array.isArray(selectedIds)?selectedIds:[]);
  const eligible=[];
  for(const row of rows){
-  if(row?.asset!==asset||row?.interval!==interval)continue;
+  if(row?.asset!==asset)continue;
+  if(row?.interval!==interval){
+   if(interval!=='1m')continue;
+   let h;try{h=typeof row.hypothesis==='string'?
+    JSON.parse(row.hypothesis):row.hypothesis;}catch{continue;}
+   if(h?.evaluationInterval!=='1m')continue;
+  }
   if(mode==='tracked'&&!selected.has(row.id))continue;
   if(multiFrameHypothesis(row)){
    const evidence=multiFrameEvidence(row,{now});
@@ -40,7 +46,8 @@ export function buildScenarioMap(rows,{asset,selectedIds=[],mode='all',
       observedAt:event.observedAt,recordedAt:event.recordedAt});
    }
    eligible.push({
-    id:row.id,asset,sourceInterval:interval,
+    id:row.id,asset,sourceInterval:row.interval,
+    evaluationInterval:plan.evaluationInterval,
     model:'MULTIFRAME',side:plan.side,
     levels:{entry:plan.entry,tp1:plan.tp1,tp2:plan.tp2,
      tp3:plan.tp3,sl:plan.sl},
@@ -72,7 +79,8 @@ export function buildScenarioMap(rows,{asset,selectedIds=[],mode='all',
      observedAt:event.observedAt,recordedAt:event.recordedAt});
    }
    eligible.push({
-    id:row.id,asset,sourceInterval:'1h',model:'DIRECTIONAL',side:plan.side,
+    id:row.id,asset,sourceInterval:'1h',
+    evaluationInterval:plan.evaluationInterval,model:'DIRECTIONAL',side:plan.side,
     levels:{entry:plan.entry,tp1:plan.tp1,tp2:plan.tp2,
      tp3:plan.tp3,sl:plan.sl},
     tracked:selected.has(row.id),focused:row.id===focusId,
@@ -125,7 +133,8 @@ export function buildScenarioMap(rows,{asset,selectedIds=[],mode='all',
  */
 export function mapScenarioToViewport(scenario,bars,{interval='1h'}={}){
  if(!STEPS[interval]||!Array.isArray(bars)||!scenario||
-  (scenario.sourceInterval&&scenario.sourceInterval!==interval)||
+  (scenario.sourceInterval&&scenario.sourceInterval!==interval&&
+   !(interval==='1m'&&scenario.evaluationInterval==='1m'))||
   !time(scenario.anchorCloseAt)||!time(scenario.targetCloseAt)||
   !(scenario.targetCloseAt>scenario.anchorCloseAt)||
   !Number.isFinite(scenario.bandLow)||!Number.isFinite(scenario.bandHigh)||
@@ -161,7 +170,7 @@ export function mapScenarioToViewport(scenario,bars,{interval='1h'}={}){
   // not at an invented source-timestamp or on an unfinished candle.
   const sourceCloseAt=mark.key==='PUBLISHED'?
    scenario.anchorCloseAt:
-   scenario.model==='MULTIFRAME'?
+   scenario.model==='MULTIFRAME'&&interval!=='1m'?
     Math.floor(mark.observedAt/step)*step+step-1:
     mark.observedAt;
   const index=indexByClose.get(sourceCloseAt);
