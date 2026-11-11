@@ -18,8 +18,9 @@ const feeds=['market','liquidity','onchain','news','macro','social'];
 function make(i,{method='M1',finish='TP3',aligned=true}={}){
  const anchor=START+i*17*TF,publishedAt=anchor+2000;
  const targetCloseAt=anchor+16*TF;
- const event=(stage,minute)=>({stage,observedAt:anchor+minute*M1,
-  recordedAt:anchor+minute*M1+1000});
+ const candleStep=method==='M1'?M1:300000;
+ const event=(stage,minute)=>({stage,observedAt:anchor+minute*candleStep,
+  recordedAt:anchor+minute*candleStep+1000});
  const finished=[event('LIMIT_READY',1),event('CONFIRMED',2)];
  if(finish==='TP3')finished.push(event('TP1',3),event('TP2',4),event('TP3',5));
  else finished.push(event('SL',5));
@@ -50,7 +51,7 @@ function make(i,{method='M1',finish='TP3',aligned=true}={}){
     policy:'DESCRIPTIVE_CONTEXT_ONLY_NO_FUTURE_LEAKAGE',feeds:kinds,radar}},
   stageEvents:finished,evaluation:{outcome:finish,targetCloseAt,
    actualClose:finish==='TP3'?110:90,
-   evaluatedAt:anchor+5*M1+2000}};
+   evaluatedAt:anchor+5*candleStep+2000}};
 }
 const archive=rows=>({complete:true,publishedCount:rows.length,forecasts:rows});
 const storage=()=>{const d=new Map();return{getItem:k=>d.get(k)||null,
