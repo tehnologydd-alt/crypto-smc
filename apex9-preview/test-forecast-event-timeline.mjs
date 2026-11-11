@@ -158,7 +158,9 @@ test('completed directional forecasts fold to a source-backed closing reason',()
  assert.ok(card.includes("const fold=create('details','forecast-card-fold')"));
  assert.ok(card.includes("fold.open=!finishedRoom"));
  assert.ok(card.includes("'Причина завершения: '+directionalOutcomeLabel(outcome)"));
- assert.ok(card.includes("showFinalReason(verifiedFinish?timeline.outcome:row.evaluation?.outcome"));
+ assert.ok(card.includes('if(finishedRoom&&!roomFinish)'));
+ assert.ok(card.includes('renderCompletedResearchPanel(plan,'));
+ assert.ok(card.includes('outcome:timeline.outcome,verified:roomFinish'));
  assert.ok(card.includes("fold.append(chronology)"));
  assert.ok(card.includes("fold.append(levels,copied)"));
  assert.ok(css.includes('.forecast-final-snapshot[hidden]'));

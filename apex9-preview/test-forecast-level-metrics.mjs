@@ -94,8 +94,8 @@ test('both All and Marked render through shared cards with outcome strip and lev
  assert.ok(multiframes.includes('displayRiskReward(metrics.targets[key].rMultiple)'));
  assert.ok(directional.includes('Показать вход, цели и итог'));
  assert.ok(multiframes.includes('Показать вход, цели и итог'));
- assert.ok(directional.includes('tone-'+completion.tone'));
- assert.ok(multiframes.includes('tone-'+completion.tone'));
+ assert.ok(directional.includes("tone-'+completion.tone"));
+ assert.ok(multiframes.includes("tone-'+completion.tone"));
  assert.ok(css.includes('.forecast-completed-stages'));
  assert.ok(css.includes('.forecast-record.forecast-visual.is-completed.tone-stop'));
  assert.ok(css.includes('.forecast-record.forecast-visual.is-completed.tone-tp3'));
