@@ -20,6 +20,7 @@ import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
 import {auditPublishedSourceLineage} from './source-lineage-audit.mjs';
+import {saveSourceCohortSummary} from './source-cohort-summary.mjs';
 import {diagnoseQualityFactors} from './forecast-quality-diagnostics.mjs';
 import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
 import {auditFeaturePairRegimes,summarizeFeatureStageTwo}
@@ -232,6 +233,9 @@ export function createAutomaticDecisionAudit({
      throw Error('Room не вернул список прогнозов для полного аудита.');
     if(closed||generation!==sequence||
      !favoritesOf(getFavorites()).includes(asset))break;
+    // Independent M1 + native provider lineage summary is never blocked by
+    // legacy M5-only shadow-model readiness. No second archive/network read.
+    saveSourceCohortSummary(archive,asset,{now:now(),storage});
     const result=await compute(archive,asset,{now:now()});
     if(!result?.audits?.release)
      throw Error(result?.reason||'Полный аудит недоступен.');
