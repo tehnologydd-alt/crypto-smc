@@ -105,7 +105,8 @@ export function initWhaleDashboard({getFavorites=()=>[]}={}){
   try{
    const report=await collectWhaleObservations(next,{
     signal:local.signal,now:()=>Date.now()});
-   if(token!==seq||asset!==next||local.signal.aborted)return;
+   if(token!==seq||asset!==next||local.signal.aborted||
+    !getFavorites().includes(next))return;
    if(!['OK','PARTIAL'].includes(report.state)){
     setStatus('Источник '+report.state+' · новых подтверждённых данных нет. '+
      'Исторические наблюдения не удалены.',true);
