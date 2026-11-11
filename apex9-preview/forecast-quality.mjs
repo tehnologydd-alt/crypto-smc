@@ -1,6 +1,6 @@
 /**
  * APEX V2 research-quality scoreboard, based ONLY on native Room evidence.
- * Direction is published on H1, points are evaluated by M5 for new studies.
+ * Direction is published on H1; new studies are evaluated by M1.
  * A TP touched before a later SL is counted as a touch, never as a winning trade.
  * Older H1-evaluated studies are excluded from the M5 cohort.
  */
@@ -14,7 +14,7 @@ const FINAL_STAGE={TP3:'TP3',STOP:'SL',AMBIGUOUS:'ORDER_UNKNOWN',
  NOT_ENTERED:'NO_ENTRY',HORIZON:'TIMEOUT'};
 const STAGE_NAMES=new Set(['LIMIT_READY','CONFIRMED','ACTIVE','TP1','TP2','TP3',
  'SL','ORDER_UNKNOWN','NO_ENTRY','TIMEOUT','COMPLETED']);
-const M5=300000,H1=3600000;
+const M1=60000,M5=300000,H1=3600000;
 const timestamp=t=>Number.isSafeInteger(t)&&t>0;
 const freshNumber=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
 const empty=()=>({
@@ -34,8 +34,10 @@ export function verifiedDirectionalEvidence(row,{now=Date.now()}={}){
  const found=planDirectionalScenario(row,{now});
  if(found.state!=='READY')return invalid(found.reason||'Не проверен исходный прогноз');
  const plan=found.plan;
- const period=plan.evaluationInterval==='5m'?M5:H1;
- const source=plan.evaluationInterval==='5m'?'M5':'H1';
+ const period=plan.evaluationInterval==='1m'?M1:
+  plan.evaluationInterval==='5m'?M5:H1;
+ const source=plan.evaluationInterval==='1m'?'M1':
+  plan.evaluationInterval==='5m'?'M5':'H1';
  const events=new Map();
  if(!Array.isArray(row.stageEvents))return unknown('Нет сохранённого журнала этапов');
  for(const stage of row.stageEvents){
@@ -55,10 +57,10 @@ export function verifiedDirectionalEvidence(row,{now=Date.now()}={}){
  }
  const confirmed=events.get('CONFIRMED');
  const limit=events.get('LIMIT_READY');
- if(plan.stageSemantics==='LIMIT_READY_M5_V1'&&confirmed&&
+ if(['LIMIT_READY_M5_V1','LIMIT_READY_M1_V1'].includes(plan.stageSemantics)&&confirmed&&
   (!limit||confirmed.observedAt<limit.observedAt))
   return invalid('Вход раньше подтверждения лимитного этапа');
- if(plan.stageSemantics!=='LIMIT_READY_M5_V1'&&limit)
+ if(!['LIMIT_READY_M5_V1','LIMIT_READY_M1_V1'].includes(plan.stageSemantics)&&limit)
   return invalid('Лимитный этап не был предусмотрен при публикации');
  const touched=POINTS.filter(point=>events.has(point));
  if(touched.length&&(!confirmed||!events.has('TP1')))
@@ -108,17 +110,17 @@ export function verifiedDirectionalEvidence(row,{now=Date.now()}={}){
  return {state:'OBSERVED',source,plan,entered:Boolean(confirmed),touched,
   finished:true,outcome,terminalAt,stage};
 }
-function tally(items,{now}){
+function tally(items,{now,interval='5m'}){
  const score=empty();
  for(const row of items){
   // Invalid old H1 records must never contaminate the M5 quality cohort.
-  if(directionalHypothesis(row)?.evaluationInterval!=='5m')continue;
+  if(directionalHypothesis(row)?.evaluationInterval!==interval)continue;
   const record=verifiedDirectionalEvidence(row,{now});
   if(record.state==='NOT_DIRECTIONAL')continue;
   if(record.state==='INVALID'){score.invalid++;continue;}
   if(record.state==='UNVERIFIED'){score.unverified++;continue;}
   // M5 is the current research cohort. H1 gets a distinct historical cohort.
-  if(record.source!=='M5')continue;
+  if(record.source!==(interval==='1m'?'M1':'M5'))continue;
   score.published++;
   if(record.plan.side==='UP')score.up++;
   else score.down++;
@@ -141,6 +143,9 @@ export function directionalQualitySummary(rows,{selectedIds=[],now=Date.now()}={
  return {
   all:tally(active,{now}),
   tracked:tally(active.filter(row=>chosen.has(row.id)),{now}),
+  m1:tally(active,{now,interval:'1m'}),
+  trackedM1:tally(active.filter(row=>chosen.has(row.id)),{now,interval:'1m'}),
+  archivedM5:active.filter(row=>directionalHypothesis(row)?.evaluationInterval==='5m').length,
   archivedH1:h1.length,
   truncated:false
  };

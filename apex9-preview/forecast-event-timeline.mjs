@@ -25,7 +25,8 @@ const rank=Object.freeze({
 function event(stage,at,plan,{terminal=false}={}){
  return {stage,label:titles[stage],at,terminal,
   price:stageLevel[stage]?plan[stageLevel[stage]]:null,
-  source:stage==='PUBLISHED'?'Публикация':plan.evaluationInterval==='5m'?'M5':'H1'};
+  source:stage==='PUBLISHED'?'Публикация':plan.evaluationInterval==='1m'?'M1':
+    plan.evaluationInterval==='5m'?'M5':'H1'};
 }
 export function buildForecastEventTimeline(row,{now=Date.now()}={}){
  const checked=verifiedDirectionalEvidence(row,{now});
