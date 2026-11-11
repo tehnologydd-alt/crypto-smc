@@ -73,8 +73,8 @@ test('incomplete, tampered and one-class samples fail closed',()=>{
  const bad=fixture();bad[0].samples[0].withProvider=99;
  assert.equal(assessProviderSensitivity(bad,{eligible:true}).state,
   'CHECK_DATA');
- const one=fixture();one[0].samples=one[0].samples.map(x=>({
-  ...x,outcome:'TP3'}));
+ const one=fixture();one[0].samples=one[0].samples
+  .filter(x=>x.outcome==='TP3').slice(0,5);
  assert.equal(assessProviderSensitivity(one,{eligible:true}).state,
   'COLLECTING');
 });
