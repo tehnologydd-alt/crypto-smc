@@ -47,7 +47,14 @@ function describeVenue(v,source){
   ['Снимков в выборке',fmt(v.samples,0)],
   ['В последнем непрерывном участке',fmt(v.continuousSamples??v.samples,0)],
   ['Последний',timestamp(v.lastCollectedAt)],
-  ['Глубина выборки',v.quantityScope||'Неизвестно']
+  ['Глубина выборки',v.quantityScope||'Неизвестно'],
+  ['Способ получения',v.collectionMethod==='WS'?
+   'WebSocket · отдельные снимки, не все обновления':
+   v.collectionMethod==='REST'?'REST · периодический срез':
+    'Архив · метод не подтверждён'],
+  ['Охват цены',v.snapshotLevelsMax?
+   'До '+v.snapshotLevelsMax+' уровней на сторону':
+   'Ограниченный, точное число неизвестно']
  ];
  if(v.imbalanceChange!==null)
   metrics.push(['Изменение дисбаланса',
