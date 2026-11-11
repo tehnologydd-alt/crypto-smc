@@ -103,6 +103,14 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
    ...selectedVisibleLevels(bids,'BID'),
    ...selectedVisibleLevels(asks,'ASK')
   ],
+  // Runtime-only, bounded actual displayed price levels. Necessary for
+  // matching the SAME price-distance band across venues: the 8 largest
+  // levels are not contiguous and cannot prove price-band coverage.
+  // Mobile Room snapshots intentionally DO NOT persist this array.
+  visibleBook:{
+   bids:[...bids].sort((a,b)=>b.price-a.price).slice(0,100),
+   asks:[...asks].sort((a,b)=>a.price-b.price).slice(0,100)
+  },
   levelSelection:'TOP_8_NOTIONAL_PER_SIDE', 
   sampleScope:'LIMITED_PUBLIC_SNAPSHOT',calibratedProbability:null
  };
