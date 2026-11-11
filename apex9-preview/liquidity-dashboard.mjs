@@ -186,7 +186,8 @@ export function initLiquidityDashboard(){
  return {refresh,clear,
   setSourceStatuses(asset,sources){
    if(asset!==lastAsset||!Array.isArray(sources))return;
-   latestSources={};
+   // Partial depth refreshes touch only due providers. Preserve the
+   // last diagnostic for other venues until they are explicitly checked.
    for(const venue of ['binance','bybit']){
     const data=sources.find(s=>s?.id===venue+'-depth');
     if(data)latestSources[venue]={
