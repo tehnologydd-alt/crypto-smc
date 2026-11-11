@@ -81,12 +81,18 @@ object ApexRadarMonitor {
             useCaches=false
             setRequestProperty("Accept","application/json")
         }
-        try {
-            if (connection.responseCode != 200) return null
-            val raw = connection.inputStream.bufferedReader().use { it.readText() }
-            if (raw.length > 90_000) return null
-            return parseJsonRows(JSONArray(raw),symbol,frame,now)
-        } finally { connection.disconnect() }
+        return ApexApiLedger.observe("binance","radar-$frame") { probe ->
+            try {
+                val http = connection.responseCode
+                probe.httpStatus(http)
+                if (http != 200) return@observe null
+                val raw = connection.inputStream.bufferedReader().use { it.readText() }
+                if (raw.length > 90_000) return@observe null
+                val rows = parseJsonRows(JSONArray(raw),symbol,frame,now)
+                if (rows != null && rows.isNotEmpty()) probe.validated()
+                rows
+            } finally { connection.disconnect() }
+        }
     }
 
     /** Keep formulas and thresholds aligned with market-core.mjs. */
@@ -168,6 +174,7 @@ object ApexRadarMonitor {
 
     suspend fun sync(context: Context, favorites: List<String>, dao: ResearchDao) =
         withContext(Dispatchers.IO) {
+            ApexApiLedger.install(context)
             val selected=favorites.filter { symbolPattern.matches(it) }.distinct().take(10)
             if (selected.isEmpty()) return@withContext
             val prefs=context.getSharedPreferences(STORE,Context.MODE_PRIVATE)
