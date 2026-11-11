@@ -294,6 +294,7 @@
         <div class="chart-evidence-overlays" role="group" aria-label="Исторические слои графика">
           <button id="chart-ob-toggle" class="chart-overlay-toggle selected" type="button" aria-pressed="true">▧ Order Blocks</button>
           <button id="chart-whale-toggle" class="chart-overlay-toggle selected" type="button" aria-pressed="true">W · Крупные переводы</button>
+          <button id="chart-scenario-hide" class="chart-overlay-toggle clean-chart-hide" type="button" disabled>Сценарий не выбран</button>
           <span id="chart-ob-status" class="muted">Зоны: проверяем закрытые свечи</span>
         </div>
         <p id="chart-whale-status" class="chart-evidence-status muted">Метки W — только из подтверждённого локального архива транзакций.</p>
@@ -302,15 +303,17 @@
           <canvas id="candle-canvas" width="680" height="330" tabindex="0" aria-label="Свечной график. Перетаскивайте для просмотра истории, увеличивайте двумя пальцами.">График требует Canvas</canvas>
         </div>
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
-        <details class="asset-quiet-detail"><summary>О графике и сохранённой истории</summary><p class="footnote">Order Blocks — расчётные исторические зоны по закрытым свечам и подтверждённому BOS/CHoCH, не настоящие заявки и не прогноз. W — время первой фиксации крупного перевода телефоном, нанесённое на последнюю уже закрытую свечу. Слои можно отключать. Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p></details>
+        <section id="chart-scenario-details" class="clean-chart-scenario" aria-label="Выбранный сценарий и его сохранённые уровни" aria-live="polite" hidden></section>
+        <details class="asset-quiet-detail"><summary>О графике и сохранённой истории</summary><p class="footnote">По умолчанию график не показывает уровни сценариев. Нажмите на карточку сценария ниже, чтобы открыть только его исходные E, SL и T1–T3; повторное нажатие или кнопка «Скрыть уровни» очищают график. Order Blocks — расчётные исторические зоны по закрытым свечам и подтверждённому BOS/CHoCH, не настоящие заявки и не прогноз. W — время первой фиксации крупного перевода телефоном, нанесённое на последнюю уже закрытую свечу. Слои можно отключать. Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p></details>
       </article>
       <article class="card block asset-scenarios" data-asset-pane="chart">
-        <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
+        <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>Room · выберите один</span></div>
         <details class="asset-quiet-detail"><summary>Статус проверки сценариев</summary><div id="asset-scenario-status" class="muted">Проверяем сохранённые сценарии…</div></details>
         <div class="scenario-map-toolbar" role="group" aria-label="Сценарии на графике">
           <button type="button" class="scenario-map-filter selected" data-scenario-map-mode="all" aria-pressed="true">Все сценарии</button>
           <button type="button" class="scenario-map-filter" data-scenario-map-mode="tracked" aria-pressed="false">★ Отмеченные</button>
         </div>
+        <p class="muted clean-chart-hint" id="chart-scenario-hint">Уровни скрыты. Нажмите на сценарий ниже, чтобы показать только его на графике.</p>
         <div id="asset-scenario-summary" class="scenario-map-list" aria-live="polite"></div>
         <section class="scenario-replay" id="scenario-replay-panel" aria-labelledby="scenario-replay-title">
           <div class="section-title"><h4 id="scenario-replay-title">Scenario Replay · история H1</h4><span id="scenario-replay-counter">0 / 5 закрытий</span></div>
@@ -320,7 +323,7 @@
           <p id="scenario-replay-warning" class="scenario-replay-warning" aria-live="polite"></p>
           <p class="footnote">Replay использует только ранее закрытые свечи, сохранённые на устройстве. Точка H1 №3 — промежуточное наблюдение, не самостоятельное подтверждение. Пропуски не интерполируются; исход журнала сверяется с фактическим последним закрытием.</p>
         </section>
-        <details class="asset-quiet-detail"><summary>Условные обозначения сценариев</summary><p class="scenario-map-legend">На H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p></details>
+        <details class="asset-quiet-detail"><summary>Условные обозначения сценариев</summary><p class="scenario-map-legend">Только у выбранного сценария на H1-графике: <strong>P</strong> — опорная свеча публикации, <strong>1</strong> — первое подтверждение, <strong>2</strong> — второе наблюдение, <strong>4</strong> — проверенный итог. Пунктир — исходный исследовательский диапазон. События появляются только по реальным записям Room.</p></details>
       </article>
       <details class="asset-explain-panel asset-explain-fold" data-asset-pane="chart" aria-label="Объяснения исторического исследования">
         <summary>Почему APEX пришёл к этим наблюдениям?</summary>
