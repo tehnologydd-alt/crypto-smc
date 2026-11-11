@@ -6,9 +6,11 @@
 import {auditM1Cohort,M1_COHORT_VERSION} from './forecast-m1-cohort.mjs';
 import {auditPublishedSourceLineage,SOURCE_LINEAGE_VERSION}
  from './source-lineage-audit.mjs';
+import {auditProviderForwardValue,PROVIDER_FORWARD_REGISTRATION,
+ PROVIDER_FORWARD_TESTS} from './source-provider-forward-audit.mjs';
 
-export const SOURCE_COHORT_VERSION='APEX_SOURCE_COHORT_VIEW_V2';
-const KEY='apex9:source-cohort-summary:v2',AGE=30*86400000;
+export const SOURCE_COHORT_VERSION='APEX_SOURCE_COHORT_VIEW_V3';
+const KEY='apex9:source-cohort-summary:v3',AGE=30*86400000;
 const FRAMES=['15m','1h','4h'];
 const assetOK=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const time=x=>Number.isSafeInteger(x)&&x>0;
@@ -16,10 +18,11 @@ const sourceCheck=x=>typeof x==='string'&&/^[a-zA-Z0-9:._-]{1,64}$/.test(x);
 function safeStorage(){
  try{return globalThis.localStorage}catch{return null}
 }
-function compress(asset,cohort,lineage,now){
+function compress(asset,cohort,lineage,providerStudy,now){
  const frames={};
  for(const tf of FRAMES){
-  const m=cohort.frames?.[tf],s=lineage.frames?.[tf];
+  const m=cohort.frames?.[tf],s=lineage.frames?.[tf],
+   v=providerStudy.frames?.[tf];
   frames[tf]={
    m1Published:m?.publishedM1||0,
    m1Forward:m?.publishedForward||0,
@@ -31,6 +34,22 @@ function compress(asset,cohort,lineage,now){
    sourceInvalid:s?.invalid||0,
    sourceV1:s?.v1Verified||0,sourceV2:s?.v2Verified||0,
    multiProviderForecasts:s?.multiProviderForecasts||0,
+   providerResearch:{
+    state:v?.state||'COLLECTING',
+    published:v?.postRegistrationM1||0,
+    selected:v?.selectedIndependent||0,
+    required:v?.targetIndependent||48,
+    excludedNoV2:v?.notV2||0,
+    invalidPlans:v?.invalidPlans||0,
+    // AUC and percentages are descriptive only, NEVER success probabilities.
+    studies:(v?.providers||[]).slice(0,3).map(p=>({
+     id:p.id,state:p.state,
+     windows:p.windows.map(w=>({measured:w.scored,
+      fresh:w.observed,missing:w.missing,stale:w.stale})),
+     deltaAuc:Array.isArray(p.deltaAuc)?
+      p.deltaAuc.map(n=>Math.round(n*10000)/10000):null
+    }))
+   },
    providers:(s?.providers||[]).filter(p=>sourceCheck(p.source)&&
     ['market','liquidity','onchain','news','macro','social'].includes(p.feed))
     .slice(0,14).map(p=>({feed:p.feed,source:p.source,
@@ -39,9 +58,11 @@ function compress(asset,cohort,lineage,now){
  }
  return {version:SOURCE_COHORT_VERSION,asset,auditedAt:now,
   archiveRows:cohort.archiveRows,m1State:cohort.state,
-  lineageState:lineage.state,frames,
-  note:'Результаты M1 и M5 независимы; V2 считает разных поставщиков '+
-   'только в момент публикации, не точность прогноза.'};
+  lineageState:lineage.state,
+  providerRegistrationAt:PROVIDER_FORWARD_REGISTRATION,frames,
+  note:'Фиксированные будущие выборки сравнивают исследовательское '+
+   'ранжирование с источником и без него на одинаковых TP3/STOP, '+
+   'не причинность, точность провайдера или реальные сделки.'};
 }
 export function saveSourceCohortSummary(archive,asset,{
  now=Date.now(),storage=safeStorage()
@@ -49,8 +70,9 @@ export function saveSourceCohortSummary(archive,asset,{
  if(!storage?.setItem||!assetOK(asset)||!time(now))return false;
  const cohort=auditM1Cohort(archive,{asset,now});
  const lineage=auditPublishedSourceLineage(archive,{asset,now});
- if(!cohort.frames||!lineage.frames)return false;
- const report=compress(asset,cohort,lineage,now);
+ const forward=auditProviderForwardValue(archive,{asset,now});
+ if(!cohort.frames||!lineage.frames||!forward.frames)return false;
+ const report=compress(asset,cohort,lineage,forward,now);
  let old={};
  try{
   const raw=storage.getItem(KEY);
@@ -81,6 +103,7 @@ export function readSourceCohortSummary(asset,{
   const report=stored?.version===SOURCE_COHORT_VERSION?
    stored.summaries?.[asset]:null;
   if(report?.version!==SOURCE_COHORT_VERSION||report.asset!==asset||
+   report.providerRegistrationAt!==PROVIDER_FORWARD_REGISTRATION||
    !time(report.auditedAt)||report.auditedAt>now+60000||
    now-report.auditedAt>AGE||!Number.isSafeInteger(report.archiveRows)||
    !report.frames||!FRAMES.every(tf=>{
@@ -92,6 +115,26 @@ export function readSourceCohortSummary(asset,{
      .every(k=>Number.isSafeInteger(f[k])&&f[k]>=0)&&
      f.verifiedSources===f.sourceV1+f.sourceV2&&
      f.multiProviderForecasts<=f.sourceV2&&
+     f.providerResearch&&
+     ['COLLECTING','CHECK_DATA','DESCRIPTIVE'].includes(f.providerResearch.state)&&
+     ['published','selected','required','excludedNoV2','invalidPlans']
+      .every(k=>Number.isSafeInteger(f.providerResearch[k])&&
+       f.providerResearch[k]>=0)&&
+     f.providerResearch.required===48&&
+     f.providerResearch.selected<=f.providerResearch.required&&
+     Array.isArray(f.providerResearch.studies)&&
+     f.providerResearch.studies.length===PROVIDER_FORWARD_TESTS.length&&
+     f.providerResearch.studies.every((s,i)=>
+      s.id===PROVIDER_FORWARD_TESTS[i].id&&
+      ['COLLECTING','CHECK_DATA','LOW_COVERAGE','REPEATED_DESCRIPTIVE',
+       'RECENTLY_WORSE','CONFLICTING','NO_REPEATED_GAIN'].includes(s.state)&&
+      Array.isArray(s.windows)&&s.windows.length===3&&
+      s.windows.every(w=>['measured','fresh','missing','stale']
+       .every(k=>Number.isSafeInteger(w[k])&&w[k]>=0&&w[k]<=16))&&
+      (s.deltaAuc===null||
+       Array.isArray(s.deltaAuc)&&s.deltaAuc.length===3&&
+       s.deltaAuc.every(n=>typeof n==='number'&&
+        Number.isFinite(n)&&n>=-1&&n<=1)))&&
      Array.isArray(f.providers)&&f.providers.length<=14&&
      f.providers.every(p=>sourceCheck(p.source)&&
       Number.isSafeInteger(p.observed)&&p.observed>=0&&
