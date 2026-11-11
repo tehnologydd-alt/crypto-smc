@@ -166,3 +166,30 @@ test('automatic audit is on app startup/return, manual detailed audit stays avai
  assert.ok(prepared.includes("'automatic-decision-quality.mjs'"));
  assert.ok(!file('./automatic-decision-quality.mjs').includes('fetch('));
 });
+
+test('migration from V1 audit performs bounded Room reread until V2 source cache exists',async()=>{
+ const asset='BTCUSDT',store=storage();
+ let time=T0,reads=0,hasSource=false;
+ const worker=createAutomaticDecisionAudit({
+  getFavorites:()=>[asset],
+  loadProgress:async()=>makeProgress([asset]),
+  loadArchive:async()=>{reads++;return {
+   native:true,complete:true,publishedCount:1,
+   forecasts:[{asset,id:'legacy',interval:'15m',publishedAt:T0-1000}]
+  }},
+  compute:()=>({state:'COLLECTING',audits:{release:{frames:{}}}}),
+  saveAudit:()=>true,readAudit:()=>({version:'APEX_OVERVIEW_DECISION_QUALITY_V1'}),
+  readSourceSummary:()=>hasSource?{version:'APEX_SOURCE_COHORT_VIEW_V2'}:null,
+  storage:store,now:()=>time,yieldControl:wait
+ });
+ await worker.run();
+ assert.equal(reads,1);
+ time+=3*60000;
+ await worker.run();
+ assert.equal(reads,2,'V1 decision cache alone cannot suppress V2 refresh');
+ hasSource=true;
+ time+=3*60000;
+ await worker.run();
+ assert.equal(reads,2,'same Room counts and V2 source cache avoid duplicate load');
+ worker.stop();
+});
