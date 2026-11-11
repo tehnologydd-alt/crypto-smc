@@ -75,7 +75,7 @@ export function completedResearchPresentation({
    {label:'Вход',done:Boolean(entered&&isVerified)},
    {label:'Итог',done:isVerified}
   ],
-  label: isVerified?
+  progressLabel:isVerified?
    (count?'Отмечено TP'+count+' из 3':'Цели TP пока не отмечены'):
    'Результат не подтверждён полной хронологией Room'
  };
@@ -104,7 +104,7 @@ export function renderCompletedResearchPanel(plan,details){
  root.append(stages);
  const progress=element('div','forecast-completed-progress');
  progress.append(element('span','forecast-completed-progress-label',
-  view.label));
+  view.progressLabel));
  const bars=element('div','forecast-completed-tp-track');
  for(const key of ['TP1','TP2','TP3']){
   const observed=view.touched.includes(key);
