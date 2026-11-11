@@ -224,7 +224,10 @@ export function initOnChainDashboard(){
      line.append(node('span','',
       pool.pair+' · '+pool.chain+' · '+(pool.dex||'DEX')+
       ' · ликвидность USD '+fmt(pool.liquidityUsd,0)+
-      ' · объём 24 ч USD '+fmt(pool.volume24hUsd,0)));
+      ' · объём 24 ч USD '+fmt(pool.volume24hUsd,0)+
+      (pool.lowActivityWarning?
+       ' · ВНИМАНИЕ: крупная заявленная ликвидность при очень малой активности, требуется проверка контракта':'')
+     ));
      section.append(line);
     }
    }else section.append(node('p','',source.reason||

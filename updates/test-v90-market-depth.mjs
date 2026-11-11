@@ -44,12 +44,18 @@ test('network exception reported as OFFLINE',async()=>{
  assert.equal(r.state,'OFFLINE');assert.equal(r.data,null);
 });
 
-test('Bybit response-level exchange timestamp overrides snapshot fallback',()=>{
- const r=parseDepthSnapshot('bybit','BTCUSDT',{...bybit,ts:now-200},now);
- assert.equal(r.exchangeTimestamp,now-200);
+test('Bybit result.ts is authoritative; top-level time is server-clock evidence',()=>{
+ const r=parseDepthSnapshot('bybit','BTCUSDT',{
+  ...bybit,ts:now-200,time:now-10
+ },now);
+ assert.equal(r.exchangeTimestamp,now-100);
 });
-test('stale Bybit timestamp is rejected rather than appearing fresh',()=>{
- assert.throws(()=>parseDepthSnapshot('bybit','BTCUSDT',{...bybit,ts:now-500000},now),/stale/);
+test('stale Bybit orderbook timestamp is rejected, not mistaken for top-level time',()=>{
+ assert.throws(()=>parseDepthSnapshot('bybit','BTCUSDT',{
+  ...bybit,time:now,result:{...bybit.result,ts:now-500000}},now),
+  /inconsistent server/);
+ assert.throws(()=>parseDepthSnapshot('bybit','BTCUSDT',{
+  ...bybit,result:{...bybit.result,ts:now-500000}},now),/stale/);
 });
 test('Bybit business-level rate limit is not mistaken for an available book',async()=>{
  const r=await fetchPublicDepth('bybit','BTCUSDT',{fetchImpl:async()=>({
@@ -117,7 +123,39 @@ test('Bybit API denials, malformed books and stale snapshots have distinct state
  assert.equal(malformed.state,'INVALID');
  const oldSample=await fetchPublicDepth('bybit','BTCUSDT',{
   now:()=>now,fetchImpl:async()=>({ok:true,status:200,
-   json:async()=>({...bybit,ts:now-500000})})
+   json:async()=>({...bybit,result:{...bybit.result,ts:now-500000}})})
  });
  assert.equal(oldSample.state,'STALE');
+});
+
+test('Bybit accepts safe zero-size levels without fabricating depth',()=>{
+ const raw={...bybit,result:{...bybit.result,
+  b:[['100','0'],['99','2']],a:[['101','0'],['102','3']],
+  ts:String(now-100),u:'123'}};
+ const v=parseDepthSnapshot('bybit','BTCUSDT',raw,now);
+ assert.equal(v.bidLevels,1);
+ assert.equal(v.askLevels,1);
+ assert.equal(v.bestBid,99);
+ assert.equal(v.bestAsk,102);
+ assert.equal(v.updateId,123);
+ assert.equal(v.exchangeTimestamp,now-100);
+ assert.throws(()=>parseDepthSnapshot('bybit','BTCUSDT',{
+  ...bybit,result:{...bybit.result,b:[['100','0']] }},now),
+  /no positive visible levels/);
+});
+test('Bybit time offset is reported explicitly, not treated as fabricated fresh book',async()=>{
+ const ahead={...bybit,time:now+240000,
+  result:{...bybit.result,ts:now+240000}};
+ const v=await fetchPublicDepth('bybit','BTCUSDT',{
+  now:()=>now,fetchImpl:async()=>({
+   ok:true,status:200,json:async()=>ahead
+  })});
+ assert.equal(v.state,'CLOCK_SKEW');
+ assert.match(v.error,/device clock/);
+ const denied=await fetchPublicDepth('bybit','BTCUSDT',{
+  fetchImpl:async()=>({ok:true,status:200,json:async()=>({
+   retCode:10009,retMsg:'restricted region'
+  })})
+ });
+ assert.equal(denied.state,'ACCESS_DENIED');
 });

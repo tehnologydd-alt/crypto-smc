@@ -27,10 +27,16 @@ export function describeDepthAvailability(venue,source,samples=0){
    reason:'API отклонил обращение (регион или политика доступа).'};
  if(status==='STALE')
   return {state:'STALE',label:'Устаревший ответ',
-   reason:'Биржа вернула устаревший снимок стакана.'};
+   reason:'Биржа вернула устаревший снимок стакана. '+
+    (detail?'Причина: '+detail:'')};
+ if(status==='CLOCK_SKEW')
+  return {state:'CLOCK_SKEW',label:'Проверить часы телефона',
+   reason:'Время Android и время биржи расходятся. '+
+    'Проверьте автоматическую дату и время. '+detail};
  if(status==='INVALID')
   return {state:'INVALID',label:'Ответ не прошёл проверку',
-   reason:'Проверка структуры, цен или времени ответа не пройдена.'};
+   reason:'Проверка данных стакана: '+(detail||
+    'неверная структура, цены или время ответа.')};
  if(status==='OFFLINE')
   return {state:'OFFLINE',label:'Ошибка источника',
    reason:detail?'Не получен ответ: '+detail:'Нет подтверждённого ответа API.'};

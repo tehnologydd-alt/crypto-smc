@@ -131,3 +131,51 @@ test('unsupported token fallback is a distinct layer from native network and Roo
   src.includes('не сохраняются как ончейн-история Room'));
  assert.ok(staged.includes("'onchain-dex-discovery.mjs'"));
 });
+
+
+test('GeckoTerminal real JSON: network is embedded in resource.id, not relationships.network',()=>{
+ for(const symbol of ['AAVE','ZEC','TRB']){
+  const id='eth_0x8888',tokenId='eth_0xaaaa',
+   quoteId='eth_0xbbbb';
+  const result=parseGeckoTerminalPools(symbol+'USDT',{
+   data:[{type:'pool',id,attributes:{
+    name:symbol+' / USDC 0.3%',address:'0x8888',
+    reserve_in_usd:'125000',base_token_price_usd:'10',
+    volume_usd:{h24:'2500'},
+    transactions:{h24:{buys:19,sells:8}}
+   },relationships:{
+    base_token:{data:{id:tokenId,type:'token'}},
+    quote_token:{data:{id:quoteId,type:'token'}},
+    dex:{data:{id:'uniswap_v3',type:'dex'}}
+   }}],
+   included:[
+    {type:'token',id:tokenId,attributes:{symbol,address:'0xaaaa'}},
+    {type:'token',id:quoteId,attributes:{symbol:'USDC',address:'0xbbbb'}}
+   ]
+  },{now});
+  assert.equal(result.state,'CANDIDATES',symbol);
+  assert.equal(result.pools[0].chain,'eth');
+  assert.equal(result.pools[0].contract,'0xaaaa');
+  assert.equal(result.pools[0].identityVerified,false);
+  assert.equal(result.pools[0].poolAddress,'0x8888');
+ }
+});
+test('unverifiable network IDs are not silently reported as absent tokens',()=>{
+ const result=parseGeckoTerminalPools('AAVEUSDT',{data:[
+  {type:'pool',id:'unknown',attributes:{
+   name:'AAVE / USDC',address:'0x8888',reserve_in_usd:'12000'
+  }}
+ ]},{now});
+ assert.equal(result.state,'UNVERIFIED_SCHEMA');
+ assert.match(result.reason,/ID сети/);
+});
+test('suspicious advertised DEX liquidity is clearly flagged but not promoted',()=>{
+ const result=parseDexScreenerPools('ZECUSDT',{pairs:[
+  {...pair({baseToken:{symbol:'ZEC',address:'SolanaUnverified'},
+   chainId:'solana',quoteToken:{symbol:'USDC',address:'U'},
+   liquidity:{usd:1_650_344_957},volume:{h24:37}})}
+ ]},{now});
+ assert.equal(result.state,'CANDIDATES');
+ assert.equal(result.pools[0].lowActivityWarning,true);
+ assert.equal(result.pools[0].identityVerified,false);
+});

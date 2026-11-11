@@ -10,15 +10,28 @@ const HOSTS=Object.freeze({
 });
 const validSymbol=(x)=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const positive=(x)=>Number.isFinite(x)&&x>0;
+// Provider numeric fields are sometimes stringified. Only safe decimal
+// integer timestamps/ids may be normalized; do not invent timestamps.
+const safeInteger=x=>Number.isSafeInteger(x)?x:
+ (typeof x==='string'&&/^[0-9]{1,16}$/.test(x.trim())&&
+  Number.isSafeInteger(Number(x))?Number(x):null);
 function parseLevels(levels,label){
  if(!Array.isArray(levels)||!levels.length)throw Error(label+': empty orderbook');
- const out=levels.map(pair=>{
-  if(!Array.isArray(pair)||pair.length<2)throw Error(label+': malformed level');
+ const out=[];
+ for(const pair of levels){
+  if(!Array.isArray(pair)||pair.length<2)
+   throw Error(label+': malformed level');
   const price=Number(pair[0]),qty=Number(pair[1]);
-  if(!positive(price)||!positive(qty))throw Error(label+': invalid price or quantity');
-  return {price,qty,notional:price*qty};
- });
- if(out.some(x=>!Number.isFinite(x.notional)))throw Error(label+': nonfinite notional');
+  if(!positive(price)||!Number.isFinite(qty)||qty<0)
+   throw Error(label+': invalid price or quantity');
+  // Ignore non-tradable zero-size snapshots rather than treating the
+  // entire published orderbook as fake. WebSocket deltas are not used.
+  if(qty===0)continue;
+  const notional=price*qty;
+  if(!positive(notional))throw Error(label+': nonfinite notional');
+  out.push({price,qty,notional});
+ }
+ if(!out.length)throw Error(label+': no positive visible levels');
  return out;
 }
 /**
@@ -54,14 +67,25 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
  const sum=bidNotional+askNotional;
  if(!positive(sum)||!Number.isFinite(sum))throw Error('invalid depth totals');
  const mid=(highestBid+lowestAsk)/2;
- const rawTs=venue==='bybit'?(payload.ts??data.ts):null;
- const exchangeTimestamp=Number.isSafeInteger(rawTs)&&rawTs>0?rawTs:null;
- if(exchangeTimestamp!==null&&exchangeTimestamp>receivedAt+60000)throw Error('future exchange timestamp');
- if(exchangeTimestamp!==null&&receivedAt-exchangeTimestamp>180000)throw Error('stale exchange snapshot');
+ const rawTs=venue==='bybit'?(data.ts??payload.ts):null;
+ const exchangeTimestamp=venue==='bybit'?safeInteger(rawTs):null;
+ if(venue==='bybit'&&(!exchangeTimestamp||exchangeTimestamp<=0))
+  throw Error('Bybit missing/invalid exchange timestamp');
+ const providerTime=venue==='bybit'?safeInteger(payload.time):null;
+ if(providerTime!==null&&Math.abs(providerTime-exchangeTimestamp)>180000)
+  throw Error('Bybit inconsistent server/orderbook timestamps');
+ // If server and snapshot agree but the device does not, the phone's clock
+ // may be skewed. Do not relabel an old book as current; diagnose instead.
+ if(exchangeTimestamp!==null&&exchangeTimestamp>receivedAt+60000)
+  throw Error('device clock behind exchange time');
+ if(exchangeTimestamp!==null&&receivedAt-exchangeTimestamp>180000)
+  throw Error(providerTime!==null&&
+   Math.abs(providerTime-exchangeTimestamp)<=180000?
+   'device clock ahead of exchange time':'stale exchange snapshot');
  const updateId=venue==='binance'?data.lastUpdateId:data.u;
  return {
   venue,symbol,market:'SPOT',receivedAt,exchangeTimestamp,
-  updateId:Number.isSafeInteger(updateId)?updateId:null,
+  updateId:safeInteger(updateId),
   bidLevels:bids.length,askLevels:asks.length,
   bestBid:highestBid,bestAsk:lowestAsk,mid,
   spreadBps:(lowestAsk-highestBid)/mid*10000,
@@ -108,7 +132,9 @@ export async function fetchPublicDepth(venue,symbol,{
   if(venue==='bybit'){
    if(payload?.retCode===10006)
     return {state:'RATE_LIMITED',venue,symbol,error:'Bybit API rate limited',data:null};
-   if(payload?.retCode===10029||
+   if(payload?.retCode===10009)
+    return {state:'ACCESS_DENIED',venue,symbol,error:'Bybit: региональный доступ ограничен (10009)',data:null};
+   if(payload?.retCode===10029||payload?.retCode===170121||
     (payload?.retCode===10001&&
      /(?:symbol|pair).*(?:not found|not support|invalid|not exist)/i.test(payload.retMsg||'')))
     return {state:'NOT_LISTED',venue,symbol,error:'Bybit Spot: symbol is not available',data:null};
@@ -122,8 +148,9 @@ export async function fetchPublicDepth(venue,symbol,{
     data:parseDepthSnapshot(venue,symbol,payload,receivedAt)};
   }catch(error){
    const reason=String(error?.message||error).slice(0,120);
-   return {state:reason.includes('stale')?'STALE':'INVALID',
-    venue,symbol,error:reason,data:null};
+   const state=reason.startsWith('device clock')?'CLOCK_SKEW':
+    reason.includes('stale')?'STALE':'INVALID';
+   return {state,venue,symbol,error:reason,data:null};
   }
  }catch(error){
   return {state:'OFFLINE',venue,symbol,

@@ -22,8 +22,12 @@ test('not-listed spot pairs differ from API outages and absent samples',()=>{
   'NOT_CHECKED');
  assert.equal(describeDepthAvailability('bybit',{state:'OFFLINE',
   error:'HTTP 500'},0).state,'OFFLINE');
- assert.equal(describeDepthAvailability('bybit',{state:'INVALID'},0).state,
+ assert.equal(describeDepthAvailability('bybit',{state:'INVALID',error:'crossed orderbook snapshot'},0).state,
   'INVALID');
+ assert.match(describeDepthAvailability('bybit',{state:'INVALID',error:'crossed orderbook snapshot'},0).reason,
+  /crossed orderbook/);
+ assert.equal(describeDepthAvailability('bybit',{state:'CLOCK_SKEW'},0).state,
+  'CLOCK_SKEW');
 });
 test('token network availability must not inherit BTC or Ethereum samples',()=>{
  assert.equal(chainForAsset('TRBUSDT'),null);

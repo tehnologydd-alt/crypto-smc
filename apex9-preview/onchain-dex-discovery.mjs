@@ -53,7 +53,12 @@ const simplify=(x)=>({
  volume24hUsd:toNumber(x.volume24hUsd),
  buys24h:Number.isSafeInteger(x.buys24h)&&x.buys24h>=0?x.buys24h:null,
  sells24h:Number.isSafeInteger(x.sells24h)&&x.sells24h>=0?x.sells24h:null,
- identityVerified:false
+ identityVerified:false,
+ poolAddress:safeText(x.poolAddress,110),
+ identityWarning:x.identityWarning||null,
+ lowActivityWarning:positive(x.liquidityUsd)&&
+  x.liquidityUsd>=1e7&&
+  (toNumber(x.volume24hUsd)??0)/x.liquidityUsd<0.0001
 });
 const finalize=(provider,asset,candidates,observedAt)=>({
  ...response(provider,asset,candidates.length?'CANDIDATES':'NO_MATCH',
@@ -79,6 +84,7 @@ export function parseDexScreenerPools(asset,payload,{now=Date.now()}={}){
    !safeText(entry.chainId)||!safeText(entry.pairAddress)||
    !positive(entry.liquidity?.usd))continue;
   candidates.push(simplify({
+   poolAddress:entry.pairAddress,
    chain:entry.chainId,dex:entry.dexId,
    pair:base+'/'+quote,contract:entry.baseToken?.address,
    quote,priceUsd:entry.priceUsd,liquidityUsd:entry.liquidity?.usd,
@@ -91,31 +97,68 @@ export function parseDexScreenerPools(asset,payload,{now=Date.now()}={}){
 /** Public GeckoTerminal pool-search schema: data[].attributes with
  * name "TOKEN / QUOTE"; network from relationships.network.data.id.
  */
+/**
+ * GeckoTerminal pool search uses resource ids such as
+ * "eth_0x88e6..." and relationships.base_token/quote_token/dex.
+ * The regular pool response often has NO relationships.network.
+ * With include=base_token,quote_token we can read exact token SYMBOLS
+ * instead of guessing from the display NAME. Pool identity still not verified.
+ */
 export function parseGeckoTerminalPools(asset,payload,{now=Date.now()}={}){
  const base=baseOfSpotAsset(asset);
  if(!base||!validTime(now)||!payload||!Array.isArray(payload.data))
   return response('geckoterminal',asset,'INVALID','Некорректный ответ GeckoTerminal');
+ const included=new Map(
+  (Array.isArray(payload.included)?payload.included:[])
+   .filter(x=>x?.type==='token'&&typeof x.id==='string')
+   .map(x=>[x.id,x.attributes||{}])
+ );
  const candidates=[];
+ let hadUnparseable=0;
  for(const entry of payload.data.slice(0,200)){
   if(entry?.type!=='pool'||!entry.attributes)continue;
-  const attr=entry.attributes;
-  const pairName=safeText(attr.name,60).toUpperCase();
-  const tokens=/^([A-Z0-9]+)\s*\/\s*([A-Z0-9]+)/.exec(pairName);
-  if(!tokens||tokens[1]!==base||!acceptedQuote.has(tokens[2])||
-   !safeText(entry.relationships?.network?.data?.id)||
-   !safeText(attr.address)||!positive(attr.reserve_in_usd))continue;
+  const attr=entry.attributes,baseId=entry.relationships?.base_token?.data?.id,
+   quoteId=entry.relationships?.quote_token?.data?.id;
+  const display=safeText(attr.name,90).toUpperCase();
+  const names=/^([A-Z0-9]+)\s*\/\s*([A-Z0-9]+)/.exec(display);
+  const baseSymbol=safeText(included.get(baseId)?.symbol,20).toUpperCase()||
+   names?.[1]||'';
+  const quote=safeText(included.get(quoteId)?.symbol,16).toUpperCase()||
+   names?.[2]||'';
+  // A POOL resource id contains the network prefix and pool address.
+  // Do not assume an arbitrary underscore in an id is a network.
+  const resourceId=safeText(entry.id,150);
+  const poolAddress=safeText(attr.address,110);
+  const lastSeparator=resourceId.indexOf('_');
+  const fromId=lastSeparator>=2&&
+   resourceId.slice(lastSeparator+1).toLowerCase()===poolAddress.toLowerCase()?
+   resourceId.slice(0,lastSeparator):null;
+  const chain=safeText(entry.relationships?.network?.data?.id,32)||
+   (fromId&&/^[a-z][a-z0-9-]{1,30}$/.test(fromId)?fromId:'');
+  if(!chain||!poolAddress){hadUnparseable++;continue;}
+  if(baseSymbol!==base||!acceptedQuote.has(quote))continue;
+  if(!positive(attr.reserve_in_usd))continue;
+  const baseTokenId=safeText(included.get(baseId)?.address,110);
   candidates.push(simplify({
-   chain:entry.relationships.network.data.id,
-   dex:entry.relationships?.dex?.data?.id||'DEX',
-   pair:tokens[1]+'/'+tokens[2],contract:'', // pool address is NOT a token contract
-   quote:tokens[2],priceUsd:attr.base_token_price_usd,
+   poolAddress,chain,dex:entry.relationships?.dex?.data?.id||'DEX',
+   pair:base+'/'+quote,contract:baseTokenId,
+   quote,priceUsd:attr.base_token_price_usd,
    liquidityUsd:attr.reserve_in_usd,
    volume24hUsd:attr.volume_usd?.h24,
    buys24h:attr.transactions?.h24?.buys,
    sells24h:attr.transactions?.h24?.sells
   }));
  }
- return finalize('geckoterminal',asset,candidates,now);
+ // Search API lists a small page of pools, not every pool on every DEX.
+ // Zero matches means no match ON THIS RESPONSE, not "token doesn't exist".
+ const out=finalize('geckoterminal',asset,candidates,now);
+ if(!candidates.length&&hadUnparseable){
+  return {...out,state:'UNVERIFIED_SCHEMA',
+   reason:'Часть результатов GeckoTerminal без проверяемого ID сети/пула; не записываем их как пустую историю.'};
+ }
+ return {...out,reason:candidates.length?
+  'Пулы найдены, но контракт токена не подтверждён.':
+  'В возвращённой странице GeckoTerminal точных совпадений не найдено; это не проверка всех пулов.'};
 }
 const reason=x=>String(x?.message||x||'Ошибка API').slice(0,100);
 export async function fetchDexCandidates(provider,asset,{
@@ -127,7 +170,7 @@ export async function fetchDexCandidates(provider,asset,{
  const query=base; // broad pool search, strict exact-base filter below
  const path=provider==='dexscreener'?
   '/latest/dex/search?q='+encodeURIComponent(query):
-  '/api/v2/search/pools?query='+encodeURIComponent(query);
+  '/api/v2/search/pools?query='+encodeURIComponent(query)+'&include=base_token%2Cquote_token%2Cdex';
  const url=HOSTS[provider]+path;
  try{
   const reply=await fetchImpl(url,{method:'GET',credentials:'omit',
