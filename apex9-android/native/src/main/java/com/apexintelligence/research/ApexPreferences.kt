@@ -17,6 +17,8 @@ data class ResearchSettings(
     val alertLimitReady: Boolean,
     val alertTargets: Boolean,
     val alertStop: Boolean,
+    val alertScope: String,
+    val alertMarkedIds: Set<String>,
     val alertsEnabledAt: Long,
     val keepScreenOn: Boolean
 )
@@ -28,6 +30,13 @@ object ApexPreferences {
     private val alertLimitKey = booleanPreferencesKey("forecast_alert_limit_v1")
     private val alertTargetsKey = booleanPreferencesKey("forecast_alert_targets_v1")
     private val alertStopKey = booleanPreferencesKey("forecast_alert_stop_v1")
+    private val alertScopeKey = stringPreferencesKey("forecast_alert_scope_v1")
+    private val alertMarkedKey = stringPreferencesKey("forecast_marked_alert_ids_v1")
+    private val forecastIdRegex = Regex("^(direction[23]|range1):[A-Z0-9]{5,20}:(1h|15m|4h):[0-9]{10,16}$")
+    const val MAX_ALERT_MARKS = 300
+    private fun parseMarks(raw: String?): Set<String> =
+        raw?.split(",")?.filter { forecastIdRegex.matches(it) }
+            ?.distinct()?.take(MAX_ALERT_MARKS)?.toSet() ?: emptySet()
     private val alertsEnabledAtKey = androidx.datastore.preferences.core.longPreferencesKey("forecast_alerts_enabled_at_v1")
     private val keepScreenOnKey = booleanPreferencesKey("keep_screen_on_v1")
     private val assetRegex = Regex("^[A-Z0-9]{5,20}$")
@@ -51,6 +60,8 @@ object ApexPreferences {
             alertLimitReady = prefs[alertLimitKey] ?: true,
             alertTargets = prefs[alertTargetsKey] ?: true,
             alertStop = prefs[alertStopKey] ?: true,
+            alertScope = if (prefs[alertScopeKey] == "tracked") "tracked" else "all",
+            alertMarkedIds = parseMarks(prefs[alertMarkedKey]),
             alertsEnabledAt = prefs[alertsEnabledAtKey] ?: 0L,
             keepScreenOn = prefs[keepScreenOnKey] ?: false
         )
@@ -62,11 +73,20 @@ object ApexPreferences {
         alertLimitReady: Boolean? = null,
         alertTargets: Boolean? = null,
         alertStop: Boolean? = null,
-        keepScreenOn: Boolean? = null
+        keepScreenOn: Boolean? = null,
+        alertScope: String? = null,
+        alertMarkedIds: List<String>? = null
     ): ResearchSettings {
         if (asset != null && !assetRegex.matches(asset)) {
             throw IllegalArgumentException("Invalid market symbol")
         }
+        if (alertScope != null && alertScope !in setOf("all", "tracked"))
+            throw IllegalArgumentException("Invalid alert scope")
+        if (alertMarkedIds != null &&
+            (alertMarkedIds.size > MAX_ALERT_MARKS ||
+             alertMarkedIds.size != alertMarkedIds.distinct().size ||
+             alertMarkedIds.any { !forecastIdRegex.matches(it) }))
+            throw IllegalArgumentException("Invalid marked forecast IDs")
         context.applicationContext.apexStore.edit { prefs ->
             if (asset != null) prefs[trackedAsset] = asset
             if (enabled != null) prefs[syncEnabled] = enabled
@@ -78,6 +98,10 @@ object ApexPreferences {
             if (alertLimitReady != null) prefs[alertLimitKey] = alertLimitReady
             if (alertTargets != null) prefs[alertTargetsKey] = alertTargets
             if (alertStop != null) prefs[alertStopKey] = alertStop
+            // Scope and ID selection are atomically persisted for WorkManager.
+            if (alertMarkedIds != null)
+                prefs[alertMarkedKey] = alertMarkedIds.joinToString(",")
+            if (alertScope != null) prefs[alertScopeKey] = alertScope
             if (keepScreenOn != null) prefs[keepScreenOnKey] = keepScreenOn
         }
         return read(context)
