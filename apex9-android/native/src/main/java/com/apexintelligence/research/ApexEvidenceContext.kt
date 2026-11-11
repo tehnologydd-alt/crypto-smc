@@ -14,7 +14,11 @@ import kotlin.math.max
  * MISSING is not OFFLINE. STALE observations remain historical, not fresh.
  */
 object ApexEvidenceContext {
-    const val VERSION = "AS_OF_ROOM_EVIDENCE_V1"
+    // V1 forecasts remain immutable; only NEW publications receive V2.
+    // The JSON payload is additive: no Room schema migration or backfill.
+    const val VERSION = "AS_OF_ROOM_EVIDENCE_V2"
+    private const val MAX_PER_KIND = 3
+    private val SOURCE_ID = Regex("^[a-zA-Z0-9:._-]{1,64}$")
     private const val MINUTE = 60_000L
     private val KNOWN_KINDS = listOf("market","liquidity","onchain","news","macro","social")
     private val MAX_AGE = mapOf(
@@ -136,7 +140,9 @@ object ApexEvidenceContext {
             .put("capturedAt",at)
             .put("policy","DESCRIPTIVE_CONTEXT_ONLY_NO_FUTURE_LEAKAGE")
             .put("feeds",JSONObject()).put("radar",JSONObject())
+            .put("sources",JSONObject())
         val groups=result.getJSONObject("feeds")
+        val sources=result.getJSONObject("sources")
         for(kind in KNOWN_KINDS){
             val collected=observations.asSequence().filter {
                 it.kind==kind&&validTimes(it,asset,at)
@@ -145,18 +151,44 @@ object ApexEvidenceContext {
                 it to data
             }.sortedWith(compareByDescending<Pair<ResearchObservation,JSONObject>>{
                 it.first.collectedAt
-            }.thenByDescending{it.first.observedAt}).toList()
-            val latest=collected.firstOrNull()
+            }.thenByDescending{it.first.observedAt}
+             .thenBy{it.first.source}).toList()
+            // One frozen record per provider in each kind, newest first.
+            // A request to the same provider cannot artificially increase
+            // source diversity; stale records remain STALE, not OFFLINE.
+            val distinct=collected.asSequence()
+                .filter{SOURCE_ID.matches(it.first.source)}
+                .distinctBy{it.first.source}
+                .take(MAX_PER_KIND).toList()
+            val latest=distinct.firstOrNull()
+            val records=JSONArray()
+            for((r,data) in distinct){
+                val age=at-r.collectedAt
+                val clock=if(kind=="market")"EXCHANGE_CLOSE"
+                    else "OBSERVATION_RECORD_TIME"
+                records.put(JSONObject()
+                    .put("state",if(age<=MAX_AGE.getValue(kind))"OBSERVED" else "STALE")
+                    .put("source",r.source)
+                    .put("observedAt",r.observedAt)
+                    .put("collectedAt",r.collectedAt)
+                    .put("ageMs",age)
+                    .put("clockBasis",clock)
+                    .put("features",data))
+            }
+            sources.put(kind,records)
             val item=JSONObject()
             if(latest==null){
                 item.put("state","MISSING")
             }else{
-                val r=latest.first
-                val age=at-r.collectedAt
-                item.put("state",if(age<=MAX_AGE.getValue(kind))"OBSERVED" else "STALE")
-                    .put("source",r.source).put("observedAt",r.observedAt)
-                    .put("collectedAt",r.collectedAt)
-                    .put("ageMs",age).put("features",latest.second)
+                // Legacy V1 primary-feed projection is exactly sources[kind][0].
+                // Existing feature cohorts keep identical feed semantics.
+                val first=records.getJSONObject(0)
+                item.put("state",first.getString("state"))
+                    .put("source",first.getString("source"))
+                    .put("observedAt",first.getLong("observedAt"))
+                    .put("collectedAt",first.getLong("collectedAt"))
+                    .put("ageMs",first.getLong("ageMs"))
+                    .put("features",latest.second)
             }
             groups.put(kind,item)
         }
