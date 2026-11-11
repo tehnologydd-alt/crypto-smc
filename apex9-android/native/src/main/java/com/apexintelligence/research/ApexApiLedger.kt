@@ -134,13 +134,16 @@ object ApexApiLedger {
                     val state = row.optString("state")
                     if (state !in setOf("OK", "INVALID", "OFFLINE", "HTTP_ERROR",
                             "RATE_LIMITED", "ACCESS_DENIED", "CANCELLED")) continue
-                    attempts++; days.add(t / TimeUnit.DAYS.toMillis(1))
+                    attempts++
+                    if (state != "CANCELLED")
+                        days.add(t / TimeUnit.DAYS.toMillis(1))
                     lastAt = maxOf(lastAt, t)
                     if (state == "OK") good++ else if (state == "CANCELLED") cancelled++ else failures++
                     if (state == "INVALID") invalid++
                     if (state == "RATE_LIMITED") limited++
                     val duration = row.optLong("ms", -1L)
-                    if (duration >= 0L && duration <= 120_000L) latencies.add(duration)
+                    if (state != "CANCELLED" && duration >= 0L && duration <= 120_000L)
+                        latencies.add(duration)
                     val seen = row.optLong("providerAt", -1L)
                     if (seen > 0L && seen <= t + 60_000L && state == "OK") {
                         checked++
