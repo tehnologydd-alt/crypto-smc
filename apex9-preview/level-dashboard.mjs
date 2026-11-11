@@ -26,10 +26,10 @@ export function renderLevelObserver(rows,asset){
  }
  node('level-observer-status').textContent=
   'Отобраны крупные видимые заявки: от 2× медианы в ограниченной выборке каждой биржи.';
- for(const venue of analysis.venues){
+ for(const venue of analysis.venues.filter(v=>v.venue!=='bybit')){
   const section=element('section','quoted-level-venue');
   const heading=element('div','quoted-level-heading');
-  heading.append(element('strong','',venue.venue==='binance'?'Binance Spot':'Bybit Spot'),
+  heading.append(element('strong','',venue.venue==='binance'?'Binance Spot':'OKX Spot'),
    element('small','',venue.sampleCount?
     venue.sampleCount+' наблюд. · '+
       (venue.status==='HISTORICAL'?'только история':'ограниченный срез'):
