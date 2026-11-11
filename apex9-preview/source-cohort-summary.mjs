@@ -15,6 +15,18 @@ const FRAMES=['15m','1h','4h'];
 const assetOK=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const sourceCheck=x=>typeof x==='string'&&/^[a-zA-Z0-9:._-]{1,64}$/.test(x);
+const bytes=x=>new TextEncoder().encode(x).length;
+export const SOURCE_COHORT_CACHE_LIMIT=MAX_BYTES;
+/** Byte size of stored summary; does not estimate RAM, network or battery. */
+export function sourceCohortCacheHealth({storage=safeStorage()}={}){
+ try{
+  const raw=storage?.getItem?.(KEY);
+  if(!raw)return {state:'EMPTY',bytes:0,limit:MAX_BYTES};
+  const size=bytes(raw);
+  return {state:size>MAX_BYTES?'OVER_LIMIT':'STORED',
+   bytes:size,limit:MAX_BYTES};
+ }catch{return {state:'UNAVAILABLE',bytes:null,limit:MAX_BYTES}}
+}
 function safeStorage(){
  try{return globalThis.localStorage}catch{return null}
 }
@@ -34,6 +46,12 @@ function compress(asset,cohort,lineage,providerStudy,now){
    sourceInvalid:s?.invalid||0,
    sourceV1:s?.v1Verified||0,sourceV2:s?.v2Verified||0,
    multiProviderForecasts:s?.multiProviderForecasts||0,
+   // One of six feed states for each verified as-published forecast.
+   feedSummary:s?.feeds?{
+    observed:Object.values(s.feeds).reduce((n,v)=>n+(v.observed||0),0),
+    stale:Object.values(s.feeds).reduce((n,v)=>n+(v.stale||0),0),
+    missing:Object.values(s.feeds).reduce((n,v)=>n+(v.missing||0),0)
+   }:null,
    providerResearch:{
     state:v?.state||'COLLECTING',
     published:v?.postRegistrationM1||0,
@@ -88,21 +106,28 @@ export function saveSourceCohortSummary(archive,asset,{
  let old={};
  try{
   const raw=storage.getItem(KEY);
-  if(raw&&raw.length<MAX_BYTES){
+  if(raw&&bytes(raw)<=MAX_BYTES){
    const parsed=JSON.parse(raw);
    if(parsed?.version===SOURCE_COHORT_VERSION&&parsed.summaries)
     old=parsed.summaries;
   }
  }catch{}
- const summaries={};
- for(const [key,value] of Object.entries(old)){
-  if(assetOK(key)&&key!==asset&&time(value?.auditedAt)&&
-   value.auditedAt<=now+60000&&now-value.auditedAt<=AGE&&
-   Object.keys(summaries).length<9)summaries[key]=value;
+ // Keep recent assets under the byte budget; protect the selected report.
+ const previous=Object.entries(old).filter(([key,value])=>
+  assetOK(key)&&key!==asset&&value?.asset===key&&
+  value.version===SOURCE_COHORT_VERSION&&time(value?.auditedAt)&&
+  value.auditedAt<=now+60000&&now-value.auditedAt<=AGE)
+  .sort((a,b)=>b[1].auditedAt-a[1].auditedAt||
+   a[0].localeCompare(b[0])).slice(0,9);
+ const summaries=Object.fromEntries([...previous,[asset,report]]);
+ let payload=JSON.stringify({version:SOURCE_COHORT_VERSION,summaries});
+ while(bytes(payload)>MAX_BYTES){
+  const oldest=previous.pop();
+  if(!oldest)return false; // Preserve earlier cache if one report is too large.
+  delete summaries[oldest[0]];
+  payload=JSON.stringify({version:SOURCE_COHORT_VERSION,summaries});
  }
- summaries[asset]=report;
- try{storage.setItem(KEY,JSON.stringify({
-  version:SOURCE_COHORT_VERSION,summaries}));return true;}catch{return false}
+ try{storage.setItem(KEY,payload);return true;}catch{return false}
 }
 export function readSourceCohortSummary(asset,{
  now=Date.now(),storage=safeStorage()
@@ -110,7 +135,7 @@ export function readSourceCohortSummary(asset,{
  if(!assetOK(asset)||!storage?.getItem)return null;
  try{
   const raw=storage.getItem(KEY);
-  if(!raw||raw.length>MAX_BYTES)return null;
+  if(!raw||bytes(raw)>MAX_BYTES)return null;
   const stored=JSON.parse(raw);
   const report=stored?.version===SOURCE_COHORT_VERSION?
    stored.summaries?.[asset]:null;
@@ -127,6 +152,10 @@ export function readSourceCohortSummary(asset,{
      .every(k=>Number.isSafeInteger(f[k])&&f[k]>=0)&&
      f.verifiedSources===f.sourceV1+f.sourceV2&&
      f.multiProviderForecasts<=f.sourceV2&&
+     (!f.feedSummary||['observed','stale','missing'].every(k=>
+      Number.isSafeInteger(f.feedSummary[k])&&f.feedSummary[k]>=0)&&
+      f.feedSummary.observed+f.feedSummary.stale+f.feedSummary.missing===
+       f.verifiedSources*6)&&
      f.providerResearch&&
      ['COLLECTING','CHECK_DATA','DESCRIPTIVE'].includes(f.providerResearch.state)&&
      ['published','selected','required','excludedNoV2','invalidPlans']

@@ -3403,3 +3403,17 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .api-reliability-track{height:6px;overflow:hidden;border-radius:50px;background:#1b3944;margin:7px 0}
 .api-reliability-fill{height:100%;display:block;background:#5ed4be;border-radius:50px}
 #api-reliability-comparison{margin-top:12px}
+
+/* Stage 5: source research stays on the existing sources screen.
+ * Make the entire selected-asset summary readable on narrow Android screens. */
+.api-reliability-research{grid-column:1 / -1;overflow-wrap:anywhere}
+.api-source-state-line{font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.api-reliability-providers{margin-top:8px;padding:7px 10px;border:1px solid #2b505b;border-radius:9px}
+.api-reliability-providers>summary{cursor:pointer;color:#d8f5ee;font-size:12px;line-height:1.55}
+.api-reliability-providers[open]>summary{margin-bottom:7px}
+.api-reliability-providers>small{overflow-wrap:anywhere}
+@media(max-width:480px){
+ .api-reliability-list{grid-template-columns:minmax(0,1fr)}
+ .api-reliability-research{padding:10px}
+ .api-source-state-line{line-height:1.65}
+}

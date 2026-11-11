@@ -9,7 +9,7 @@ on:
       - 'updates/v90-*.mjs'
       - '.github/workflows/apex9-research-apk.yml'
   push:
-    branches: [apex-9-evolution, apex-provider-robustness-stage4]
+    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
@@ -77,6 +77,7 @@ jobs:
           node --test apex9-preview/test-multi-provider-evidence-v2.mjs
           node --test apex9-preview/test-source-provider-forward-audit.mjs
           node --test apex9-preview/test-source-provider-sensitivity.mjs
+          node --test apex9-preview/test-source-stage5-resources.mjs
           node --test apex9-preview/test-m1-native-api-stage.mjs
           node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
