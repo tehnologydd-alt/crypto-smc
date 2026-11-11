@@ -150,8 +150,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
       typeof native.availabilityPercent==='number'?
       'Доступность '+native.availabilityPercent.toFixed(1)+'%':'Накопление данных'));
     item.append(head,div('p','',
-     'HTTP-запросов '+native.attempts+' · проверенных '+native.ok+
-     ' · ошибок '+native.failures+
+     'HTTP-запросов '+native.attempts+' · измеренных '+native.measuredAttempts+
+     ' · проверенных '+native.ok+' · ошибок '+native.failures+
+     ' · отменено '+native.cancelled+
      ' (формат '+native.invalid+', лимит '+native.rateLimited+')'));
     if(native.state==='OBSERVED'&&
        Number.isFinite(native.availabilityPercent)){
