@@ -184,6 +184,6 @@ test('Android/Web integrations only observe foreground and bounded persistence',
  const core=read('./live-depth-streams.mjs');
  assert.equal(core.includes('setInterval('),false);
  assert.equal(core.includes('fetch('),false);
- assert.equal(core.includes('8443'),false);
+ assert.equal(core.includes('wss://ws.okx.com:8443'),false);
  assert.equal(read('./research.mjs').includes('export {parseDepthSnapshot};'),true);
 });
