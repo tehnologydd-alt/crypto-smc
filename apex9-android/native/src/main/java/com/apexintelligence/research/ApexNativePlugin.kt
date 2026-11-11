@@ -64,6 +64,19 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Read-only operational network ledger; never requests data. */
+    @PluginMethod
+    fun getApiReliability(call: PluginCall) {
+        tasks.launch {
+            try {
+                val report = ApexApiLedger.snapshot(context.applicationContext)
+                call.resolve(JSObject(report.toString()))
+            } catch (e: Exception) {
+                call.reject("Native API ledger unavailable")
+            }
+        }
+    }
+
     @PluginMethod
     fun saveObservation(call: PluginCall) {
         val asset = call.getString("asset")

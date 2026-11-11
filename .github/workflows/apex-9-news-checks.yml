@@ -74,6 +74,9 @@ jobs:
           node --test apex9-preview/test-forecast-feature-stability.mjs
           node --check apex9-preview/forecast-feature-dashboard.mjs
           node --test apex9-preview/test-forecast-evidence-context.mjs
+          node --test apex9-preview/test-source-lineage-audit.mjs
+          node --test apex9-preview/test-m1-native-api-stage.mjs
+          node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-preview/test-forecast-feature-holdout.mjs
           node --check apex9-preview/forecast-directional-card.mjs
           node --check apex9-preview/radar-core.mjs

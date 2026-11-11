@@ -106,6 +106,7 @@ object ApexPrivateNews {
         }
     }
     fun fetch(ctx: Context, provider: String, coin: String): JSONObject {
+        ApexApiLedger.install(ctx)
         if (provider !in providers || coin !in coins)
             return JSONObject().put("state", "UNSUPPORTED")
         val now = System.currentTimeMillis()
@@ -144,6 +145,7 @@ object ApexPrivateNews {
                 return JSONObject().put("state", "STORAGE_UNAVAILABLE")
         }
         val url = requestUrl(provider, coin, secret)
+        return ApexApiLedger.observe(provider,"news-api") { probe ->
         var conn: HttpsURLConnection? = null
         try {
             conn = url.openConnection() as HttpsURLConnection
@@ -153,10 +155,11 @@ object ApexPrivateNews {
             conn.readTimeout = 7500
             conn.setRequestProperty("Accept", "application/json")
             val code = conn.responseCode
-            if (code == 401) return JSONObject().put("state", "INVALID_CREDENTIALS")
-            if (code == 403) return JSONObject().put("state", "FORBIDDEN_OR_LIMITED")
-            if (code == 429) return JSONObject().put("state", "RATE_LIMITED")
-            if (code != 200) return JSONObject().put("state", "OFFLINE")
+            probe.httpStatus(code)
+            if (code == 401) return@observe JSONObject().put("state", "INVALID_CREDENTIALS")
+            if (code == 403) return@observe JSONObject().put("state", "FORBIDDEN_OR_LIMITED")
+            if (code == 429) return@observe JSONObject().put("state", "RATE_LIMITED")
+            if (code != 200) return@observe JSONObject().put("state", "OFFLINE")
             val data = conn.inputStream.use { stream ->
                 val out = ByteArrayOutputStream()
                 val chunk = ByteArray(4096)
@@ -170,7 +173,7 @@ object ApexPrivateNews {
                 JSONObject(String(out.toByteArray(), Charsets.UTF_8))
             }
             val input = data.optJSONArray("results")
-                ?: return JSONObject().put("state", "INVALID")
+                ?: return@observe JSONObject().put("state", "INVALID")
             val articles = JSONArray()
             for (i in 0 until minOf(input.length(), 60)) {
                 val x = input.optJSONObject(i) ?: continue
@@ -188,13 +191,15 @@ object ApexPrivateNews {
                 shared.edit().putString("cache:$provider:$coin", result.toString())
                     .putLong("cachetime:$provider:$coin", now).apply()
             }
-            return JSONObject().put("state", "OK").put("raw", result)
+            probe.validated()
+            return@observe JSONObject().put("state", "OK").put("raw", result)
                 .put("cached", false)
         } catch (_: Exception) {
             // No exception message: it might contain a query-string credential.
-            return JSONObject().put("state", "OFFLINE")
+            return@observe JSONObject().put("state", "OFFLINE")
         } finally {
             conn?.disconnect()
+        }
         }
     }
 }

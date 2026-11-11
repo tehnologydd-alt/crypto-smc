@@ -15,6 +15,55 @@ export async function getMobileStatus() {
  try{return await native.getStatus();}
  catch(error){return {...unavailable,error:String(error?.message||error)};}
 }
+/** Device-local HTTP attempts only; separate from the WebView source ledger.
+ * A successful bridge call is not proof of a valid native metric sample.
+ * Percentages are checked against actual success/failure denominators. */
+export function normalizeNativeApiReliability(data){
+ const empty={native:false,source:'UNAVAILABLE',rows:[]};
+ if(data?.native!==true||data?.version!=='APEX_NATIVE_API_LEDGER_V1'||
+  data?.source!=='ANDROID_NATIVE_REQUEST_LEDGER'||
+  !Number.isSafeInteger(data.capturedAt)||data.capturedAt<=0||
+  !Array.isArray(data.rows)||data.rows.length>20)return empty;
+ const rows=[];
+ const seen=new Set();
+ const count=n=>Number.isSafeInteger(n)&&n>=0;
+ for(const row of data.rows){
+  if(!row||typeof row.lane!=='string'||!/^[a-z0-9:-]{2,40}$/.test(row.lane)||
+   seen.has(row.lane)||!['OBSERVED','COLLECTING'].includes(row.state)||
+   !['attempts','measuredAttempts','uniqueDays','ok','failures','cancelled',
+     'invalid','rateLimited','freshnessChecked','freshnessConfirmed']
+      .every(k=>count(row[k]))||row.attempts<1||
+   row.attempts!==row.measuredAttempts+row.cancelled||
+   row.measuredAttempts!==row.ok+row.failures||
+   row.invalid+row.rateLimited>row.failures||
+   row.uniqueDays>row.measuredAttempts||
+   row.freshnessConfirmed>row.freshnessChecked||
+   row.freshnessChecked>row.ok||
+   !Number.isSafeInteger(row.lastAt)||row.lastAt<=0||
+   row.lastAt>data.capturedAt+60000||
+   data.capturedAt-row.lastAt>30*86400000||
+   !(row.latencyMedianMs===null||
+     count(row.latencyMedianMs)&&row.latencyMedianMs<=120000))
+   return empty;
+  const mature=row.measuredAttempts>=12&&row.uniqueDays>=2;
+  const expected=mature?
+   Math.floor(1000*row.ok/row.measuredAttempts)/10:null;
+  if((row.state==='OBSERVED')!==mature||
+   (mature?typeof row.availabilityPercent!=='number'||
+    Math.abs(row.availabilityPercent-expected)>0.00001:
+    row.availabilityPercent!==null))return empty;
+  seen.add(row.lane);
+  rows.push({...row});
+ }
+ return {...data,rows};
+}
+export async function getMobileApiReliability(){
+ const native=plugin();
+ const empty={native:false,source:'UNAVAILABLE',rows:[]};
+ if(!native?.getApiReliability)return empty;
+ try {return normalizeNativeApiReliability(await native.getApiReliability());}
+ catch(error){return {...empty,error:String(error?.message||error).slice(0,120)};}
+}
 export async function saveMobileSnapshot(snapshot) {
  const native=plugin();
  if(!native||!snapshot?.symbol)return {native:false,saved:0};

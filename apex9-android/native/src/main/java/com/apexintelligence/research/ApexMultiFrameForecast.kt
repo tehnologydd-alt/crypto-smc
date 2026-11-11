@@ -35,6 +35,7 @@ object ApexMultiFrameForecast {
 
     suspend fun syncAll(context:Context,favorites:List<String>,dao:ResearchDao):List<Report> =
         mutex.withLock { withContext(Dispatchers.IO) {
+            ApexApiLedger.install(context)
             val results=ArrayList<Report>()
             for(asset in favorites.filter{symbol.matches(it)}.distinct().take(10))
                 for(spec in specs) {

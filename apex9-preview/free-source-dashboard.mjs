@@ -11,6 +11,8 @@ import {fetchCmcKeyless} from './cmc-keyless.mjs';
 import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 import {sourceHealth} from './source-health.mjs';
 import {createSourceReliability} from './source-reliability.mjs';
+import {getMobileApiReliability} from './mobile-bridge.mjs';
+import {readSourceCohortSummary} from './source-cohort-summary.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
@@ -42,6 +44,16 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const overviewCache=createOverviewCache({storage});
  const latest=new Map();
  let assetSeq=0,globalSeq=0,checkingPublic=null;
+ let nativeLedger=null,nativeLedgerLoading=false,nativeLedgerLast=0;
+ function refreshNativeLedger(){
+  const at=Date.now();
+  if(nativeLedgerLoading||at-nativeLedgerLast<60000)return;
+  nativeLedgerLast=at;nativeLedgerLoading=true;
+  void getMobileApiReliability().then(report=>{
+   nativeLedger=report?.native===true?report:null;
+   renderReliability();
+  }).catch(()=>{nativeLedger=null;}).finally(()=>{nativeLedgerLoading=false;});
+ }
  let personalNews={native:false,providers:{}};
  const personalChecks=new Map();
  let assetMeasurements=null,contextMeasurements=null,marketMeasurements=null;
@@ -65,6 +77,26 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    'bitcoin-mempool':'mempool.space · BTC',
    'gdelt-news':'GDELT · новости'};
   box.replaceChildren();
+  const tracked=getSymbol?.();
+  const m1=typeof tracked==='string'?
+   readSourceCohortSummary(tracked,{storage}):null;
+  if(m1){
+   const panel=div('article','api-reliability-row api-reliability-research');
+   panel.append(div('strong','',
+    'Архив исследований '+tracked+' · проверка M1 отдельно от M5'));
+   for(const frame of ['15m','1h','4h']){
+    const s=m1.frames[frame],label={'15m':'M15','1h':'H1','4h':'H4'}[frame];
+    panel.append(div('p','',label+': M1 '+s.m1Published+
+     ' новых / M5 '+s.m5Archived+' архивных · подтверждённых M1 исходов: '+
+     (s.referenceDecisive+s.holdoutDecisive)+
+     ' · M1 '+(s.m1State==='DESCRIPTIVE'?
+      'описательная проверка':'сбор данных')));
+   }
+   panel.append(div('small','',
+    'Зафиксированный источник в момент публикации — не доказательство '+
+    'точности прогноза. M1 и M5 не смешиваются.'));
+   box.append(panel);
+  }
   let mature=0,attempts=0;
   for(const row of report.rows){
    attempts+=row.attempts;
@@ -105,6 +137,46 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    item.append(div('small','',diagnostics.join(' · ')));
    box.append(item);
   }
+  if(nativeLedger?.rows?.length){
+   box.append(div('strong','api-reliability-native-title',
+    'Android · фактические фоновые запросы (отдельный журнал)'));
+   for(const native of nativeLedger.rows){
+    if(!/^[a-z0-9:-]{2,40}$/.test(native.lane)||
+       !Number.isInteger(native.attempts)||native.attempts<1)continue;
+    const item=div('article','api-reliability-row');
+    const head=div('div','api-reliability-heading');
+    head.append(div('strong','',native.lane.replaceAll(':',' · ')),
+     div('span','',native.state==='OBSERVED'&&
+      typeof native.availabilityPercent==='number'?
+      'Доступность '+native.availabilityPercent.toFixed(1)+'%':'Накопление данных'));
+    item.append(head,div('p','',
+     'HTTP-запросов '+native.attempts+' · измеренных '+native.measuredAttempts+
+     ' · проверенных '+native.ok+' · ошибок '+native.failures+
+     ' · отменено '+native.cancelled+
+     ' (формат '+native.invalid+', лимит '+native.rateLimited+')'));
+    if(native.state==='OBSERVED'&&
+       Number.isFinite(native.availabilityPercent)){
+     const track=div('div','api-reliability-track');
+     track.setAttribute('role','meter');
+     track.setAttribute('aria-label',native.lane+' · доля проверенных ответов');
+     track.setAttribute('aria-valuemin','0');
+     track.setAttribute('aria-valuemax','100');
+     track.setAttribute('aria-valuenow',String(native.availabilityPercent));
+     const fill=div('span','api-reliability-fill');
+     fill.style.width=native.availabilityPercent+'%';
+     track.append(fill);item.append(track);
+    }else item.append(div('small','',
+     'Для процента требуется 12 запросов за 2 разных дня.'));
+    if(native.freshnessChecked>0)
+     item.append(div('small','',
+      'Подтверждённая свежесть: '+native.freshnessConfirmed+
+      '/'+native.freshnessChecked));
+    else item.append(div('small','',
+     'Метка времени поставщика не подтверждена.'));
+    box.append(item);
+   }
+  }else box.append(div('small','',
+    'Android: данных о нативных запросах пока нет или устройство не подключено.'));
   const comp=report.comparisons;
   status.textContent='Операционная статистика за 30 дней · '+attempts+
    ' фактических запросов · '+mature+' из '+report.rows.length+
@@ -121,6 +193,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  }
  function refreshCenter(){
   renderReliability();
+  refreshNativeLedger();
   const container=el('free-provider-center'),timeStatus=el('free-provider-center-status');
   if(!container||!timeStatus)return;
   container.replaceChildren();

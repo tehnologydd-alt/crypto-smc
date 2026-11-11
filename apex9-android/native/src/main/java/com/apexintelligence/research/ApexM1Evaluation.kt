@@ -45,8 +45,10 @@ object ApexM1Evaluation {
             useCaches = false
             setRequestProperty("Accept", "application/json")
         }
+        return ApexApiLedger.observe("binance","klines-1m") { probe ->
         try {
             val status = conn.responseCode
+            probe.httpStatus(status)
             if (status != 200) throw SourceUnavailable("Binance M1 HTTP $status")
             val response = conn.inputStream.bufferedReader().use { reader ->
                 val body = reader.readText()
@@ -91,9 +93,11 @@ object ApexM1Evaluation {
                     rows.add(MarketCandle(asset, INTERVAL, start, end,
                         open, high, low, close, volume, now))
             }
-            return rows
+            probe.validated()
+            rows
         } finally {
             conn.disconnect()
+        }
         }
     }
 

@@ -106,6 +106,8 @@ object ApexPublicNews {
         val url = URL(address)
         if (url.protocol != "https" || feeds.none { it.first == address })
             return Pair("INVALID_URL", JSONArray())
+        return ApexApiLedger.observe("rss",
+            "feed-"+source.lowercase().replace(Regex("[^a-z0-9-]"),"-").take(25)) { probe ->
         var c: HttpsURLConnection? = null
         try {
             c = url.openConnection() as HttpsURLConnection
@@ -116,7 +118,8 @@ object ApexPublicNews {
             c.setRequestProperty("Accept", "application/rss+xml, application/xml, text/xml")
             c.setRequestProperty("User-Agent", "APEXResearch/9 (read-only personal RSS client)")
             val code = c.responseCode
-            if (code != 200) return Pair("HTTP_$code", JSONArray())
+            probe.httpStatus(code)
+            if (code != 200) return@observe Pair("HTTP_$code", JSONArray())
             val xml = c.inputStream.use { stream ->
                 val buffer = ByteArray(4096)
                 val out = ByteArrayOutputStream()
@@ -124,20 +127,23 @@ object ApexPublicNews {
                     val n = stream.read(buffer)
                     if (n < 0) break
                     if (out.size() + n > 450_000)
-                        return Pair("OVERSIZED", JSONArray())
+                        return@observe Pair("OVERSIZED", JSONArray())
                     out.write(buffer, 0, n)
                 }
                 String(out.toByteArray(), Charsets.UTF_8)
             }
             val articles = parseRss(xml, source, now)
-            return Pair(if (articles.length() > 0) "OK" else "EMPTY", articles)
+            probe.validated()
+            return@observe Pair(if (articles.length() > 0) "OK" else "EMPTY", articles)
         } catch (_: java.net.SocketTimeoutException) {
-            return Pair("TIMEOUT", JSONArray())
+            return@observe Pair("TIMEOUT", JSONArray())
         } catch (_: Exception) {
-            return Pair("NETWORK_OR_FORMAT_ERROR", JSONArray())
+            return@observe Pair("NETWORK_OR_FORMAT_ERROR", JSONArray())
         } finally { c?.disconnect() }
+        }
     }
     fun fetch(ctx: Context): JSONObject {
+        ApexApiLedger.install(ctx)
         val now = System.currentTimeMillis()
         val store = prefs(ctx)
         synchronized(lock) {

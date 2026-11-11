@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit
  */
 class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        ApexApiLedger.install(applicationContext)
         val settings = try { ApexPreferences.read(applicationContext) }
                        catch (_: Exception) { return Result.retry() }
         if (!settings.backgroundSyncEnabled) return Result.success()
@@ -49,9 +50,43 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                         setRequestProperty("Accept", "application/json")
                     }
                     try {
-                        if (connection.responseCode == 200) {
-                            val rows = JSONArray(connection.inputStream.bufferedReader()
-                                .use { it.readText() })
+                        val rows = ApexApiLedger.observe("binance","spot-24h") { probe ->
+                            val code = connection.responseCode
+                            probe.httpStatus(code)
+                            if (code != 200) null else {
+                                val data = JSONArray(connection.inputStream.bufferedReader()
+                                    .use { it.readText() })
+                                // HTTP 200 is NOT proof that the batched response
+                                // contains valid observations for the exact favorites.
+                                // Malformed, stale and mismatched batches are recorded
+                                // as INVALID, without inventing a successful API sample.
+                                val seen = HashSet<String>()
+                                val receivedAt = System.currentTimeMillis()
+                                var validBatch = data.length() == favorites.size
+                                var newestSourceAt = 0L
+                                for (i in 0 until data.length()) {
+                                    val item = data.optJSONObject(i)
+                                    val symbol = item?.optString("symbol") ?: ""
+                                    val closeAt = item?.optLong("closeTime", -1L) ?: -1L
+                                    val price = item?.optString("lastPrice", "")?.toDoubleOrNull()
+                                    val change = item?.optString("priceChangePercent", "")?.toDoubleOrNull()
+                                    val volume = item?.optString("quoteVolume", "")?.toDoubleOrNull()
+                                    if (symbol !in favorites || !seen.add(symbol) ||
+                                        closeAt < receivedAt - 180_000L ||
+                                        closeAt > receivedAt + 60_000L ||
+                                        price == null || !price.isFinite() || price <= 0 ||
+                                        change == null || !change.isFinite() ||
+                                        kotlin.math.abs(change) > 1000.0 ||
+                                        volume == null || !volume.isFinite() || volume <= 0)
+                                        validBatch = false
+                                    if (closeAt > newestSourceAt) newestSourceAt = closeAt
+                                }
+                                if (validBatch && seen.size == favorites.size)
+                                    probe.validated(newestSourceAt)
+                                data
+                            }
+                        }
+                        if (rows != null) {
                             val received = System.currentTimeMillis()
                             val allowed = favorites.toSet()
                             for (i in 0 until minOf(rows.length(), ApexPreferences.MAX_FAVORITES)) {
@@ -61,10 +96,16 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                 val observed = json.optLong("closeTime", -1L)
                                 val price = json.optString("lastPrice", "").toDoubleOrNull()
                                 val percent = json.optString("priceChangePercent", "").toDoubleOrNull()
+                                val quoteVolume = json.optString("quoteVolume", "").toDoubleOrNull()
+                                // Preserve the exact as-published evidence contract
+                                // shared by WebView snapshots and ApexEvidenceContext.
                                 if (observed < received - 180_000L ||
                                     observed > received + 60_000L ||
                                     price == null || price <= 0 || !price.isFinite() ||
-                                    percent == null || !percent.isFinite()) continue
+                                    percent == null || !percent.isFinite() ||
+                                    kotlin.math.abs(percent) > 1000.0 ||
+                                    quoteVolume == null || quoteVolume <= 0 ||
+                                    !quoteVolume.isFinite()) continue
                                 dao.saveObservation(ResearchObservation(
                                     id = "background:$asset:$observed",
                                     asset = asset,
@@ -75,7 +116,8 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                     collectedAt = received,
                                     payloadJson = JSONObject()
                                         .put("price", price)
-                                        .put("priceChangePercent24h", percent)
+                                        .put("changePercent24h", percent)
+                                        .put("quoteVolume", quoteVolume)
                                         .put("symbol", asset)
                                         .put("source", "Binance 24h spot ticker")
                                         .toString()

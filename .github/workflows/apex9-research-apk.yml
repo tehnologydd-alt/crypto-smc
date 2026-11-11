@@ -2,7 +2,7 @@ name: APEX 9 Research - Android APK
 
 on:
   pull_request:
-    branches: [apex-9-evolution]
+    branches: [apex-9-evolution, apex-m1-precision-charts]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
@@ -73,6 +73,9 @@ jobs:
           node --check apex9-preview/app.mjs
           node --check apex9-android/scripts/verify-web-modules.mjs
           node --test apex9-preview/test-source-reliability.mjs
+          node --test apex9-preview/test-source-lineage-audit.mjs
+          node --test apex9-preview/test-m1-native-api-stage.mjs
+          node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-android/scripts/test-web-modules.mjs
           node --test apex9-android/scripts/test-directional-migration.mjs
           node --check apex9-preview/research.mjs

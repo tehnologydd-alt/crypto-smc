@@ -39,6 +39,7 @@ object ApexAutoForecast {
 
     suspend fun syncAll(context: Context, favorites: List<String>): List<Report> =
         mutex.withLock { withContext(Dispatchers.IO) {
+            ApexApiLedger.install(context)
             val unique = favorites.filter { symbolPattern.matches(it) }.distinct().take(10)
             val dao = ApexDatabase.get(context).researchDao()
             val reports = mutableListOf<Report>()
@@ -70,8 +71,10 @@ object ApexAutoForecast {
             useCaches = false
             setRequestProperty("Accept", "application/json")
         }
+        return ApexApiLedger.observe("binance","klines-1h") { probe ->
         try {
             val status = connection.responseCode
+            probe.httpStatus(status)
             if (status != 200) throw SourceUnavailable("Binance HTTP $status")
             val response = connection.inputStream.bufferedReader().use { reader ->
                 val text = reader.readText()
@@ -108,9 +111,11 @@ object ApexAutoForecast {
                     ))
                 }
             }
-            return rows
+            probe.validated()
+            rows
         } finally {
             connection.disconnect()
+        }
         }
     }
 

@@ -19,6 +19,9 @@ import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
 import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
+import {auditPublishedSourceLineage} from './source-lineage-audit.mjs';
+import {saveSourceCohortSummary} from './source-cohort-summary.mjs';
+import {historicalEvaluationArchive} from './forecast-m1-cohort.mjs';
 import {diagnoseQualityFactors} from './forecast-quality-diagnostics.mjs';
 import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
 import {auditFeaturePairRegimes,summarizeFeatureStageTwo}
@@ -69,9 +72,10 @@ const fingerprint=(progress,asset)=>{
 export function computeAutomaticDecisionAudit(archive,asset,{now=Date.now()}={}){
  const gate=inspectResearchArchive(archive,asset,{now});
  if(!gate.ready)return {state:gate.state,reason:gate.reason,audits:null};
- const input={asset,complete:archive.complete,
-  publishedCount:archive.publishedCount,now};
- const rows=archive.forecasts;
+ const baseline=historicalEvaluationArchive(archive);
+ const input={asset,complete:baseline.complete,
+  publishedCount:baseline.publishedCount,now};
+ const rows=baseline.forecasts;
  const probability=auditProbabilityReadiness(rows,input);
  if(!probability.frames)return {state:'CHECK_DATA',
   reason:probability.reason||'Исходы не прошли независимую проверку.',
@@ -81,10 +85,12 @@ export function computeAutomaticDecisionAudit(archive,asset,{now=Date.now()}={})
  const rolling=auditRollingFeatureEvidence(rows,input);
  const challenge=auditShadowChallengers(rows,input);
  const regimes=auditShadowRegimes(rows,{...input,challenger:challenge});
- const quality=summarizeResearchDataQuality(archive,{
+ const quality=summarizeResearchDataQuality(baseline,{
   asset,now,reports:{probability,strength,ablation,rolling,
    challenger:challenge,regimes}
  });
+ // Reuse the same bounded Room archive: no additional polling or cache claims.
+ const sourceLineage=auditPublishedSourceLineage(archive,{asset,now});
  const pairs=auditFeaturePairs(rows,{...input,challenge});
  const pairRegimes=auditFeaturePairRegimes(rows,{
   ...input,challenge,pairs,regimes});
@@ -92,7 +98,7 @@ export function computeAutomaticDecisionAudit(archive,asset,{now=Date.now()}={})
  const shadowLearner=auditShadowProbabilityLearner(rows,input);
  const calibration=auditShadowCalibration(rows,{
   ...input,learner:shadowLearner});
- const release=inspectResearchRelease({asset,archive,quality,
+ const release=inspectResearchRelease({asset,archive:baseline,quality,
   challenge,regimes,shadowLearner,calibration,checkedAt:now});
  if(!challenge.frames||!regimes.frames||!release.frames)
   return {state:'CHECK_DATA',
@@ -102,8 +108,9 @@ export function computeAutomaticDecisionAudit(archive,asset,{now=Date.now()}={})
   asset,quality,challenge,regimes});
  return {
   state:release.state,reason:release.note,
+  archiveForLegacy:baseline,
   audits:{challenge,regimes,diagnostics,pairs,pairRegimes,
-   stage2,shadowLearner,calibration,release},
+   stage2,shadowLearner,calibration,release,sourceLineage},
   changedModels:false
  };
 }
@@ -229,12 +236,15 @@ export function createAutomaticDecisionAudit({
      throw Error('Room не вернул список прогнозов для полного аудита.');
     if(closed||generation!==sequence||
      !favoritesOf(getFavorites()).includes(asset))break;
+    // Independent M1 + native provider lineage summary is never blocked by
+    // legacy M5-only shadow-model readiness. No second archive/network read.
+    saveSourceCohortSummary(archive,asset,{now:now(),storage});
     const result=await compute(archive,asset,{now:now()});
     if(!result?.audits?.release)
      throw Error(result?.reason||'Полный аудит недоступен.');
     if(closed||generation!==sequence||
      !favoritesOf(getFavorites()).includes(asset))break;
-    const saved=saveAudit(archive,asset,{
+    const saved=saveAudit(result.archiveForLegacy||archive,asset,{
      now:now(),storage,audits:result.audits
     });
     if(!saved)throw Error('Не удалось сохранить проверенную сводку.');
