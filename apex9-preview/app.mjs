@@ -74,7 +74,7 @@ const assessmentNames={
  DOWNWARD_CONTEXT:'Отрицательный исторический контекст'
 };
 let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=0;
-let fastTickerAt=0,fastTickerBusy=false;
+let fastTickerAt=0,fastTickerBusy=false,lastVerifiedTickerAt=0;
 const foregroundDepthPolicy=createForegroundDepthPolicy();
 let depthBusy=false,depthController=null,depthStream=null;
 const latestLiveDepth=new Map(); // UI only: newest validated frame per venue.
@@ -1591,6 +1591,8 @@ function renderContext(context){
 
 function renderSnapshot(snapshot){
  current=snapshot;
+ lastVerifiedTickerAt=Number.isSafeInteger(snapshot.ticker?.observedAt)?
+  snapshot.ticker.observedAt:0;
  const srcOk=snapshot.sources.filter(s=>s.state==='OK').length;
  const pct=snapshot.ticker?.changePercent;
  text('market-price',snapshot.ticker?fmt(snapshot.ticker.price)+' USDT':'—');
@@ -1633,7 +1635,7 @@ async function investigate(value){
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
- if(changed)fastTickerAt=0;
+ if(changed){fastTickerAt=0;lastVerifiedTickerAt=0;}
  if(changed){
   depthController?.abort();depthStream?.stop();latestLiveDepth.clear();
   const streamLabel=el('depth-stream-status');
@@ -1806,6 +1808,22 @@ async function refreshVisibleDepth(){
  }
 }
 
+/** A cached quote is never displayed as fresh after its provider time expires. */
+function refreshQuoteAge(checkState=''){
+ if(document.body.dataset.view!=='asset')return;
+ const now=Date.now(),age=lastVerifiedTickerAt?now-lastVerifiedTickerAt:Infinity;
+ if(age>90000||age< -60000){
+  el('market-price').classList.add('is-stale');
+  text('updated-at',lastVerifiedTickerAt?
+   'Цена: '+time(lastVerifiedTickerAt)+' · ИСТОРИЯ / нет свежего подтверждения'+
+    (checkState?' · '+checkState:''):
+   'Цена: свежие данные не подтверждены'+(checkState?' · '+checkState:''));
+ }else{
+  el('market-price').classList.remove('is-stale');
+  text('updated-at','Цена: '+time(lastVerifiedTickerAt)+' · Binance Spot'+
+   (checkState?' · последняя попытка '+checkState:''));
+ }
+}
 // Visible-asset quote and depth cadence; no background polling.
 async function refreshVisibleQuote(){
  if(document.hidden||document.body.dataset.view!=='asset'||
@@ -1814,11 +1832,18 @@ async function refreshVisibleQuote(){
  const symbol=chosen;
  fastTickerAt=Date.now();
  fastTickerBusy=true;
+ const local=new AbortController();
+ const deadline=setTimeout(()=>local.abort(),8000);
  try{
-  const result=await fetchSpotTicker(symbol,{now:()=>Date.now()});
+  const result=await fetchSpotTicker(symbol,{now:()=>Date.now(),
+   signal:local.signal});
   if(document.hidden||symbol!==chosen)return;
-  if(result.state!=='OK'||!result.data)return;
+  if(result.state!=='OK'||!result.data){
+   refreshQuoteAge(result.state||'OFFLINE');
+   return;
+  }
   const ticker=result.data;
+  lastVerifiedTickerAt=ticker.observedAt;
   text('market-price',fmt(ticker.price)+' USDT');
   text('market-change','24 ч: '+(ticker.changePercent>0?'+':'')+
    fmt(ticker.changePercent,2)+'%');
@@ -1826,13 +1851,15 @@ async function refreshVisibleQuote(){
    (ticker.changePercent>0?' positive':
     ticker.changePercent<0?' negative':'');
   text('ticker-time',time(ticker.observedAt));
-  text('updated-at','Цена: '+time(ticker.observedAt)+' · публичный Spot');
+  refreshQuoteAge();
  }catch{
-  // A failed refresh never erases the last verified displayed quote.
- }finally{fastTickerBusy=false;}
+  // Keep the last validated price only as a clearly timestamped archive.
+  if(symbol===chosen)refreshQuoteAge('OFFLINE');
+ }finally{clearTimeout(deadline);fastTickerBusy=false;}
 }
 setInterval(()=>{
  if(document.hidden)return;
+ refreshQuoteAge();
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
