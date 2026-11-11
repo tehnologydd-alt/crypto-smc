@@ -149,6 +149,9 @@ export function createForegroundBookStreams({
     reject(venue,lane,'INVALID');return;
    }
    lane.lastMessageAt=received;
+   // A valid incoming book itself proves that the heartbeat connection
+   // is alive, even if the explicit pong is delayed or not delivered.
+   lane.awaitingPong=false;
    const result=parseLiveBookMessage(venue,expected,evt.data,received);
    if(result.state==='KEEPALIVE'){lane.awaitingPong=false;return;}
    if(result.state==='ACK')return;
