@@ -36,7 +36,7 @@ test('show at most 5 decimal digits and never show a positive micro-price as 0',
  assert.equal(compactLevelPrice(NaN),'—');
  for(const p of [1.112345678,12.0,0.00002,0.017849]) {
   const value=compactLevelPrice(p);
-  assert.match(value,/^(?:<)?\\d+(?:\\.\\d{1,5})?$/);
+  assert.match(value,/^(?:<)?\d+(?:\.\d{1,5})?$/);
  }
 });
 test('open-card SL and each TP copy source-derived full decimal, not rounded UI label',async()=>{
@@ -67,17 +67,17 @@ test('clipboard is wired for both one-frame and multiframe active card renderers
  const single=read('./forecast-directional-card.mjs');
  const multi=read('./forecast-multiframe.mjs');
  const dispatcher=read('./favorite-dashboard.mjs');
- assert.match(single,/events:timeline.state==='VERIFIED'\\?row.stageEvents:\\[\\]/);
+ assert.match(single,/events:timeline.state==='VERIFIED'\?row.stageEvents:\[\]/);
  assert.match(single,/tracked,onToggle,onOpen,copyText/);
  assert.match(multi,/events:row.stageEvents,tracked,onToggle,onOpen,copyText/);
- assert.match(dispatcher,/multiFrameForecastCard\\(row,\\{tracked,onToggle,onOpen,copyText:copyResearchText\\}\\)/);
+ assert.match(dispatcher,/multiFrameForecastCard\(row,\{tracked,onToggle,onOpen,copyText:copyResearchText\}\)/);
  assert.match(dispatcher,/sourceM1:sourceM5,copyText:copyResearchText/);
 });
 test('completed cards are not rerouted into compact design',()=>{
  const single=read('./forecast-directional-card.mjs');
  const multi=read('./forecast-multiframe.mjs');
- assert.match(single,/if\\(!finishedRoom&&visibleStage!=='COMPLETED'\\)/);
- assert.match(multi,/if\\(!complete\\)\\{/);
+ assert.match(single,/if\(!finishedRoom&&visibleStage!=='COMPLETED'\)/);
+ assert.match(multi,/if\(!complete\)\{/);
  assert.match(single,/renderCompletedResearchPanel/);
  assert.match(multi,/renderCompletedResearchPanel/);
 });
