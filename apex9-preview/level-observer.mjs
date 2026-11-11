@@ -14,7 +14,7 @@ export function parseLevelObservations(rows,asset){
  if(!validSymbol(asset)||!Array.isArray(rows))return [];
  const valid=[];
  for(const item of rows.slice(0,200)){
-  if(item?.asset!==asset||!/^(binance|bybit):spot:depth$/.test(item.source||'')||
+  if(item?.asset!==asset||!/^(binance|bybit|okx):spot:depth$/.test(item.source||'')||
    !Number.isSafeInteger(item.observedAt)||!Number.isSafeInteger(item.collectedAt)||
    item.observedAt<=0||item.observedAt>item.collectedAt+60000)continue;
   let p;
@@ -57,7 +57,7 @@ export function studyQuotedLevels(rows,{asset,now=Date.now()}={}){
   return {status:'INVALID',venues:[]};
  const history=parseLevelObservations(rows,asset);
  const venues=[];
- for(const venue of ['binance','bybit']){
+ for(const venue of ['binance','bybit','okx']){
   const relevant=history.filter(s=>s.venue===venue&&s.collectedAt<=now+60000);
   if(!relevant.length){
    venues.push({venue,status:'NO_LEVEL_DATA',sampleCount:0,levels:[],lastObservedAt:null});

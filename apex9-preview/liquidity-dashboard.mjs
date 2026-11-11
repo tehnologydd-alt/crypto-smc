@@ -19,7 +19,7 @@ const create=(tag,cls,value)=>{
 };
 const timestamp=n=>Number.isSafeInteger(n)?
  new Date(n).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
-const VENUES={binance:'Binance Spot',bybit:'Bybit Spot'};
+const VENUES={binance:'Binance Spot',okx:'OKX Spot',bybit:'Bybit · архив'};
 const statusLabels={
  OBSERVED:'Последние наблюдения',
  HISTORICAL:'Только история',
@@ -108,8 +108,8 @@ function draw(canvas,points){
  const min=filtered[0]?.observedAt??minT;
  const max=filtered.at(-1)?.observedAt??min;
  const x=t=>padL+(max>min?(t-min)/(max-min):.5)*innerW;
- const colors={binance:'#4de3dd',bybit:'#e1ba8b'};
- for(const venue of ['binance','bybit']){
+ const colors={binance:'#4de3dd',okx:'#e1ba8b'};
+ for(const venue of ['binance','okx']){
   const rows=filtered.filter(p=>p.venue===venue);
   c.strokeStyle=colors[venue];c.lineWidth=2;
   c.beginPath();
@@ -175,7 +175,7 @@ export function initLiquidityDashboard(){
     venueContainer.append(describeVenue(venue,latestSources[venue.venue]));
    text('liquidity-history-status',analysis.samples
     ?'Снимков в выборке: '+analysis.samples+
-     ' · '+asset+' · до 80 последних на каждую площадку; старая история не дорисовывается'
+     ' · '+asset+' · до 80 последних Binance и OKX; Bybit остаётся архивом в Room'
     :'История '+asset+' пока пуста. Откройте актив при доступном интернете, чтобы накопить снимки.');
    paint();
   }catch(e){
@@ -191,7 +191,7 @@ export function initLiquidityDashboard(){
    if(asset!==lastAsset||!Array.isArray(sources))return;
    // Partial depth refreshes touch only due providers. Preserve the
    // last diagnostic for other venues until they are explicitly checked.
-   for(const venue of ['binance','bybit']){
+   for(const venue of ['binance','okx']){
     const data=sources.find(s=>s?.id===venue+'-depth');
     if(data)latestSources[venue]={
      state:typeof data.state==='string'?data.state:'INVALID',

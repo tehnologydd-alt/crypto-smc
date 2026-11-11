@@ -5,11 +5,12 @@ const t=1700000000000;
 const ticker={symbol:'GRAMUSDT',lastPrice:'2.125',priceChangePercent:'2.9',
  quoteVolume:'555555',closeTime:t-1000};
 const book={lastUpdateId:123,bids:[['2.12','200']],asks:[['2.13','100']]};
-const bybit={retCode:0,time:t-50,result:{s:'GRAMUSDT',b:[['2.12','100']],a:[['2.13','150']],ts:t-100,u:22}};
+const okx={code:'0',msg:'',data:[{bids:[['2.12','100','0','1']],
+ asks:[['2.13','150','0','1']],ts:String(t-100),seqId:22}]};
 function fakeFetch(url){
  if(url.includes('/ticker/24hr'))return Promise.resolve({ok:true,status:200,json:async()=>ticker});
  if(url.includes('binance.vision/api/v3/depth'))return Promise.resolve({ok:true,status:200,json:async()=>book});
- if(url.includes('bybit.com'))return Promise.resolve({ok:true,status:200,json:async()=>bybit});
+ if(url.includes('okx.com'))return Promise.resolve({ok:true,status:200,json:async()=>okx});
  throw Error('Unexpected URL '+url);
 }
 test('GRAM text search maps to GRAMUSDT and supports full pairs',()=>{
@@ -45,7 +46,7 @@ test('network failure does not invent data',async()=>{
 test('rate-limit source remains distinct from functioning alternate venue',async()=>{
  const r=await collectAsset('GRAMUSDT',{now:()=>t,fetchImpl:async(url)=>{
   if(url.includes('binance.vision'))return {ok:false,status:429};
-  return {ok:true,status:200,json:async()=>bybit};
+  return {ok:true,status:200,json:async()=>okx};
  }});
  assert.equal(r.sources[0].state,'RATE_LIMITED');
  assert.equal(r.sources[1].state,'RATE_LIMITED');

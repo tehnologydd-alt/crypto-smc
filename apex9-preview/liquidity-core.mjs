@@ -3,7 +3,7 @@
  * This is not hidden liquidity, liquidations or a predictive orderflow signal.
  * Different venue depth limits are NEVER pooled or compared as equal coverage.
  */
-const VENUES=new Set(['binance','bybit']);
+const VENUES=new Set(['binance','bybit','okx']);
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
 const positive=n=>finite(n)&&n>0;
 const SYMBOL=/^[A-Z0-9]{5,20}$/;
@@ -16,7 +16,7 @@ export function normalizeLiquidityHistory(rows,asset){
   if(!row||row.asset!==asset||!Number.isSafeInteger(row.observedAt)||
      !Number.isSafeInteger(row.collectedAt)||row.observedAt<1||
      row.observedAt>row.collectedAt+60000)continue;
-  const match=/^(binance|bybit):spot:depth$/.exec(row.source||'');
+  const match=/^(binance|bybit|okx):spot:depth$/.exec(row.source||'');
   if(!match)continue;
   let payload;
   try{payload=typeof row.payload==='string'?JSON.parse(row.payload):row.payload;}catch{continue;}
@@ -57,7 +57,7 @@ export function studyVisibleLiquidity(rows,{now=Date.now(),asset}={}){
   return {status:'INVALID',venues:[],points:[],message:'Invalid scope'};
  const data=normalizeLiquidityHistory(rows,asset);
  const venues=[];
- for(const venue of ['binance','bybit']){
+ for(const venue of ['binance','bybit','okx']){
   const points=data.filter(x=>x.venue===venue&&x.observedAt<=now+60000);
   if(!points.length){
    venues.push({venue,status:'NO_SAMPLES',samples:0});

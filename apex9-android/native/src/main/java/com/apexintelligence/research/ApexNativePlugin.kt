@@ -234,13 +234,13 @@ class ApexNativePlugin : Plugin() {
                 val perVenue = (limit + 1) / 2
                 val saved = (
                     dao.liquidityHistoryForSource(asset, "binance:spot:depth", perVenue) +
-                    dao.liquidityHistoryForSource(asset, "bybit:spot:depth", limit / 2)
+                    dao.liquidityHistoryForSource(asset, "okx:spot:depth", limit / 2)
                 ).sortedWith(compareByDescending<ResearchObservation> { it.observedAt }
                     .thenByDescending { it.collectedAt })
                 val rows = JSArray()
                 for (record in saved) {
                     if (record.source != "binance:spot:depth" &&
-                        record.source != "bybit:spot:depth") continue
+                        record.source != "okx:spot:depth") continue
                     val item = JSObject()
                     item.put("asset", record.asset)
                     item.put("source", record.source)

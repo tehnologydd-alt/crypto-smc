@@ -14,7 +14,7 @@ export const FOREGROUND_DEPTH_POLICY=Object.freeze({
  maxAssets:10
 });
 const VALID_ASSET=/^[A-Z0-9]{5,20}$/;
-const VALID_VENUE=new Set(['binance','bybit']);
+const VALID_VENUE=new Set(['binance','okx']);
 const VALID_RESULT=new Set(['OK','OFFLINE','STALE','INVALID',
  'RATE_LIMITED','ACCESS_DENIED','NOT_LISTED','CLOCK_SKEW']);
 export function createForegroundDepthPolicy({now=()=>Date.now()}={}){

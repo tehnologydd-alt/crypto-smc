@@ -3,7 +3,7 @@
  * Local Room history != current API response and token != native network.
  * Never equate "no samples" with "pair delisted" without a provider error.
  */
-export const DEPTH_VENUES=Object.freeze(['binance','bybit']);
+export const DEPTH_VENUES=Object.freeze(['binance','bybit','okx']);
 export function describeDepthAvailability(venue,source,samples=0){
  if(!DEPTH_VENUES.includes(venue)||!Number.isSafeInteger(samples)||samples<0)
   return {state:'INVALID',label:'Ошибка данных',reason:'Некорректный источник'};

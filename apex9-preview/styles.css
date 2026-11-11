@@ -564,6 +564,7 @@ html,body{overflow-x:hidden}
 .liquidity-legend i{display:inline-block;width:9px;height:9px;border-radius:999px}
 .legend-binance{background:#4de3dd}
 .legend-bybit{background:#e1ba8b}
+.legend-okx{background:#e1ba8b}
 @media(max-width:420px){
  .liquidity-venue-grid{grid-template-columns:1fr;gap:9px}
  .liquidity-venue-card{padding:12px 13px}
@@ -3447,3 +3448,11 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .whale-market-cohort small{font-size:11px;color:#acc5d1;line-height:1.5;display:block}
 #whale-market-check{margin-bottom:7px;max-width:100%}
 @media(max-width:360px){.whale-analysis-metrics{grid-template-columns:minmax(0,1fr)}}
+
+/* Stage 3: research overlays are optional and stay on the candle chart. */
+.chart-evidence-overlays{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:7px 0}
+.chart-overlay-toggle{background:#142735;border:1px solid #385667;border-radius:999px;color:#a7c6cd;padding:7px 10px;font-size:11px;line-height:1.4}
+.chart-overlay-toggle.selected{background:#19514c;border-color:#50bdb0;color:#e0f9ef}
+.chart-evidence-overlays .muted{font-size:10px;line-height:1.5}
+.chart-evidence-status{font-size:11px;line-height:1.5;margin:3px 0 10px}
+@media(max-width:480px){.chart-evidence-overlays{gap:5px}.chart-overlay-toggle{font-size:10px;padding:6px 8px}}
