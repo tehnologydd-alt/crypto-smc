@@ -85,6 +85,13 @@ object ApexDirectionalForecast {
             return "DUE_UNVERIFIED"
         // Existing published V2 records with no evaluationInterval retain their
         // original H1 method; no retrospective rewriting of H1 outcomes.
+        if (h.optString("evaluationInterval") == ApexM1Evaluation.INTERVAL) {
+            if (h.optString("observationMethod") != ApexM1Evaluation.METHOD ||
+                h.optString("stageSemantics") != "LIMIT_READY_M1_V1")
+                return "INVALID"
+            return ApexM1Evaluation.progress(forecast, dao, now,
+                anchor, target, side, entry, sl, targets, true)
+        }
         if (h.optString("evaluationInterval") == ApexM5Evaluation.INTERVAL) {
             if (h.optString("observationMethod") != ApexM5Evaluation.METHOD)
                 return "INVALID"
