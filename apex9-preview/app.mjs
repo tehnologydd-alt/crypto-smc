@@ -1905,6 +1905,10 @@ async function refreshVisibleQuote(){
 setInterval(()=>{
  if(document.hidden)return;
  refreshQuoteAge();
+ if(document.body.dataset.view==='asset'&&
+  el('view-asset').dataset.assetArea==='data'&&
+  favoriteManager.hasFavorite(chosen))
+  renderDepth({depth:[]}); // Expire a previously matched pair even when WS stalls.
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
