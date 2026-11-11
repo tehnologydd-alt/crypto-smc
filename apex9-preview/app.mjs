@@ -1778,6 +1778,17 @@ async function refreshVisibleDepth(){
    }
    recorded=true;
   }
+  // Show provider status and independent backoff, including when the
+  // response has no valid book and therefore does not add a Room sample.
+  if(recorded&&seq===pending&&chosen===symbol&&
+   favoriteManager.hasFavorite(symbol)){
+   const retryAt=Object.fromEntries(due.map(venue=>{
+    const allowed=foregroundDepthPolicy.allowed(symbol,venue,{
+     visible:true,favorite:true,native:true,busy:false});
+    return [venue,allowed.nextAt||null];
+   }));
+   liquidityDashboard.setSourceStatuses(symbol,sample.sources,retryAt);
+  }
   // Save operational outcomes only for real completed GETs while this
   // selected favorite still owns the response. Never count cached data,
   // cancellations, or replayed UI updates as additional API attempts.
@@ -1795,7 +1806,6 @@ async function refreshVisibleDepth(){
   if(local.signal.aborted||document.hidden||controller||
    seq!==pending||chosen!==symbol||
    !favoriteManager.hasFavorite(symbol))return;
-  liquidityDashboard.setSourceStatuses(symbol,sample.sources);
   if(el('view-asset').dataset.assetArea==='data')
    void liquidityDashboard.refresh(symbol);
  }catch{
