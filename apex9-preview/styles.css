@@ -3456,3 +3456,10 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .chart-evidence-overlays .muted{font-size:10px;line-height:1.5}
 .chart-evidence-status{font-size:11px;line-height:1.5;margin:3px 0 10px}
 @media(max-width:480px){.chart-evidence-overlays{gap:5px}.chart-overlay-toggle{font-size:10px;padding:6px 8px}}
+
+/* Stage 4: compact, opt-in operational provider comparisons. */
+.depth-quality-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.depth-quality-row{border:1px solid #345566;border-radius:10px;background:#112734;padding:10px;min-width:0}
+.depth-quality-row strong{display:block;color:#cee9e9;font-size:12px;margin-bottom:6px}
+.depth-quality-row small{display:block;color:#a9beca;line-height:1.55;font-size:11px;overflow-wrap:anywhere}
+@media(max-width:480px){.depth-quality-sources{grid-template-columns:minmax(0,1fr)}}

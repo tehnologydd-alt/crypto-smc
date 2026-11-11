@@ -7,7 +7,7 @@
 export const RELIABILITY_VERSION='APEX_API_RELIABILITY_V1';
 export const RELIABILITY_PROVIDERS=Object.freeze([
  'fear','dex','gecko','okx','paprika','cmc',
- 'binance-ticker','binance-depth','bybit-depth',
+ 'binance-ticker','binance-depth','okx-depth','bybit-depth',
  'coingecko-global','bitcoin-mempool','gdelt-news'
 ]);
 const KEY='apex9:api-reliability:v1';
@@ -16,6 +16,7 @@ const PROVIDER_AGE=Object.freeze({
  fear:4*DAY,dex:3*3600000,gecko:3*3600000,
  okx:20*60000,paprika:2*3600000,cmc:2*3600000,
  'binance-ticker':3*60000,'binance-depth':5*60000,
+ 'okx-depth':5*60000,
  'bybit-depth':5*60000,'coingecko-global':2*3600000,
  'bitcoin-mempool':20*60000,'gdelt-news':48*3600000
 });
@@ -95,10 +96,15 @@ export function createSourceReliability({storage,now=()=>Date.now()}={}){
   // Some adapters stamp local reception time into observedAt. It MUST NOT
   // become a fabricated source-freshness success.
   const providerTimestamped=['fear','paprika','cmc','binance-ticker',
-   'coingecko-global'].includes(provider);
+   'coingecko-global','okx-depth'].includes(provider);
+  // Binance Spot REST depth has no authoritative exchange timestamp.
+  // OKX Spot `ts` is verified in the depth adapter; audit it, not
+  // the client clock or the historical Bybit/source replacement.
   const observedAt=!providerTimestamped?null:
-   Number.isSafeInteger(data?.observedAt)?data.observedAt:
-   Number.isSafeInteger(data?.providerObservedAt)?data.providerObservedAt:null;
+   provider==='okx-depth'?
+    (Number.isSafeInteger(data?.exchangeTimestamp)?data.exchangeTimestamp:null):
+    Number.isSafeInteger(data?.observedAt)?data.observedAt:
+    Number.isSafeInteger(data?.providerObservedAt)?data.providerObservedAt:null;
   let ageMs=null,isFresh=null;
   if(['OK','EMPTY'].includes(result.state)&&validTime(observedAt)&&
    observedAt<=at+60000){

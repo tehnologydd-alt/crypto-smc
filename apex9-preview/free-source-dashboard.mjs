@@ -11,6 +11,7 @@ import {fetchCmcKeyless} from './cmc-keyless.mjs';
 import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 import {sourceHealth} from './source-health.mjs';
 import {createSourceReliability} from './source-reliability.mjs';
+import {auditSpotDepthQuality} from './spot-depth-quality.mjs';
 import {getMobileApiReliability} from './mobile-bridge.mjs';
 import {readSourceCohortSummary,sourceCohortCacheHealth} from './source-cohort-summary.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
@@ -450,6 +451,52 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    '. Это не биржевой спред и не независимое подтверждение.';
   list.append(compare);
  }
+ /** Operational WEBVIEW public Spot requests, not the WorkManager ledger. */
+ function renderSpotDepthQuality(){
+  const status=el('depth-quality-status'),box=el('depth-quality-sources');
+  if(!status||!box)return;
+  const report=auditSpotDepthQuality({
+   'binance-depth':reliability.summary('binance-depth'),
+   'okx-depth':reliability.summary('okx-depth')
+  });
+  box.replaceChildren();
+  if(report.state==='INVALID'){
+   status.textContent='Статистика запросов не прошла проверку целостности.';
+   return;
+  }
+  status.textContent=report.state==='DESCRIPTIVE'?
+   'Описательные данные обоих API; превосходство биржи не установлено.':
+   'Накопление: по 12 запросов в два разных дня для каждого API.';
+  for(const source of report.sources){
+   const line=div('article','depth-quality-row');
+   const name=source.id==='binance-depth'?'Binance Spot':'OKX Spot';
+   line.append(div('strong','',name+' · '+source.ok+'/'+source.attempts+
+    ' успешных ответов'));
+   const availability=source.availabilityPercent===null?
+    'Доступность: недостаточно данных':
+    'Доступность локальной выборки: '+source.availabilityPercent.toFixed(1)+'%';
+   const freshness=source.id==='okx-depth'?
+    ' · время OKX проверено '+source.freshnessChecked+
+      ', свежих '+source.freshnessConfirmed:
+    ' · Binance REST depth не сообщает время снимка';
+   line.append(div('small','',
+    availability+' · неуспешных '+source.failures+' · 429 '+
+    source.rateLimited+' · некорректных '+source.invalid+
+    ' · дней '+source.uniqueDays+freshness));
+   box.append(line);
+  }
+ }
+ function recordSpotDepthResults(symbol,sources){
+  if(symbol!==getSymbol?.()||!Array.isArray(sources))return false;
+  let logged=0;
+  for(const source of sources){
+   if(!['binance-depth','okx-depth'].includes(source?.id))continue;
+   if(reliability.record({provider:source.id,result:source}))logged++;
+  }
+  if(logged){renderReliability();renderSpotDepthQuality();}
+  return logged>0;
+ }
+
  function setSocial(symbol,result){
   if(getSymbol?.()!==symbol)return;
   socialMeasurement={symbol,result};
@@ -462,6 +509,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    for(const source of marketMeasurements.sources)
     reliability.record({provider:source.id,result:source});
    renderReliability();
+   renderSpotDepthQuality();
   }
   renderReconciliation(symbol);
  }
@@ -581,5 +629,11 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const storedFear=overviewCache.readFear();
  if(storedFear)showFear({state:'STALE',data:storedFear.value});
  refreshCenter();
- return {openOverview,openAsset,checkPublicSources,refreshCenter,setContext,setSnapshot,setSocial};
+ renderSpotDepthQuality();
+ return {openOverview,openAsset,checkPublicSources,refreshCenter,
+  setContext,setSnapshot,setSocial,recordSpotDepthResults,
+  getSpotDepthQuality:()=>auditSpotDepthQuality({
+   'binance-depth':reliability.summary('binance-depth'),
+   'okx-depth':reliability.summary('okx-depth')
+  })};
 }

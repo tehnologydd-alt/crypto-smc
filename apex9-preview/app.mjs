@@ -1693,6 +1693,12 @@ async function refreshVisibleDepth(){
    }
    recorded=true;
   }
+  // Save operational outcomes only for real completed GETs while this
+  // selected favorite still owns the response. Never count cached data,
+  // cancellations, or replayed UI updates as additional API attempts.
+  if(recorded&&seq===pending&&chosen===symbol&&
+   favoriteManager.hasFavorite(symbol))
+   freeSourceDashboard.recordSpotDepthResults(symbol,sample.sources);
   if(local.signal.aborted||document.hidden||controller||
    seq!==pending||chosen!==symbol||
    !favoriteManager.hasFavorite(symbol))return;

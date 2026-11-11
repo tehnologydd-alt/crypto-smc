@@ -14,6 +14,7 @@ export class CandleChart {
   this.data=[];this.events=[];this.scenarios=[];this.interval='1h';this.visible=55;this.offset=0;
   this.replayCursor=null;
   this.orderBlocks=[];this.whaleEvents=[];this.whaleAsset=null;
+  this.whaleMarks=[]; // Computed once per data or evidence update, not per pinch/drag.
   this.showBlocks=true;this.showWhales=true;
   this.pointers=new Map();this.lastPinch=null;this.selected=null;this.onSelect=onSelect;
   this.width=0;this.height=0;this.frame=0;
@@ -66,6 +67,7 @@ export class CandleChart {
   this.interval=interval;
   this.orderBlocks=analyzeStructuralOrderBlocks(this.data,{
    interval}).zones;
+  this.refreshWhaleMarks();
   this.schedule();
  }
  /** UI-only visibility toggles; no network activity or changes to data. */
@@ -76,7 +78,16 @@ export class CandleChart {
  setWhaleEvents(asset,events=[]){
   this.whaleAsset=asset;
   this.whaleEvents=Array.isArray(events)?events.slice(0,100):[];
+  this.refreshWhaleMarks();
   this.schedule();
+ }
+ /** Precompute verified W location from full history once per update.
+  * Pinching/panning redraws positions only, never revalidates Room records.
+  */
+ refreshWhaleMarks(){
+  this.whaleMarks=this.whaleAsset?
+   mapWhaleEventsToViewport(this.whaleEvents,this.data,{
+    asset:this.whaleAsset,interval:this.interval,now:Date.now()}):[];
  }
  setReplayCursor(cursor=null){
   // A cursor is not a forecast or a source observation by itself.
@@ -109,6 +120,7 @@ export class CandleChart {
   this.events=Array.isArray(events)?events:[];
   this.orderBlocks=analyzeStructuralOrderBlocks(this.data,{
    interval:this.interval}).zones;
+  this.refreshWhaleMarks();
   this.offset=0;this.selected=null;this.schedule();
  }
  reset(){this.offset=0;this.visible=55;this.selected=null;this.schedule();}
@@ -300,12 +312,12 @@ export class CandleChart {
   }
   // Whale marks are placed at the last already-closed candle available
   // when Room first recorded the transfer. No inference about candle trades.
-  if(this.showWhales&&this.whaleEvents.length&&this.whaleAsset){
-   const marks=mapWhaleEventsToViewport(this.whaleEvents,bars,{
-    asset:this.whaleAsset,interval:this.interval,now:Date.now()});
-   for(const mark of marks){
-    const x=(mark.index+.5)*step,y=Math.max(20,Math.min(mainH-20,
-     priceY(bars[mark.index].high)-15));
+  if(this.showWhales&&this.whaleMarks.length&&this.whaleAsset){
+   for(const mark of this.whaleMarks){
+    const i=mark.index-start;
+    if(i<0||i>=bars.length)continue;
+    const x=(i+.5)*step,y=Math.max(20,Math.min(mainH-20,
+     priceY(bars[i].high)-15));
     ctx.save();ctx.beginPath();ctx.arc(x,y,6.5,0,2*Math.PI);
     ctx.fillStyle='#263d44';ctx.fill();
     ctx.strokeStyle='#edc276';ctx.lineWidth=1.5;ctx.stroke();
