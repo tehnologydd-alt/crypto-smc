@@ -38,6 +38,7 @@ import {globalMarketSnapshot} from './market-overview.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
+import {visibleChartScenarios,compactScenarioDetails} from './clean-chart-scenarios.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
 import {directionalOutcomeLabel} from './directional-scenario.mjs';
 
@@ -527,7 +528,7 @@ function renderScenarioReplay(scenarios){
   steps=el('scenario-replay-steps'),
   detail=el('scenario-replay-detail');
  clear(steps);clear(detail);
- const selected=scenarios.find(s=>s.id===focusedScenarioId)||scenarios[0];
+ const selected=scenarios.find(s=>s.id===focusedScenarioId)||null;
  if(selected?.model==='DIRECTIONAL'||selected?.model==='MULTIFRAME'){
   root.classList.remove('has-replay');
   text('scenario-replay-counter',selected.model==='MULTIFRAME'?
@@ -547,7 +548,9 @@ function renderScenarioReplay(scenarios){
  if(!selected){
   text('scenario-replay-counter','0 / 5 закрытий');
   text('scenario-replay-context','Выбери исследование для просмотра его подтверждённой H1-истории.');
-  text('scenario-replay-warning','Сценарии не загружены. Наблюдения не имитируются.');
+  text('scenario-replay-warning',scenarios.length?
+   'Выберите сценарий выше. До выбора его уровни и этапы на графике скрыты.':
+   'Сценарии не загружены. Наблюдения не имитируются.');
   candleView.setReplayCursor(null);
   root.classList.remove('has-replay');
   return;
@@ -633,6 +636,53 @@ function renderScenarioReplay(scenarios){
  }else candleView.setReplayCursor(null);
 }
 
+/** Scenario UI is opt-in. Rendering a list NEVER selects the first order. */
+function renderCleanChartDetails(scenario){
+ const root=el('chart-scenario-details'),hide=el('chart-scenario-hide');
+ const hint=el('chart-scenario-hint');
+ clear(root);
+ const item=compactScenarioDetails(scenario);
+ if(!item){
+  root.hidden=true;hide.disabled=true;hide.textContent='Сценарий не выбран';
+  hint.textContent='Уровни скрыты. Нажмите на сценарий ниже, чтобы показать только его на графике.';
+  return;
+ }
+ root.hidden=false;hide.disabled=false;hide.textContent='✕ Скрыть уровни';
+ hint.textContent='Выбран один сценарий. Повторное нажатие на его карточку уберёт уровни.';
+ const heading=create('div','clean-chart-scenario-heading');
+ const name=item.direction==='UP'?'↑ Рост':item.direction==='DOWN'?
+  '↓ Снижение':'Исторический диапазон';
+ const complete=item.finished?' · завершён (архив)':' · наблюдение';
+ heading.append(create('strong','',name+complete),
+  create('small','',scenario.sourceInterval.toUpperCase()+
+   ' · публикация '+new Date(scenario.publishedAt).toLocaleString('ru-RU')));
+ root.append(heading);
+ const grid=create('div','clean-chart-scenario-grid');
+ for(const [name,price] of item.rows){
+  const style=name==='E'?' entry':name==='SL'?' stop':
+   name.startsWith('T')?' target':'';
+  const card=create('div','clean-chart-scenario-cell'+style);
+  card.append(create('small','',name),
+   create('strong','',fmtPrice(price)));
+  grid.append(card);
+ }
+ root.append(grid);
+ if(item.riskReward){
+  root.append(create('p','clean-chart-scenario-foot',
+   'R:R к T1 / T2 / T3: '+item.riskReward.map(x=>x.toFixed(2)).join(' / ')+
+   ' · рассчитано по исходным уровням, не по результату исполнения.'));
+ }
+ root.append(create('p','clean-chart-scenario-foot',
+  (item.finished?'Завершённый сценарий показан как историческая запись. ':
+   'Уровни — исходная публикация, не торговая команда. ')+
+  'Линии появляются только на имеющихся закрытых свечах. '+
+  'Порядок касаний TP и SL проверяется отдельно в журнале.'));
+}
+el('chart-scenario-hide').addEventListener('click',()=>{
+ if(!focusedScenarioId)return;
+ focusedScenarioId=null;replayScenarioId=null;replayStep=0;
+ renderScenarioMap(chosen);
+});
 function renderScenarioMap(asset){
  const box=el('asset-scenario-summary');clear(box);
  for(const button of document.querySelectorAll('[data-scenario-map-mode]')){
@@ -646,15 +696,16 @@ function renderScenarioMap(asset){
   interval:candleInterval
  });
  const chartSupported=['1m','15m','1h','4h'].includes(candleInterval);
- if(map.scenarios.length&&!map.scenarios.some(sc=>sc.focused)){
-  map.scenarios[0].focused=true;
-  focusedScenarioId=map.scenarios[0].id;
- }
+ // Only an explicit user-selected ID is allowed to paint scenario levels.
+ // Absence of a choice means NONE, even if there are many forecasts in Room.
  candleView.setInterval(candleInterval);
- candleView.setScenarios(chartSupported?map.scenarios:[]);
+ const single=visibleChartScenarios(map.scenarios,{
+  selectedId:focusedScenarioId,interval:candleInterval});
+ candleView.setScenarios(chartSupported?single:[]);
  const extra=(map.hidden?' · ещё '+map.hidden+' вне мини-карты':'')+
   (lastScenarioTruncated?' · журнал частичный (последние 75 записей)':'');
- const focus=map.scenarios.find(sc=>sc.focused);
+ const focus=single[0]||null;
+ renderCleanChartDetails(focus);
  if(focus&&chartSupported&&drawnCandleAsset===asset&&
   drawnCandleInterval===candleInterval&&candleView.data.length)
   candleView.focusOnScenario(focus.anchorCloseAt);
@@ -664,17 +715,20 @@ function renderScenarioMap(asset){
   'Параметры карты не прошли проверку.':
   map.available?
    'Показано '+map.scenarios.length+' из '+map.available+
-   ' доступных сценариев'+extra+context:
+   ' доступных сценариев'+extra+context+
+   (focus?' · показан выбранный':' · уровни скрыты до выбора'):
    scenarioMode==='tracked'?
     'Нет отмеченных пользователем исследований по '+asset+
     '. Отметить сценарий можно во вкладке «Прогнозы».':
     'Для '+asset+' пока нет проверяемых сценариев в доступном журнале.');
  for(const sc of map.scenarios){
   const button=create('button','scenario-map-item'+
-   (sc.tracked?' tracked':'')+(sc.focused?' focused':''));
+   (sc.tracked?' tracked':'')+(focus?.id===sc.id?' focused':''));
   button.type='button';
+  const chosenNow=focus?.id===sc.id;
+  button.setAttribute('aria-pressed',String(chosenNow));
   button.setAttribute('aria-label',
-   'Показать на графике исследовательский сценарий от '+
+   (chosenNow?'Скрыть уровни сценария от ':'Выбрать и показать сценарий от ')+
    new Date(sc.publishedAt).toLocaleString('ru-RU'));
   const top=create('span','scenario-map-item-heading');
   const name=['DIRECTIONAL','MULTIFRAME'].includes(sc.model)?
@@ -709,15 +763,21 @@ function renderScenarioMap(asset){
      'Итог в исходном диапазоне':'Итог за пределами диапазона')+
    ' · '+new Date(sc.targetCloseAt).toLocaleString('ru-RU')));
   button.addEventListener('click',()=>{
-   focusedScenarioId=sc.id;
-   replayStep=0;
+   const deselect=focusedScenarioId===sc.id;
+   focusedScenarioId=deselect?null:sc.id;
+   replayScenarioId=null;replayStep=0;
    renderScenarioMap(asset);
+   if(deselect){
+    text('chart-selected','Уровни сценария скрыты. Свечи и рынок остаются на графике.');
+    return;
+   }
    if(!chartSupported)return;
    const found=candleView.focusOnScenario(sc.anchorCloseAt);
    text('chart-selected',found?
-    'График перемещён к опорной '+candleInterval.toUpperCase()+'-свече исследования от '+
+    'Показан только выбранный сценарий · опорная '+
+     candleInterval.toUpperCase()+'-свеча от '+
       new Date(sc.publishedAt).toLocaleString('ru-RU')+'.':
-    'Опорной свечи нет в загруженной истории. Карта не дорисовывает недостающие данные.');
+    'Опорной свечи нет в загруженной истории. Недостающие уровни не дорисованы.');
   });
   box.append(button);
  }
@@ -1024,6 +1084,8 @@ for(const button of document.querySelectorAll('[data-interval]')){
  const interval=button.dataset.interval;
  button.addEventListener('click',()=>{
   candleInterval=interval;
+  // A scenario from another timeframe is never silently carried over.
+  focusedScenarioId=null;replayScenarioId=null;replayStep=0;
   drawnCandleInterval='';drawnCandleAsset='';
   candleView.setReplayCursor(null);
   candleView.setInterval(interval);

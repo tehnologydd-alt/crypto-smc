@@ -4,6 +4,7 @@
  * Displays only observed OHLCV and retrospective structure annotations.
  */
 import {mapScenarioToViewport} from './scenario-map.mjs';
+import {groupOrderBlockLabels} from './clean-chart-scenarios.mjs';
 import {analyzeStructuralOrderBlocks,mapOrderBlocksToViewport,
  mapWhaleEventsToViewport} from './order-blocks-chart.mjs';
 export class CandleChart {
@@ -100,11 +101,11 @@ export class CandleChart {
  setScenarios(scenarios=[]){
   // Each scenario has a validated real Room hypothesis and stage log.
   this.scenarios=Array.isArray(scenarios)?scenarios.filter(x=>
-   typeof x.id==='string'&&
+   x?.focused===true&&typeof x.id==='string'&&
    Number.isFinite(x.bandLow)&&Number.isFinite(x.bandHigh)&&
    x.bandLow>0&&x.bandLow<x.bandHigh&&Number.isSafeInteger(x.anchorCloseAt)&&
    Number.isSafeInteger(x.targetCloseAt)&&x.targetCloseAt>x.anchorCloseAt
-  ).slice(0,3):[];
+  ).slice(0,1):[];
   this.schedule();
  }
  focusOnScenario(anchorCloseAt){
@@ -179,57 +180,73 @@ export class CandleChart {
       (this.interval==='1m'&&sc.evaluationInterval==='1m')).map(sc=>({
    sc,geometry:mapScenarioToViewport(sc,bars,{interval:this.interval})
   })).filter(x=>x.geometry.visible):[];
+  // A Clean Chart shows exactly one USER-SELECTED scenario, never the
+  // top ranked one by default. Its immutable levels remain unmodified.
   for(const {sc,geometry} of overlays){
    if(sc.bandHigh<low||sc.bandLow>high)continue;
-   const top=Math.max(14,Math.min(mainH-8,priceY(Math.min(high,sc.bandHigh))));
-   const bottom=Math.min(mainH-8,Math.max(14,priceY(Math.max(low,sc.bandLow))));
-   if(bottom<=top)continue;
    ctx.save();ctx.beginPath();ctx.rect(0,14,plotW,mainH-22);ctx.clip();
-   ctx.fillStyle=sc.focused?'rgba(95,229,220,.20)':
-    sc.tracked?'rgba(92,215,205,.13)':'rgba(98,140,159,.08)';
-   for(const seg of geometry.segments){
-    const left=Math.max(0,seg.from*step);
-    const right=Math.min(plotW,(seg.to+1)*step);
-    if(right>left)ctx.fillRect(left,top,right-left,bottom-top);
-   }
-   ctx.setLineDash([5,4]);
-   ctx.strokeStyle=sc.focused?'#83f1dd':sc.tracked?'#5fdad0':'#7493ac';
-   ctx.lineWidth=sc.focused?1.8:1;
-   // Horizontal boundaries are ONLY visible over observed candle segments.
-   for(const price of [sc.bandLow,sc.bandHigh]){
-    if(price<low||price>high)continue;
-    const y=priceY(price);
-    for(const seg of geometry.segments){
-     const left=Math.max(0,seg.from*step);
-     const right=Math.min(plotW,(seg.to+1)*step);
-     ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
+   const segments=geometry.segments;
+   if(sc.levels&&Number.isFinite(sc.levels.entry)){
+    // Only a faint, narrow entry highlight: never shade the entire SL-to-TP3
+    // span over the candlesticks.
+    const entryY=priceY(sc.levels.entry);
+    if(entryY>=14&&entryY<=mainH-8){
+     ctx.fillStyle='rgba(236,192,116,.08)';
+     for(const seg of segments){
+      const from=Math.max(0,seg.from*step),
+       to=Math.min(plotW,(seg.to+1)*step);
+      if(to>from)ctx.fillRect(from,Math.max(14,entryY-3),
+       to-from,Math.min(6,mainH-8-entryY+3));
+     }
     }
-   }
-   // The selected immutable forecast has five price levels. Draw them
-   // only over real, consecutive CLOSED source-TF candles, never into
-   // blank future space. Other forecasts keep an unobtrusive envelope.
-   if(sc.focused&&sc.levels){
-    const lines=[['SL',sc.levels.sl,'#f2a2ab'],
-     ['Вход',sc.levels.entry,'#d7ecf0'],
-     ['TP1',sc.levels.tp1,'#88e3d1'],
-     ['TP2',sc.levels.tp2,'#70d9c6'],
-     ['TP3',sc.levels.tp3,'#58cbb9']];
-    ctx.setLineDash([2,3]);ctx.lineWidth=1.15;
+    const lines=[['SL',sc.levels.sl,'#ef899d'],
+     ['E',sc.levels.entry,'#e9c47f'],
+     ['T1',sc.levels.tp1,'#7addbf'],
+     ['T2',sc.levels.tp2,'#62d3b3'],
+     ['T3',sc.levels.tp3,'#4dc9a9']];
+    const labeled=[];
     for(const [name,price,color] of lines){
      if(!Number.isFinite(price)||price<low||price>high)continue;
      const y=priceY(price);
-     ctx.strokeStyle=color;ctx.fillStyle=color;
-     for(const seg of geometry.segments){
-      const from=Math.max(0,seg.from*step);
-      const to=Math.min(plotW,(seg.to+1)*step);
+     ctx.setLineDash([4,5]);ctx.lineWidth=1;
+     ctx.strokeStyle=color;
+     for(const seg of segments){
+      const from=Math.max(0,seg.from*step),
+       to=Math.min(plotW,(seg.to+1)*step);
       if(to<=from)continue;
       ctx.beginPath();ctx.moveTo(from,y);ctx.lineTo(to,y);ctx.stroke();
      }
-     const last=geometry.segments.at(-1);
-     if(last){
-      const x=Math.max(1,Math.min(plotW-34,(last.to+1)*step-31));
-      ctx.textAlign='left';ctx.font='bold 9px system-ui';
-      ctx.fillText(name,x,Math.max(11,Math.min(mainH-7,y-5)));
+     // Do not stack illegible labels at adjacent prices. All five exact
+     // numeric values remain accessible in the detail card below.
+     if(!labeled.some(p=>Math.abs(p-y)<12)){
+      const last=segments.at(-1);
+      if(last){
+       const x=Math.max(1,Math.min(plotW-19,(last.to+1)*step-19));
+       ctx.fillStyle='#0a2530';
+       ctx.fillRect(x-2,y-6,19,12);
+       ctx.fillStyle=color;ctx.textAlign='left';
+       ctx.font='bold 9px system-ui';
+       ctx.textBaseline='middle';ctx.fillText(name,x,y);
+       labeled.push(y);
+      }
+     }
+    }
+   }else{
+    // A selected historical range has no trade levels. Keep its bounded
+    // observation envelope, but use much softer paint than the old chart.
+    const top=Math.max(14,Math.min(mainH-8,priceY(Math.min(high,sc.bandHigh))));
+    const bottom=Math.min(mainH-8,Math.max(14,priceY(Math.max(low,sc.bandLow))));
+    if(bottom>top){
+     ctx.fillStyle='rgba(93,205,196,.055)';
+     ctx.strokeStyle='rgba(99,212,203,.65)';
+     ctx.setLineDash([4,6]);ctx.lineWidth=.9;
+     for(const seg of segments){
+      const x=Math.max(0,seg.from*step),
+       right=Math.min(plotW,(seg.to+1)*step);
+      if(right<=x)continue;
+      ctx.fillRect(x,top,right-x,bottom-top);
+      ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(right,top);
+      ctx.moveTo(x,bottom);ctx.lineTo(right,bottom);ctx.stroke();
      }
     }
    }
@@ -241,6 +258,7 @@ export class CandleChart {
   if(this.showBlocks){
    const zones=mapOrderBlocksToViewport(this.orderBlocks,bars,{
     interval:this.interval});
+   const labelCandidates=[];
    ctx.save();ctx.beginPath();ctx.rect(0,14,plotW,mainH-22);ctx.clip();
    for(const zone of zones){
     if(zone.high<low||zone.low>high)continue;
@@ -248,22 +266,29 @@ export class CandleChart {
     const lower=Math.max(14,Math.min(mainH-8,priceY(Math.max(low,zone.low))));
     if(lower<=upper)continue;
     const demand=zone.kind==='DEMAND';
-    ctx.fillStyle=demand?'rgba(55,195,166,.15)':'rgba(240,105,130,.14)';
-    ctx.strokeStyle=demand?'#45cbb2':'#ea8d97';
-    ctx.setLineDash([4,4]);ctx.lineWidth=1;
+    ctx.fillStyle=demand?'rgba(55,195,166,.095)':'rgba(240,105,130,.085)';
+    ctx.strokeStyle=demand?'rgba(69,203,178,.57)':'rgba(234,141,151,.57)';
+    ctx.setLineDash([4,5]);ctx.lineWidth=.8;
     for(const segment of zone.segments){
      const x=Math.max(0,segment.from*step),
       right=Math.min(plotW,(segment.to+1)*step);
      if(right<=x)continue;
      ctx.fillRect(x,upper,right-x,lower-upper);
      ctx.strokeRect(x,upper,right-x,lower-upper);
-     const label=demand?'Demand OB':'Supply OB';
-     ctx.fillStyle=demand?'#82e7d4':'#f5b0bb';
-     ctx.font='bold 9px system-ui';ctx.textAlign='left';
-     ctx.fillText(label,Math.min(Math.max(x+3,3),plotW-73),
-      Math.max(18,upper+9));
-     ctx.fillStyle=demand?'rgba(55,195,166,.15)':'rgba(240,105,130,.14)';
     }
+    const first=zone.segments.find(seg=>(seg.to+1)*step>0);
+    if(first)labelCandidates.push({
+     kind:zone.kind,y:Math.max(18,upper+9),
+     x:Math.max(3,first.from*step+3)
+    });
+   }
+   // One caption per close group, not a duplicate for every dashed segment.
+   ctx.setLineDash([]);ctx.textAlign='left';ctx.font='bold 9px system-ui';
+   for(const label of groupOrderBlockLabels(labelCandidates)){
+    ctx.fillStyle=label.kind==='DEMAND'?'#80ddc8':'#efb4bd';
+    const title=(label.kind==='DEMAND'?'Demand OB':'Supply OB')+
+     (label.count>1?' ×'+label.count:'');
+    ctx.fillText(title,Math.min(plotW-94,label.x),label.y);
    }
    ctx.restore();
   }
