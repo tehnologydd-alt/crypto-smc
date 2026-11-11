@@ -5,7 +5,7 @@
  */
 import {getMobileFavorites,changeMobileFavorite,
  syncMobileFavoriteResearch,getMobileResearchForecasts,
- getMobileMarkedResearchForecasts,getMobileCandles,
+ getMobileMarkedResearchForecasts,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,
  getMobileCandleArchive,getMobileM5Window,getMobileM1Window} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
@@ -526,9 +526,24 @@ export function initFavoriteResearch({
   const stored=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');
   if(Array.isArray(stored))selected=new Set(stored.filter(x=>typeof x==='string').slice(0,300));
  }catch{}
+ // Keep one serialized native copy for notifications while WebView is closed.
+ // The journal's localStorage remains the source of UI bookmark selection.
+ let markSync=Promise.resolve();
+ const syncNativeMarks=()=>{
+  if(!native)return Promise.resolve();
+  const ids=normalizeAlertMarkedIds([...selected]);
+  markSync=markSync.catch(()=>{}).then(()=>
+   setMobileSettings({alertMarkedIds:ids})).catch(error=>{
+    const status=id('apex-settings-alert-status');
+    if(status)status.textContent='Не удалось синхронизировать отмеченные уведомления: '+
+     String(error?.message||error);
+   });
+  return markSync;
+ };
  const persistSelected=()=>{
   try{localStorage.setItem('apex9_selected_research_ids_v1',
    JSON.stringify([...selected].slice(-300)));}catch{}
+  void syncNativeMarks();
  };
  const selectedKey=()=>[...selected].sort().join('|');
  const displayedJournal=()=>scenarioJournalRows(lastRows,markedRows,{
@@ -1306,6 +1321,8 @@ export function initFavoriteResearch({
   async initialize(){
    const result=await getMobileFavorites();
    native=result.native;favorites=sanitizeFavorites(result.favorites);
+   // Reconcile existing stars with native DataStore after reinstall/upgrade.
+   await syncNativeMarks();
    onFavoritesChanged?.(favorites.slice());
    renderFavorites();refreshFavoritePrices();await loadJournal();
    void sync(true);
