@@ -209,3 +209,61 @@ test('existing automatic Room audit/Android packaging uses no provider-specific 
  assert.ok(screen.includes('value.selected'));
  assert.ok(!file('./source-provider-forward-audit.mjs').includes('fetch('));
 });
+
+test('H1 and H4 each form their own M1/V2 forward cohort without sharing M15',()=>{
+ const h1=scenario(0),one=h1.hypothesis;
+ const orig=one.anchorCloseAt,H=3600000;
+ const anchor=Math.floor((orig+1)/H)*H-1,offset=anchor-orig;
+ const ctx=one.evidenceAsPublished;
+ ctx.capturedAt+=offset;
+ for(const arr of Object.values(ctx.sources))
+  for(const item of arr){
+   item.observedAt+=offset;item.collectedAt+=offset;
+  }
+ for(const item of Object.values(ctx.feeds))
+  if(item.state!=='MISSING'){
+   item.observedAt+=offset;item.collectedAt+=offset;
+  }
+ h1.interval='1h';h1.publishedAt+=offset;
+ h1.id='direction2:BTCUSDT:1h:'+anchor;
+ h1.status='PENDING_CONFIRMATION';h1.stageEvents=[];h1.evaluation=null;
+ one.model='EMPIRICAL_DIRECTION_LEVELS_V2';
+ one.interval='1h';one.anchorCloseAt=anchor;
+ one.targetCloseAt=anchor+24*H;one.horizonBars=24;
+ one.bandLow=94;one.bandHigh=106;
+ one.levelStudy={entry:100,...computeReferenceLevels(100,94,106).UP,
+  version:'H1_SINGLE_LEVELS_V2',direction:'UP'};
+ one.stageSemantics='LIMIT_READY_M1_V1';
+ one.preOutcomeStrength.interval='1h';
+ one.preOutcomeStrength.capturedAt=h1.publishedAt;
+ one.preOutcomeStrength.candleCutoffAt=anchor;
+ const h4=scenario(1),h4h=h4.hypothesis,H4=14400000;
+ const oldH4=h4h.anchorCloseAt;
+ const newH4=Math.floor((oldH4+1)/H4)*H4-1,shift=newH4-oldH4;
+ const h4ctx=h4h.evidenceAsPublished;
+ h4ctx.capturedAt+=shift;
+ for(const arr of Object.values(h4ctx.sources))
+  for(const item of arr){
+   item.observedAt+=shift;item.collectedAt+=shift;
+  }
+ for(const item of Object.values(h4ctx.feeds))
+  if(item.state!=='MISSING'){
+   item.observedAt+=shift;item.collectedAt+=shift;
+  }
+ h4.interval='4h';h4.publishedAt+=shift;
+ h4.id='direction3:BTCUSDT:4h:'+newH4;
+ h4.status='PENDING_CONFIRMATION';h4.stageEvents=[];h4.evaluation=null;
+ h4h.interval='4h';h4h.anchorCloseAt=newH4;
+ h4h.targetCloseAt=newH4+24*H4;h4h.horizonBars=24;
+ h4h.preOutcomeStrength.interval='4h';
+ h4h.preOutcomeStrength.capturedAt=h4.publishedAt;
+ h4h.preOutcomeStrength.candleCutoffAt=newH4;
+ const report=inspect([h1,h4]);
+ assert.equal(report.frames['15m'].selectedIndependent,0);
+ assert.equal(report.frames['1h'].selectedIndependent,1);
+ assert.equal(report.frames['4h'].selectedIndependent,1);
+ assert.equal(report.frames['1h'].invalidPlans,0);
+ assert.equal(report.frames['4h'].invalidPlans,0);
+ assert.equal(report.frames['1h'].periods[0].awaiting,1);
+ assert.equal(report.frames['4h'].periods[0].awaiting,1);
+});
