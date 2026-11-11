@@ -17,7 +17,7 @@ object ApexApiLedger {
     private const val STORE = "apex-native-api-ledger-v1"
     private const val MAX_AGE = 30L * 24L * 60L * 60L * 1000L
     private const val MAX_PER_LANE = 120
-    private const val MAX_LANES = 12
+    private const val MAX_LANES = 20
     private val NAME = Regex("^[a-z0-9:-]{2,40}$")
     private val guard = Any()
     @Volatile private var app: Context? = null
