@@ -226,7 +226,7 @@ function multiFrameCardActions(row,{tracked=false,onToggle,onOpen}={}){
  actions.append(follow,open);
  return actions;
 }
-export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
+export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen,copyText}={}){
  const evidence=multiFrameEvidence(row);
  const card=el('article','forecast-record forecast-visual forecast-multiframe');
  const head=el('div','forecast-visual-head');
@@ -262,7 +262,7 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   const stage=evidence.events.has('CONFIRMED')?'ACTIVE':
    evidence.events.has('LIMIT_READY')?'CONFIRMED':'PENDING_CONFIRMATION';
   return compactOpenForecastCard(row,{plan,stage,
-   events:row.stageEvents,tracked,onToggle,onOpen});
+   events:row.stageEvents,tracked,onToggle,onOpen,copyText});
  }
  if(complete){
   card.classList.add('is-completed','tone-'+completion.tone);
