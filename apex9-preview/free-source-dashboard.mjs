@@ -12,7 +12,7 @@ import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 import {sourceHealth} from './source-health.mjs';
 import {createSourceReliability} from './source-reliability.mjs';
 import {getMobileApiReliability} from './mobile-bridge.mjs';
-import {readSourceCohortSummary} from './source-cohort-summary.mjs';
+import {readSourceCohortSummary,sourceCohortCacheHealth} from './source-cohort-summary.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
@@ -45,6 +45,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const latest=new Map();
  let assetSeq=0,globalSeq=0,checkingPublic=null;
  let nativeLedger=null,nativeLedgerLoading=false,nativeLedgerLast=0;
+ let lastReliabilityFingerprint=null;
  function refreshNativeLedger(){
   const at=Date.now();
   if(nativeLedgerLoading||at-nativeLedgerLast<60000)return;
@@ -76,10 +77,17 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    'coingecko-global':'CoinGecko · рынок',
    'bitcoin-mempool':'mempool.space · BTC',
    'gdelt-news':'GDELT · новости'};
-  box.replaceChildren();
   const tracked=getSymbol?.();
   const m1=typeof tracked==='string'?
    readSourceCohortSummary(tracked,{storage}):null;
+  const cache=sourceCohortCacheHealth({storage});
+  // Avoid re-rendering on identical source updates; details stay expanded.
+  const fingerprint=JSON.stringify([tracked,m1?.auditedAt||0,report.rows,
+   report.comparisons,report.persisted,nativeLedger?.capturedAt||0,cache]);
+  if(fingerprint===lastReliabilityFingerprint)return;
+  const expanded=new Set([...box.querySelectorAll('details[open]')]
+   .map(node=>node.dataset.sourcePanelKey).filter(Boolean));
+  const fragment=document.createDocumentFragment();
   if(m1){
    const panel=div('article','api-reliability-row api-reliability-research');
    panel.append(div('strong','',
@@ -94,9 +102,18 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     panel.append(div('small','',
      'История источников: V1 '+s.sourceV1+' / V2 '+s.sourceV2+
      ' · несколько поставщиков одновременно: '+s.multiProviderForecasts));
+    const feed=s.feedSummary;
+    panel.append(div('small','api-source-state-line',feed?
+     'OBSERVED '+feed.observed+' · STALE '+feed.stale+
+     ' · MISSING '+feed.missing+' · LEGACY '+s.sourceLegacy+
+     ' · INVALID '+s.sourceInvalid:
+     'OBSERVED / STALE / MISSING: ожидаем обновления архива · LEGACY '+
+     s.sourceLegacy+' · INVALID '+s.sourceInvalid));
     const value=s.providerResearch;
     if(value){
      const lab=div('details','api-reliability-providers');
+     lab.dataset.sourcePanelKey=frame+':value';
+     lab.open=expanded.has(lab.dataset.sourcePanelKey);
      lab.append(div('summary','',
       label+' · добавочная информация источников · '+value.selected+
       ' / '+value.required+' независимых публикаций'));
@@ -142,6 +159,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     }
     if(s.providers.length){
      const details=div('details','api-reliability-providers');
+     details.dataset.sourcePanelKey=frame+':sources';
+     details.open=expanded.has(details.dataset.sourcePanelKey);
      details.append(div('summary','',label+' · сохранённые источники'));
      for(const p of s.providers)
       details.append(div('small','',p.feed+' · '+p.source+
@@ -153,7 +172,7 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     'Источники фиксируются при публикации. Новости и соцсети — '+
     'непроверенный контекст; это не подтверждение точности прогноза. '+
     'История M1 и M5 не смешивается.'));
-   box.append(panel);
+   fragment.append(panel);
   }
   let mature=0,attempts=0;
   for(const row of report.rows){
@@ -193,10 +212,10 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     diagnostics.push('последние 10 / предыдущие 10: '+
      row.trend.latestPercent+'% / '+row.trend.priorPercent+'%');
    item.append(div('small','',diagnostics.join(' · ')));
-   box.append(item);
+   fragment.append(item);
   }
   if(nativeLedger?.rows?.length){
-   box.append(div('strong','api-reliability-native-title',
+   fragment.append(div('strong','api-reliability-native-title',
     'Android · фактические фоновые запросы (отдельный журнал)'));
    for(const native of nativeLedger.rows){
     if(!/^[a-z0-9:-]{2,40}$/.test(native.lane)||
@@ -231,16 +250,24 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
       '/'+native.freshnessChecked));
     else item.append(div('small','',
      'Метка времени поставщика не подтверждена.'));
-    box.append(item);
+    fragment.append(item);
    }
-  }else box.append(div('small','',
+  }else fragment.append(div('small','',
     'Android: данных о нативных запросах пока нет или устройство не подключено.'));
+  // One DOM commit instead of intermediate reflows per source.
+  box.replaceChildren(fragment);
+  lastReliabilityFingerprint=fingerprint;
   const comp=report.comparisons;
   status.textContent='Операционная статистика за 30 дней · '+attempts+
    ' фактических запросов · '+mature+' из '+report.rows.length+
    ' с достаточной выборкой. '+
    (report.persisted?'История сохранена на устройстве.':
-   'Хранилище недоступно: история только в текущем сеансе.');
+   'Хранилище недоступно: история только в текущем сеансе.')+
+   (cache.state==='STORED'?
+    ' · Сводка исследований '+(cache.bytes/1024).toFixed(1)+
+    ' / '+(cache.limit/1024).toFixed(0)+' КиБ.':
+    cache.state==='EMPTY'?' · Сводка исследований ещё не сохранена.':
+    ' · Локальная сводка источников пока недоступна.');
   const comparison=el('api-reliability-comparison');
   if(comparison)comparison.textContent=comp.count?
    'CoinPaprika ↔ CoinMarketCap: '+comp.count+
