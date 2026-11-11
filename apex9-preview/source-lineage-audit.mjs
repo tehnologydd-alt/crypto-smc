@@ -23,6 +23,7 @@ const counter=()=>({observed:0,stale:0,missing:0});
 const feedStats=()=>Object.fromEntries(EVIDENCE_FEEDS.map(f=>[f,counter()]));
 const radarStats=()=>Object.fromEntries(EVIDENCE_FRAMES.map(f=>[f,counter()]));
 const blankFrame=()=>({published:0,verified:0,legacy:0,invalid:0,
+ v1Verified:0,v2Verified:0,multiProviderForecasts:0,
  feeds:feedStats(),radar:radarStats(),providers:{}});
 const safeSource=x=>typeof x==='string'&&/^[a-zA-Z0-9:._-]{1,64}$/.test(x)?
  x:'UNIDENTIFIED_DECLARED_SOURCE';
@@ -60,16 +61,25 @@ export function auditPublishedSourceLineage(archive,{asset,now=Date.now()}={}){
   if(context.state==='LEGACY'){frame.legacy++;continue;}
   if(context.state!=='VERIFIED'){frame.invalid++;continue;}
   frame.verified++;
+  if(context.version==='AS_OF_ROOM_EVIDENCE_V2')frame.v2Verified++;
+  else frame.v1Verified++;
+  let multi=false;
   for(const feed of EVIDENCE_FEEDS){
    const item=context.feeds[feed],state=item.state.toLowerCase();
    frame.feeds[feed][state]++;
-   if(item.state==='MISSING')continue;
-   const source=safeSource(item.source);
-   const key=feed+':'+source;
-   const counter=frame.providers[key]||(frame.providers[key]={
-    feed,source,observed:0,stale:0});
-   counter[state]++;
+   const entries=Array.isArray(context.sources?.[feed])?
+    context.sources[feed]:
+    item.state==='MISSING'?[]:[item];
+   if(entries.length>1)multi=true;
+   for(const record of entries){
+    const source=safeSource(record.source);
+    const key=feed+':'+source;
+    const count=frame.providers[key]||(frame.providers[key]={
+     feed,source,observed:0,stale:0});
+    count[record.state.toLowerCase()]++;
+   }
   }
+  if(multi)frame.multiProviderForecasts++;
   for(const tf2 of EVIDENCE_FRAMES){
    const state=context.radar[tf2].state;
    // Radar INVALID is a malformed source record, not missing/offline.
