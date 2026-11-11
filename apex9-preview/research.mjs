@@ -2,7 +2,8 @@
  * APEX 9.0 research preview: public, read-only collection for one spot asset.
  * No execution paths, no private API data, no fabricated metrics.
  */
-import {fetchPublicDepth} from '../updates/v90-market-depth.mjs';
+import {fetchPublicDepth,parseDepthSnapshot} from '../updates/v90-market-depth.mjs';
+export {parseDepthSnapshot};
 import {summarizeEvidence} from '../updates/v90-evidence.mjs';
 
 const BASE='https://data-api.binance.vision';
