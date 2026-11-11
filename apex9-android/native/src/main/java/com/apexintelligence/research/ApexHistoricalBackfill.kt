@@ -49,8 +49,10 @@ object ApexHistoricalBackfill {
             useCaches = false
             setRequestProperty("Accept", "application/json")
         }
+        return ApexApiLedger.observe("binance","h1-repair") { probe ->
         try {
             val status = connection.responseCode
+            probe.httpStatus(status)
             if (status == 418 || status == 429)
                 throw IllegalStateException("Binance ограничил запросы (HTTP $status); автоповтор отключён")
             if (status != 200) throw IllegalStateException("Binance H1 недоступен: HTTP $status")
@@ -79,14 +81,17 @@ object ApexHistoricalBackfill {
                     throw IllegalStateException("Незакрытая, пропущенная или неверная свеча Binance H1")
                 result.add(MarketCandle(asset, "1h", t, closeTime, o, h, l, c, v, now))
             }
-            return result
+            probe.validated()
+            result
         } finally {
             connection.disconnect()
+        }
         }
     }
 
     suspend fun repair(context: Context, asset: String, start: Long, endExclusive: Long):
         Report = mutex.withLock { withContext(Dispatchers.IO) {
+        ApexApiLedger.install(context)
         val now = System.currentTimeMillis()
         val currentHour = now / STEP * STEP
         val barsLong = (endExclusive - start) / STEP
