@@ -179,32 +179,16 @@ export class CandleChart {
       (this.interval==='1m'&&sc.evaluationInterval==='1m')).map(sc=>({
    sc,geometry:mapScenarioToViewport(sc,bars,{interval:this.interval})
   })).filter(x=>x.geometry.visible):[];
+  // Only a deliberately selected scenario receives chart annotations.
+  // Keep the real closed-candle geometry and do not shade risk/reward space.
   for(const {sc,geometry} of overlays){
+   if(!sc.focused)continue;
    if(sc.bandHigh<low||sc.bandLow>high)continue;
    const top=Math.max(14,Math.min(mainH-8,priceY(Math.min(high,sc.bandHigh))));
    const bottom=Math.min(mainH-8,Math.max(14,priceY(Math.max(low,sc.bandLow))));
    if(bottom<=top)continue;
    ctx.save();ctx.beginPath();ctx.rect(0,14,plotW,mainH-22);ctx.clip();
-   ctx.fillStyle=sc.focused?'rgba(95,229,220,.20)':
-    sc.tracked?'rgba(92,215,205,.13)':'rgba(98,140,159,.08)';
-   for(const seg of geometry.segments){
-    const left=Math.max(0,seg.from*step);
-    const right=Math.min(plotW,(seg.to+1)*step);
-    if(right>left)ctx.fillRect(left,top,right-left,bottom-top);
-   }
-   ctx.setLineDash([5,4]);
-   ctx.strokeStyle=sc.focused?'#83f1dd':sc.tracked?'#5fdad0':'#7493ac';
-   ctx.lineWidth=sc.focused?1.8:1;
-   // Horizontal boundaries are ONLY visible over observed candle segments.
-   for(const price of [sc.bandLow,sc.bandHigh]){
-    if(price<low||price>high)continue;
-    const y=priceY(price);
-    for(const seg of geometry.segments){
-     const left=Math.max(0,seg.from*step);
-     const right=Math.min(plotW,(seg.to+1)*step);
-     ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
-    }
-   }
+   // No filled envelope or range boundaries: preserve candle legibility.
    // The selected immutable forecast has five price levels. Draw them
    // only over real, consecutive CLOSED source-TF candles, never into
    // blank future space. Other forecasts keep an unobtrusive envelope.
@@ -294,6 +278,7 @@ export class CandleChart {
   // Only immutable source-time stages backed by a CLOSED chart candle.
   // Plotted after candle bodies for legibility; never mark expected future bars.
   for(const {sc,geometry} of overlays){
+   if(!sc.focused)continue;
    const markerColor=sc.focused?'#8effec':sc.tracked?'#65dcd1':'#a3b0c7';
    for(const mark of geometry.marks){
     const x=(mark.index+.5)*step;
