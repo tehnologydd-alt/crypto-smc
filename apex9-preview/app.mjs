@@ -1311,11 +1311,15 @@ async function loadCatalog(){
 
 function renderDepth(snapshot){
  const list=el('depth-list');clear(list);
- if(!snapshot.depth.length){
+ // Current market view is Binance + OKX only. Keep old Bybit
+ // provenance in Room, never render it as a live book.
+ const activeBooks=(Array.isArray(snapshot?.depth)?snapshot.depth:[])
+  .filter(item=>item?.venue==='binance'||item?.venue==='okx');
+ if(!activeBooks.length){
   list.append(create('p','muted','Публичные стаканы сейчас недоступны.'));
   return;
  }
- for(const item of snapshot.depth){
+ for(const item of activeBooks){
   const row=create('div','source-line');
   const content=create('div');
   content.append(
