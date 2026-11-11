@@ -45,6 +45,9 @@ export function assessProviderSensitivity(periods,{eligible=false}={}){
    samples.some(r=>!validRow(r)))
    return {...base,state:'CHECK_DATA'};
   const n=samples.length,pos=samples.filter(r=>r.outcome==='TP3').length;
+  // Scored provider subset must be possible inside the frozen decisive cohort.
+  if(n>decisive||pos>tp3||n-pos>decisive-tp3)
+   return {...base,state:'CHECK_DATA'};
   if(n<10||pos<3||n-pos<3) return base;
   const original=delta(samples);
   const reversed=rankingAuc(samples,r=>r.reversed);
