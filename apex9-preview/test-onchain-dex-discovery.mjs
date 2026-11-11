@@ -179,3 +179,92 @@ test('suspicious advertised DEX liquidity is clearly flagged but not promoted',(
  assert.equal(result.pools[0].lowActivityWarning,true);
  assert.equal(result.pools[0].identityVerified,false);
 });
+
+
+test('reference identity gates large ticker-only liquidity on native ZEC',async()=>{
+ const {assessDexAssetIdentity}=await import('./onchain-asset-identity.mjs');
+ const foreign=assessDexAssetIdentity('ZECUSDT','solana','SomeRandomMint');
+ assert.equal(foreign.state,'NATIVE_OTHER_NETWORK');
+ assert.equal(foreign.referenceMatched,false);
+ const zecResult=parseDexScreenerPools('ZECUSDT',{pairs:[
+  {...pair(),chainId:'solana',baseToken:{symbol:'ZEC',address:'FakeMintOnSolana'},
+   quoteToken:{symbol:'USDC',address:'USDC'},
+   liquidity:{usd:1_650_344_957},volume:{h24:37}},
+  {...pair(),chainId:'near',baseToken:{symbol:'ZEC',address:'UnknownNearAsset'},
+   liquidity:{usd:37_117_880},volume:{h24:17_849}}
+ ]},{now});
+ assert.equal(zecResult.state,'CANDIDATES');
+ assert.equal(zecResult.candidatesTotal,2);
+ assert.equal(zecResult.verifiedTotal,0);
+ assert.equal(zecResult.verifiedPools.length,0);
+ assert.equal(zecResult.unverifiedTotal,2);
+ assert.equal(zecResult.unverifiedExamples.length,2);
+ assert.ok(!('liquidityUsd' in zecResult.unverifiedExamples[0]));
+ assert.ok(zecResult.pools.every(p=>!p.identityVerified));
+});
+test('only canonical contract on canonical chain passes for AAVE',async()=>{
+ const {assessDexAssetIdentity}=await import('./onchain-asset-identity.mjs');
+ assert.equal(assessDexAssetIdentity('AAVEUSDT','solana','0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9').referenceMatched,false);
+ const approved='0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9';
+ const result=parseDexScreenerPools('AAVEUSDT',{pairs:[
+  {...pair(),baseToken:{symbol:'AAVE',address:'SolanaNamesake'},
+   chainId:'solana',liquidity:{usd:1_600_000_000}},
+  {...pair(),baseToken:{symbol:'AAVE',address:'0x0000000000000000000000000000000000000123'},
+   chainId:'ethereum',liquidity:{usd:2_000_000_000}},
+  {...pair(),baseToken:{symbol:'AAVE',address:approved.toUpperCase()},
+   chainId:'ethereum',pairAddress:'0x001122',
+   liquidity:{usd:950_000}}
+ ]},{now});
+ assert.equal(result.verifiedTotal,1);
+ assert.equal(result.unverifiedTotal,2);
+ assert.equal(result.verifiedPools.length,1);
+ assert.equal(result.verifiedPools[0].liquidityUsd,950_000);
+ assert.equal(result.verifiedPools[0].identityState,'REFERENCE_MATCH');
+ assert.equal(result.pools[0].identityVerified,true);
+ assert.equal(result.verifiedKeys[0],'ethereum|0x001122');
+});
+test('TRB canonical Ethereum contract passes Gecko included token and source dedup',async()=>{
+ const valid='0x88df592f8eb5d7bd38bfef7deb0fbc02cf3778a0';
+ const pool='0x11112222';
+ const fixture={
+  data:[{type:'pool',id:'eth_'+pool,
+   attributes:{name:'TRB / WETH',address:pool,reserve_in_usd:'550000',
+    base_token_price_usd:'30',volume_usd:{h24:'11000'}},
+   relationships:{
+    base_token:{data:{type:'token',id:'eth_'+valid}},
+    quote_token:{data:{type:'token',id:'eth_0xwrapped'}},
+    dex:{data:{id:'uniswap',type:'dex'}}
+   }}],
+  included:[
+   {type:'token',id:'eth_'+valid,attributes:{symbol:'TRB',address:valid}},
+   {type:'token',id:'eth_0xwrapped',attributes:{symbol:'WETH',address:'0xwrapped'}}
+  ]
+ };
+ const gecko=parseGeckoTerminalPools('TRBUSDT',fixture,{now});
+ assert.equal(gecko.verifiedTotal,1);
+ assert.equal(gecko.verifiedPools[0].contract,valid);
+ const report=await collectDexMarket('TRBUSDT',{
+  now:()=>now,fetchImpl:async url=>url.includes('dexscreener')?
+   {ok:true,status:200,json:async()=>({pairs:[{
+    ...pair(),chainId:'ethereum',pairAddress:pool,
+    baseToken:{symbol:'TRB',address:valid}
+   }]})}:
+   {ok:true,status:200,json:async()=>fixture}
+ });
+ assert.equal(report.verifiedPoolCount,1);
+ assert.equal(report.tokenIdentityVerified,true);
+ assert.equal(report.totalCandidates,2);
+ assert.equal(report.unverifiedCandidates,0);
+});
+test('unlisted symbols remain unverified even if unrelated ERC20 shares ticker',async()=>{
+ const {assessDexAssetIdentity}=await import('./onchain-asset-identity.mjs');
+ const u=assessDexAssetIdentity('XYZUSDT','ethereum',
+  '0x1234567890123456789012345678901234567890');
+ assert.equal(u.state,'NO_REFERENCE');
+ assert.equal(u.referenceMatched,false);
+ const s=readFileSync(new URL('./onchain-dashboard.mjs',import.meta.url),'utf8');
+ assert.ok(s.includes('for(const pool of source.verifiedPools||[])'));
+ assert.ok(s.includes('Ликвидность таких пулов скрыта'));
+ assert.ok(!s.includes('for(const pool of source.pools)'));
+ assert.ok(s.includes('Неподтверждённые совпадения'));
+});

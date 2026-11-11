@@ -134,10 +134,16 @@ export async function fetchPublicDepth(venue,symbol,{
     return {state:'RATE_LIMITED',venue,symbol,error:'Bybit API rate limited',data:null};
    if(payload?.retCode===10009)
     return {state:'ACCESS_DENIED',venue,symbol,error:'Bybit: региональный доступ ограничен (10009)',data:null};
-   if(payload?.retCode===10029||payload?.retCode===170121||
-    (payload?.retCode===10001&&
-     /(?:symbol|pair).*(?:not found|not support|invalid|not exist)/i.test(payload.retMsg||'')))
-    return {state:'NOT_LISTED',venue,symbol,error:'Bybit Spot: symbol is not available',data:null};
+   // retCode 10001 means *general* parameter error. Only the precise
+   // provider message "Not supported symbols" identifies an unavailable
+   // SPOT pair. Other 10001 errors stay INVALID, never silently delisted.
+   const retMsg=typeof payload?.retMsg==='string'?payload.retMsg:'';
+   const unsupported=payload?.retCode===10001&&
+    /(?:not\s+support(?:ed)?\s+symbols?\b|symbols?\s+(?:is\s+|are\s+)?not\s+support(?:ed)?\b)/i.test(retMsg);
+   if(payload?.retCode===170121||payload?.retCode===10029||unsupported)
+    return {state:'NOT_LISTED',venue,symbol,
+     error:'Bybit Spot · '+symbol+' · '+String(payload.retCode)+
+      ': '+(retMsg||'not listed').slice(0,90),data:null};
    if(payload?.retCode!==0)
     return {state:'INVALID',venue,symbol,error:
      'Bybit retCode '+String(payload?.retCode??'?')+' · '+String(payload?.retMsg||'invalid response').slice(0,90),data:null};

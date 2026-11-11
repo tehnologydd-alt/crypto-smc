@@ -214,24 +214,46 @@ export function initOnChainDashboard(){
   for(const source of report.sources){
    const provider=source.provider==='dexscreener'?'DEX Screener':'GeckoTerminal';
    const section=node('section','network-warning');
-   section.append(node('strong','',provider+' · '+source.state));
+   const verified=Number.isSafeInteger(source.verifiedTotal)?
+    source.verifiedTotal:0;
+   const other=Number.isSafeInteger(source.unverifiedTotal)?
+    source.unverifiedTotal:0;
+   section.append(node('strong','',
+    provider+' · '+(verified?'Эталонный контракт':'Неподтверждённые данные')));
    if(source.state==='CANDIDATES'){
     section.append(node('p','',
-     'Совпадений тикера: '+source.candidatesTotal+
-     '. Контракты не подтверждены.'));
-    for(const pool of source.pools){
+     'Найдено по тикеру: '+source.candidatesTotal+
+     ' · совпадает с эталонным контрактом: '+verified+
+     ' · неподтверждённых: '+other));
+    if(!verified)section.append(node('p','',
+     'Ликвидность таких пулов скрыта: одноимённый или обёрнутый '+
+     'токен нельзя считать исходным активом.'));
+    // Only matching canonical network + exact reference contract
+    // may display advertised USD figures. Never display untrusted
+    // liquidity in the main card, regardless of how enormous it is.
+    for(const pool of source.verifiedPools||[]){
      const line=node('div','network-stat');
      line.append(node('span','',
       pool.pair+' · '+pool.chain+' · '+(pool.dex||'DEX')+
-      ' · ликвидность USD '+fmt(pool.liquidityUsd,0)+
+      ' · заявленная ликвидность USD '+fmt(pool.liquidityUsd,0)+
       ' · объём 24 ч USD '+fmt(pool.volume24hUsd,0)+
       (pool.lowActivityWarning?
-       ' · ВНИМАНИЕ: крупная заявленная ликвидность при очень малой активности, требуется проверка контракта':'')
-     ));
+       ' · Необычно низкая активность относительно заявленной ликвидности':'')+
+      ' · сеть и контракт совпали с эталоном'));
      section.append(line);
     }
-   }else section.append(node('p','',source.reason||
-    'Поставщик не вернул проверенных кандидатов.'));
+    if(other){
+     const details=node('details','network-identity-details');
+     details.append(node('summary','',
+      'Неподтверждённые совпадения ('+other+') — без USD'));
+     for(const example of source.unverifiedExamples||[])
+      details.append(node('p','',
+       example.pair+' · '+example.chain+' · '+
+       example.identityReason));
+     section.append(details);
+    }
+   }else section.append(node('p','',
+    source.reason||'Поставщик не вернул кандидатов.'));
    container.append(section);
   }
   container.append(node('p','network-warning',report.note));
@@ -248,7 +270,7 @@ export function initOnChainDashboard(){
   if(cached&&at-cached.at<(force?90000:240000)){
    renderDexReport(cached.report);
    setStatus('DEX-пулы · сохранённый результат · '+stamp(cached.at),
-    cached.report.state!=='CANDIDATES');
+    !cached.report.verifiedPoolCount);
    return;
   }
   const controller=new AbortController();abort?.abort();abort=controller;
@@ -263,13 +285,16 @@ export function initOnChainDashboard(){
    dexCache.set(asset,{at:Date.now(),report});
    if(dexCache.size>8)dexCache.delete(dexCache.keys().next().value);
    renderDexReport(report);
-   const message=report.state==='CANDIDATES'?
-    'Найдены DEX-пулы ('+report.totalCandidates+
-    ') · совпадение лишь по тикеру, контракт не проверен':
+   const message=report.verifiedPoolCount?
+    'Совпадений с эталонным контрактом: '+
+     report.verifiedPoolCount+' пулов · USD указаны только для них':
+    report.totalCandidates?
+     '0 совпадений с эталонным контрактом · '+
+      report.totalCandidates+' результатов по тикеру скрыты как неподтверждённые':
     report.state==='NO_MATCH'?
-     'Пулы с точным базовым тикером не обнаружены':
-     'Публичные DEX-источники недоступны или ответили частично';
-   setStatus(message,report.state!=='CANDIDATES');
+     'На полученных страницах API пулы по тикеру не найдены':
+     'Источники DEX пока не дали проверяемых данных';
+   setStatus(message,!report.verifiedPoolCount);
   }catch(e){
    if(seq===generation)setStatus(
     'Не удалось проверить DEX-пулы: '+String(e?.message||e).slice(0,100),true);

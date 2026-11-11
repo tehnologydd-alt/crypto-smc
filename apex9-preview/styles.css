@@ -3293,3 +3293,8 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 @media(prefers-reduced-motion:reduce){
  .overview-experience-fill{transition:none}
 }
+
+/* Verified pool list is concise; untrusted tickers live in a collapsed note. */
+.network-identity-details{margin-top:9px;padding:8px 10px;border:1px solid #365c67;border-radius:10px;color:#aac3cd;font-size:11px;line-height:1.5}
+.network-identity-details>summary{cursor:pointer;color:#d3e7e5;font-weight:650}
+.network-identity-details>p{margin:7px 0 0}

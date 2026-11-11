@@ -159,3 +159,32 @@ test('Bybit time offset is reported explicitly, not treated as fabricated fresh 
  });
  assert.equal(denied.state,'ACCESS_DENIED');
 });
+
+
+test('Bybit 10001 Not supported symbols is unavailable Spot, not malformed book',async()=>{
+ const response=msg=>fetchPublicDepth('bybit','ZECUSDT',{
+  fetchImpl:async()=>({ok:true,status:200,json:async()=>({
+   retCode:10001,retMsg:msg,result:{} })
+  })
+ });
+ const exact=await response('Not supported symbols');
+ assert.equal(exact.state,'NOT_LISTED');
+ assert.equal(exact.data,null);
+ assert.match(exact.error,/ZECUSDT/);
+ assert.match(exact.error,/Not supported symbols/);
+ assert.equal((await response('Symbols not supported')).state,'NOT_LISTED');
+ assert.equal((await response('Request parameter error')).state,'INVALID');
+ assert.equal((await response('Param category invalid')).state,'INVALID');
+ const request=[];
+ const error=await fetchPublicDepth('bybit','ZECUSDT',{
+  fetchImpl:async url=>{
+   request.push(url);
+   return {ok:true,status:200,json:async()=>({
+    retCode:10001,retMsg:'Not supported symbols'
+   })};
+  }
+ });
+ assert.equal(request.length,1);
+ assert.match(request[0],/category=spot&symbol=ZECUSDT/);
+ assert.equal(error.state,'NOT_LISTED');
+});

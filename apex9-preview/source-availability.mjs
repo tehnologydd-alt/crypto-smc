@@ -18,7 +18,9 @@ export function describeDepthAvailability(venue,source,samples=0){
  }
  if(status==='NOT_LISTED')
   return {state:'NOT_LISTED',label:'Нет Spot-пары',
-   reason:'Биржа сообщила, что данная Spot-пара недоступна. Фьючерсный рынок не подменяем.'};
+   reason:'Биржа сообщила, что Spot-пара недоступна. '+
+    'Фьючерсный рынок не подменяем. '+
+    (detail?'Ответ: '+detail:'')};
  if(status==='RATE_LIMITED')
   return {state:'RATE_LIMITED',label:'Лимит API',
    reason:'Источник временно ограничил число запросов.'};

@@ -10,6 +10,8 @@
  * lookup per favorite asset (~4-minute UI refresh cadence). No crawling,
  * hidden retry, background worker, private credentials or cloud service.
  */
+import {assessDexAssetIdentity,normalizeDexNetwork}
+ from './onchain-asset-identity.mjs';
 export const DEX_PROVIDERS=Object.freeze([
  'dexscreener','geckoterminal'
 ]);
@@ -42,7 +44,9 @@ const response=(provider,asset,state,reason,pools=[],observedAt=null)=>({
  scope:'TICKER_SEARCH_UNVERIFIED_TOKEN_IDENTITY',
  walletEvidence:false,notLiveOrderBook:true,notProductionProbability:true
 });
-const simplify=(x)=>({
+const simplify=(asset,x)=>{
+ const identity=assessDexAssetIdentity(asset,x.chain,x.contract);
+ return {
  chain:safeText(x.chain,32),
  dex:safeText(x.dex,36),
  pair:safeText(x.pair,45),
@@ -53,22 +57,46 @@ const simplify=(x)=>({
  volume24hUsd:toNumber(x.volume24hUsd),
  buys24h:Number.isSafeInteger(x.buys24h)&&x.buys24h>=0?x.buys24h:null,
  sells24h:Number.isSafeInteger(x.sells24h)&&x.sells24h>=0?x.sells24h:null,
- identityVerified:false,
+ identityVerified:identity.referenceMatched,
+ identityState:identity.state,
+ identityReason:identity.reason,
+ identitySource:identity.referenceSource||null,
+ identityNetwork:normalizeDexNetwork(x.chain),
  poolAddress:safeText(x.poolAddress,110),
  identityWarning:x.identityWarning||null,
  lowActivityWarning:positive(x.liquidityUsd)&&
   x.liquidityUsd>=1e7&&
   (toNumber(x.volume24hUsd)??0)/x.liquidityUsd<0.0001
-});
-const finalize=(provider,asset,candidates,observedAt)=>({
- ...response(provider,asset,candidates.length?'CANDIDATES':'NO_MATCH',
-  candidates.length?
-   'Совпадение по тикеру, контракт не подтверждён.':
-   'Пул с этим точным базовым тикером не найден в ответе API.',
-  candidates.sort((a,b)=>(b.liquidityUsd||0)-(a.liquidityUsd||0))
-   .slice(0,3),observedAt),
- candidatesTotal:candidates.length
-});
+ };
+};
+const finalize=(provider,asset,candidates,observedAt)=>{
+ const verified=candidates.filter(x=>x.identityVerified)
+  .sort((a,b)=>(b.liquidityUsd||0)-(a.liquidityUsd||0));
+ const other=candidates.filter(x=>!x.identityVerified);
+ const visible=[...verified,...other]
+  .sort((a,b)=>Number(b.identityVerified)-Number(a.identityVerified)||
+   (b.liquidityUsd||0)-(a.liquidityUsd||0)).slice(0,3);
+ return {
+  ...response(provider,asset,candidates.length?'CANDIDATES':'NO_MATCH',
+   verified.length?
+    'Найдено совпадение с эталонной сетью и контрактом.':
+    candidates.length?
+     'Найдены одноимённые/обёрнутые токены. Эталонный контракт не совпал.':
+     'Совпадений тикера на возвращённой странице не найдено.',
+   visible,observedAt),
+  candidatesTotal:candidates.length,
+  verifiedTotal:verified.length,
+  unverifiedTotal:other.length,
+  verifiedPools:verified.slice(0,3),
+  verifiedKeys:verified.map(x=>
+   (x.identityNetwork||x.chain)+'|'+x.poolAddress.toLowerCase()),
+  unverifiedExamples:other.slice(0,3).map(x=>({
+   pair:x.pair,chain:x.chain,identityState:x.identityState,
+   identityReason:x.identityReason
+   // Deliberately omit untrusted dollar amounts and contracts.
+  }))
+ };
+};
 /** Strictly descriptive, fail-closed vendor parse. No quote inference. */
 export function parseDexScreenerPools(asset,payload,{now=Date.now()}={}){
  const base=baseOfSpotAsset(asset);
@@ -83,7 +111,7 @@ export function parseDexScreenerPools(asset,payload,{now=Date.now()}={}){
   if(baseSymbol!==base||!acceptedQuote.has(quote)||
    !safeText(entry.chainId)||!safeText(entry.pairAddress)||
    !positive(entry.liquidity?.usd))continue;
-  candidates.push(simplify({
+  candidates.push(simplify(asset,{
    poolAddress:entry.pairAddress,
    chain:entry.chainId,dex:entry.dexId,
    pair:base+'/'+quote,contract:entry.baseToken?.address,
@@ -139,7 +167,7 @@ export function parseGeckoTerminalPools(asset,payload,{now=Date.now()}={}){
   if(baseSymbol!==base||!acceptedQuote.has(quote))continue;
   if(!positive(attr.reserve_in_usd))continue;
   const baseTokenId=safeText(included.get(baseId)?.address,110);
-  candidates.push(simplify({
+  candidates.push(simplify(asset,{
    poolAddress,chain,dex:entry.relationships?.dex?.data?.id||'DEX',
    pair:base+'/'+quote,contract:baseTokenId,
    quote,priceUsd:attr.base_token_price_usd,
@@ -197,13 +225,19 @@ export async function collectDexMarket(asset,options={}){
  const sources=outcomes.map((r,i)=>r.status==='fulfilled'?r.value:
   response(DEX_PROVIDERS[i],asset,'OFFLINE',reason(r.reason)));
  const available=sources.filter(x=>x.state==='CANDIDATES');
+ const approved=available.flatMap(x=>x.verifiedKeys||[]);
+ const uniqueApproved=new Set(approved);
  return {asset,sources,
   state:available.length?'CANDIDATES':
    sources.every(x=>x.state==='NO_MATCH')?'NO_MATCH':
    sources.some(x=>x.state==='NO_MATCH')?'PARTIAL':'UNAVAILABLE',
-  tokenIdentityVerified:false,networkTelemetry:false,
+  tokenIdentityVerified:uniqueApproved.size>0,
+  networkTelemetry:false,
   totalCandidates:available.reduce((sum,x)=>sum+x.candidatesTotal,0),
-  note:'Поиск DEX-пулов только по тикеру. Это не подтверждение контракта, '+
-   'сетевых транзакций или движения кошельков. Показатели разных пулов '+
-   'и сетей нельзя складывать как ликвидность одного актива.'};
+  verifiedPoolCount:uniqueApproved.size,
+  unverifiedCandidates:available.reduce((sum,x)=>sum+x.unverifiedTotal,0),
+  note:'Только пулы с точным совпадением эталонных сети и контракта '+
+   'показывают USD-показатели; прочие совпадения скрыты. '+
+   'Наличие проверенного адреса не доказывает качество ликвидности, '+
+   'работу моста или безопасность пула. Нет автоматических торговых действий.'};
 }
