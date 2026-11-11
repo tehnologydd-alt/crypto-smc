@@ -44,7 +44,7 @@ function describeVenue(v,source){
  const details=create('div','liquidity-venue-details');
  const metrics=[
   ['Спред',fmt(v.spreadBps,2)+' б.п.'],
-  ['Снимков всего',fmt(v.samples,0)],
+  ['Снимков в выборке',fmt(v.samples,0)],
   ['В последнем непрерывном участке',fmt(v.continuousSamples??v.samples,0)],
   ['Последний',timestamp(v.lastCollectedAt)],
   ['Глубина выборки',v.quantityScope||'Неизвестно']
@@ -174,8 +174,8 @@ export function initLiquidityDashboard(){
    for(const venue of analysis.venues)
     venueContainer.append(describeVenue(venue,latestSources[venue.venue]));
    text('liquidity-history-status',analysis.samples
-    ?'Сохранённых публичных снимков: '+analysis.samples+
-     ' · '+asset+' · показываются исторические наблюдения разных площадок'
+    ?'Снимков в выборке: '+analysis.samples+
+     ' · '+asset+' · до 80 последних на каждую площадку; старая история не дорисовывается'
     :'История '+asset+' пока пуста. Откройте актив при доступном интернете, чтобы накопить снимки.');
    paint();
   }catch(e){
