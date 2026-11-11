@@ -122,8 +122,11 @@ export function parseDepthSnapshot(venue,symbol,payload,receivedAt){
  * No live data is represented if an error/rate-limit/geo restriction occurs.
  */
 export async function fetchPublicDepth(venue,symbol,{
- fetchImpl=fetch, now=()=>Date.now(), signal
+ fetchImpl=fetch, now=()=>Date.now(), signal, levelLimit=null
 }={}){
+ // Paired 50/50 is opt-in for the comparison fallback; defaults unchanged.
+ if(levelLimit!==null&&levelLimit!==50)
+  return {state:'INVALID',venue,symbol,error:'unsupported equal-depth limit',data:null};
  if(!Object.hasOwn(HOSTS,venue)||!validSymbol(symbol)){
   return {state:'INVALID',venue,symbol,error:'unsupported venue or symbol',data:null};
  }
@@ -134,10 +137,11 @@ export async function fetchPublicDepth(venue,symbol,{
  const instId=venue==='okx'?okxPair(symbol):null;
  if(venue==='okx'&&!instId)
   return {state:'INVALID',venue,symbol,error:'Unsupported OKX instrument syntax',data:null};
+ const requestedLevels=levelLimit===50?50:null;
  const path=venue==='binance'
-  ?'/api/v3/depth?symbol='+encodeURIComponent(symbol)+'&limit=100':
+  ?'/api/v3/depth?symbol='+encodeURIComponent(symbol)+'&limit='+(requestedLevels||100):
   venue==='okx'
-   ?'/api/v5/market/books?instId='+encodeURIComponent(instId)+'&sz=50'
+   ?'/api/v5/market/books?instId='+encodeURIComponent(instId)+'&sz='+(requestedLevels||50)
    :'/v5/market/orderbook?category=spot&symbol='+encodeURIComponent(symbol)+'&limit=50';
  const url=HOSTS[venue]+path;
  try{
@@ -187,8 +191,14 @@ export async function fetchPublicDepth(venue,symbol,{
   }
   const receivedAt=now();
   try{
-   return {state:'OK',venue,symbol,error:null,
-    data:parseDepthSnapshot(venue,symbol,payload,receivedAt)};
+   const data=parseDepthSnapshot(venue,symbol,payload,receivedAt);
+   if(requestedLevels!==null){
+    if(data.visibleBook.bids.length>requestedLevels||
+       data.visibleBook.asks.length>requestedLevels)
+     throw Error('orderbook exceeds requested levels');
+    data.snapshotLevelsMax=requestedLevels;
+   }
+   return {state:'OK',venue,symbol,error:null,data};
   }catch(error){
    const reason=String(error?.message||error).slice(0,120);
    const state=reason.startsWith('device clock')?'CLOCK_SKEW':
