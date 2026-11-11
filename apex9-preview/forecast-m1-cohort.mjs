@@ -42,6 +42,19 @@ const methodOf=row=>{
   h?.evaluationInterval==='5m'?'M5':
   h?.evaluationInterval==='1h'?'H1_LEGACY':'OTHER';
 };
+/**
+ * Preserve the entire original archive for M1 provenance, but run the V1
+ * legacy model/feature dashboard on its own historical (non-M1) records.
+ * This avoids silently counting post-change M1 as bad "legacy H1" data or
+ * pooling M1 and M5 in a single H1/other-timeframe evaluation statistic.
+ */
+export function historicalEvaluationArchive(archive){
+ if(archive?.complete!==true||!Array.isArray(archive.forecasts)||
+  archive.publishedCount!==archive.forecasts.length)return archive;
+ const forecasts=archive.forecasts.filter(row=>
+  !(frames.includes(featureFrameOf(row))&&methodOf(row)==='M1'));
+ return {...archive,forecasts,publishedCount:forecasts.length};
+}
 function evaluate(row,tf,now){
  return tf==='1h'?verifiedDirectionalEvidence(row,{now}):
   multiFrameEvidence(row,{now});
