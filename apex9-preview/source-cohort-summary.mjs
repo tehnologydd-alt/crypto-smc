@@ -47,7 +47,19 @@ function compress(asset,cohort,lineage,providerStudy,now){
      windows:p.windows.map(w=>({measured:w.scored,
       fresh:w.observed,missing:w.missing,stale:w.stale})),
      deltaAuc:Array.isArray(p.deltaAuc)?
-      p.deltaAuc.map(n=>Math.round(n*10000)/10000):null
+      p.deltaAuc.map(n=>Math.round(n*10000)/10000):null,
+     sensitivity:{
+      state:p.sensitivity?.state||'COLLECTING',
+      caution:p.sensitivity?.caution||null,
+      windows:(p.sensitivity?.windows||[]).map(w=>({
+       leaveOneOutMin:w.leaveOneOutMin,
+       leaveOneOutMax:w.leaveOneOutMax,
+       timeShiftBeatsOriginal:w.timeShiftBeatsOriginal,
+       timeShiftTotal:w.timeShiftTotal,
+       classMixGap:w.classMixGap,
+       selectionCaution:w.selectionCaution
+      }))
+     }
     }))
    },
    providers:(s?.providers||[]).filter(p=>sourceCheck(p.source)&&
@@ -134,7 +146,19 @@ export function readSourceCohortSummary(asset,{
       (s.deltaAuc===null||
        Array.isArray(s.deltaAuc)&&s.deltaAuc.length===3&&
        s.deltaAuc.every(n=>typeof n==='number'&&
-        Number.isFinite(n)&&n>=-1&&n<=1)))&&
+        Number.isFinite(n)&&n>=-1&&n<=1))&&
+      s.sensitivity&&
+      ['COLLECTING','CHECK_DATA','DESCRIPTIVE'].includes(s.sensitivity.state)&&
+      [null,'SENSITIVE','NO_FLAG_IN_THESE_CHECKS'].includes(s.sensitivity.caution)&&
+      Array.isArray(s.sensitivity.windows)&&
+      [0,3].includes(s.sensitivity.windows.length)&&
+      s.sensitivity.windows.every(w=>
+       ['leaveOneOutMin','leaveOneOutMax','classMixGap'].every(k=>
+        w[k]===null||typeof w[k]==='number'&&Number.isFinite(w[k])&&
+        w[k]>=0-1&&w[k]<=1)&&
+       ['timeShiftBeatsOriginal','timeShiftTotal'].every(k=>
+        Number.isSafeInteger(w[k])&&w[k]>=0&&w[k]<=15)&&
+       typeof w.selectionCaution==='boolean'))&&
      Array.isArray(f.providers)&&f.providers.length<=14&&
      f.providers.every(p=>sourceCheck(p.source)&&
       Number.isSafeInteger(p.observed)&&p.observed>=0&&
