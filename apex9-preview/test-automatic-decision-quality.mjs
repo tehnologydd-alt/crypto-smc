@@ -59,6 +59,7 @@ test('every favorite audited once, repeat reads skipped while counters unchanged
    cached.set(asset,{valid:true});return true;
   },
   readAudit:asset=>cached.get(asset)||null,
+  readSourceSummary:()=>({version:'APEX_SOURCE_COHORT_VIEW_V2'}),
   storage:store,now:()=>time,
   yieldControl:wait,
   onStatus:(asset,summary)=>statuses.push([asset,summary.state])
