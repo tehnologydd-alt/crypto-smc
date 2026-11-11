@@ -94,6 +94,37 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
     panel.append(div('small','',
      'История источников: V1 '+s.sourceV1+' / V2 '+s.sourceV2+
      ' · несколько поставщиков одновременно: '+s.multiProviderForecasts));
+    const value=s.providerResearch;
+    if(value){
+     const lab=div('details','api-reliability-providers');
+     lab.append(div('summary','',
+      label+' · добавочная информация источников · '+value.selected+
+      ' / '+value.required+' независимых публикаций'));
+     lab.append(div('small','',
+      'Исследование зарегистрировано заранее. Не хватает данных — '+
+      'результат не вычисляем; качество API и влияние на прогноз различаются.'));
+     for(const study of value.studies){
+      const meanings={
+       COLLECTING:'сбор проверенных исходов',
+       CHECK_DATA:'проверить исходные данные',
+       LOW_COVERAGE:'нехватка наблюдений',
+       REPEATED_DESCRIPTIVE:'повторяющаяся описательная связь',
+       RECENTLY_WORSE:'сравнение ухудшилось',
+       CONFLICTING:'противоречивые периоды',
+       NO_REPEATED_GAIN:'повторного улучшения не выявлено'};
+      const delta=Array.isArray(study.deltaAuc)?
+       ' · ΔAUC в 3 периодах: '+study.deltaAuc.map(n=>
+        (n>0?'+':'')+n.toFixed(3)).join(' / '):'';
+      lab.append(div('small','',study.id+' · '+
+       (meanings[study.state]||'данные не подтверждены')+delta+
+       ' · измеренных исходов '+study.windows.map(w=>w.measured).join('/')));
+     }
+     lab.append(div('small','',
+      'ΔAUC — изменение исследовательского ранжирования на одних и '+
+      'тех же TP3/STOP, не вероятность и не доказательство причинности. '+
+      'Архив M5 исключён, модели автоматически не меняются.'));
+     panel.append(lab);
+    }
     if(s.providers.length){
      const details=div('details','api-reliability-providers');
      details.append(div('summary','',label+' · сохранённые источники'));
