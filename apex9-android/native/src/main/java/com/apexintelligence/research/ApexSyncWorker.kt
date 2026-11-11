@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit
  */
 class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        ApexApiLedger.install(applicationContext)
         val settings = try { ApexPreferences.read(applicationContext) }
                        catch (_: Exception) { return Result.retry() }
         if (!settings.backgroundSyncEnabled) return Result.success()
@@ -49,9 +50,17 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                         setRequestProperty("Accept", "application/json")
                     }
                     try {
-                        if (connection.responseCode == 200) {
-                            val rows = JSONArray(connection.inputStream.bufferedReader()
-                                .use { it.readText() })
+                        val rows = ApexApiLedger.observe("binance","spot-24h") { probe ->
+                            val code = connection.responseCode
+                            probe.httpStatus(code)
+                            if (code != 200) null else {
+                                val data = JSONArray(connection.inputStream.bufferedReader()
+                                    .use { it.readText() })
+                                if (data.length() > 0) probe.validated()
+                                data
+                            }
+                        }
+                        if (rows != null) {
                             val received = System.currentTimeMillis()
                             val allowed = favorites.toSet()
                             for (i in 0 until minOf(rows.length(), ApexPreferences.MAX_FAVORITES)) {
