@@ -261,7 +261,7 @@ export function auditDirectionalM1(plan,candles,{now=Date.now()}={}){
  const bad=(state,reason)=>({state,reason,outcome:'UNVERIFIED',entryAt:null,
   hits:[],observedBars:0,observedHours:0,finished:false});
  if(!plan||plan.version!==DIRECTIONAL_LEVEL_VERSION||
-  plan.evaluationInterval!=='5m'||!['UP','DOWN'].includes(plan.side)||
+  plan.evaluationInterval!=='1m'||!['UP','DOWN'].includes(plan.side)||
   !stamp(now)||!stamp(plan.anchorCloseAt)||!stamp(plan.publishedAt)||
   plan.targetCloseAt!==plan.anchorCloseAt+DIRECTIONAL_HOURS*H||
   plan.publishedAt<plan.anchorCloseAt||
