@@ -61,10 +61,16 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                 val observed = json.optLong("closeTime", -1L)
                                 val price = json.optString("lastPrice", "").toDoubleOrNull()
                                 val percent = json.optString("priceChangePercent", "").toDoubleOrNull()
+                                val quoteVolume = json.optString("quoteVolume", "").toDoubleOrNull()
+                                // Preserve the exact as-published evidence contract
+                                // shared by WebView snapshots and ApexEvidenceContext.
                                 if (observed < received - 180_000L ||
                                     observed > received + 60_000L ||
                                     price == null || price <= 0 || !price.isFinite() ||
-                                    percent == null || !percent.isFinite()) continue
+                                    percent == null || !percent.isFinite() ||
+                                    kotlin.math.abs(percent) > 1000.0 ||
+                                    quoteVolume == null || quoteVolume <= 0 ||
+                                    !quoteVolume.isFinite()) continue
                                 dao.saveObservation(ResearchObservation(
                                     id = "background:$asset:$observed",
                                     asset = asset,
@@ -75,7 +81,8 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                     collectedAt = received,
                                     payloadJson = JSONObject()
                                         .put("price", price)
-                                        .put("priceChangePercent24h", percent)
+                                        .put("changePercent24h", percent)
+                                        .put("quoteVolume", quoteVolume)
                                         .put("symbol", asset)
                                         .put("source", "Binance 24h spot ticker")
                                         .toString()
