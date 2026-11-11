@@ -20,7 +20,8 @@ import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
 import {auditPublishedSourceLineage} from './source-lineage-audit.mjs';
-import {saveSourceCohortSummary} from './source-cohort-summary.mjs';
+import {saveSourceCohortSummary,readSourceCohortSummary}
+ from './source-cohort-summary.mjs';
 import {historicalEvaluationArchive} from './forecast-m1-cohort.mjs';
 import {diagnoseQualityFactors} from './forecast-quality-diagnostics.mjs';
 import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
@@ -148,6 +149,7 @@ export function createAutomaticDecisionAudit({
  compute=computeAutomaticDecisionAudit,
  saveAudit=(archive,asset,opts)=>saveDecisionQualityAudit(archive,asset,opts),
  readAudit=(asset,opts)=>readDecisionQuality(asset,opts),
+ readSourceSummary=(asset,opts)=>readSourceCohortSummary(asset,opts),
  storage=safeStorage(),now=Date.now,onStatus=()=>{},
  isVisible=()=>typeof document==='undefined'||
   document.visibilityState!=='hidden',
@@ -195,6 +197,9 @@ export function createAutomaticDecisionAudit({
     'Непроверяемые счётчики Room.'));continue;}
    const old=meta[asset],age=now()-(old?.lastAttempt||0);
    const cached=readAudit(asset,{now:now(),storage});
+   // An older APK can leave a valid decision audit but no V2 source summary.
+   // Reuse the same Room archive once the minimum retry window passes.
+   const sourceCached=readSourceSummary(asset,{now:now(),storage});
    const matching=old?.signature===f.signature;
    if(!f.total){
     state(asset,statusOf('EMPTY',
@@ -209,7 +214,7 @@ export function createAutomaticDecisionAudit({
     continue;
    }
    if(!force&&matching&&
-    ((old.kind==='SUCCESS'&&cached&&
+    ((old.kind==='SUCCESS'&&cached&&sourceCached&&
       age<AUTO_DECISION_QUALITY_RULES.successTtlMs)||
      (old.kind==='FAILED'&&
       age<AUTO_DECISION_QUALITY_RULES.failureTtlMs))){
