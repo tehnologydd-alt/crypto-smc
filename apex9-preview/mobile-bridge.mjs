@@ -24,7 +24,7 @@ export async function getMobileApiReliability(){
   const data=await native.getApiReliability();
   if(data?.native!==true||data?.version!=='APEX_NATIVE_API_LEDGER_V1'||
    data?.source!=='ANDROID_NATIVE_REQUEST_LEDGER'||
-   !Array.isArray(data.rows)||data.rows.length>12)return empty;
+   !Array.isArray(data.rows)||data.rows.length>20)return empty;
   return data;
  }catch(error){return {...empty,error:String(error?.message||error).slice(0,120)};}
 }
