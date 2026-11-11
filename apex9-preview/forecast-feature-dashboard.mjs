@@ -14,6 +14,8 @@ import {explainShadowEvidence} from './forecast-shadow-explanation.mjs';
 import {renderProbabilityReadiness} from './forecast-probability-dashboard.mjs';
 import {saveDecisionQualityAudit} from './overview-decision-quality.mjs';
 import {inspectResearchArchive} from './forecast-release-readiness.mjs';
+import {auditM1Cohort,historicalEvaluationArchive} from './forecast-m1-cohort.mjs';
+import {saveSourceCohortSummary} from './source-cohort-summary.mjs';
 
 const get=id=>document.getElementById(id);
 const node=(tag,klass='',value='')=>{
@@ -355,18 +357,38 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
      preflight.reason));
     return;
    }
-   const report=analyzeForecastFeatureHoldout(archive.forecasts,{
-    asset,complete:archive.complete,
-    publishedCount:archive.publishedCount,now:Date.now()});
+   const historic=historicalEvaluationArchive(archive);
+   const m1=auditM1Cohort(archive,{asset,now:Date.now()});
+   saveSourceCohortSummary(archive,asset,{now:Date.now()});
+   const report=analyzeForecastFeatureHoldout(historic.forecasts,{
+    asset,complete:historic.complete,
+    publishedCount:historic.publishedCount,now:Date.now()});
    if(token!==serial)return;
    status.textContent='Проверен локальный архив '+asset+' · '+
     archive.forecasts.length+' записей · '+(report.readyFrames||0)+
     ' ТФ с достаточной описательной выборкой. ' +
     'Автоматическое изменение прогнозов отключено.';
    render(report);
+   if(m1.frames){
+    const m1Panel=node('section','forecast-feature-frame');
+    m1Panel.append(node('strong','forecast-feature-title',
+     'Новые M1 · отдельная проверка результатов'));
+    for(const tf of ['15m','1h','4h']){
+     const f=m1.frames[tf];
+     m1Panel.append(node('p','forecast-confluence-caveat',
+      ({'15m':'M15','1h':'H1','4h':'H4'}[tf])+
+      ': M1 '+f.publishedM1+' · архив M5 '+
+      m1.legacyM5[tf]+' · достаточность: '+
+      (f.state==='DESCRIPTIVE'?'описательные группы':
+       'сбор новых наблюдений')));
+    }
+    m1Panel.append(node('small','forecast-confluence-caveat',
+     'M1 и старые M5 не объединены; результаты не являются вероятностью.'));
+    root.prepend(m1Panel);
+   }
    const auditedAt=Date.now();
    let verifiedAudits=null;
-   renderProbabilityReadiness(archive,asset,
+   renderProbabilityReadiness(historic,asset,
     get('forecast-probability-report'),{
      now:auditedAt,onAudits:value=>{verifiedAudits=value;}
     });
@@ -374,10 +396,10 @@ export function initFeatureHoldoutDashboard({getFavorites}={}){
    // overview archive fetch, retraining, trading, or model promotion.
    if(token===serial&&verifiedAudits?.release&&
     getFavorites?.().includes(asset))
-    saveDecisionQualityAudit(archive,asset,{
+    saveDecisionQualityAudit(historic,asset,{
      now:auditedAt,audits:verifiedAudits
     });
-   await renderShadowState(asset,archive,report,token);
+   await renderShadowState(asset,historic,report,token);
   }catch(error){
    if(token===serial){
     status.textContent='Аудит недоступен.';
