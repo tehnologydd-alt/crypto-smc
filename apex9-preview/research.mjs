@@ -130,7 +130,8 @@ export async function collectAsset(symbol,{fetchImpl=fetch,now=()=>Date.now(),si
  * No ticker/news/onchain fetch, and no artificial book observations.
  */
 export async function collectVisibleDepth(symbol,{
- venues=['binance','okx'],fetchImpl=fetch,now=()=>Date.now(),signal
+ venues=['binance','okx'],fetchImpl=fetch,now=()=>Date.now(),signal,
+ equalLevels=null
 }={}){
  const code=normalizeSymbol(symbol);
  if(!code||!Array.isArray(venues)||!venues.length||venues.length>2||
@@ -138,7 +139,7 @@ export async function collectVisibleDepth(symbol,{
   new Set(venues).size!==venues.length)
   return {symbol:null,depth:[],sources:[],collectedAt:now(),state:'INVALID'};
  const results=await Promise.allSettled(venues.map(venue=>
-  fetchPublicDepth(venue,code,{fetchImpl,now,signal})));
+  fetchPublicDepth(venue,code,{fetchImpl,now,signal,levelLimit:equalLevels})));
  const sources=results.map((r,i)=>{
   const payload=r.status==='fulfilled'?r.value:
    {state:'OFFLINE',data:null,error:errorText(r.reason)};

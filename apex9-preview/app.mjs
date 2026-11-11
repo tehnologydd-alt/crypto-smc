@@ -1,7 +1,7 @@
 import {collectAsset,collectVisibleDepth,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {createForegroundDepthPolicy} from './foreground-depth-policy.mjs';
 import {createForegroundBookStreams} from './live-depth-streams.mjs';
-import {synchronizeSpotDepth} from './depth-synchronization.mjs';
+import {selectDepthComparison,needsMatchedRest} from './depth-comparison-selector.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
@@ -1389,16 +1389,21 @@ function renderDepth(snapshot){
    Number.isSafeInteger(b.receivedAt))
    .sort((a,b)=>b.receivedAt-a.receivedAt)[0];
  }).filter(Boolean);
- const comparison=synchronizeSpotDepth(activeBooks,{
-  asset:chosen,now:Date.now()
- });
+ const matched=selectDepthComparison(activeBooks,
+  ['binance','okx'].map(venue=>latestRestDepth.get(venue)).filter(Boolean),{
+   asset:chosen,now:Date.now()
+  });
+ const comparison=matched.comparison;
  const syncStatus=el('depth-sync-status');
  if(syncStatus){
   syncStatus.dataset.state=comparison.state;
   const stamps='Binance '+(comparison.binanceAt?time(comparison.binanceAt):'—')+
    ' · OKX '+(comparison.okxAt?time(comparison.okxAt):'—');
   syncStatus.textContent=comparison.state==='SYNCED'?
-   'Синхронизировано по времени получения (до 3 сек). '+
+   'Сопоставлены по времени получения (до 3 сек)'+
+   (matched.method==='PAIRED_REST'?
+    (matched.levelsEqual?' · парный REST 50/50 уровней':' · парные REST-снимки'):
+    ' · доступные WS/REST-снимки')+'. '+
    'Общая полоса ±'+fmt(comparison.commonBandBps,1)+' б.п. · '+
    'Binance '+fmt(comparison.binanceImbalancePct,1)+'% / OKX '+
     fmt(comparison.okxImbalancePct,1)+'% · разница '+
@@ -1854,10 +1859,21 @@ async function refreshVisibleDepth(){
   !favoriteManager.hasFavorite(chosen)||
   !hasMobileObservationStorage())return;
  const symbol=chosen;
- const due=['binance','okx'].filter(venue=>
-  !depthStream?.isFresh(venue)&&
-  foregroundDepthPolicy.allowed(symbol,venue,{
-   visible:true,favorite:true,native:true,busy:false}).allowed);
+ const allowed=Object.fromEntries(['binance','okx'].map(venue=>[
+  venue,foregroundDepthPolicy.allowed(symbol,venue,{
+   visible:true,favorite:true,native:true,busy:false}).allowed
+ ]));
+ // Read-only matched depth: only if both WS snapshots are fresh but their
+ // common near-mid price coverage cannot be verified, and BOTH REST
+ // providers are independently due (at most once a minute each).
+ const pairedRest=el('view-asset').dataset.assetArea==='data'&&
+  needsMatchedRest(['binance','okx'].map(venue=>
+   depthStream?.isFresh(venue)?latestLiveDepth.get(venue):null).filter(Boolean),{
+    asset:symbol,now:Date.now(),due:allowed
+   });
+ const due=pairedRest?['binance','okx']:
+  ['binance','okx'].filter(venue=>
+   !depthStream?.isFresh(venue)&&allowed[venue]);
  if(!due.length)return;
  const seq=pending;
  depthBusy=true;
@@ -1867,7 +1883,8 @@ async function refreshVisibleDepth(){
  let recorded=false;
  try{
   const sample=await collectVisibleDepth(symbol,{
-   venues:due,signal:local.signal,now:()=>Date.now()});
+   venues:due,signal:local.signal,now:()=>Date.now(),
+   equalLevels:pairedRest?50:null});
   if(!local.signal.aborted){
    for(const venue of due){
     const reply=sample.sources.find(row=>row.id===venue+'-depth');
