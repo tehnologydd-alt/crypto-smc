@@ -1,6 +1,6 @@
 /**
  * APEX timeline built from verified immutable Room stage events.
- * H1 determines direction; M5 tracks levels for newly published studies.
+ * H1 determines direction; new studies use M1, archived studies retain M5/H1.
  * No assumed intrabar order, retroactive targets, or exchange fills.
  */
 import {verifiedDirectionalEvidence} from './forecast-quality.mjs';
