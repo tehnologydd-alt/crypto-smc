@@ -12,6 +12,7 @@ import {initAssetFavoritePicker} from './asset-favorites-picker.mjs';
 import {createMarketMatrixCache,matrixFromNativeRadar} from './market-matrix-cache.mjs';
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
+import {initWhaleDashboard} from './whale-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 import {initValidationDashboard} from './validation-dashboard.mjs';
 import {initResearchPatternsDashboard} from './research-patterns-dashboard.mjs';
@@ -289,6 +290,9 @@ function setNotice(message,isError=false){
 }
 const liquidityDashboard=initLiquidityDashboard();
 const onChainDashboard=initOnChainDashboard();
+const whaleDashboard=initWhaleDashboard({
+ getFavorites:()=>favoriteManager.getFavorites()
+});
 
 function updateTab(view){
  document.body.dataset.view=view;
@@ -330,6 +334,7 @@ function setAssetArea(requested){
   if(mode==='data')requestAnimationFrame(()=>{
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
+   void whaleDashboard.refresh(chosen);
    void loadAssetSocial(chosen);
    void ensureAssetNewsFeed();
   });
@@ -1042,6 +1047,7 @@ function navigate(view,targetId){
    if(area==='data'){
     void liquidityDashboard.refresh(chosen);
     void onChainDashboard.refresh(chosen);
+    void whaleDashboard.refresh(chosen);
     void loadAssetSocial(chosen);
     void freeSourceDashboard.openAsset(chosen);
     void ensureAssetNewsFeed();
@@ -1534,6 +1540,7 @@ async function investigate(value){
  if(changed){
   liquidityDashboard.clear(symbol);
   onChainDashboard.clear(symbol);
+  whaleDashboard.clear(symbol);
  }
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset'){
@@ -1543,6 +1550,7 @@ async function investigate(value){
    // When the user changes an asset while Data is already visible,
    // trigger the same network source check as when opening the tab.
    void onChainDashboard.refresh(symbol);
+   void whaleDashboard.refresh(symbol);
   }
  }
  text('asset-name',chosen);
