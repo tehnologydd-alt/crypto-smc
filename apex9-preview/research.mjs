@@ -106,10 +106,10 @@ export async function collectAsset(symbol,{fetchImpl=fetch,now=()=>Date.now(),si
  const jobs=[
   fetchSpotTicker(code,{fetchImpl,now,signal}),
   fetchPublicDepth('binance',code,{fetchImpl,now,signal}),
-  fetchPublicDepth('bybit',code,{fetchImpl,now,signal})
+  fetchPublicDepth('okx',code,{fetchImpl,now,signal})
  ];
  const settled=await Promise.allSettled(jobs);
- const names=['binance-ticker','binance-depth','bybit-depth'];
+ const names=['binance-ticker','binance-depth','okx-depth'];
  const sources=settled.map((result,i)=>{
   const item=result.status==='fulfilled'?result.value:
    {state:'OFFLINE',data:null,error:errorText(result.reason)};
@@ -129,11 +129,11 @@ export async function collectAsset(symbol,{fetchImpl=fetch,now=()=>Date.now(),si
  * No ticker/news/onchain fetch, and no artificial book observations.
  */
 export async function collectVisibleDepth(symbol,{
- venues=['binance','bybit'],fetchImpl=fetch,now=()=>Date.now(),signal
+ venues=['binance','okx'],fetchImpl=fetch,now=()=>Date.now(),signal
 }={}){
  const code=normalizeSymbol(symbol);
  if(!code||!Array.isArray(venues)||!venues.length||venues.length>2||
-  venues.some(x=>!['binance','bybit'].includes(x))||
+  venues.some(x=>!['binance','okx'].includes(x))||
   new Set(venues).size!==venues.length)
   return {symbol:null,depth:[],sources:[],collectedAt:now(),state:'INVALID'};
  const results=await Promise.allSettled(venues.map(venue=>
