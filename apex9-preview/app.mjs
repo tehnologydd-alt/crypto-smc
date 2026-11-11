@@ -527,7 +527,7 @@ function renderScenarioReplay(scenarios){
   steps=el('scenario-replay-steps'),
   detail=el('scenario-replay-detail');
  clear(steps);clear(detail);
- const selected=scenarios.find(s=>s.id===focusedScenarioId)||scenarios[0];
+ const selected=scenarios.find(s=>s.id===focusedScenarioId);
  if(selected?.model==='DIRECTIONAL'||selected?.model==='MULTIFRAME'){
   root.classList.remove('has-replay');
   text('scenario-replay-counter',selected.model==='MULTIFRAME'?
@@ -547,7 +547,7 @@ function renderScenarioReplay(scenarios){
  if(!selected){
   text('scenario-replay-counter','0 / 5 закрытий');
   text('scenario-replay-context','Выбери исследование для просмотра его подтверждённой H1-истории.');
-  text('scenario-replay-warning','Сценарии не загружены. Наблюдения не имитируются.');
+  text('scenario-replay-warning','Выбери сценарий на карте, чтобы увидеть его фактические этапы.');
   candleView.setReplayCursor(null);
   root.classList.remove('has-replay');
   return;
@@ -633,6 +633,24 @@ function renderScenarioReplay(scenarios){
  }else candleView.setReplayCursor(null);
 }
 
+// Percentages are absolute price distances from entry, not success probabilities.
+// R:R is target distance divided by stop distance (display-only).
+function scenarioLevelSummary(levels){
+ if(!levels||!Number.isFinite(levels.entry)||levels.entry<=0)return 'Уровни недоступны';
+ const entry=levels.entry;
+ const pct=price=>Number.isFinite(price)?
+  (Math.abs((price-entry)/entry)*100).toFixed(2)+'%':'—';
+ const risk=Math.abs(entry-levels.sl);
+ const rr=price=>Number.isFinite(price)&&Number.isFinite(risk)&&risk>0?
+  (Math.abs(price-entry)/risk).toFixed(2):'—';
+ return 'Вход '+fmtPrice(entry)+' · SL '+fmtPrice(levels.sl)+
+  ' ('+pct(levels.sl)+') · TP1 '+fmtPrice(levels.tp1)+
+  ' ('+pct(levels.tp1)+', R:R 1:'+rr(levels.tp1)+')'+
+  ' · TP2 '+fmtPrice(levels.tp2)+
+  ' ('+pct(levels.tp2)+', R:R 1:'+rr(levels.tp2)+')'+
+  ' · TP3 '+fmtPrice(levels.tp3)+
+  ' ('+pct(levels.tp3)+', R:R 1:'+rr(levels.tp3)+')';
+}
 function renderScenarioMap(asset){
  const box=el('asset-scenario-summary');clear(box);
  for(const button of document.querySelectorAll('[data-scenario-map-mode]')){
@@ -646,12 +664,11 @@ function renderScenarioMap(asset){
   interval:candleInterval
  });
  const chartSupported=['1m','15m','1h','4h'].includes(candleInterval);
- if(map.scenarios.length&&!map.scenarios.some(sc=>sc.focused)){
-  map.scenarios[0].focused=true;
-  focusedScenarioId=map.scenarios[0].id;
- }
+ // No implicit selection: opening the asset never clutters its chart.
+ if(!map.scenarios.some(sc=>sc.id===focusedScenarioId))focusedScenarioId=null;
  candleView.setInterval(candleInterval);
- candleView.setScenarios(chartSupported?map.scenarios:[]);
+ candleView.setScenarios(chartSupported?
+  map.scenarios.filter(sc=>sc.id===focusedScenarioId):[]);
  const extra=(map.hidden?' · ещё '+map.hidden+' вне мини-карты':'')+
   (lastScenarioTruncated?' · журнал частичный (последние 75 записей)':'');
  const focus=map.scenarios.find(sc=>sc.focused);
@@ -664,7 +681,8 @@ function renderScenarioMap(asset){
   'Параметры карты не прошли проверку.':
   map.available?
    'Показано '+map.scenarios.length+' из '+map.available+
-   ' доступных сценариев'+extra+context:
+   ' доступных сценариев'+extra+context+
+   (focusedScenarioId?' · показан выбранный':' · уровни скрыты до выбора'):
    scenarioMode==='tracked'?
     'Нет отмеченных пользователем исследований по '+asset+
     '. Отметить сценарий можно во вкладке «Прогнозы».':
@@ -692,9 +710,7 @@ function renderScenarioMap(asset){
      ' · '+sc.milestones.length+' из 4 событий'));
   const middle=create('span','scenario-map-item-range',
    ['DIRECTIONAL','MULTIFRAME'].includes(sc.model)?
-    'Вход '+fmtPrice(sc.levels.entry)+' · TP1 '+fmtPrice(sc.levels.tp1)+
-    ' · TP2 '+fmtPrice(sc.levels.tp2)+' · TP3 '+fmtPrice(sc.levels.tp3)+
-    ' · SL '+fmtPrice(sc.levels.sl):
+    (sc.focused?scenarioLevelSummary(sc.levels):'Нажми, чтобы показать вход, TP1–TP3, SL и R:R'):
     fmt(sc.bandLow)+' — '+fmt(sc.bandHigh)+' USDT');
   const detail=create('span','scenario-map-item-time',
    'Опорная свеча: '+new Date(sc.anchorCloseAt).toLocaleString('ru-RU')+
@@ -708,11 +724,15 @@ function renderScenarioMap(asset){
     sc.result.outcome==='WITHIN_RANGE'?
      'Итог в исходном диапазоне':'Итог за пределами диапазона')+
    ' · '+new Date(sc.targetCloseAt).toLocaleString('ru-RU')));
+  button.setAttribute('aria-pressed',sc.focused?'true':'false');
   button.addEventListener('click',()=>{
-   focusedScenarioId=sc.id;
+   focusedScenarioId=focusedScenarioId===sc.id?null:sc.id;
    replayStep=0;
    renderScenarioMap(asset);
-   if(!chartSupported)return;
+   if(!chartSupported||!focusedScenarioId){
+    if(!focusedScenarioId)text('chart-selected','Уровни сценария скрыты. Выбери карточку для просмотра.');
+    return;
+   }
    const found=candleView.focusOnScenario(sc.anchorCloseAt);
    text('chart-selected',found?
     'График перемещён к опорной '+candleInterval.toUpperCase()+'-свече исследования от '+
@@ -726,6 +746,7 @@ function renderScenarioMap(asset){
 async function showAssetScenarios(asset,{force=false}={}){
  if(lastScenarioAsset!==asset){
   lastScenarioAsset=asset;lastScenarioRows=[];lastScenarioFetchedAt=0;
+  focusedScenarioId=null;replayScenarioId=null;replayStep=0;
   lastScenarioTruncated=false;
   candleView.setScenarios([]);
  }
