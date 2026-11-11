@@ -5,7 +5,7 @@ const t=1700000000000;
 const ticker={symbol:'GRAMUSDT',lastPrice:'2.125',priceChangePercent:'2.9',
  quoteVolume:'555555',closeTime:t-1000};
 const book={lastUpdateId:123,bids:[['2.12','200']],asks:[['2.13','100']]};
-const bybit={retCode:0,result:{s:'GRAMUSDT',b:[['2.12','100']],a:[['2.13','150']],u:22}};
+const bybit={retCode:0,time:t-50,result:{s:'GRAMUSDT',b:[['2.12','100']],a:[['2.13','150']],ts:t-100,u:22}};
 function fakeFetch(url){
  if(url.includes('/ticker/24hr'))return Promise.resolve({ok:true,status:200,json:async()=>ticker});
  if(url.includes('binance.vision/api/v3/depth'))return Promise.resolve({ok:true,status:200,json:async()=>book});
