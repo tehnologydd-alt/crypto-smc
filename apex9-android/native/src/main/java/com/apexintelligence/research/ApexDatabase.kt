@@ -147,6 +147,10 @@ interface ResearchDao {
     @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='onchain' ORDER BY observedAt DESC LIMIT :limit")
     suspend fun onChainHistory(asset: String, limit: Int): List<ResearchObservation>
 
+    /** Stage 1: only source-scoped large native-transfer evidence. */
+    @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='whale' AND source=:source ORDER BY observedAt DESC LIMIT :limit")
+    suspend fun whaleHistoryForSource(asset: String, source: String, limit: Int): List<ResearchObservation>
+
     @Query("SELECT COUNT(*) FROM research_observations")
     suspend fun observationCount(): Int
 
