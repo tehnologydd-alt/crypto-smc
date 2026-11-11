@@ -12,6 +12,7 @@ import {reconcileSources,SOURCE_GROUPS} from './source-reconciliation.mjs';
 import {sourceHealth} from './source-health.mjs';
 import {createSourceReliability} from './source-reliability.mjs';
 import {getMobileApiReliability} from './mobile-bridge.mjs';
+import {readSourceCohortSummary} from './source-cohort-summary.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 const el=id=>document.getElementById(id);
 const div=(tag,cls='',content)=>{
@@ -76,6 +77,26 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
    'bitcoin-mempool':'mempool.space · BTC',
    'gdelt-news':'GDELT · новости'};
   box.replaceChildren();
+  const tracked=getSymbol?.();
+  const m1=typeof tracked==='string'?
+   readSourceCohortSummary(tracked,{storage}):null;
+  if(m1){
+   const panel=div('article','api-reliability-row api-reliability-research');
+   panel.append(div('strong','',
+    'Архив исследований '+tracked+' · проверка M1 отдельно от M5'));
+   for(const frame of ['15m','1h','4h']){
+    const s=m1.frames[frame],label={'15m':'M15','1h':'H1','4h':'H4'}[frame];
+    panel.append(div('p','',label+': M1 '+s.m1Published+
+     ' новых / M5 '+s.m5Archived+' архивных · подтверждённых M1 исходов: '+
+     (s.referenceDecisive+s.holdoutDecisive)+
+     ' · M1 '+(s.m1State==='DESCRIPTIVE'?
+      'описательная проверка':'сбор данных')));
+   }
+   panel.append(div('small','',
+    'Зафиксированный источник в момент публикации — не доказательство '+
+    'точности прогноза. M1 и M5 не смешиваются.'));
+   box.append(panel);
+  }
   let mature=0,attempts=0;
   for(const row of report.rows){
    attempts+=row.attempts;
