@@ -205,7 +205,9 @@ test('manifest and selected-favorite manual UI bind audited frequencies',()=>{
  const ui=readFileSync(new URL('./forecast-feature-dashboard.mjs',import.meta.url),'utf8');
  const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
  const build=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',import.meta.url),'utf8');
- assert.ok(ui.includes('renderProbabilityReadiness(archive,asset,'));
+ assert.ok(ui.includes('renderProbabilityReadiness(historic,asset,'));
+ assert.ok(ui.includes('historicalEvaluationArchive(archive)'));
+ assert.ok(ui.includes('auditM1Cohort(archive,'));
  assert.ok(ui.includes('maxRows:1500'));
  assert.ok(html.includes('id="forecast-probability-report"'));
  assert.ok(build.includes("'forecast-probability-readiness.mjs'"));
