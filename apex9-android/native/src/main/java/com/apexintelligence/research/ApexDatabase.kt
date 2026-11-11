@@ -132,6 +132,10 @@ interface ResearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveObservation(record: ResearchObservation)
 
+    /** Keep whale first-observation time immutable (no REPLACE on repeated poll). */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertWhaleObservationOnce(record: ResearchObservation): Long
+
     @Query("SELECT * FROM research_observations WHERE asset = :asset ORDER BY observedAt DESC LIMIT :limit")
     suspend fun observations(asset: String, limit: Int): List<ResearchObservation>
 
