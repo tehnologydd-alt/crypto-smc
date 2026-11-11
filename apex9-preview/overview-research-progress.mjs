@@ -1,16 +1,20 @@
 /**
  * APEX Research Experience overview.
  *
- * ONE indexed, native read-only Room aggregate over max 10 favorites, never
- * market polling, per-forecast archive reads or background training.
+ * Native indexed read-only Room aggregate over max 10 favorites.
+ * A SEPARATE bounded automatic quality queue now checks full archives only
+ * when native counters change or the cached audit expires. No market polling,
+ * hidden model training or automatic deployment.
  *
  * "Experience" here is progress toward RECORD-COUNT checkpoints only:
  * published scenarios / recorded terminal outcomes / forward observations.
- * Room stage sequences, source quality and independence require the manual
- * full-archive audit. Percent is NOT model intelligence or predicted success.
+ * Room stage sequences, source quality and independence are now assessed
+ * by the read-only per-favorite audit queue. Percent remains count-based. Percent is NOT model intelligence or predicted success.
  */
 import {getMobileResearchProgress} from './mobile-bridge.mjs';
 import {renderDecisionQuality} from './overview-decision-quality.mjs';
+import {createAutomaticDecisionAudit}
+ from './automatic-decision-quality.mjs';
 
 export const OVERVIEW_EXPERIENCE_VERSION='APEX_RESEARCH_EXPERIENCE_OVERVIEW_V1';
 export const OVERVIEW_EXPERIENCE_RULES=Object.freeze({
@@ -22,7 +26,7 @@ export const OVERVIEW_EXPERIENCE_RULES=Object.freeze({
  ],
  cacheMaxAgeMs:7*86400000,refreshIntervalMs:5*60000,
  noModelTraining:true,calibratedProbability:null,
- noNetwork:true
+ noNetwork:true,automaticFullArchiveAudit:true
 });
 const KEY='apex9:research-experience:v1';
 const assetOK=s=>typeof s==='string'&&/^[A-Z0-9]{5,20}$/.test(s);
@@ -102,10 +106,15 @@ export function initOverviewResearchProgress({getFavorites,
  if(!select||!list||!status||!refresh)return {openOverview(){},
   favoritesChanged(){},researchUpdated(){}};
  let current=null,busy=false,lastReadAt=0,request=0,lastError=null;
+ let automatic=null;
  const renderQuality=()=>renderDecisionQuality({
   root:get('overview-decision-quality'),asset:select.value,
   now:now(),storage,
+  autoStatus:automatic?.getStatus(select.value)||null,
   roomRows:current?.favorites?.includes(select.value)?current.rows:null
+ });
+ automatic=createAutomaticDecisionAudit({
+  getFavorites,storage,now,onStatus:()=>renderQuality()
  });
  if(typeof window!=='undefined')
   window.addEventListener('apex:decision-quality-checked',()=>render());
@@ -224,6 +233,8 @@ export function initOverviewResearchProgress({getFavorites,
    lastError=answer.error||'Сводка Room недоступна.';
   }
   render();
+  // The full Room audit is queued separately and never blocks Overview.
+  if(answer.complete)void automatic.run();
  }
  function favoritesChanged(){
   ++request;
@@ -232,21 +243,36 @@ export function initOverviewResearchProgress({getFavorites,
   lastError=null;
   if(document.body.dataset.view==='overview')void poll(true);
   else render();
+  void automatic.favoritesChanged();
  }
  select.addEventListener('change',render);
- refresh.addEventListener('click',()=>void poll(true));
+ refresh.addEventListener('click',()=>{
+  void poll(true);
+  void automatic.run({focus:select.value,force:true});
+ });
  current=fromCache(favoriteList());
  render();
+ // Active-WebView schedule; Android may suspend/kill this JS process.
+ // Never claim audits run while the phone has stopped the application.
+ if(typeof window!=='undefined'){
+  window.setInterval(()=>{
+   if(document.visibilityState!=='hidden')void automatic.run();
+  },automatic.rules.checkIntervalMs);
+  document.addEventListener('visibilitychange',()=>{
+   if(document.visibilityState==='visible')void automatic.run();
+  });
+ }
  return {
   openOverview(){
    if(!current||!same(current.favorites,favoriteList()))
     current=fromCache(favoriteList());
-   render();void poll(false);
+   render();void poll(false);void automatic.run();
   },
   favoritesChanged,
   researchUpdated(){
    if(document.body.dataset.view==='overview')void poll(true);
    else lastReadAt=0;
+   void automatic.run();
   }
  };
 }

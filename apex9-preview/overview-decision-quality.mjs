@@ -1,8 +1,8 @@
 /**
  * Overview of independent, pre-registered Shadow Challenger research.
  * Purely read-only. The overview NEVER reads a full Room archive itself.
- * The user explicitly audits one favorite in the Forecasts panel; only a
- * bounded summary of that audit is cached for this overview.
+ * A bounded, automatic per-favorite Room audit or a manually triggered
+ * detailed Forecasts-panel audit can produce the cached summary.
  *
  * The 3-way check is descriptive, NOT significance, learning, probability,
  * profitability or permission to promote a trading model.
@@ -243,7 +243,7 @@ function storedHistory(storage){
     obj.assets:{};
  }catch{return {}}
 }
-/** Only stored manual audits; no Room queries or market polling on Overview. */
+/** Only stored verified audits; no direct Room queries or market polling by this view. */
 export function readDecisionHistory(asset,{
  storage=safeStorage(),now=Date.now()
 }={}){
@@ -389,15 +389,35 @@ const titles={COLLECTING:'Накопление новых исходов',
  REPEATED:'Повторение в трёх периодах',
  REGIME_SUPPORT:'Повторение и проверка по режимам'};
 export function renderDecisionQuality({root,asset,now=Date.now(),
- storage=safeStorage(),roomRows=null}={}){
+ storage=safeStorage(),roomRows=null,autoStatus=null}={}){
  if(!root)return;
  root.replaceChildren();
  const heading=setText('div','Проверка качества решений','overview-quality-heading');
  root.append(heading);
  const result=decisionQualityView(asset,{now,storage,roomRows});
+ const autoMessages={
+  READING:'Автоматически проверяем полный архив Room…',
+  EMPTY:'Сценарии ещё не накоплены. Проверка начнётся автоматически.',
+  VERIFIED:'Автоматическая проверка завершена.',
+  CACHED:'Сохранённый аудит актуален.',
+  COOLDOWN:'Повторная проверка запланирована после защитного интервала.',
+  RETRY_LATER:'Повторная попытка запланирована.',
+  FAILED:'Автоматический аудит не завершён. Попробуем позже.',
+  UNAVAILABLE:'Сводка Room пока недоступна.',
+  CHECK_DATA:'Не удалось проверить счётчики Room.'
+ };
+ if(autoStatus?.state)
+  root.append(setText('small',
+   (autoMessages[autoStatus.state]||'Автоматическая проверка')+
+   (['FAILED','UNAVAILABLE','CHECK_DATA'].includes(autoStatus.state)&&
+    autoStatus.reason?' · '+autoStatus.reason:''),
+   'overview-quality-hint'));
  if(result.state==='NOT_AUDITED'){
-  root.append(setText('p','Пока нет завершённого полного аудита этого актива. '+
-   'Проверка запускается вручную во вкладке «Сценарии».',
+  root.append(setText('p','Полный аудит каждого избранного актива '+
+   'запускается автоматически в работающем Android-приложении. '+
+   'Результаты появятся здесь после проверки локального архива; '+
+   'при нехватке исходов будет показано накопление данных. '+
+   'Для подробного разбора остаётся вкладка «Сценарии».',
    'overview-quality-hint'));
   return;
  }
@@ -411,7 +431,7 @@ export function renderDecisionQuality({root,asset,now=Date.now(),
    'overview-quality-frame');
   const title=setText('strong',label);
   const status=setText('span',frame.outOfDate?
-   'Архив изменился · повторить аудит':titles[frame.state],
+   'Архив изменился · обновление автоматически':titles[frame.state],
    'overview-quality-verdict');
   const line=document.createElement('div');
   line.className='overview-quality-line';

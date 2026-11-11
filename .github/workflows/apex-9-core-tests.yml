@@ -53,6 +53,7 @@ jobs:
           node --test apex9-preview/test-forecast-data-quality-hub.mjs
           node --test apex9-preview/test-forecast-quality-diagnostics.mjs
           node --test apex9-preview/test-overview-research-progress.mjs
+          node --test apex9-preview/test-automatic-decision-quality.mjs
           node --test apex9-preview/test-overview-decision-quality.mjs
           node --test apex9-preview/test-forecast-release-readiness.mjs
           node --test apex9-preview/test-source-availability.mjs

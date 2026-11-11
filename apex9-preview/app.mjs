@@ -962,6 +962,9 @@ assetFavoritePicker=initAssetFavoritePicker({
 });
 void favoriteManager.initialize().then(()=>{
  assetFavoritePicker.render();
+ // The native favorite list is now hydrated; queue independent read-only
+ // per-favorite quality audits without visiting the Scenarios page.
+ experienceOverview?.favoritesChanged();
  // Starts outside the Radar page; no page-open network kick-off.
  radarDashboard.start();
  if(document.body.dataset.view==='catalog')renderCatalog();
