@@ -1,7 +1,7 @@
 name: APEX 9 Evidence Core Tests
 on:
   push:
-    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1]
+    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2]
     paths:
       - 'updates/v90-evidence.mjs'
       - 'updates/test-v90-evidence.mjs'
@@ -51,6 +51,7 @@ jobs:
           node --test apex9-preview/test-source-stage5-resources.mjs
           node --test apex9-preview/test-foreground-depth-cadence.mjs apex9-preview/test-liquidity-core.mjs updates/test-v90-market-depth.mjs
           node --test apex9-preview/test-whale-observer-stage1.mjs
+          node --test apex9-preview/test-whale-activity-stage2.mjs
           node --test apex9-preview/test-m1-native-api-stage.mjs
           node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-preview/test-directional-m1.mjs
