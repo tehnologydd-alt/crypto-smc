@@ -118,6 +118,21 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
       lab.append(div('small','',study.id+' · '+
        (meanings[study.state]||'данные не подтверждены')+delta+
        ' · измеренных исходов '+study.windows.map(w=>w.measured).join('/')));
+      const sensitivity=study.sensitivity;
+      if(sensitivity?.state==='DESCRIPTIVE'){
+       const ranges=sensitivity.windows.map(w=>
+        w.leaveOneOutMin.toFixed(3)+'…'+w.leaveOneOutMax.toFixed(3));
+       const shifts=sensitivity.windows.map(w=>
+        w.timeShiftBeatsOriginal+'/'+w.timeShiftTotal);
+       const caution=sensitivity.windows.some(w=>w.selectionCaution);
+       lab.append(div('small','',
+        'Проверка устойчивости: исключение одного исследования · '+
+        ranges.join(' / ')+' ΔAUC; контроль сдвига во времени не хуже · '+
+        shifts.join(' / ')+
+        (caution?' · состав доступных исходов отличается.':
+         ' · заметного смещения состава исходов нет.')+
+        ' Диагностика, не доверительный интервал.'));
+      }
      }
      lab.append(div('small','',
       'ΔAUC — изменение исследовательского ранжирования на одних и '+
