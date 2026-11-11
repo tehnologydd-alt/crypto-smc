@@ -46,6 +46,7 @@ jobs:
           node --test apex9-preview/test-source-reliability.mjs
           node --test apex9-preview/test-source-lineage-audit.mjs
           node --test apex9-preview/test-m1-native-api-stage.mjs
+          node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-preview/test-directional-m1.mjs
           node --test apex9-preview/test-forecast-multiframe.mjs
           node --test apex9-preview/test-forecast-level-metrics.mjs
