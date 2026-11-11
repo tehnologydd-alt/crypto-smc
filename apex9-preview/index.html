@@ -427,6 +427,20 @@
              role="img" aria-label="История сохранённых наблюдений о состоянии выбранной сети">График требует Canvas.</canvas>
           <p id="network-history-note" class="muted">История хранится на этом Android-телефоне.</p>
         </div>
+        <section class="whale-panel" id="whale-panel" aria-label="Наблюдения крупных публичных переводов">
+          <div class="section-title">
+            <h4>🐋 Крупные переводы · Whale Intelligence</h4>
+            <span id="whale-count">Нет наблюдений</span>
+          </div>
+          <p class="muted" id="whale-status" role="status" aria-live="polite">
+            Для выбранного избранного актива проверяем публичные транзакции BTC или ETH.
+          </p>
+          <div id="whale-history" class="whale-event-list">
+            <p class="muted">История крупных переводов пока не накоплена.</p>
+          </div>
+          <button id="whale-refresh" type="button" class="ghost asset-manual-control">Проверить переводы</button>
+          <p class="footnote">BTC: отдельные крупные выходы неподтверждённых транзакций; адрес может быть сдачей. ETH: подтверждённые переводы нативной ETH. Отобраны суммы от 100 BTC / 100 ETH исключительно для наблюдений. Это не определение владельца кошелька, биржи, покупки или продажи; анализ неполный. Данные на телефоне хранятся до 14 дней.</p>
+        </section>
         <section class="onchain-match-panel" aria-label="Сопоставление истории блокчейна и рынка">
           <div class="section-title"><h4>Сеть и рынок · история</h4><span>H1 / локально</span></div>
           <p class="muted">APEX сопоставляет ранее полученные сетевые снимки с последними завершёнными часовыми свечами, доступными на момент наблюдений. Важны совпадающие часы и отсутствие пропусков.</p>
