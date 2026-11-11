@@ -56,7 +56,33 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                             if (code != 200) null else {
                                 val data = JSONArray(connection.inputStream.bufferedReader()
                                     .use { it.readText() })
-                                if (data.length() > 0) probe.validated()
+                                // HTTP 200 is NOT proof that the batched response
+                                // contains valid observations for the exact favorites.
+                                // Malformed, stale and mismatched batches are recorded
+                                // as INVALID, without inventing a successful API sample.
+                                val seen = HashSet<String>()
+                                val receivedAt = System.currentTimeMillis()
+                                var validBatch = data.length() == favorites.size
+                                var newestSourceAt = 0L
+                                for (i in 0 until data.length()) {
+                                    val item = data.optJSONObject(i)
+                                    val symbol = item?.optString("symbol") ?: ""
+                                    val closeAt = item?.optLong("closeTime", -1L) ?: -1L
+                                    val price = item?.optString("lastPrice", "")?.toDoubleOrNull()
+                                    val change = item?.optString("priceChangePercent", "")?.toDoubleOrNull()
+                                    val volume = item?.optString("quoteVolume", "")?.toDoubleOrNull()
+                                    if (symbol !in favorites || !seen.add(symbol) ||
+                                        closeAt < receivedAt - 180_000L ||
+                                        closeAt > receivedAt + 60_000L ||
+                                        price == null || !price.isFinite() || price <= 0 ||
+                                        change == null || !change.isFinite() ||
+                                        kotlin.math.abs(change) > 1000.0 ||
+                                        volume == null || !volume.isFinite() || volume <= 0)
+                                        validBatch = false
+                                    if (closeAt > newestSourceAt) newestSourceAt = closeAt
+                                }
+                                if (validBatch && seen.size == favorites.size)
+                                    probe.validated(newestSourceAt)
                                 data
                             }
                         }
