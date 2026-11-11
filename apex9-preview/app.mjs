@@ -1,5 +1,6 @@
 import {collectAsset,collectVisibleDepth,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {createForegroundDepthPolicy} from './foreground-depth-policy.mjs';
+import {createForegroundBookStreams} from './live-depth-streams.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
@@ -75,7 +76,7 @@ const assessmentNames={
 let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=0;
 let fastTickerAt=0,fastTickerBusy=false;
 const foregroundDepthPolicy=createForegroundDepthPolicy();
-let depthBusy=false,depthController=null;
+let depthBusy=false,depthController=null,depthStream=null;
 try{chosen=normalizeSymbol(localStorage.getItem('apex9_preview_asset'))||chosen;}catch{}
 el('asset-input').value=chosen;
 el('asset-name').textContent=chosen;
@@ -296,6 +297,7 @@ const whaleDashboard=initWhaleDashboard({
 
 function updateTab(view){
  document.body.dataset.view=view;
+ if(view!=='asset')depthStream?.stop();
  for(const tab of document.querySelectorAll('[data-tab]')){
   const active=tab.dataset.tab===activeDock(view);
   tab.classList.toggle('active',active);
@@ -326,6 +328,8 @@ function setAssetArea(requested){
   button.setAttribute('aria-pressed',String(active));
  }
  if(document.body.dataset.view==='asset'&&previousArea!==mode){
+  if(mode!=='data')depthStream?.stop();
+  if(mode==='data')void syncDepthStreams();
   if(mode==='chart')requestAnimationFrame(()=>{
    candleView.resize();void refreshWhaleChart(chosen);
   });
@@ -386,6 +390,46 @@ el('asset-news-check').addEventListener('click',()=>ensureAssetNewsFeed({force:t
 const newsM5Panel=initNewsM5Panel({getSymbol:()=>chosen,storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
 const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
+/** Only the visible favorite's public partial books. No socket traffic in
+ * overview, background Android, or other selected-but-closed favorites.
+ */
+depthStream=createForegroundBookStreams({
+ onSample({symbol,depth,collectedAt}){
+  if(document.hidden||document.body.dataset.view!=='asset'||
+   el('view-asset').dataset.assetArea!=='data'||chosen!==symbol||
+   !favoriteManager.hasFavorite(symbol)||!hasMobileObservationStorage())return;
+  // The service emits at most one source-checked snapshot per 30 seconds.
+  void saveMobileSnapshot({symbol,collectedAt,depth:[depth],sources:[]})
+   .then(saved=>{
+    if(saved?.saved<1||chosen!==symbol||document.hidden||
+     document.body.dataset.view!=='asset'||
+     el('view-asset').dataset.assetArea!=='data')return;
+    void liquidityDashboard.refresh(symbol);
+   }).catch(()=>{});
+ },
+ onStatus({symbol,venue,state}){
+  if(symbol!==chosen||document.hidden)return;
+  const status=el('depth-stream-status');
+  if(!status)return;
+  const label=state==='LIVE'?'поток активен':
+   state==='CONNECTING'?'подключается':
+   ['OFFLINE','DISCONNECTED','TIMEOUT','UNAVAILABLE'].includes(state)?
+    'резерв REST':['INVALID','CLOCK_SKEW','SEQUENCE_RESET'].includes(state)?
+     'ошибка проверки':'ожидание';
+  status.dataset[venue]=label;
+  status.textContent='Потоки: Binance '+(status.dataset.binance||'ожидание')+
+   ' · OKX '+(status.dataset.okx||'ожидание')+
+   ' · REST включается при сбое или устаревании.';
+ }
+});
+function syncDepthStreams(){
+ const inData=document.body.dataset.view==='asset'&&
+  el('view-asset').dataset.assetArea==='data';
+ const favorite=favoriteManager.hasFavorite(chosen);
+ depthStream?.sync({asset:chosen,visible:!document.hidden,
+  favorite,native:hasMobileObservationStorage(),dataArea:inData});
+ if(inData&&!document.hidden)depthStream?.tick();
+}
 researchLayersDashboard=initResearchLayersDashboard({
  getSymbol:()=>chosen,storage:editorialStorage,
  checkSocial:asset=>loadAssetSocial(asset),
@@ -1560,7 +1604,7 @@ async function investigate(value){
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
  if(changed)fastTickerAt=0;
- if(changed)depthController?.abort();
+ if(changed){depthController?.abort();depthStream?.stop();}
  if(changed){
   newsM5Panel.reset();
   scenarioRequest++;
@@ -1674,6 +1718,7 @@ async function refreshVisibleDepth(){
   !hasMobileObservationStorage())return;
  const symbol=chosen;
  const due=['binance','okx'].filter(venue=>
+  !depthStream?.isFresh(venue)&&
   foregroundDepthPolicy.allowed(symbol,venue,{
    visible:true,favorite:true,native:true,busy:false}).allowed);
  if(!due.length)return;
@@ -1751,6 +1796,7 @@ async function refreshVisibleQuote(){
 setInterval(()=>{
  if(document.hidden)return;
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
+  syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
   else {
@@ -1762,9 +1808,11 @@ setInterval(()=>{
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden){
   depthController?.abort();
+  depthStream?.stop();
   return;
  }
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
+  syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
   else {
