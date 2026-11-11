@@ -76,7 +76,7 @@ test('never borrow a stale, cross-asset or unmatched REST snapshot',()=>{
  assert.equal(report.method,'CURRENT');
  assert.equal(report.comparison.comparable,true);
 });
-test('selected asset only, no polling or private API dependencies',()=>{
+test('selected asset only, no polling or private API dependencies',async()=>{
  const selector=await import('./depth-comparison-selector.mjs');
  assert.ok(selector.needsMatchedRest&&selector.selectDepthComparison);
 });
