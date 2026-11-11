@@ -3476,3 +3476,30 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .depth-sync-status[data-state="INSUFFICIENT_COVERAGE"],
 .depth-sync-status[data-state="INVALID"]{
  border-color:#7a603e;background:#302821;color:#edcba1}
+
+/* APEX Clean Chart: scenario layers are opt-in, one scenario at a time. */
+.chart-overlay-toggle.clean-chart-hide{border-color:#80664c;color:#e6cfac}
+.chart-overlay-toggle.clean-chart-hide:disabled{opacity:.60;border-color:#385667;color:#a7c6cd;cursor:default}
+.clean-chart-hint{margin:8px 0;font-size:12px;line-height:1.5}
+.clean-chart-scenario[hidden]{display:none!important}
+.clean-chart-scenario{margin-top:9px;background:#102a36;border:1px solid #3a6870;
+ padding:12px;border-radius:12px;display:grid;gap:10px}
+.clean-chart-scenario-heading{display:flex;gap:10px;align-items:flex-start;
+ justify-content:space-between;flex-wrap:wrap}
+.clean-chart-scenario-heading strong{color:#d6eee8;font-size:13px}
+.clean-chart-scenario-heading small{font-size:11px;color:#9ebac1}
+.clean-chart-scenario-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.clean-chart-scenario-cell{min-width:0;background:#0a222d;border:1px solid #2a4856;
+ border-radius:8px;padding:8px 5px;display:grid;gap:5px;text-align:center}
+.clean-chart-scenario-cell small{font-size:10px;color:#a6b9c3;font-weight:700}
+.clean-chart-scenario-cell strong{font-variant-numeric:tabular-nums;
+ color:#dcf5eb;font-size:11px;overflow-wrap:anywhere}
+.clean-chart-scenario-cell.entry strong{color:#e9c47f}
+.clean-chart-scenario-cell.stop strong{color:#ef9eaa}
+.clean-chart-scenario-cell.target strong{color:#82dbc5}
+.clean-chart-scenario-foot{color:#a2c2c6;font-size:11px;line-height:1.55}
+@media(max-width:420px){
+ .clean-chart-scenario-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .clean-chart-scenario-cell{padding:7px 4px}
+ .clean-chart-scenario-cell strong{font-size:10px}
+}
