@@ -290,12 +290,18 @@
           <button class="chart-tf" data-interval="1d" type="button">D1</button>
           <button class="chart-reset" id="chart-reset" type="button">Сбросить масштаб</button>
         </div>
+        <div class="chart-evidence-overlays" role="group" aria-label="Исторические слои графика">
+          <button id="chart-ob-toggle" class="chart-overlay-toggle selected" type="button" aria-pressed="true">▧ Order Blocks</button>
+          <button id="chart-whale-toggle" class="chart-overlay-toggle selected" type="button" aria-pressed="true">W · Крупные переводы</button>
+          <span id="chart-ob-status" class="muted">Зоны: проверяем закрытые свечи</span>
+        </div>
+        <p id="chart-whale-status" class="chart-evidence-status muted">Метки W — только из подтверждённого локального архива транзакций.</p>
         <p id="candle-status" class="chart-status" role="status" aria-live="polite">История загрузится при открытии раздела «Актив».</p>
         <div class="chart-surface">
           <canvas id="candle-canvas" width="680" height="330" tabindex="0" aria-label="Свечной график. Перетаскивайте для просмотра истории, увеличивайте двумя пальцами.">График требует Canvas</canvas>
         </div>
         <div class="chart-selected" id="chart-selected">Нажмите свечу для просмотра OHLCV и даты.</div>
-        <details class="asset-quiet-detail"><summary>О графике и сохранённой истории</summary><p class="footnote">Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p></details>
+        <details class="asset-quiet-detail"><summary>О графике и сохранённой истории</summary><p class="footnote">Order Blocks — расчётные исторические зоны по закрытым свечам и подтверждённому BOS/CHoCH, не настоящие заявки и не прогноз. W — время первой фиксации крупного перевода телефоном, нанесённое на последнюю уже закрытую свечу. Слои можно отключать. Отмеченные события привязаны к фактическому времени закрытия H1-свечи. Диапазон не продолжается за пределы имеющихся закрытых свечей; пробелы в истории не дорисовываются. На остальных таймфреймах карта сценариев скрыта. Если интернет недоступен, сохранённая история показывается с пометкой «Локальный кэш».</p></details>
       </article>
       <article class="card block asset-scenarios" data-asset-pane="chart">
         <div class="section-title"><h3>Сценарии наблюдения на графике</h3><span>H1 · Room</span></div>
