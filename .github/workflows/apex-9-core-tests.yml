@@ -13,7 +13,7 @@ on:
       - 'apex9-cloudflare/**'
       - '.github/workflows/apex-9-core-tests.yml'
   pull_request:
-    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1]
+    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2]
     paths:
       - 'apex9-preview/**'
       - 'apex9-android/**'
@@ -46,6 +46,7 @@ jobs:
           node --test apex9-preview/test-source-reliability.mjs
           node --test apex9-preview/test-source-lineage-audit.mjs
           node --test apex9-preview/test-multi-provider-evidence-v2.mjs
+          node --test apex9-preview/test-source-provider-forward-audit.mjs
           node --test apex9-preview/test-m1-native-api-stage.mjs
           node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-preview/test-directional-m1.mjs
