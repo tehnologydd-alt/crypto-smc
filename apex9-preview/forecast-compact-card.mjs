@@ -28,7 +28,7 @@ const FRAME={'1h':'H1','15m':'M15','4h':'H4'};
 export function compactLevelPrice(value){
  if(typeof value!=='number'||!Number.isFinite(value)||value<=0)return '—';
  if(value<0.000005)return '<0.00001';
- return value.toFixed(5).replace(/\\.?0+$/,'');
+ return value.toFixed(5).replace(/\.?0+$/,'');
 }
 export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
  events=[],tracked=false,onToggle,onOpen,copyText}={}){
