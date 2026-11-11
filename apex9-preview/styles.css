@@ -3463,3 +3463,16 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .depth-quality-row strong{display:block;color:#cee9e9;font-size:12px;margin-bottom:6px}
 .depth-quality-row small{display:block;color:#a9beca;line-height:1.55;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:480px){.depth-quality-sources{grid-template-columns:minmax(0,1fr)}}
+
+/* Time- and price-band checked book comparison, purely observational. */
+.depth-sync-status{margin:8px 0 13px;padding:10px 12px;
+ border:1px solid #325565;border-radius:11px;
+ background:#0e2731;color:#b6ced4;font-size:12px;line-height:1.55;
+ overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.depth-sync-status[data-state="SYNCED"]{
+ border-color:#367f77;background:#123f3b;color:#dcf5e9}
+.depth-sync-status[data-state="STALE"],
+.depth-sync-status[data-state="MISALIGNED"],
+.depth-sync-status[data-state="INSUFFICIENT_COVERAGE"],
+.depth-sync-status[data-state="INVALID"]{
+ border-color:#7a603e;background:#302821;color:#edcba1}

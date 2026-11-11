@@ -1,7 +1,7 @@
 name: APEX 9 Evidence Core Tests
 on:
   push:
-    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx, apex-whale-stage4-validation-quality, apex-fresh-market-ws-and-quality-20261111]
+    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx, apex-whale-stage4-validation-quality, apex-fresh-market-ws-and-quality-20261111, apex-synchronized-depth-20261111]
     paths:
       - 'updates/v90-evidence.mjs'
       - 'updates/test-v90-evidence.mjs'
@@ -55,6 +55,7 @@ jobs:
           node --test apex9-preview/test-order-blocks-chart-stage3.mjs
           node --test apex9-preview/test-whale-stage4-quality.mjs
           node --test apex9-preview/test-live-depth-streams.mjs
+          node --test apex9-preview/test-depth-synchronization.mjs
           node --test apex9-preview/test-m1-native-api-stage.mjs
           node --test apex9-preview/test-native-api-integrity.mjs
           node --test apex9-preview/test-directional-m1.mjs

@@ -1,6 +1,7 @@
 import {collectAsset,collectVisibleDepth,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {createForegroundDepthPolicy} from './foreground-depth-policy.mjs';
 import {createForegroundBookStreams} from './live-depth-streams.mjs';
+import {synchronizeSpotDepth} from './depth-synchronization.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
@@ -77,7 +78,8 @@ let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=
 let fastTickerAt=0,fastTickerBusy=false,lastVerifiedTickerAt=0;
 const foregroundDepthPolicy=createForegroundDepthPolicy();
 let depthBusy=false,depthController=null,depthStream=null;
-const latestLiveDepth=new Map(); // UI only: newest validated frame per venue.
+const latestLiveDepth=new Map(); // newest verified WS frames, UI only.
+const latestRestDepth=new Map(); // newest verified REST fallback, UI only.
 try{chosen=normalizeSymbol(localStorage.getItem('apex9_preview_asset'))||chosen;}catch{}
 el('asset-input').value=chosen;
 el('asset-name').textContent=chosen;
@@ -298,7 +300,9 @@ const whaleDashboard=initWhaleDashboard({
 
 function updateTab(view){
  document.body.dataset.view=view;
- if(view!=='asset')depthStream?.stop();
+ if(view!=='asset'){
+  depthStream?.stop();latestLiveDepth.clear();latestRestDepth.clear();
+ }
  for(const tab of document.querySelectorAll('[data-tab]')){
   const active=tab.dataset.tab===activeDock(view);
   tab.classList.toggle('active',active);
@@ -330,9 +334,12 @@ function setAssetArea(requested){
  }
  if(document.body.dataset.view==='asset'&&previousArea!==mode){
   if(mode!=='data'){
-   depthStream?.stop();latestLiveDepth.clear();
+   depthStream?.stop();latestLiveDepth.clear();latestRestDepth.clear();
   }
-  if(mode==='data')void syncDepthStreams();
+  if(mode==='data'){
+   void syncDepthStreams();
+   renderDepth({depth:[]}); // Never carry a previous sync badge unverified.
+  }
   if(mode==='chart')requestAnimationFrame(()=>{
    candleView.resize();void refreshWhaleChart(chosen);
   });
@@ -402,10 +409,7 @@ depthStream=createForegroundBookStreams({
    el('view-asset').dataset.assetArea!=='data'||chosen!==symbol||
    !favoriteManager.hasFavorite(symbol))return;
   latestLiveDepth.set(venue,depth);
-  const fallback=current?.symbol===symbol?current.depth||[]:[];
-  const combined=['binance','okx'].map(v=>latestLiveDepth.get(v)||
-   fallback.find(item=>item.venue===v)).filter(Boolean);
-  renderDepth({depth:combined});
+  renderDepth({depth:[depth]});
  },
  onSample({symbol,depth,collectedAt}){
   if(document.hidden||document.body.dataset.view!=='asset'||
@@ -420,26 +424,26 @@ depthStream=createForegroundBookStreams({
     void liquidityDashboard.refresh(symbol);
    }).catch(()=>{});
  },
- onStatus({symbol,venue,state}){
+ onStatus({symbol,venue,state,error}){
   if(symbol!==chosen||document.hidden)return;
   if(state!=='LIVE'){
    latestLiveDepth.delete(venue);
    if(document.body.dataset.view==='asset'&&
     el('view-asset').dataset.assetArea==='data'){
-    const fallback=current?.symbol===symbol?current.depth||[]:[];
-    const rows=['binance','okx'].map(v=>latestLiveDepth.get(v)||
-     fallback.find(item=>item.venue===v)).filter(Boolean);
-    renderDepth({depth:rows});
+    renderDepth({depth:[]});
    }
   }
   const status=el('depth-stream-status');
   if(!status)return;
-  const label=state==='LIVE'?'поток активен':
+  const label=state==='LIVE'?'WS работает':
    state==='CONNECTING'?'подключается':
    ['OFFLINE','DISCONNECTED','TIMEOUT','UNAVAILABLE'].includes(state)?
-    'резерв REST':['INVALID','CLOCK_SKEW','SEQUENCE_RESET'].includes(state)?
-     'ошибка проверки':'ожидание';
-  status.dataset[venue]=label;
+    'WS недоступен, резерв REST':
+   state==='REMOTE_ERROR'?'биржа отклонила подписку, REST':
+   state==='CLOCK_SKEW'?'несовпадение времени, REST':
+   state==='SEQUENCE_RESET'?'сбой последовательности, REST':
+   state==='INVALID'?'ответ не прошёл проверку, REST':'ожидание';
+  status.dataset[venue]=label+(error?' ('+String(error).slice(0,75)+')':'');
   status.textContent='Потоки: Binance '+(status.dataset.binance||'ожидание')+
    ' · OKX '+(status.dataset.okx||'ожидание')+
    ' · REST включается при сбое или устаревании.';
@@ -1311,10 +1315,37 @@ async function loadCatalog(){
 
 function renderDepth(snapshot){
  const list=el('depth-list');clear(list);
- // Current market view is Binance + OKX only. Keep old Bybit
- // provenance in Room, never render it as a live book.
- const activeBooks=(Array.isArray(snapshot?.depth)?snapshot.depth:[])
-  .filter(item=>item?.venue==='binance'||item?.venue==='okx');
+ // Keep the newest verified public snapshot of each selected favorite.
+ // A stale WS frame never masks the REST fallback, and Bybit stays archived.
+ const currentRows=current?.symbol===chosen&&Array.isArray(current.depth)?
+  current.depth:[];
+ const inputRows=Array.isArray(snapshot?.depth)?snapshot.depth:[];
+ const activeBooks=['binance','okx'].map(venue=>{
+  const choices=[...currentRows,...inputRows,latestRestDepth.get(venue)];
+  if(depthStream?.isFresh(venue))choices.push(latestLiveDepth.get(venue));
+  return choices.filter(b=>b?.venue===venue&&b.symbol===chosen&&
+   Number.isSafeInteger(b.receivedAt))
+   .sort((a,b)=>b.receivedAt-a.receivedAt)[0];
+ }).filter(Boolean);
+ const comparison=synchronizeSpotDepth(activeBooks,{
+  asset:chosen,now:Date.now()
+ });
+ const syncStatus=el('depth-sync-status');
+ if(syncStatus){
+  syncStatus.dataset.state=comparison.state;
+  const stamps='Binance '+(comparison.binanceAt?time(comparison.binanceAt):'—')+
+   ' · OKX '+(comparison.okxAt?time(comparison.okxAt):'—');
+  syncStatus.textContent=comparison.state==='SYNCED'?
+   'Синхронизировано по времени получения (до 3 сек). '+
+   'Общая полоса ±'+fmt(comparison.commonBandBps,1)+' б.п. · '+
+   'Binance '+fmt(comparison.binanceImbalancePct,1)+'% / OKX '+
+    fmt(comparison.okxImbalancePct,1)+'% · разница '+
+    fmt(comparison.differencePctPoints,1)+' п.п. · '+stamps+
+    '. Это не подтверждает одновременность на биржах.':
+   'Сравнение недоступно · '+comparison.reason+
+    (comparison.lagMs!==null?' · разница '+comparison.lagMs+' мс':'')+
+    ' · '+stamps+'. Проценты не сопоставляем.';
+ }
  if(!activeBooks.length){
   list.append(create('p','muted','Публичные стаканы сейчас недоступны.'));
   return;
@@ -1641,7 +1672,7 @@ async function investigate(value){
  const changed=chosen!==symbol;
  if(changed){fastTickerAt=0;lastVerifiedTickerAt=0;}
  if(changed){
-  depthController?.abort();depthStream?.stop();latestLiveDepth.clear();
+  depthController?.abort();depthStream?.stop();latestLiveDepth.clear();latestRestDepth.clear();
   const streamLabel=el('depth-stream-status');
   if(streamLabel){
    delete streamLabel.dataset.binance;
@@ -1804,6 +1835,12 @@ async function refreshVisibleDepth(){
    !favoriteManager.hasFavorite(symbol))return;
   // Room receives only successfully validated actual book snapshots.
   if(sample.depth.length){
+   for(const book of sample.depth)
+    if(book?.symbol===symbol&&
+     (book.venue==='binance'||book.venue==='okx'))
+     latestRestDepth.set(book.venue,book);
+   if(el('view-asset').dataset.assetArea==='data')
+    renderDepth(sample);
    const saved=await saveMobileSnapshot(sample);
    if(!saved.native||saved.saved<1)return;
   }
@@ -1874,6 +1911,10 @@ async function refreshVisibleQuote(){
 setInterval(()=>{
  if(document.hidden)return;
  refreshQuoteAge();
+ if(document.body.dataset.view==='asset'&&
+  el('view-asset').dataset.assetArea==='data'&&
+  favoriteManager.hasFavorite(chosen))
+  renderDepth({depth:[]}); // Expire a previously matched pair even when WS stalls.
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
