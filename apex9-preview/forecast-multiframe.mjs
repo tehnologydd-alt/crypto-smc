@@ -6,7 +6,7 @@
 import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {directionalHypothesis,planDirectionalScenario,directionalOutcomeLabel}
  from './directional-scenario.mjs';
-import {displayPair,priceText} from './forecast-card-ux.mjs';
+import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
  completedResearchPresentation,renderCompletedResearchPanel}
  from './forecast-level-metrics.mjs';
@@ -233,15 +233,16 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  const title=MULTIFRAME_SPEC[row.interval]?.title||row.interval;
  const complete=evidence.state==='OBSERVED'&&evidence.finished;
  const {plan}=evidence.state==='OBSERVED'?evidence:{plan:null};
- const sourceFrame=plan?.evaluationInterval==='1m'?'M1':
-  plan?.evaluationInterval==='5m'?'M5':title;
+ const control=controlMethodLabel(plan?.evaluationInterval,{fallback:title});
+ const sourceFrame=control.frame;
  const completion=completedResearchPresentation({
   outcome:evidence.outcome,verified:complete,entered:evidence.entered,
   touched:evidence.touched||[],frame:sourceFrame
  });
  identity.append(el('strong','',displayPair(row.asset)+
   (plan?' · '+title+' · '+(plan.side==='DOWN'?'SHORT':'LONG'):'')),
-  el('small','',title+' · контроль '+sourceFrame+' · отдельное исследование'));
+  el('small','',title+' · '+(plan?control.label:'метод не подтверждён')+
+   ' · отдельное исследование'));
  const stageLabel=complete?completion.symbol+' '+completion.label:
   evidence.state!=='OBSERVED'?'Проверка данных':
   evidence.events.has('CONFIRMED')?'Активный':
