@@ -5,8 +5,11 @@
  */
 import {collectWhaleObservations,chainForWhaleAsset,
  formatNativeAmount,WHALE_MIN_ATOMIC} from './whale-observer.mjs';
-import {getMobileWhaleHistory,saveMobileWhaleObservations}
- from './mobile-bridge.mjs';
+import {getMobileWhaleHistory,saveMobileWhaleObservations,
+ getMobileCandles,saveMobileCandles} from './mobile-bridge.mjs';
+import {analyzeWhaleActivity,WHALE_STUDY_POLICY}
+ from './whale-activity-analysis.mjs';
+import {fetchCandles} from './candles.mjs';
 
 const node=id=>document.getElementById(id);
 const make=(tag,klass='',value='')=>{
@@ -21,13 +24,82 @@ const time=x=>Number.isSafeInteger(x)&&x>0?
  new Date(x).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',
   hour:'2-digit',minute:'2-digit'}):'—';
 export function initWhaleDashboard({getFavorites=()=>[]}={}){
- let asset='',seq=0,abort=null;
+ let asset='',seq=0,abort=null,marketAbort=null;
+ let latestEvents=[],lastMarketAt=0,marketBusy=false;
  const requests=new Map(); // at most 10 recently selected favorites
  const setStatus=(msg,bad=false)=>{
   const n=node('whale-status');
   if(!n)return;
   n.textContent=msg;n.classList.toggle('is-offline',bad);
  };
+ function summarize(asset,events,candles,token){
+  if(token!==seq)return;
+  const report=analyzeWhaleActivity(events,candles,{
+   asset,now:Date.now()});
+  const metrics=node('whale-analysis-metrics'),
+   repeated=node('whale-analysis-repeated'),
+   resultNode=node('whale-market-report'),
+   status=node('whale-market-status');
+  if(!metrics||!repeated||!resultNode||!status)return;
+  const activity=report.activity;
+  if(!activity){
+   metrics.replaceChildren(make('p','muted','Нет подтверждённого адаптера.'));
+   repeated.textContent='Нет данных об адресах.';
+   status.textContent='Для выбранного актива исследование недоступно.';
+   resultNode.replaceChildren();
+   return;
+  }
+  const units=[
+   ['Уникальных TX',activity.transactions],
+   ['Снимков источника',activity.observedBatches],
+   ['Замечено за 24 часа',activity.recent24h],
+   ['Повторных адресов',activity.repeatAddresses.length]
+  ];
+  const frag=document.createDocumentFragment();
+  for(const [name,value] of units){
+   const card=make('div','whale-analysis-stat');
+   card.append(make('small','',name),make('strong','',value));
+   frag.append(card);
+  }
+  metrics.replaceChildren(frag);
+  repeated.textContent=activity.repeatAddresses.length?
+   'Повторно замечены (не доказана общая принадлежность): '+
+   activity.repeatAddresses.map(x=>x.role+' '+short(x.address)+
+    ' · '+x.transactions+' TX').join(' · '):
+   'Повторяющиеся адреса пока не подтверждены. Отсутствие записей не доказывает отсутствие переводов.';
+  const study=report.price;
+  const counts='Независимых наблюдений '+study.eligibleIndependent+
+   '/'+study.requiredIndependent+
+   ' · без ценовых данных '+study.excludedMissingPrice+
+   ' · горизонт не завершён '+study.excludedPendingFuture+
+   ' · пересекающиеся окна '+study.excludedOverlapping+'. ';
+  status.textContent=study.state==='DESCRIPTIVE'?
+   counts+'Описательное сравнение готово; прогностическая польза НЕ установлена.':
+   counts+(study.state==='INVALID_CANDLES'?
+    'H1-архив требует проверки целостности.':
+    study.state==='NO_CANDLES'?'Нет сохранённых H1-свечей.':
+    'Нужно не меньше 8 независимых завершённых наблюдений в двух временных частях.');
+  resultNode.replaceChildren();
+  if(study.state!=='DESCRIPTIVE')return;
+  const fragment=document.createDocumentFragment();
+  for(const [name,cohort] of [
+   ['Первая временная часть',study.cohortA],
+   ['Следующая независимая часть',study.cohortB]]){
+   const card=make('div','whale-market-cohort');
+   const signed=x=>(x>0?'+':'')+x.toFixed(3)+'%';
+   card.append(make('strong','',name+' · '+cohort.count+' событий'),
+    make('p','',
+     'Медиана изменения через 1ч: '+signed(cohort.medianAfter1hPct)+
+     ' · через 4ч: '+signed(cohort.medianAfter4hPct)),
+    make('small','',
+     'Медиана |4ч после|: '+cohort.medianAbsoluteAfter4hPct.toFixed(3)+
+     '% · |4ч до|: '+cohort.medianAbsoluteBefore4hPct.toFixed(3)+
+     '% · рост/снижение: '+cohort.positiveAfter4h+
+     '/'+cohort.negativeAfter4h));
+   fragment.append(card);
+  }
+  resultNode.replaceChildren(fragment);
+ }
  function draw(rows,{historical=true}={}){
   const place=node('whale-history');
   if(!place)return;
@@ -57,8 +129,12 @@ export function initWhaleDashboard({getFavorites=()=>[]}={}){
   place.replaceChildren(frag);
  }
  async function readLocal(current,token){
-  const read=await getMobileWhaleHistory(current,80);
+  const [read,candleCache]=await Promise.all([
+   getMobileWhaleHistory(current,80),
+   getMobileCandles(current,'1h',WHALE_STUDY_POLICY.maxCandles)
+  ]);
   if(token!==seq||current!==asset)return null;
+  latestEvents=read.complete?read.events:[];
   if(read.complete){
    draw(read.events);
    node('whale-count').textContent=read.events.length+' в выборке Room';
@@ -66,6 +142,7 @@ export function initWhaleDashboard({getFavorites=()=>[]}={}){
    draw([]);
    node('whale-count').textContent='Нет локального архива';
   }
+  summarize(current,latestEvents,candleCache.candles||[],token);
   return read;
  }
  async function refresh(next,{force=false}={}){
@@ -134,10 +211,60 @@ export function initWhaleDashboard({getFavorites=()=>[]}={}){
    if(abort===local)abort=null;
   }
  }
+ async function checkMarket(){
+  if(marketBusy||!chainForWhaleAsset(asset)||document.hidden||
+   document.body.dataset.view!=='asset'||
+   node('view-asset')?.dataset.assetArea!=='data'||
+   !getFavorites().includes(asset))return;
+  const at=Date.now();
+  if(at-lastMarketAt<120000){
+   node('whale-market-status').textContent=
+    'Публичные H1 проверяются не чаще одного раза за 2 минуты.';
+   return;
+  }
+  lastMarketAt=at;
+  marketBusy=true;
+  const current=asset,token=seq;
+  marketAbort?.abort();
+  const controller=new AbortController();marketAbort=controller;
+  const timer=setTimeout(()=>controller.abort(),12000);
+  const button=node('whale-market-check');
+  button.disabled=true;
+  node('whale-market-status').textContent=
+   'Проверяем только реальные закрытые свечи Binance Spot H1…';
+  try{
+   const result=await fetchCandles(current,'1h',{
+    limit:500,signal:controller.signal,now:()=>Date.now()});
+   if(token!==seq||current!==asset||controller.signal.aborted||
+    !getFavorites().includes(current))return;
+   if(!['OK','STALE'].includes(result.state)||
+    !result.candles?.length){
+    node('whale-market-status').textContent='H1-источник '+result.state+
+     ' · новая рыночная история не подтверждена. Сохранённая история не меняется.';
+    return;
+   }
+   await saveMobileCandles(current,'1h',result.candles);
+   if(token!==seq||current!==asset||controller.signal.aborted)return;
+   // Preserve first-seen transfer times, including for old Blockscout pages.
+   summarize(current,latestEvents,result.candles,token);
+  }catch{
+   if(token===seq&&!controller.signal.aborted)
+    node('whale-market-status').textContent=
+     'H1-источник недоступен. Старые наблюдения сохранены.';
+  }finally{
+   clearTimeout(timer);
+   if(marketAbort===controller)marketAbort=null;
+   marketBusy=false;
+   button.disabled=false;
+  }
+ }
  node('whale-refresh')?.addEventListener('click',()=>void refresh(asset,{force:true}));
+ node('whale-market-check')?.addEventListener('click',()=>void checkMarket());
  return {refresh,clear(next){
-  seq++;abort?.abort();abort=null;asset=next;
+  seq++;abort?.abort();abort=null;marketAbort?.abort();marketAbort=null;
+  asset=next;latestEvents=[];
   node('whale-count').textContent='—';draw([]);
+  summarize(next,[],[],seq);
   setStatus('Сводка переводов ожидает проверки сети и локального архива.');
  }};
 }
