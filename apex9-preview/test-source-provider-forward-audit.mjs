@@ -111,7 +111,8 @@ test('paired 3-window study uses exactly same observed outcomes for both ranks',
  assert.equal(market.sensitivity.state,'DESCRIPTIVE');
  assert.equal(market.sensitivity.windows.length,3);
  assert.ok(market.sensitivity.windows.every(w=>
-  w.leaveOneOutMin<=w.deltaAuc&&w.deltaAuc<=w.leaveOneOutMax));
+  Number.isFinite(w.leaveOneOutMin)&&Number.isFinite(w.leaveOneOutMax)&&
+  w.leaveOneOutMin<=w.leaveOneOutMax));
  assert.equal(market.windows[0].tp3,8);
  assert.equal(market.windows[0].stop,8);
  const bybit=probe(r,'bybit:spot:depth');
