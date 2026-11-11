@@ -7,6 +7,8 @@
 import {inspectEvidenceContext,EVIDENCE_FEEDS,EVIDENCE_FRAMES}
  from './forecast-evidence-context.mjs';
 import {featureFrameOf} from './forecast-feature-ablation.mjs';
+import {verifiedDirectionalEvidence} from './forecast-quality.mjs';
+import {multiFrameEvidence} from './forecast-multiframe.mjs';
 
 export const SOURCE_LINEAGE_VERSION='APEX_SOURCE_LINEAGE_V1';
 export const SOURCE_LINEAGE_RULES=Object.freeze({
@@ -51,6 +53,9 @@ export function auditPublishedSourceLineage(archive,{asset,now=Date.now()}={}){
   if(!tf||!frames[tf]){unclassified++;continue;}
   const frame=frames[tf];
   frame.published++;
+  const plan=tf==='1h'?verifiedDirectionalEvidence(row,{now}):
+   multiFrameEvidence(row,{now});
+  if(plan.state!=='OBSERVED'){frame.invalid++;continue;}
   const context=inspectEvidenceContext(row);
   if(context.state==='LEGACY'){frame.legacy++;continue;}
   if(context.state!=='VERIFIED'){frame.invalid++;continue;}
