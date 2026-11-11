@@ -329,7 +329,9 @@ function setAssetArea(requested){
   button.setAttribute('aria-pressed',String(active));
  }
  if(document.body.dataset.view==='asset'&&previousArea!==mode){
-  if(mode!=='data')depthStream?.stop();
+  if(mode!=='data'){
+   depthStream?.stop();latestLiveDepth.clear();
+  }
   if(mode==='data')void syncDepthStreams();
   if(mode==='chart')requestAnimationFrame(()=>{
    candleView.resize();void refreshWhaleChart(chosen);
@@ -420,6 +422,16 @@ depthStream=createForegroundBookStreams({
  },
  onStatus({symbol,venue,state}){
   if(symbol!==chosen||document.hidden)return;
+  if(state!=='LIVE'){
+   latestLiveDepth.delete(venue);
+   if(document.body.dataset.view==='asset'&&
+    el('view-asset').dataset.assetArea==='data'){
+    const fallback=current?.symbol===symbol?current.depth||[]:[];
+    const rows=['binance','okx'].map(v=>latestLiveDepth.get(v)||
+     fallback.find(item=>item.venue===v)).filter(Boolean);
+    renderDepth({depth:rows});
+   }
+  }
   const status=el('depth-stream-status');
   if(!status)return;
   const label=state==='LIVE'?'поток активен':
@@ -1315,7 +1327,11 @@ function renderDepth(snapshot){
     'WebSocket · до '+item.snapshotLevelsMax+' уровней на сторону':
     'REST · ограниченный проверенный снимок')
   );
-  row.append(content,create('span','source-state ok',time(item.receivedAt)));
+  const age=Date.now()-item.receivedAt;
+  const fresh=age>=0&&age<(item.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'?
+   12000:180000);
+  row.append(content,create('span','source-state '+(fresh?'ok':'fail'),
+   (fresh?'Свежий ':'Архив ')+time(item.receivedAt)));
   list.append(row);
  }
 }
