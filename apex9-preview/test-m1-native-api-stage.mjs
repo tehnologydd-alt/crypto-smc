@@ -111,7 +111,7 @@ test('all native request paths share the same bounded ledger; UI does not poll A
  for(const file of names)
   assert.ok(native(file).includes('ApexApiLedger.observe('),file);
  const ledger=native('ApexApiLedger.kt');
- for(const phrase of ['MAX_PER_LANE = 120','MAX_LANES = 12',
+ for(const phrase of ['MAX_PER_LANE = 120','MAX_LANES = 20',
   'MAX_AGE = 30L','RATE_LIMITED','ACCESS_DENIED','providerAt']){
   assert.ok(ledger.includes(phrase),phrase);
  }
