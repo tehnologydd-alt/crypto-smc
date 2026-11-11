@@ -3503,3 +3503,71 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  .clean-chart-scenario-cell{padding:7px 4px}
  .clean-chart-scenario-cell strong{font-size:10px}
 }
+
+
+/* APEX 9 · compact OPEN forecast rows (completed research is untouched). */
+.apex-setting-scope{display:grid;gap:8px;margin:12px 0;color:#d8edf0;font-weight:650}
+.apex-setting-scope select{width:100%;min-height:44px;border:1px solid #37626b;
+ border-radius:12px;background:#102a33;color:#ecfcff;padding:9px 12px;
+ font:inherit;font-weight:550}
+.apex-setting-scope select:focus-visible{outline:2px solid #62e0d2;outline-offset:2px}
+#apex-settings-alert-scope-hint{line-height:1.5;margin:5px 0 15px}
+.forecast-compact-card{display:grid;gap:12px;padding:16px;border:1px solid #27505c;
+ border-radius:18px;background:linear-gradient(155deg,#112d37,#0c212b);
+ min-width:0;box-shadow:none}
+.forecast-compact-card .forecast-compact-head{display:flex;align-items:start;
+ justify-content:space-between;gap:12px;min-width:0}
+.forecast-compact-identity{display:grid;gap:4px;min-width:0}
+.forecast-compact-identity strong{font-size:1.04rem;color:#edfafa;line-height:1.25}
+.forecast-compact-identity span{font-size:.83rem;color:#9cbbc3;line-height:1.35}
+.forecast-compact-status{font-size:.78rem;font-weight:750;white-space:nowrap;
+ border-radius:100px;padding:6px 10px;color:#abebdb;background:#12483f}
+.forecast-compact-card.stage-pending_confirmation .forecast-compact-status{
+ background:#243945;color:#bbd7e1}
+.forecast-compact-card.stage-confirmed .forecast-compact-status{
+ background:#4b3c22;color:#f9d59d}
+.forecast-compact-note{margin:0;color:#a6c2c9;line-height:1.4;font-size:.85rem}
+.forecast-compact-price-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;min-width:0}
+.forecast-compact-price{min-width:0;border:1px solid #284650;border-radius:12px;
+ padding:10px 9px;background:#0a202a;display:grid;gap:5px;align-content:start}
+.forecast-compact-price small{font-size:.72rem;color:#99b5bd;line-height:1.2}
+.forecast-compact-price strong{font-size:clamp(.83rem,2.2vw,1.01rem);
+ color:#edf8fa;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;
+ line-height:1.35}
+.forecast-compact-price.tp1{border-color:#286d5e}
+.forecast-compact-price.tp1 strong{color:#86e6c9}
+.forecast-compact-price.sl{border-color:#75505a}
+.forecast-compact-price.sl strong{color:#ffb0b9}
+.forecast-compact-progress{display:flex;flex-wrap:wrap;gap:6px}
+.forecast-compact-event{border-radius:7px;padding:4px 8px;
+ color:#8faab5;background:#19303a;font-size:.75rem}
+.forecast-compact-event.is-hit{color:#a9f1db;background:#16453f}
+.forecast-compact-details{border-top:1px solid #24434b;padding-top:7px}
+.forecast-compact-details summary{cursor:pointer;color:#b9e4e6;
+ font-weight:600;font-size:.86rem;padding:5px 0;list-style:revert}
+.forecast-compact-details[open]{display:grid;gap:10px}
+.forecast-compact-full-levels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.forecast-compact-full-level{background:#09202a;border:1px solid #28505b;
+ border-radius:10px;padding:8px;display:grid;gap:5px;min-width:0}
+.forecast-compact-full-level span{font-size:.78rem;color:#aac7ce}
+.forecast-compact-full-level strong{font-size:.94rem;color:#edfbfc;overflow-wrap:anywhere}
+.forecast-compact-full-level small{font-size:.72rem;color:#9ac2c6;line-height:1.3}
+.forecast-compact-meta,.forecast-compact-history p{font-size:.78rem;line-height:1.45;
+ margin:0;color:#9bb8bf}
+.forecast-compact-history{display:grid;gap:5px;border-top:1px solid #24434b;padding-top:8px}
+.forecast-compact-history strong{font-size:.82rem;color:#cce8eb}
+.forecast-compact-actions{display:flex;flex-wrap:wrap;gap:7px}
+.forecast-compact-actions button{min-height:38px;min-width:0;border:1px solid #37616b;
+ border-radius:10px;background:#16343e;color:#cfe8eb;cursor:pointer;
+ padding:8px 11px;font-size:.81rem;font-weight:650}
+.forecast-compact-actions .forecast-compact-open{background:#155d59;color:#d6fff3;border-color:#28786f}
+.forecast-compact-actions .forecast-compact-mark[aria-pressed="true"]{border-color:#d2ab62;color:#ffdc8f}
+.forecast-compact-actions button:focus-visible{outline:2px solid #73e6d1;outline-offset:2px}
+@media(max-width:390px){
+ .forecast-compact-card{padding:12px;gap:10px}
+ .forecast-compact-price-row{gap:5px}
+ .forecast-compact-price{padding:7px 6px}
+ .forecast-compact-price strong{font-size:.82rem}
+ .forecast-compact-actions button{flex:1}
+}
