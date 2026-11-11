@@ -68,12 +68,13 @@ export function legacyRangeCard(row,options={}){
  return card;
 }
 export function directionalForecastCard(row,{
- tracked,onToggle,onOpen,sourceH1,sourceM5,copyText
+ tracked,onToggle,onOpen,sourceH1,sourceM5,sourceM1,copyText
 }={}){
  const verified=planDirectionalScenario(row,{now:Date.now()});
  const plan=verified.plan;
  const isM5=plan?.evaluationInterval==='5m';
- const sourceFrame=isM5?'M5':'H1';
+ const isM1=plan?.evaluationInterval==='1m';
+ const sourceFrame=isM1?'M1':isM5?'M5':'H1';
  const timeline=buildForecastEventTimeline(row,{now:Date.now()});
  const visibleStage=forecastStage(row);
  const finishedNative=visibleStage==='COMPLETED'&&
@@ -257,7 +258,7 @@ export function directionalForecastCard(row,{
  if(timeline.state==='VERIFIED'){
   const limitObserved=timeline.events.some(x=>x.stage==='LIMIT_READY');
   const limitReady=limitObserved||
-   (plan.stageSemantics!=='LIMIT_READY_M5_V1'&&timeline.entered);
+   (!['LIMIT_READY_M5_V1','LIMIT_READY_M1_V1'].includes(plan.stageSemantics)&&timeline.entered);
   for(const [i,observed] of [
    true,limitReady,timeline.entered,timeline.finished
   ].entries()){
@@ -308,9 +309,9 @@ export function directionalForecastCard(row,{
  const open=btn('forecast-open','Открыть актив',()=>onOpen?.(row.asset,row.id));
  const bottom=create('div','forecast-card-actions');
  bottom.append(open);card.append(bottom);
- const reader=isM5?sourceM5:sourceH1;
+ const reader=isM1?sourceM1:isM5?sourceM5:sourceH1;
  if(typeof reader!=='function')return card;
- void (isM5?reader(plan):reader(row.asset)).then(archive=>{
+ void (isM5||isM1?reader(plan):reader(row.asset)).then(archive=>{
   if(!card.isConnected)return;
   if(!archive.native||archive.error||!archive.complete){
    replayStatus.textContent='Повторная проверка '+sourceFrame+
@@ -373,7 +374,8 @@ export function directionalForecastCard(row,{
   }
   status.textContent=directionalOutcomeLabel(audit.outcome)+
    (finished?' · '+date(audit.terminalAt):' · проверка до '+date(plan.targetCloseAt));
-  summary.textContent='Проверено '+(isM5?audit.observedBars+'/288 M5':audit.observedHours+'/24 H1')+' · TP: '+
+  summary.textContent='Проверено '+(isM1?audit.observedBars+'/1440 M1':
+    isM5?audit.observedBars+'/288 M5':audit.observedHours+'/24 H1')+' · TP: '+
    audit.hits.length+'/3. '+(audit.reason||audit.note);
   if(audit.reason)replayStatus.textContent+=' '+audit.reason;
  }).catch(()=>{

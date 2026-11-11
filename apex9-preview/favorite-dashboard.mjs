@@ -6,7 +6,7 @@
 import {getMobileFavorites,changeMobileFavorite,
  syncMobileFavoriteResearch,getMobileResearchForecasts,
  getMobileMarkedResearchForecasts,getMobileCandles,
- getMobileCandleArchive,getMobileM5Window} from './mobile-bridge.mjs';
+ getMobileCandleArchive,getMobileM5Window,getMobileM1Window} from './mobile-bridge.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
@@ -115,16 +115,18 @@ async function sourceH1(asset){
 const M5_WINDOW_CACHE=new Map(),M5_INFLIGHT=new Map();
 /** Exactly the closed M5 bars belonging to the published 24h scenario. */
 async function sourceM5(plan){
- const STEP=300000;
+ const STEP=plan.evaluationInterval==='1m'?60000:300000;
  const start=plan.anchorCloseAt+1;
  const end=Math.min(plan.targetCloseAt+1,
   Math.floor(Date.now()/STEP)*STEP);
  if(end<=start)return {native:true,complete:true,candles:[]};
- const key=plan.asset+':'+start+':'+end;
+ const key=plan.asset+':'+plan.evaluationInterval+':'+start+':'+end;
  const cached=M5_WINDOW_CACHE.get(key);
  if(cached&&Date.now()-cached.at<45000)return cached.data;
  if(M5_INFLIGHT.has(key))return M5_INFLIGHT.get(key);
- const request=getMobileM5Window(plan.asset,start,end)
+ const request=(plan.evaluationInterval==='1m'?
+  getMobileM1Window(plan.asset,start,end):
+  getMobileM5Window(plan.asset,start,end))
   .then(data=>{
    if(data.native&&data.complete&&!data.error){
     if(M5_WINDOW_CACHE.size>35)M5_WINDOW_CACHE.clear();
@@ -275,7 +277,7 @@ function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
   return multiFrameForecastCard(row,{tracked,onToggle,onOpen});
  if(directionalHypothesis(row))
   return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
-   sourceH1,sourceM5,copyText:copyResearchText});
+   sourceH1,sourceM5,sourceM1:sourceM5,copyText:copyResearchText});
  return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
 }
 function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
