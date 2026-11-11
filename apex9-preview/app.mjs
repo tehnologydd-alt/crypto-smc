@@ -65,7 +65,7 @@ const layerNames={
 const sourceNames={
  'binance-ticker':'Binance · Spot 24h',
  'binance-depth':'Binance · Spot order book',
- 'bybit-depth':'Bybit · Spot order book'
+ 'okx-depth':'OKX · Spot order book'
 };
 const assessmentNames={
  INSUFFICIENT:'Недостаточно данных',MIXED:'Противоречивый контекст',
@@ -1252,7 +1252,7 @@ function renderDepth(snapshot){
   const row=create('div','source-line');
   const content=create('div');
   content.append(
-   create('b','',item.venue==='binance'?'Binance Spot':'Bybit Spot'),
+   create('b','',item.venue==='binance'?'Binance Spot':item.venue==='okx'?'OKX Spot':'Источник Spot'),
    create('small','', 'Bid '+fmt(item.bestBid)+' · Ask '+fmt(item.bestAsk)),
    create('small','', 'Видимый дисбаланс: '+fmt(item.visibleDepthImbalance*100,1)+'%'+
     ' · Спред '+fmt(item.spreadBps,2)+' б.п.')
@@ -1634,7 +1634,7 @@ async function investigate(value){
   const persisted=await saveMobileSnapshot(snapshot);
   if(active!==pending)return;
   // This full request already sampled the two books. Do not repeat it.
-  for(const venue of ['binance','bybit']){
+  for(const venue of ['binance','okx']){
    const seen=snapshot.sources.find(row=>row.id===venue+'-depth');
    if(seen)foregroundDepthPolicy.record(chosen,venue,seen.state);
   }
@@ -1673,7 +1673,7 @@ async function refreshVisibleDepth(){
   !favoriteManager.hasFavorite(chosen)||
   !hasMobileObservationStorage())return;
  const symbol=chosen;
- const due=['binance','bybit'].filter(venue=>
+ const due=['binance','okx'].filter(venue=>
   foregroundDepthPolicy.allowed(symbol,venue,{
    visible:true,favorite:true,native:true,busy:false}).allowed);
  if(!due.length)return;
