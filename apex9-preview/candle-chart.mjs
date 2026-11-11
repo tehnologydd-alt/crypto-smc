@@ -4,6 +4,8 @@
  * Displays only observed OHLCV and retrospective structure annotations.
  */
 import {mapScenarioToViewport} from './scenario-map.mjs';
+import {analyzeStructuralOrderBlocks,mapOrderBlocksToViewport,
+ mapWhaleEventsToViewport} from './order-blocks-chart.mjs';
 export class CandleChart {
  constructor(canvas,{onSelect}={}){
   if(!canvas||typeof canvas.getContext!=='function')throw Error('Chart canvas required');
@@ -11,6 +13,8 @@ export class CandleChart {
   if(!this.ctx)throw Error('Canvas 2D unavailable');
   this.data=[];this.events=[];this.scenarios=[];this.interval='1h';this.visible=55;this.offset=0;
   this.replayCursor=null;
+  this.orderBlocks=[];this.whaleEvents=[];this.whaleAsset=null;
+  this.showBlocks=true;this.showWhales=true;
   this.pointers=new Map();this.lastPinch=null;this.selected=null;this.onSelect=onSelect;
   this.width=0;this.height=0;this.frame=0;
   this.onResize=()=>this.resize();
@@ -60,6 +64,18 @@ export class CandleChart {
  }
  setInterval(interval){
   this.interval=interval;
+  this.orderBlocks=analyzeStructuralOrderBlocks(this.data,{
+   interval}).zones;
+  this.schedule();
+ }
+ /** UI-only visibility toggles; no network activity or changes to data. */
+ setOverlayVisibility({blocks=this.showBlocks,whales=this.showWhales}={}){
+  this.showBlocks=blocks===true;this.showWhales=whales===true;
+  this.schedule();
+ }
+ setWhaleEvents(asset,events=[]){
+  this.whaleAsset=asset;
+  this.whaleEvents=Array.isArray(events)?events.slice(0,100):[];
   this.schedule();
  }
  setReplayCursor(cursor=null){
@@ -91,6 +107,8 @@ export class CandleChart {
  setData(candles,events=[]){
   this.data=Array.isArray(candles)?candles:[];
   this.events=Array.isArray(events)?events:[];
+  this.orderBlocks=analyzeStructuralOrderBlocks(this.data,{
+   interval:this.interval}).zones;
   this.offset=0;this.selected=null;this.schedule();
  }
  reset(){this.offset=0;this.visible=55;this.selected=null;this.schedule();}
@@ -205,6 +223,39 @@ export class CandleChart {
    }
    ctx.restore();
   }
+  // Stage 3: retrospective source-CANDLE structure zones.
+  // Never draw before a confirmed BOS/CHoCH, across missing bars, or
+  // into empty future space. The shaded area is NOT a resting-order feed.
+  if(this.showBlocks){
+   const zones=mapOrderBlocksToViewport(this.orderBlocks,bars,{
+    interval:this.interval});
+   ctx.save();ctx.beginPath();ctx.rect(0,14,plotW,mainH-22);ctx.clip();
+   for(const zone of zones){
+    if(zone.high<low||zone.low>high)continue;
+    const upper=Math.max(14,Math.min(mainH-8,priceY(Math.min(high,zone.high))));
+    const lower=Math.max(14,Math.min(mainH-8,priceY(Math.max(low,zone.low))));
+    if(lower<=upper)continue;
+    const demand=zone.kind==='DEMAND';
+    ctx.fillStyle=demand?'rgba(55,195,166,.15)':'rgba(240,105,130,.14)';
+    ctx.strokeStyle=demand?'#45cbb2':'#ea8d97';
+    ctx.setLineDash([4,4]);ctx.lineWidth=1;
+    for(const segment of zone.segments){
+     const x=Math.max(0,segment.from*step),
+      right=Math.min(plotW,(segment.to+1)*step);
+     if(right<=x)continue;
+     ctx.fillRect(x,upper,right-x,lower-upper);
+     ctx.strokeRect(x,upper,right-x,lower-upper);
+     const label=demand?'Demand OB':'Supply OB';
+     ctx.fillStyle=demand?'#82e7d4':'#f5b0bb';
+     ctx.font='bold 9px system-ui';ctx.textAlign='left';
+     ctx.fillText(label,Math.min(Math.max(x+3,3),plotW-73),
+      Math.max(18,upper+9));
+     ctx.fillStyle=demand?'rgba(55,195,166,.15)':'rgba(240,105,130,.14)';
+    }
+   }
+   ctx.restore();
+  }
+
   ctx.strokeStyle='#24424a';ctx.lineWidth=1;
   for(let j=0;j<=4;j++){
    const y=14+(mainH-22)*j/4;
@@ -247,6 +298,23 @@ export class CandleChart {
     ctx.restore();
    }
   }
+  // Whale marks are placed at the last already-closed candle available
+  // when Room first recorded the transfer. No inference about candle trades.
+  if(this.showWhales&&this.whaleEvents.length&&this.whaleAsset){
+   const marks=mapWhaleEventsToViewport(this.whaleEvents,bars,{
+    asset:this.whaleAsset,interval:this.interval,now:Date.now()});
+   for(const mark of marks){
+    const x=(mark.index+.5)*step,y=Math.max(20,Math.min(mainH-20,
+     priceY(bars[mark.index].high)-15));
+    ctx.save();ctx.beginPath();ctx.arc(x,y,6.5,0,2*Math.PI);
+    ctx.fillStyle='#263d44';ctx.fill();
+    ctx.strokeStyle='#edc276';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.font='bold 9px system-ui';ctx.fillStyle='#ffe4a6';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('W',x,y+0.3);
+    ctx.restore();
+   }
+  }
+
   // P = published anchor, 1 / 2 = observed H1 stages, 4 = verified outcome.
   // Annotate only confirmed retrospective breaks, never preemptive signals.
   const eventByTime=new Map(this.events.map(e=>[e.time,e]));
