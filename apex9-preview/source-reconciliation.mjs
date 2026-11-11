@@ -7,7 +7,8 @@
 const SPECS=Object.freeze({
  'binance-ticker':{title:'Binance Spot',group:'VENUE_SPOT'},
  'binance-depth':{title:'Binance depth',group:'VISIBLE_ORDER_BOOK'},
- 'bybit-depth':{title:'Bybit depth',group:'VISIBLE_ORDER_BOOK'},
+ 'okx-depth':{title:'OKX depth',group:'VISIBLE_ORDER_BOOK'},
+ 'bybit-depth':{title:'Bybit depth · архивный формат',group:'VISIBLE_ORDER_BOOK'},
  okx:{title:'OKX Spot',group:'VENUE_SPOT'},
  paprika:{title:'CoinPaprika',group:'GLOBAL_ASSET_USD'},
  cmc:{title:'CoinMarketCap Keyless',group:'GLOBAL_ASSET_USD'},
