@@ -1127,6 +1127,10 @@ class ApexNativePlugin : Plugin() {
                 ApexRadarMonitor.sync(context.applicationContext, favorites, dao)
                 val multi = ApexMultiFrameForecast.syncAll(
                     context.applicationContext, favorites, dao)
+                // Include freshly recorded M15/H4 M1 stages in the same
+                // foreground sync; already-notified H1 events are deduped.
+                try { ApexForecastNotifier.dispatch(context.applicationContext, favorites, dao) }
+                catch (_: Exception) { /* Do not block research sync for alerts. */ }
                 val items = JSArray()
                 for (report in reports) {
                     val item = JSObject()

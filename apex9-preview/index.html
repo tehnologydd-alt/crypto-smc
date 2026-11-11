@@ -40,9 +40,9 @@
     <p id="apex-settings-background-status" class="muted" role="status">Проверяем состояние Android…</p>
     <div class="apex-settings-divider"></div>
     <h3 class="apex-settings-subtitle">Оповещения о прогнозах</h3>
-    <label class="apex-setting-toggle"><input id="apex-settings-alerts" type="checkbox" disabled><span>Уведомления APEX<small>Только подтверждённые события по закрытым M5; не исполнение ордеров</small></span></label>
+    <label class="apex-setting-toggle"><input id="apex-settings-alerts" type="checkbox" disabled><span>Уведомления APEX<small>Новые прогнозы — по закрытым M1; архивные M5 — по M5. Не исполнение ордеров</small></span></label>
     <div id="apex-settings-alert-types" class="apex-settings-alert-types">
-      <label class="apex-setting-toggle"><input id="apex-settings-alert-limit" type="checkbox" disabled><span>Лимитный прогноз<small>После первой полностью закрытой M5</small></span></label>
+      <label class="apex-setting-toggle"><input id="apex-settings-alert-limit" type="checkbox" disabled><span>Лимитный прогноз<small>После первой полностью закрытой M1 (архивные прогнозы — M5)</small></span></label>
       <label class="apex-setting-toggle"><input id="apex-settings-alert-targets" type="checkbox" disabled><span>TP1, TP2, TP3<small>Каждое подтверждённое касание уровня отдельно</small></span></label>
       <label class="apex-setting-toggle"><input id="apex-settings-alert-stop" type="checkbox" disabled><span>Стоп-уровень SL<small>Касание после наблюдаемого входа</small></span></label>
     </div>
@@ -499,7 +499,7 @@
         <details class="forecast-technical-notes" id="forecast-system-details">
           <summary>Состояние автоматической проверки</summary>
           <p id="forecast-action-status" class="chart-status" role="status" aria-live="polite">Доступные исследования проверяются автоматически. Фоновая синхронизация зависит от разрешений Android.</p>
-          <p>Направление формируется по закрытым H1, порядок касаний проверяется по закрытым M5. Касания уровней не являются исполненными сделками.</p>
+          <p>Направление формируется по закрытым H1, M15 или H4; новые сценарии проверяются по закрытым M1, старые M5 — по исходной методике. Касания не являются исполненными сделками.</p>
           <p>Восстановленные задним числом уровни старых гипотез не учитываются как результаты опубликованных направленных прогнозов.</p>
         </details>
       </article>
@@ -565,7 +565,7 @@
         <div class="section-title"><h3>Журнал сценариев</h3></div>
         <details class="forecast-technical-notes">
           <summary>Как проверяются сценарии</summary>
-          <p>Направление и уровни входа, TP1–TP3 и SL фиксируются при публикации. Лимитный сценарий ожидает касания входа по закрытой M5, активный отслеживает следующие уровни. Неизвестный порядок событий не засчитывается как подтверждённый исход.</p>
+          <p>Направление и уровни входа, TP1–TP3 и SL фиксируются при публикации. Лимитный сценарий ожидает касания входа по закрытой M1 (для архивных — M5), активный отслеживает следующие уровни. Неизвестный порядок событий не засчитывается как подтверждённый исход.</p>
         </details>
 
         <div class="forecast-compact-stages" role="group" aria-label="Стадия наблюдения">
