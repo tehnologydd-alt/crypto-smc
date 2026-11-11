@@ -9,8 +9,8 @@ import {auditPublishedSourceLineage,SOURCE_LINEAGE_VERSION}
 import {auditProviderForwardValue,PROVIDER_FORWARD_REGISTRATION,
  PROVIDER_FORWARD_TESTS} from './source-provider-forward-audit.mjs';
 
-export const SOURCE_COHORT_VERSION='APEX_SOURCE_COHORT_VIEW_V3';
-const KEY='apex9:source-cohort-summary:v3',AGE=30*86400000;
+export const SOURCE_COHORT_VERSION='APEX_SOURCE_COHORT_VIEW_V4';
+const KEY='apex9:source-cohort-summary:v4',AGE=30*86400000,MAX_BYTES=96000;
 const FRAMES=['15m','1h','4h'];
 const assetOK=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const time=x=>Number.isSafeInteger(x)&&x>0;
@@ -88,7 +88,7 @@ export function saveSourceCohortSummary(archive,asset,{
  let old={};
  try{
   const raw=storage.getItem(KEY);
-  if(raw&&raw.length<48000){
+  if(raw&&raw.length<MAX_BYTES){
    const parsed=JSON.parse(raw);
    if(parsed?.version===SOURCE_COHORT_VERSION&&parsed.summaries)
     old=parsed.summaries;
@@ -110,7 +110,7 @@ export function readSourceCohortSummary(asset,{
  if(!assetOK(asset)||!storage?.getItem)return null;
  try{
   const raw=storage.getItem(KEY);
-  if(!raw||raw.length>48000)return null;
+  if(!raw||raw.length>MAX_BYTES)return null;
   const stored=JSON.parse(raw);
   const report=stored?.version===SOURCE_COHORT_VERSION?
    stored.summaries?.[asset]:null;
