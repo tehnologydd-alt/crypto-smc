@@ -16,7 +16,8 @@
 
 ## Confirmed gaps / risks (priority)
 1. **P0 — Android background ticker payload-contract defect (fix included in Phase 1).** `ApexSyncWorker.kt` saved `priceChangePercent24h` but native published-evidence validator expects `changePercent24h` AND positive `quoteVolume`. Background-only market observations therefore could not satisfy `ApexEvidenceContext.sanitized(..., kind="market")`. Fix parses `quoteVolume`, writes the canonical keys, rejects invalid volume and excessive change, and adds cross-file contract regression tests. Historical records are left untouched.
-2. **P1 — API operational reliability does not cover all native background requests.** `source-reliability.mjs` records the web-layer events while `ApexSyncWorker.kt`, native candle collection and Radar have separate network paths. Never claim 12/12 full-device observability from the web ledger.
+2. **P1 — M1 research is not yet included in several existing historical feature-quality cohorts.** The new `verifiedDirectionalEvidence` explicitly returns `source='M1'`, but `forecast-feature-ablation.mjs` and `forecast-probability-readiness.mjs` still have an H1 gate `check.source!=='M5'`. New M1 observations can therefore be counted as legacy/excluded by those checks even when the forecast is valid. This is NOT a reason to relabel old M5 results: add a distinct, comparable M1 evidence cohort with its own prospective registration boundary and regression tests.
+3. **P1 — API operational reliability does not cover all native background requests.** `source-reliability.mjs` records the web-layer events while `ApexSyncWorker.kt`, native candle collection and Radar have separate network paths. Never claim 12/12 full-device observability from the web ledger.
 3. **P1 — Provider versus feature attribution is not equivalent.** The existing fixed ablation covers `efficiency/travelNorm/volumeNorm`; temporal holdout covers `sameRadar/higherRadar/marketDay/visibleDepth`. Neither proves which news aggregator, onchain endpoint or exchange API independently improved a forecast.
 4. **P1 — Evidence as published preserves only the latest observation of each kind.** A forecast's single `liquidity` feed cannot simultaneously prove use of BOTH Binance and Bybit depth. Missing news/macro/social is not provider failure. Comparisons require a versioned, bounded, additive evidence contract with multiple distinct provider IDs.
 5. **P1 — Presence of news/social metadata is not factual validation.** `ApexEvidenceContext.kt` explicitly marks `news/macro/social` as unverified context metadata. Headlines, posts and narratives cannot be assigned predictive credibility solely from response statuses.
@@ -32,7 +33,8 @@
 - [ ] CI tests (Node and Android Gradle), PR review and optional signed test APK.
 - **Exit:** Kotlin/JS field contract and archival lineage tests green; old M5 remains untouched; no source is assigned forecast accuracy.
 
-### Stage 2 — comprehensive native API request ledger
+### Stage 2 — M1 cohort consistency + comprehensive native API request ledger
+- First correct the H1 quality/readiness cohort gates so verified post-change `M1` records are not silently excluded as `legacyH1`. Keep archived M5 and current M1 source cohorts separate; validate all dependent shadow/rolling/holdout results independently before reporting new quality trends.
 - Add an append-only, bounded local Room table or equivalent dedicated native ledger of attempted network operations: provider ID, request class, asset-scope, attemptedAt, completedAt, HTTP/result code, validated provider timestamp, cache/429/timeout distinction. Never save credentials or raw payload.
 - Integrate the existing web ledger without double counting cached results or replayed snapshots; measure 1m and exchange background paths only when actual GET was made.
 - Cap retention and batch reads; no new background task solely for collecting reliability scores.
