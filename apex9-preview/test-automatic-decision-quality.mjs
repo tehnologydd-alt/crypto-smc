@@ -95,7 +95,11 @@ test('empty favorites skipped, failed archives back off without false completion
   getFavorites:()=>fav,
   loadProgress:async()=>makeProgress(fav,{TRBUSDT:{'15m':0},
    ZECUSDT:{'15m':3}}),
-  loadArchive:async()=>{reads++;if(fail)throw Error('Room incomplete');return {};},
+  loadArchive:async()=>{reads++;if(fail)throw Error('Room incomplete');
+   return {native:true,complete:true,publishedCount:1,
+    forecasts:[{id:'zec-1',asset:'ZECUSDT',
+     interval:'15m',publishedAt:T0-60000}]};
+  },
   compute:()=>({audits:{release:{}}}),
   saveAudit:()=>true,readAudit:()=>null,
   storage:storage(),now:()=>time,yieldControl:wait

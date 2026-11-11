@@ -225,6 +225,8 @@ export function createAutomaticDecisionAudit({
      pageSize:AUTO_DECISION_QUALITY_RULES.pageSize,
      maxRows:AUTO_DECISION_QUALITY_RULES.maxRowsPerAsset
     });
+    if(!archive||!Array.isArray(archive.forecasts))
+     throw Error('Room не вернул список прогнозов для полного аудита.');
     if(closed||generation!==sequence||
      !favoritesOf(getFavorites()).includes(asset))break;
     const result=await compute(archive,asset,{now:now()});
