@@ -17,7 +17,8 @@ import java.util.Date
 
 /**
  * Observational alerts only. The only accepted evidence is immutable Room
- * stages written after real CLOSED M5 candles. Not broker execution events.
+ * stages written after real CLOSED M1 candles, or immutable legacy M5.
+ * Not broker execution events.
  *
  * Opt-in, Android permission and date-gated; each forecast/stage appears at
  * most once on the device even across process restarts and WorkManager runs.
@@ -40,8 +41,37 @@ object ApexForecastNotifier {
         manager.createNotificationChannel(NotificationChannel(
             CHANNEL, "APEX · События прогнозов", NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Только проверенные уровни исследовательских прогнозов по закрытым M5"
+            description = "Подтверждённые события по закрытым M1; архивные M5 по исходным правилам"
         })
+    }
+
+    /**
+     * Select the original, immutable observation cadence of this specific
+     * research record. Never relabel archived M5 evidence as M1 and never
+     * dispatch unverified H1/same-frame stages as one-minute outcomes.
+     */
+    internal fun observationFrame(forecast: ResearchForecast): String? {
+        val h = try { JSONObject(forecast.hypothesisJson) }
+                catch (_: Exception) { return null }
+        val m1 = h.optString("evaluationInterval") == ApexM1Evaluation.INTERVAL &&
+            h.optString("observationMethod") == ApexM1Evaluation.METHOD
+        val m5 = h.optString("evaluationInterval") == ApexM5Evaluation.INTERVAL &&
+            h.optString("observationMethod") == ApexM5Evaluation.METHOD
+        val semantics = h.optString("stageSemantics")
+        val directional = forecast.horizon == "1h" &&
+            forecast.id.startsWith("direction2:${forecast.asset}:1h:") &&
+            h.optString("model") == ApexDirectionalForecast.METHOD
+        val multiframe = forecast.horizon in setOf("15m", "4h") &&
+            forecast.id.startsWith("direction3:${forecast.asset}:${forecast.horizon}:") &&
+            h.optString("model") == ApexMultiFrameForecast.MODEL &&
+            h.optString("interval") == forecast.horizon
+        return when {
+            directional && m1 && semantics == "LIMIT_READY_M1_V1" -> "M1"
+            directional && m5 && semantics == "LIMIT_READY_M5_V1" -> "M5"
+            multiframe && m1 && semantics == ApexMultiFrameForecast.M1_SEMANTICS -> "M1"
+            multiframe && m5 && semantics == ApexMultiFrameForecast.M5_SEMANTICS -> "M5"
+            else -> null
+        }
     }
 
     private fun enabled(stage: String, settings: ResearchSettings): Boolean = when (stage) {
@@ -66,18 +96,17 @@ object ApexForecastNotifier {
         channel(context)
         val ledger = context.getSharedPreferences(LEDGER, Context.MODE_PRIVATE)
         for (asset in favorites.distinct().take(10)) {
-            val recent = dao.researchForecastsForAsset(asset, 8)
+            // M15/H4 plus H1 may coexist within one day. Limit the scan,
+            // not the source-time evidence; read-only and favorites-only.
+            val recent = dao.researchForecastsForAsset(asset, 32)
             for (forecast in recent) {
-                if (!forecast.id.startsWith("direction2:")) continue
-                val hypothesis = try { JSONObject(forecast.hypothesisJson) }
-                                 catch (_: Exception) { continue }
-                if (hypothesis.optString("evaluationInterval") != ApexM5Evaluation.INTERVAL ||
-                    hypothesis.optString("stageSemantics") != "LIMIT_READY_M5_V1")
-                    continue
+                val frame = observationFrame(forecast) ?: continue
                 for (stage in dao.stagesForResearch(forecast.id)) {
                     if (stage.stage !in stages || !enabled(stage.stage, settings) ||
                         stage.recordedAt < settings.alertsEnabledAt ||
                         stage.observedAt < settings.alertsEnabledAt ||
+                        stage.observedAt < forecast.publishedAt ||
+                        stage.recordedAt < stage.observedAt ||
                         stage.observedAt > now + 60_000L ||
                         now - stage.observedAt > MAX_AGE) continue
                     val id = forecast.id + ":" + stage.stage
@@ -98,7 +127,7 @@ object ApexForecastNotifier {
                                 .setSmallIcon(R.drawable.ic_stat_apex)
                                 .setColor(ContextCompat.getColor(context, R.color.apex_notification_color))
                                 .setContentTitle(asset + " · " + label(stage.stage))
-                                .setContentText("Закрытая M5 · " + stamp + " · не исполнение сделки")
+                                .setContentText("Закрытая " + frame + " · " + stamp + " · не исполнение сделки")
                                 .setContentIntent(pending)
                                 .setAutoCancel(true)
                                 .setCategory(NotificationCompat.CATEGORY_STATUS)
