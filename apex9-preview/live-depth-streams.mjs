@@ -164,8 +164,12 @@ export function createForegroundBookStreams({
     Number.isSafeInteger(book.updateId)&&book.updateId<lane.lastSequence){
     reject(venue,lane,'SEQUENCE_RESET');return;
    }
-   const changed=lane.lastSequence!==book.updateId||
-    book.updateId===null;
+   // Some snapshot channels can repeat seqId without a new book; compare
+   // verified best prices and visible totals as well as provider sequence.
+   const signature=[book.updateId,book.bestBid,book.bestAsk,
+    book.bidNotional,book.askNotional].join('|');
+   const changed=lane.lastSignature!==signature;
+   lane.lastSignature=signature;
    lane.lastSequence=book.updateId;
    lane.lastSampleAt=received;lane.lastBook=book;
    if(changed&&received-lane.lastRenderedAt>=1000){
