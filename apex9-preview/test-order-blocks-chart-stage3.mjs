@@ -35,7 +35,10 @@ test('zones depend on CLOSED BOS/CHoCH source bars, not predicted future candles
  const breaks=analyzeStructure(candles).events
   .filter(e=>['BOS','CHoCH'].includes(e.type));
  for(const z of r.zones){
-  assert.ok(breaks.some(e=>e.confirmedAt===z.confirmedAt));
+  assert.ok(breaks.some(e=>e.time===z.confirmedAt));
+  // Pivot confirmation predates the break. Zones must NEVER start there.
+  assert.ok(breaks.every(e=>e.time!==z.confirmedAt||
+   e.confirmedAt<=e.time));
   assert.ok(z.originCloseAt<z.confirmedAt);
   assert.ok(z.low>0&&z.high>z.low);
   assert.equal(z.inferredOrders,false);
@@ -112,4 +115,23 @@ test('chart layers and native history are source-verified and user-toggleable',(
  assert.ok(pack.includes("'order-blocks-chart.mjs'"));
  assert.equal(read('./order-blocks-chart.mjs').includes('fetch('),false);
  assert.equal(read('./order-blocks-chart.mjs').includes('setInterval('),false);
+});
+
+test('a pivot confirmation alone must never make an Order Block visible',()=>{
+ const structure=analyzeStructure(candles).events
+  .filter(e=>['BOS','CHoCH'].includes(e.type)&&e.confirmedAt<e.time);
+ const result=analyzeStructuralOrderBlocks(candles,{interval:'1h'});
+ // Test an actual break, not only a zero-zone degenerate case.
+ for(const zone of result.zones){
+  const e=structure.find(x=>x.time===zone.confirmedAt);
+  assert.ok(e);
+  assert.ok(zone.confirmedAt>e.confirmedAt);
+  const before=candles.filter(x=>x.closeAt<zone.confirmedAt);
+  const map=mapOrderBlocksToViewport([zone],before,{interval:'1h'});
+  assert.deepEqual(map,[]);
+  const visible=mapOrderBlocksToViewport([zone],candles,{interval:'1h'});
+  for(const drawing of visible)
+   for(const seg of drawing.segments)
+    assert.ok(candles[seg.from].closeAt>=zone.confirmedAt);
+ }
 });
