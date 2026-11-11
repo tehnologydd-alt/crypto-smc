@@ -7,6 +7,9 @@ import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {directionalHypothesis,planDirectionalScenario,directionalOutcomeLabel}
  from './directional-scenario.mjs';
 import {displayPair,priceText} from './forecast-card-ux.mjs';
+import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
+ completedResearchPresentation,renderCompletedResearchPanel}
+ from './forecast-level-metrics.mjs';
 
 export const MULTIFRAME_MODEL='EMPIRICAL_MULTIFRAME_DIRECTION_V1';
 export const MULTIFRAME_SPEC=Object.freeze({
@@ -224,14 +227,22 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  const head=el('div','forecast-visual-head');
  const identity=el('div','forecast-visual-identity');
  const title=MULTIFRAME_SPEC[row.interval]?.title||row.interval;
- identity.append(el('strong','',displayPair(row.asset)),
-  el('small','',title+' · отдельное исследование'));
  const complete=evidence.state==='OBSERVED'&&evidence.finished;
- const stageLabel=complete?'Завершено':
+ const {plan}=evidence.state==='OBSERVED'?evidence:{plan:null};
+ const sourceFrame=plan?.evaluationInterval==='5m'?'M5':title;
+ const completion=completedResearchPresentation({
+  outcome:evidence.outcome,verified:complete,entered:evidence.entered,
+  touched:evidence.touched||[],frame:sourceFrame
+ });
+ identity.append(el('strong','',displayPair(row.asset)+
+  (plan?' · '+title+' · '+(plan.side==='DOWN'?'SHORT':'LONG'):'')),
+  el('small','',title+' · контроль '+sourceFrame+' · отдельное исследование'));
+ const stageLabel=complete?completion.symbol+' '+completion.label:
   evidence.state!=='OBSERVED'?'Проверка данных':
   evidence.events.has('CONFIRMED')?'Активный':
   evidence.events.has('LIMIT_READY')?'Лимитный':'Ожидает';
- const badge=el('span','forecast-visual-state '+(complete?'finished':
+ const badge=el('span','forecast-visual-state '+(complete?
+  'finished tone-'+completion.tone:
   evidence.state!=='OBSERVED'?'warning':'active'),stageLabel);
  head.append(identity,badge);card.append(head);
  if(evidence.state!=='OBSERVED'){
@@ -240,13 +251,17 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   card.append(multiFrameCardActions(row,{tracked,onToggle,onOpen}));
   return card;
  }
- if(complete)card.classList.add('is-completed');
- const {plan}=evidence;
- const summary=el('p','forecast-final-reason',
-  complete?'Причина завершения: '+directionalOutcomeLabel(evidence.outcome):
+ if(complete){
+  card.classList.add('is-completed','tone-'+completion.tone);
+  card.append(renderCompletedResearchPanel(plan,{
+   outcome:evidence.outcome,verified:true,entered:evidence.entered,
+   touched:evidence.touched,frame:sourceFrame
+  }));
+ }else{
+  card.append(el('p','forecast-final-reason',
    'Направление: '+(plan.side==='UP'?'↑ Рост':'↓ Снижение')+
-   ' · срок '+plan.spec.horizon);
- card.append(summary);
+   ' · срок '+plan.spec.horizon));
+ }
  if(complete&&evidence.outcome==='AMBIGUOUS'){
   const unknown=row.stageEvents?.find(x=>x.stage==='ORDER_UNKNOWN');
   const explanation=typeof unknown?.explanation==='string'?
@@ -258,14 +273,19 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
  }
  const show=el('details','forecast-card-fold');
  show.open=!complete;
- show.append(el('summary','','Уровни, результаты и источник'));
+ show.append(el('summary','','Показать вход, цели и итог'));
  const grid=el('div','forecast-baseline-row');
+ const metrics=forecastLevelMetrics(plan);
  for(const [label,value] of [
   ['Вход',plan.entry],['SL',plan.sl]]){
   const tile=el('div','forecast-price-box');
   const number=el('strong','forecast-price-value',shortPrice(value));
   number.title='Точное значение: '+priceText(value);
   tile.append(el('span','forecast-price-label',label),number);
+  if(metrics.state==='VALID')
+   tile.append(el('small','forecast-level-percentage',
+    label==='Вход'?'От входа: 0%':
+     'Δ цены '+displayPriceMove(metrics.sl.deltaPct)+' · риск 1R'));
   grid.append(tile);
  }
  show.append(grid);
@@ -276,13 +296,20 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
   if(evidence.events.has(stage))item.classList.add('is-hit');
   const number=el('strong','forecast-target-price',shortPrice(plan[key]));
   number.title='Точное значение: '+priceText(plan[key]);
-  item.append(el('span','forecast-target-name',stage),
-   number,
-   el('small','forecast-target-mark',
+  item.append(el('span','forecast-target-name',stage),number);
+  if(metrics.state==='VALID')
+   item.append(el('small','forecast-level-percentage',
+     'Δ цены '+displayPriceMove(metrics.targets[key].deltaPct)),
+    el('small','forecast-level-reward',
+     displayRiskReward(metrics.targets[key].rMultiple)));
+  item.append(el('small','forecast-target-mark',
     evidence.events.has(stage)?'✓ Касание':'Не отмечено'));
   targets.append(item);
  }
- show.append(targets,el('p','forecast-visual-horizon',
+ show.append(targets);
+ if(metrics.state==='VALID')
+  show.append(el('p','forecast-level-math-note',metrics.note));
+ show.append(el('p','forecast-visual-horizon',
   'Опубликовано '+fmt(plan.publishedAt)+
   ' · последний срок '+fmt(plan.targetCloseAt)+
   ' · контроль по закрытым '+

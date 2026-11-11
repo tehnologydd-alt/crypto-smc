@@ -8,6 +8,9 @@ import {planDirectionalScenario,auditDirectionalScenario,directionalOutcomeLabel
 import {forecastStage} from './favorite-logic.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {displayPair,priceText} from './forecast-card-ux.mjs';
+import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
+ completedResearchPresentation,renderCompletedResearchPanel}
+ from './forecast-level-metrics.mjs';
 import {buildForecastEventTimeline} from './forecast-event-timeline.mjs';
 
 const create=(tag,style='',label)=>{
@@ -76,15 +79,26 @@ export function directionalForecastCard(row,{
  const finishedNative=visibleStage==='COMPLETED'&&
   terminalStates.has(row.evaluation?.outcome);
  const finishedRoom=finishedNative||(timeline.state==='VERIFIED'&&timeline.finished);
+ const roomFinish=timeline.state==='VERIFIED'&&timeline.finished;
+ const completion=completedResearchPresentation({
+  outcome:timeline.outcome,verified:roomFinish,
+  entered:timeline.entered,
+  touched:timeline.events?.filter(x=>['TP1','TP2','TP3'].includes(x.stage))
+   .map(x=>x.stage)||[],
+  frame:sourceFrame
+ });
  const card=create('article','forecast-record forecast-visual forecast-directional'+
-  (finishedRoom?' is-completed':''));
+  (finishedRoom?' is-completed tone-'+completion.tone:''));
  const top=create('div','forecast-visual-head');
  const names=create('div','forecast-visual-identity');
- names.append(create('strong','',displayPair(row.asset)),
-  create('small','',plan?'H1 · '+labelForSide(plan.side):
+ names.append(create('strong','',displayPair(row.asset)+
+  (plan?' · H1 · '+(plan.side==='DOWN'?'SHORT':'LONG'):'')),
+  create('small','',plan?'Контроль '+sourceFrame+' · '+labelForSide(plan.side):
    'Сценарий · проверка целостности'));
- const state=create('span','forecast-visual-state '+(finishedRoom?'finished':'active'),
-  finishedRoom?'Завершено':visibleStage==='ACTIVE'?'Активный':
+ const state=create('span','forecast-visual-state '+(finishedRoom?
+  'finished tone-'+completion.tone:'active'),
+  finishedRoom?completion.symbol+' '+completion.label:
+   visibleStage==='ACTIVE'?'Активный':
    visibleStage==='CONFIRMED'?'Лимитный':'Ожидает');
  top.append(names,state);card.append(top);
  if(verified.state!=='READY'){
@@ -112,19 +126,21 @@ export function directionalForecastCard(row,{
   }
   snapshot.hidden=false;
  }
- if(finishedRoom){
-  const verifiedFinish=timeline.state==='VERIFIED'&&timeline.finished;
-  const terminalEvent=verifiedFinish?
-   timeline.events.find(event=>event.terminal):null;
-  showFinalReason(verifiedFinish?timeline.outcome:row.evaluation?.outcome,
-   verifiedFinish?'Подтверждено событиями Room':
-    'Исход в Room · хронология требует проверки',
-   terminalEvent?.at??row.evaluation?.evaluatedAt);
+ if(finishedRoom&&!roomFinish){
+  showFinalReason(row.evaluation?.outcome,
+   'Исход в Room · хронология требует проверки',
+   row.evaluation?.evaluatedAt);
  }
  const fold=create('details','forecast-card-fold');
  fold.open=!finishedRoom;
- fold.append(create('summary','','Развернуть уровни и хронологию'));
- card.append(snapshot,fold);
+ fold.append(create('summary','','Показать вход, цели и итог'));
+ card.append(snapshot);
+ if(finishedRoom)card.append(renderCompletedResearchPanel(plan,{
+  outcome:timeline.outcome,verified:roomFinish,
+  entered:timeline.entered,
+  touched:completion.touched,frame:sourceFrame
+ }));
+ card.append(fold);
  fold.append(create('p','forecast-visual-provenance',
   'Одно направление и все контрольные уровни сохранены при публикации в Room. '+
   'Направление формируется по H1; контроль уровней — по '+sourceFrame+'. '+
@@ -146,6 +162,7 @@ export function directionalForecastCard(row,{
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');
  fold.append(status);
  const levels=create('div','forecast-visual-levels');
+ const metrics=forecastLevelMetrics(plan);
  const first=create('div','forecast-baseline-row');
  const copied=create('p','forecast-copy-feedback');
  copied.setAttribute('aria-live','polite');
@@ -157,6 +174,10 @@ export function directionalForecastCard(row,{
   const box=create('div','forecast-price-box'+(protective?' protective':''));
   box.append(create('span','forecast-price-label',name),
    create('strong','forecast-price-value',priceText(plan[key])));
+  if(metrics.state==='VALID')
+   box.append(create('small','forecast-level-percentage',
+    key==='entry'?'От входа: 0%':
+     'Δ цены '+displayPriceMove(metrics.sl.deltaPct)+' · риск 1R'));
   const control=btn('forecast-copy','▢',()=>void copy(priceText(plan[key])));
   control.setAttribute('aria-label','Копировать '+name);
   box.append(control);
@@ -172,10 +193,17 @@ export function directionalForecastCard(row,{
    create('strong','forecast-target-price',priceText(plan[key])));
   const control=btn('forecast-copy','▢',()=>void copy(priceText(plan[key])));
   control.setAttribute('aria-label','Копировать '+key.toUpperCase());
+  if(metrics.state==='VALID'){
+   const m=metrics.targets[key];
+   tile.append(create('small','forecast-level-percentage',
+    'Δ цены '+displayPriceMove(m.deltaPct)),
+    create('small','forecast-level-reward',displayRiskReward(m.rMultiple)));
+  }
   const info=create('small','forecast-target-mark','Не проверено');
   tile.append(control,info);grid.append(tile);cells[key]={tile,info};
  }
  levels.append(grid);
+ if(metrics.state==='VALID')levels.append(create('p','forecast-level-math-note',metrics.note));
  const progress=create('div','forecast-observation-progress');
  const summary=create('p','forecast-observation-summary',
   'Проверяем вход, TP1–TP3 и SL по закрытым '+sourceFrame+' в хронологическом порядке.');
@@ -247,8 +275,8 @@ export function directionalForecastCard(row,{
   }
   if(timeline.finished){
    card.classList.add('is-completed');
-   state.className='forecast-visual-state finished';
-   state.textContent='Завершено';
+   state.className='forecast-visual-state finished tone-'+completion.tone;
+   state.textContent=completion.symbol+' '+completion.label;
    status.textContent=directionalOutcomeLabel(timeline.outcome)+
     ' · подтверждено событиями Room';
   }else if(timeline.entered){
@@ -265,9 +293,15 @@ export function directionalForecastCard(row,{
    displayPair(row.asset)+' · H1 · '+labelForSide(plan.side),
    'Опубликовано '+date(plan.publishedAt),
    'Опорная цена: '+priceText(plan.entry),
-   'TP1 '+priceText(plan.tp1),'TP2 '+priceText(plan.tp2),
-   'TP3 '+priceText(plan.tp3),'SL '+priceText(plan.sl),
-   'Направление H1 · контроль по закрытым '+sourceFrame+' · не биржевой ордер'
+   ...(['tp1','tp2','tp3'].map(key=>
+    key.toUpperCase()+' '+priceText(plan[key])+
+    (metrics.state==='VALID'?' · Δ '+displayPriceMove(metrics.targets[key].deltaPct)+
+     ' · '+displayRiskReward(metrics.targets[key].rMultiple):''))),
+   'SL '+priceText(plan.sl)+
+    (metrics.state==='VALID'?' · Δ '+displayPriceMove(metrics.sl.deltaPct)+
+     ' · риск 1R':''),
+   'Направление H1 · контроль по закрытым '+sourceFrame+
+    ' · условные расстояния от входа, не биржевой ордер'
   ].join('\n')))
  );
  card.append(actions);

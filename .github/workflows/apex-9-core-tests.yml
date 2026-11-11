@@ -38,6 +38,7 @@ jobs:
           node --test apex9-cloudflare/test-worker.mjs
           python3 apex9-cloudflare/test-sqlite-quota.py
           node --test apex9-preview/test-forecast-multiframe.mjs
+          node --test apex9-preview/test-forecast-level-metrics.mjs
           node --test apex9-preview/test-scenario-journal-state.mjs
           node --test apex9-preview/test-marked-scenario-history.mjs
           node --test apex9-preview/test-forecast-evidence-context.mjs
