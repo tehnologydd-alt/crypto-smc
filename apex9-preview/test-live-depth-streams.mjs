@@ -181,6 +181,11 @@ test('Android/Web integrations only observe foreground and bounded persistence',
  assert.ok(bridge.includes("collectionMethod:depth.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'"));
  assert.ok(pack.includes("'live-depth-streams.mjs'"));
  assert.ok(html.includes('id="depth-stream-status"'));
+ assert.ok(app.includes("item?.venue==='binance'||item?.venue==='okx'"));
+ const dashboard=read('./liquidity-dashboard.mjs');
+ assert.ok(dashboard.includes("v.venue==='binance'||v.venue==='okx'"));
+ const levels=read('./level-dashboard.mjs');
+ assert.ok(levels.includes("filter(v=>v.venue!=='bybit')"));
  const core=read('./live-depth-streams.mjs');
  assert.equal(core.includes('setInterval('),false);
  assert.equal(core.includes('fetch('),false);
