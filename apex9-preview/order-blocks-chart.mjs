@@ -48,7 +48,10 @@ export function analyzeStructuralOrderBlocks(candles,{
  const zones=[];
  const events=structure.events.filter(e=>['BOS','CHoCH'].includes(e.type));
  for(const e of events){
-  const breakIndex=byClose.get(e.confirmedAt??e.time);
+  // Structure event.confirmedAt is the *pivot confirmation* time.
+  // A block is only knowable on the BREAK candle itself (event.time).
+  // Using pivot time here creates look-ahead zones on a live chart.
+  const breakIndex=byClose.get(e.time);
   if(breakIndex===undefined)continue;
   let found=null;
   for(let i=breakIndex-1;i>=Math.max(0,breakIndex-ORDER_BLOCK_RULES.originLookback);i--){
@@ -71,7 +74,7 @@ export function analyzeStructuralOrderBlocks(candles,{
   }
   zones.push({version:ORDER_BLOCK_VERSION,id:kind+':'+origin.t+':'+e.time,
    kind,low,high,originCloseAt:origin.closeAt,
-   confirmedAt:e.confirmedAt??e.time,
+   confirmedAt:e.time,
    breakType:e.type,invalidatedAt,interval,source:'BINANCE_SPOT_CLOSED_OHLC',
    inferredOrders:false,whaleAttributed:false,predictive:false});
  }
