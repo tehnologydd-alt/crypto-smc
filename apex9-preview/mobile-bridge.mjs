@@ -15,6 +15,19 @@ export async function getMobileStatus() {
  try{return await native.getStatus();}
  catch(error){return {...unavailable,error:String(error?.message||error)};}
 }
+/** Device-local HTTP attempts only; separate from the WebView source ledger. */
+export async function getMobileApiReliability(){
+ const native=plugin();
+ const empty={native:false,source:'UNAVAILABLE',rows:[]};
+ if(!native?.getApiReliability)return empty;
+ try {
+  const data=await native.getApiReliability();
+  if(data?.native!==true||data?.version!=='APEX_NATIVE_API_LEDGER_V1'||
+   data?.source!=='ANDROID_NATIVE_REQUEST_LEDGER'||
+   !Array.isArray(data.rows)||data.rows.length>12)return empty;
+  return data;
+ }catch(error){return {...empty,error:String(error?.message||error).slice(0,120)};}
+}
 export async function saveMobileSnapshot(snapshot) {
  const native=plugin();
  if(!native||!snapshot?.symbol)return {native:false,saved:0};
