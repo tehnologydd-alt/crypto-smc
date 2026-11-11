@@ -400,8 +400,11 @@
           Публичные потоки Binance/OKX доступны при открытом избранном активе;
           резерв — проверенные REST-снимки.
         </p>
+        <div id="depth-sync-status" class="depth-sync-status" data-state="WAITING" role="status" aria-live="polite">
+          Сопоставление Binance / OKX: ожидаем подтверждённые снимки одного актива.
+        </div>
         <div id="depth-list" class="stack"><p class="muted">Снимки глубины ещё не получены.</p></div>
-        <p class="footnote">WebSocket: Binance — до 20 уровней, OKX — до 5 уровней, ограниченные снимки при изменении стакана. История Room сохраняет контрольные срезы не чаще 1 раза в 30 секунд на источник. REST при недоступном или устаревшем потоке; глубины этих источников не считаются одинаковыми. Это не все заявки и не карта ликвидаций.</p>
+        <p class="footnote">WebSocket: Binance — до 20 уровней, OKX — до 5; REST использует иную глубину. Общий дисбаланс сопоставляем только при разнице времени получения до 3 секунд и при достаточном общем диапазоне вокруг средней цены. Если условия не выполнены, сравнение скрыто. История Room сохраняет ограниченные снимки, но не полную книгу заявок.</p>
       </article>
       <article class="card block liquidity-history-panel" id="liquidity-history-panel" data-asset-pane="data">
         <div class="section-title"><h3>История видимой ликвидности</h3><span>Локально · Room</span></div>
