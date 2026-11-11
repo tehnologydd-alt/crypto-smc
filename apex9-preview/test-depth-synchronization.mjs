@@ -144,7 +144,7 @@ test('UI keeps Bybit out and never creates a synchronized trading signal',()=>{
  const app=read('./app.mjs'),markup=read('./index.html'),
   pack=read('../apex9-android/scripts/prepare-web.mjs'),
   module=read('./depth-synchronization.mjs');
- assert.ok(app.includes('synchronizeSpotDepth(activeBooks'));
+ assert.ok(app.includes('selectDepthComparison(activeBooks'));
  assert.ok(app.includes('comparison.state===\'SYNCED\''));
  assert.ok(app.includes('latestRestDepth.get(venue)'));
  assert.ok(app.includes('if(depthStream?.isFresh(venue))'));
