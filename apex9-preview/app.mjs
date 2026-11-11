@@ -336,7 +336,10 @@ function setAssetArea(requested){
   if(mode!=='data'){
    depthStream?.stop();latestLiveDepth.clear();latestRestDepth.clear();
   }
-  if(mode==='data')void syncDepthStreams();
+  if(mode==='data'){
+   void syncDepthStreams();
+   renderDepth({depth:[]}); // Never carry a previous sync badge unverified.
+  }
   if(mode==='chart')requestAnimationFrame(()=>{
    candleView.resize();void refreshWhaleChart(chosen);
   });
@@ -421,7 +424,7 @@ depthStream=createForegroundBookStreams({
     void liquidityDashboard.refresh(symbol);
    }).catch(()=>{});
  },
- onStatus({symbol,venue,state}){
+ onStatus({symbol,venue,state,error}){
   if(symbol!==chosen||document.hidden)return;
   if(state!=='LIVE'){
    latestLiveDepth.delete(venue);
@@ -432,12 +435,15 @@ depthStream=createForegroundBookStreams({
   }
   const status=el('depth-stream-status');
   if(!status)return;
-  const label=state==='LIVE'?'поток активен':
+  const label=state==='LIVE'?'WS работает':
    state==='CONNECTING'?'подключается':
    ['OFFLINE','DISCONNECTED','TIMEOUT','UNAVAILABLE'].includes(state)?
-    'резерв REST':['INVALID','CLOCK_SKEW','SEQUENCE_RESET'].includes(state)?
-     'ошибка проверки':'ожидание';
-  status.dataset[venue]=label;
+    'WS недоступен, резерв REST':
+   state==='REMOTE_ERROR'?'биржа отклонила подписку, REST':
+   state==='CLOCK_SKEW'?'несовпадение времени, REST':
+   state==='SEQUENCE_RESET'?'сбой последовательности, REST':
+   state==='INVALID'?'ответ не прошёл проверку, REST':'ожидание';
+  status.dataset[venue]=label+(error?' ('+String(error).slice(0,75)+')':'');
   status.textContent='Потоки: Binance '+(status.dataset.binance||'ожидание')+
    ' · OKX '+(status.dataset.okx||'ожидание')+
    ' · REST включается при сбое или устаревании.';
