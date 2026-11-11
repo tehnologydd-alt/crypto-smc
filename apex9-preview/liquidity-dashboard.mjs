@@ -44,7 +44,8 @@ function describeVenue(v,source){
  const details=create('div','liquidity-venue-details');
  const metrics=[
   ['Спред',fmt(v.spreadBps,2)+' б.п.'],
-  ['Снимков',fmt(v.samples,0)],
+  ['Снимков всего',fmt(v.samples,0)],
+  ['В последнем непрерывном участке',fmt(v.continuousSamples??v.samples,0)],
   ['Последний',timestamp(v.lastCollectedAt)],
   ['Глубина выборки',v.quantityScope||'Неизвестно']
  ];
@@ -64,7 +65,9 @@ function describeVenue(v,source){
   card.append(create('p','liquidity-coverage-note',
    v.status==='HISTORICAL'
     ?'Неактуальная запись: снимок не отражает текущий стакан.'
-    :'Для описания изменения нужны минимум три снимка за две минуты без больших пропусков.'));
+    :'Пока недостаточно последовательной истории: '+v.continuousSamples+
+     ' снимков в текущем участке за '+fmt(v.spanMs/60000,1)+
+     ' мин. Нужно минимум три за две минуты без разрывов более часа.'));
  }
  if(available.state!=='OBSERVED')
   card.append(create('p','liquidity-coverage-note',
