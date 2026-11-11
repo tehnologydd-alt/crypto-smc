@@ -91,10 +91,22 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
      (s.referenceDecisive+s.holdoutDecisive)+
      ' · M1 '+(s.m1State==='DESCRIPTIVE'?
       'описательная проверка':'сбор данных')));
+    panel.append(div('small','',
+     'История источников: V1 '+s.sourceV1+' / V2 '+s.sourceV2+
+     ' · несколько поставщиков одновременно: '+s.multiProviderForecasts));
+    if(s.providers.length){
+     const details=div('details','api-reliability-providers');
+     details.append(div('summary','',label+' · сохранённые источники'));
+     for(const p of s.providers)
+      details.append(div('small','',p.feed+' · '+p.source+
+       ' · свежих '+p.observed+' / устаревших '+p.stale));
+     panel.append(details);
+    }
    }
    panel.append(div('small','',
-    'Зафиксированный источник в момент публикации — не доказательство '+
-    'точности прогноза. M1 и M5 не смешиваются.'));
+    'Источники фиксируются при публикации. Новости и соцсети — '+
+    'непроверенный контекст; это не подтверждение точности прогноза. '+
+    'История M1 и M5 не смешивается.'));
    box.append(panel);
   }
   let mature=0,attempts=0;
