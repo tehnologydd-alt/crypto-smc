@@ -58,7 +58,12 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   const report=reliability.overview();
   const names={fear:'Alternative.me',dex:'DEX Screener',
    gecko:'GeckoTerminal',okx:'OKX Spot',paprika:'CoinPaprika',
-   cmc:'CoinMarketCap'};
+   cmc:'CoinMarketCap','binance-ticker':'Binance Spot · цена',
+   'binance-depth':'Binance Spot · стакан',
+   'bybit-depth':'Bybit Spot · стакан',
+   'coingecko-global':'CoinGecko · рынок',
+   'bitcoin-mempool':'mempool.space · BTC',
+   'gdelt-news':'GDELT · новости'};
   box.replaceChildren();
   let mature=0,attempts=0;
   for(const row of report.rows){
@@ -102,7 +107,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   }
   const comp=report.comparisons;
   status.textContent='Операционная статистика за 30 дней · '+attempts+
-   ' фактических запросов · '+mature+' из 6 с достаточной выборкой. '+
+   ' фактических запросов · '+mature+' из '+report.rows.length+
+   ' с достаточной выборкой. '+
    (report.persisted?'История сохранена на устройстве.':
    'Хранилище недоступно: история только в текущем сеансе.');
   const comparison=el('api-reliability-comparison');
@@ -281,11 +287,25 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  function setSnapshot(symbol,snapshot){
   if(getSymbol?.()!==symbol)return;
   marketMeasurements=snapshot&&snapshot.symbol===symbol?snapshot:null;
+  if(marketMeasurements&&Array.isArray(marketMeasurements.sources)){
+   for(const source of marketMeasurements.sources)
+    reliability.record({provider:source.id,result:source});
+   renderReliability();
+  }
   renderReconciliation(symbol);
  }
  function setContext(symbol,context){
   if(getSymbol?.()!==symbol)return;
   contextMeasurements=context&&context.symbol===symbol?context:null;
+  if(contextMeasurements&&Array.isArray(contextMeasurements.sources)){
+   for(const source of contextMeasurements.sources){
+    // Memoized network gates and budget fallbacks are not new API attempts.
+    if(source.access==='CACHE'||source.source==='CACHE'||
+     source.source==='STALE_CACHE')continue;
+    reliability.record({provider:source.id,result:source});
+   }
+   renderReliability();
+  }
   renderReconciliation(symbol);
  }
  async function openOverview(){
