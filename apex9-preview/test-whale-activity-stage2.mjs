@@ -104,9 +104,10 @@ test('event timestamp earlier than discovery cannot change forward price anchor'
  assert.deepEqual(older.price.cohortB,original.price.cohortB);
 });
 test('missing one H1 bar is not silently interpolated or guessed',()=>{
- const es=events(8),base=bars(),at=es[2].collectedAt;
+ // Remove the last event's 4h outcome (not a shared pre-event bar).
+ const es=events(8),base=bars(),at=es[7].collectedAt;
  const anchor=Math.floor((at+1)/HOUR)*HOUR-1;
- const missing=base.filter(x=>x.closeAt!==anchor+HOUR);
+ const missing=base.filter(x=>x.closeAt!==anchor+4*HOUR);
  const result=studyWhalePriceHistory(es,missing,{now:NOW});
  assert.equal(result.state,'COLLECTING');
  assert.equal(result.eligibleIndependent,7);
