@@ -40,6 +40,13 @@
     <p id="apex-settings-background-status" class="muted" role="status">Проверяем состояние Android…</p>
     <div class="apex-settings-divider"></div>
     <h3 class="apex-settings-subtitle">Оповещения о прогнозах</h3>
+    <label class="apex-setting-scope">Получать уведомления
+      <select id="apex-settings-alert-scope" disabled aria-describedby="apex-settings-alert-scope-hint">
+        <option value="all">Все сценарии избранных активов</option>
+        <option value="tracked">Только ★ отмеченные сценарии</option>
+      </select>
+    </label>
+    <p id="apex-settings-alert-scope-hint" class="muted">Выбор синхронизируется с отметками в журнале сценариев. Исследования продолжают собирать статистику в обоих режимах.</p>
     <label class="apex-setting-toggle"><input id="apex-settings-alerts" type="checkbox" disabled><span>Уведомления APEX<small>Новые прогнозы — по закрытым M1; архивные M5 — по M5. Не исполнение ордеров</small></span></label>
     <div id="apex-settings-alert-types" class="apex-settings-alert-types">
       <label class="apex-setting-toggle"><input id="apex-settings-alert-limit" type="checkbox" disabled><span>Лимитный прогноз<small>После первой полностью закрытой M1 (архивные прогнозы — M5)</small></span></label>

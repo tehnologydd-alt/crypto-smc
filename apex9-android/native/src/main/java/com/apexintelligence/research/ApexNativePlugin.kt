@@ -45,6 +45,8 @@ class ApexNativePlugin : Plugin() {
                 result.put("alertLimitReady", prefs.alertLimitReady)
                 result.put("alertTargets", prefs.alertTargets)
                 result.put("alertStop", prefs.alertStop)
+                result.put("alertScope", prefs.alertScope)
+                result.put("alertMarkedCount", prefs.alertMarkedIds.size)
                 result.put("keepScreenOn", prefs.keepScreenOn)
                 result.put("notificationPermissionGranted", notificationPermission(app))
                 applyKeepScreenOn(prefs.keepScreenOn)
@@ -1189,6 +1191,26 @@ class ApexNativePlugin : Plugin() {
             call.data.optBoolean("alertTargets") else null
         val alertStop = if (call.data.has("alertStop"))
             call.data.optBoolean("alertStop") else null
+        val alertScope = if (call.data.has("alertScope"))
+            call.getString("alertScope") ?: "" else null
+        // The JS bookmark list is bounded and strictly validated natively.
+        // Never silently clear an existing marked selection on invalid input.
+        val idsArg = if (call.data.has("alertMarkedIds"))
+            call.getArray("alertMarkedIds") else null
+        if (call.data.has("alertMarkedIds") && idsArg == null) {
+            call.reject("Invalid marked ID selection")
+            return
+        }
+        if (idsArg != null && idsArg.length() > ApexPreferences.MAX_ALERT_MARKS) {
+            call.reject("Too many marked forecast IDs")
+            return
+        }
+        val marked = idsArg?.let { input ->
+            (0 until input.length()).map { i ->
+                val value = input.opt(i)
+                if (value is String) value else ""
+            }
+        }
         val keepScreenOn = if (call.data.has("keepScreenOn"))
             call.data.optBoolean("keepScreenOn") else null
         if (asset != null && !assetRegex.matches(asset)) {
@@ -1204,7 +1226,8 @@ class ApexNativePlugin : Plugin() {
                 }
                 val settings = ApexPreferences.update(
                     app, asset, enabled, alertsEnabled, alertLimit,
-                    alertTargets, alertStop, keepScreenOn
+                    alertTargets, alertStop, keepScreenOn,
+                    alertScope, marked
                 )
                 ApexSyncScheduler.reconcile(app, settings.backgroundSyncEnabled)
                 applyKeepScreenOn(settings.keepScreenOn)
@@ -1215,6 +1238,8 @@ class ApexNativePlugin : Plugin() {
                 result.put("alertLimitReady", settings.alertLimitReady)
                 result.put("alertTargets", settings.alertTargets)
                 result.put("alertStop", settings.alertStop)
+                result.put("alertScope", settings.alertScope)
+                result.put("alertMarkedCount", settings.alertMarkedIds.size)
                 result.put("keepScreenOn", settings.keepScreenOn)
                 result.put("notificationPermissionGranted", notificationPermission(app))
                 call.resolve(result)

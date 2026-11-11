@@ -4,7 +4,7 @@ import {createForegroundBookStreams} from './live-depth-streams.mjs';
 import {selectDepthComparison,needsMatchedRest} from './depth-comparison-selector.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -149,6 +149,14 @@ async function refreshMobileStatus(){
  const modalToggle=el('apex-settings-background');
  modalToggle.checked=toggle.checked;
  modalToggle.disabled=!mobileReady;
+ const scope=el('apex-settings-alert-scope');
+ scope.value=data.alertScope==='tracked'?'tracked':'all';
+ scope.disabled=!mobileReady;
+ text('apex-settings-alert-scope-hint',
+  scope.value==='tracked'?
+   'Уведомления только по ★ отмеченным сценариям ('+
+   Number(data.alertMarkedCount||0)+'). Сбор статистики для остальных продолжается.':
+   'Уведомления обо всех сценариях избранных активов. Статистика не зависит от выбора.');
  for(const [id,field] of [
   ['apex-settings-alerts','forecastAlertsEnabled'],
   ['apex-settings-alert-limit','alertLimitReady'],
@@ -236,6 +244,26 @@ el('apex-settings-background').addEventListener('change',event=>{
  event.target.disabled=true;
  original.checked=event.target.checked;
  original.dispatchEvent(new Event('change',{bubbles:true}));
+});
+// Send the exact starred forecast IDs, not just starred asset symbols.
+// A single Android DataStore edit updates the mode and the selected IDs.
+el('apex-settings-alert-scope').addEventListener('change',async event=>{
+ const input=event.target,requested=input.value;
+ const previous=requested==='tracked'?'all':'tracked';
+ input.disabled=true;
+ try{
+  let raw=[];
+  try{raw=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');}
+  catch{throw Error('Список отмеченных повреждён. Выбор не сохранён');}
+  const ids=normalizeAlertMarkedIds(raw);
+  await setMobileSettings({alertScope:requested,alertMarkedIds:ids});
+  await refreshMobileStatus();
+ }catch(error){
+  input.value=previous;
+  input.disabled=!mobileReady;
+  text('apex-settings-alert-scope-hint',
+   'Не удалось изменить режим: '+String(error?.message||error));
+ }
 });
 for(const [id,key] of [
  ['apex-settings-alerts','forecastAlertsEnabled'],

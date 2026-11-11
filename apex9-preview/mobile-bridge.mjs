@@ -10,7 +10,7 @@ const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
 export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
 const unavailable = {native:false,storage:'WEB_ONLY',observationCount:0,forecastCount:0,
  backgroundSyncEnabled:false,forecastAlertsEnabled:false,alertLimitReady:true,
- alertTargets:true,alertStop:true,keepScreenOn:false,
+ alertTargets:true,alertStop:true,alertScope:'all',alertMarkedCount:0,keepScreenOn:false,
  notificationPermissionGranted:false,latestObservationAt:0};
 export async function getMobileStatus() {
  const native=plugin();
@@ -118,13 +118,31 @@ export async function getMobileHistory(symbol,limit=15){
  const response=await native.getObservations({asset:symbol,limit:Math.min(50,Math.max(1,limit))});
  return {native:true,observations:response?.observations||[]};
 }
+/**
+ * Forecast IDs represent published Room hypotheses; never use marked assets
+ * as a substitute for exact starred scenario IDs.
+ */
+export function normalizeAlertMarkedIds(ids){
+ if(!Array.isArray(ids))return [];
+ const allowed=/^(?:direction[23]|range1):[A-Z0-9]{5,20}:(?:1h|15m|4h):[0-9]{10,16}$/;
+ return [...new Set(ids.filter(x=>typeof x==='string'&&allowed.test(x)))].slice(-300);
+}
 export async function setMobileSettings(settings={}){
  const native=plugin();
  if(!native)throw Error('Нативное хранилище доступно только в Android-приложении.');
  const allowed=['asset','backgroundSyncEnabled','forecastAlertsEnabled',
-  'alertLimitReady','alertTargets','alertStop','keepScreenOn'];
+  'alertLimitReady','alertTargets','alertStop','alertScope',
+  'alertMarkedIds','keepScreenOn'];
  const payload={};
  for(const k of allowed)if(settings[k]!==undefined)payload[k]=settings[k];
+ if(Object.hasOwn(payload,'alertScope')&&!['all','tracked'].includes(payload.alertScope))
+  throw Error('Некорректный режим уведомлений');
+ if(Object.hasOwn(payload,'alertMarkedIds')){
+  if(!Array.isArray(payload.alertMarkedIds)||
+   payload.alertMarkedIds.length>300||
+   normalizeAlertMarkedIds(payload.alertMarkedIds).length!==payload.alertMarkedIds.length)
+   throw Error('Некорректные ID отмеченных сценариев');
+ }
  return native.setSettings(payload);
 }
 /** Request permission only on an explicit user gesture enabling alerts. */

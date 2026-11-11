@@ -96,10 +96,18 @@ object ApexForecastNotifier {
         channel(context)
         val ledger = context.getSharedPreferences(LEDGER, Context.MODE_PRIVATE)
         for (asset in favorites.distinct().take(10)) {
-            // M15/H4 plus H1 may coexist within one day. Limit the scan,
-            // not the source-time evidence; read-only and favorites-only.
-            val recent = dao.researchForecastsForAsset(asset, 32)
+            // "Tracked" must resolve exact Room IDs even if bookmarks have
+            // fallen out of the latest journal page; all-mode stays bounded.
+            val recent = if (settings.alertScope == "tracked") {
+                val ids = settings.alertMarkedIds.filter { it.contains(":$asset:") }
+                if (ids.isEmpty()) emptyList()
+                else dao.researchForecastsByIds(ids)
+            } else dao.researchForecastsForAsset(asset, 64)
             for (forecast in recent) {
+                // All means all published scenarios of selected favorite assets.
+                // Marked means exact immutable forecast IDs saved by the user.
+                if (settings.alertScope == "tracked" &&
+                    forecast.id !in settings.alertMarkedIds) continue
                 val frame = observationFrame(forecast) ?: continue
                 for (stage in dao.stagesForResearch(forecast.id)) {
                     if (stage.stage !in stages || !enabled(stage.stage, settings) ||

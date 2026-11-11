@@ -6,6 +6,7 @@
 import {planDirectionalScenario,auditDirectionalScenario,directionalOutcomeLabel}
  from './directional-scenario.mjs';
 import {forecastStage} from './favorite-logic.mjs';
+import {compactOpenForecastCard} from './forecast-compact-card.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
@@ -109,6 +110,12 @@ export function directionalForecastCard(row,{
   card.append(followButtons(row,{tracked,onToggle,onOpen}));
   return card;
  }
+ // Finished/archived cards retain the existing detailed visual presentation.
+ // Only pending, limit-ready and active verified research is condensed.
+ if(!finishedRoom&&visibleStage!=='COMPLETED')
+  return compactOpenForecastCard(row,{plan,stage:visibleStage,
+   events:timeline.state==='VERIFIED'?row.stageEvents:[],
+   tracked,onToggle,onOpen,copyText});
  const snapshot=create('div','forecast-final-snapshot');
  snapshot.hidden=!finishedRoom;
  function showFinalReason(outcome,sourceLabel,endedAt){

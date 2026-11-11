@@ -36,7 +36,8 @@ export function forecastStage(row,{now=Date.now()}={}){
  if(!directionalHypothesis(row)||saved==='COMPLETED')return saved;
  const checked=planDirectionalScenario(row,{now});
  if(checked.state!=='READY')return 'PENDING_CONFIRMATION';
- const plan=checked.plan,period=plan.evaluationInterval==='5m'?300000:3600000;
+ const plan=checked.plan,period=plan.evaluationInterval==='1m'?60000:
+  plan.evaluationInterval==='5m'?300000:3600000;
  // Older Room CONFIRMED means entry touch. New LIMIT_READY is an
  // independent verified M5 milestone; do not promote preliminary plans.
  const evidence=stage=>Array.isArray(row.stageEvents)&&row.stageEvents.some(e=>
