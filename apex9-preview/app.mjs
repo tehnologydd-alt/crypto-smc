@@ -1634,11 +1634,13 @@ async function refreshVisibleDepth(){
  try{
   const sample=await collectVisibleDepth(symbol,{
    venues:due,signal:local.signal,now:()=>Date.now()});
-  for(const venue of due){
-   const reply=sample.sources.find(row=>row.id===venue+'-depth');
-   foregroundDepthPolicy.record(symbol,venue,reply?.state||'OFFLINE');
+  if(!local.signal.aborted){
+   for(const venue of due){
+    const reply=sample.sources.find(row=>row.id===venue+'-depth');
+    foregroundDepthPolicy.record(symbol,venue,reply?.state||'OFFLINE');
+   }
+   recorded=true;
   }
-  recorded=true;
   if(local.signal.aborted||document.hidden||controller||
    seq!==pending||chosen!==symbol||
    !favoriteManager.hasFavorite(symbol))return;
@@ -1654,7 +1656,7 @@ async function refreshVisibleDepth(){
   if(el('view-asset').dataset.assetArea==='data')
    void liquidityDashboard.refresh(symbol);
  }catch{
-  if(!recorded)for(const venue of due)
+  if(!recorded&&!local.signal.aborted)for(const venue of due)
    foregroundDepthPolicy.record(symbol,venue,'OFFLINE');
  }finally{
   clearTimeout(deadline);
