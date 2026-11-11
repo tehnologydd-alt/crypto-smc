@@ -77,6 +77,7 @@ let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=
 let fastTickerAt=0,fastTickerBusy=false;
 const foregroundDepthPolicy=createForegroundDepthPolicy();
 let depthBusy=false,depthController=null,depthStream=null;
+const latestLiveDepth=new Map(); // UI only: newest validated frame per venue.
 try{chosen=normalizeSymbol(localStorage.getItem('apex9_preview_asset'))||chosen;}catch{}
 el('asset-input').value=chosen;
 el('asset-name').textContent=chosen;
@@ -394,6 +395,16 @@ const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:
  * overview, background Android, or other selected-but-closed favorites.
  */
 depthStream=createForegroundBookStreams({
+ onBook({symbol,venue,depth}){
+  if(document.hidden||document.body.dataset.view!=='asset'||
+   el('view-asset').dataset.assetArea!=='data'||chosen!==symbol||
+   !favoriteManager.hasFavorite(symbol))return;
+  latestLiveDepth.set(venue,depth);
+  const fallback=current?.symbol===symbol?current.depth||[]:[];
+  const combined=['binance','okx'].map(v=>latestLiveDepth.get(v)||
+   fallback.find(item=>item.venue===v)).filter(Boolean);
+  renderDepth({depth:combined});
+ },
  onSample({symbol,depth,collectedAt}){
   if(document.hidden||document.body.dataset.view!=='asset'||
    el('view-asset').dataset.assetArea!=='data'||chosen!==symbol||
@@ -1299,7 +1310,10 @@ function renderDepth(snapshot){
    create('b','',item.venue==='binance'?'Binance Spot':item.venue==='okx'?'OKX Spot':'Источник Spot'),
    create('small','', 'Bid '+fmt(item.bestBid)+' · Ask '+fmt(item.bestAsk)),
    create('small','', 'Видимый дисбаланс: '+fmt(item.visibleDepthImbalance*100,1)+'%'+
-    ' · Спред '+fmt(item.spreadBps,2)+' б.п.')
+    ' · Спред '+fmt(item.spreadBps,2)+' б.п.'),
+   create('small','',item.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'?
+    'WebSocket · до '+item.snapshotLevelsMax+' уровней на сторону':
+    'REST · ограниченный проверенный снимок')
   );
   row.append(content,create('span','source-state ok',time(item.receivedAt)));
   list.append(row);
@@ -1604,7 +1618,15 @@ async function investigate(value){
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
  if(changed)fastTickerAt=0;
- if(changed){depthController?.abort();depthStream?.stop();}
+ if(changed){
+  depthController?.abort();depthStream?.stop();latestLiveDepth.clear();
+  const streamLabel=el('depth-stream-status');
+  if(streamLabel){
+   delete streamLabel.dataset.binance;
+   delete streamLabel.dataset.okx;
+   streamLabel.textContent='Открывайте «Данные» избранного актива для потоковых снимков.';
+  }
+ }
  if(changed){
   newsM5Panel.reset();
   scenarioRequest++;
