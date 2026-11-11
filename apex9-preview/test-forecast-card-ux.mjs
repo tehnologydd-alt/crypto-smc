@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {displayPair,priceText,stagePresentation,observedLevelSummary,scenarioCopyText} from './forecast-card-ux.mjs';
+import {displayPair,priceText,stagePresentation,observedLevelSummary,scenarioCopyText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {readFileSync} from 'node:fs';
 const favorites=readFileSync(new URL('./favorite-dashboard.mjs',import.meta.url),'utf8');
 const packager=readFileSync(new URL('../apex9-android/scripts/prepare-web.mjs',import.meta.url),'utf8');
@@ -69,4 +69,25 @@ test('visual card uses the real tracked ID set and only original Room H1',()=>{
  assert.ok(favorites.includes('forecast-copy-all'));
  assert.ok(!favorites.includes('demoOrders'));
  assert.ok(packager.includes("'forecast-card-ux.mjs'"));
+});
+
+test('M5 archive never masquerades as current M1 evaluation',()=>{
+ const m1=controlMethodLabel('1m');
+ const m5=controlMethodLabel('5m');
+ const h1=controlMethodLabel('1h');
+ const h4=controlMethodLabel('4h',{fallback:'H4'});
+ assert.equal(m1.frame,'M1');
+ assert.equal(m1.archived,false);
+ assert.match(m1.label,/новый метод/);
+ assert.equal(m5.frame,'M5');
+ assert.equal(m5.archived,true);
+ assert.match(m5.label,/Архивный прогноз/);
+ assert.equal(h1.frame,'H1');
+ assert.equal(h1.archived,true);
+ assert.equal(h4.frame,'H4');
+ assert.equal(h4.archived,true);
+ const direction=readFileSync(new URL('./forecast-directional-card.mjs',import.meta.url),'utf8');
+ const multiframe=readFileSync(new URL('./forecast-multiframe.mjs',import.meta.url),'utf8');
+ assert.ok(direction.includes('controlMethodLabel(plan?.evaluationInterval)'));
+ assert.ok(multiframe.includes('controlMethodLabel(plan?.evaluationInterval,{fallback:title})'));
 });
