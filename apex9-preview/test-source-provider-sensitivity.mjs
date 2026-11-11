@@ -52,7 +52,11 @@ test('reverse source does not turn a worse contribution into improvement',()=>{
 });
 test('provider-availability class imbalance is labeled a selection risk',()=>{
  const src=fixture();
- src[1].decisive=16;src[1].tp3=2;
+ src[1].samples=[
+  ...src[1].samples.filter(x=>x.outcome==='TP3').slice(0,7),
+  ...src[1].samples.filter(x=>x.outcome==='STOP').slice(0,3)
+ ];
+ src[1].decisive=16;src[1].tp3=7;
  const r=assessProviderSensitivity(src,{eligible:true});
  assert.equal(r.state,'DESCRIPTIVE');
  assert.equal(r.windows[1].selectionCaution,true);
