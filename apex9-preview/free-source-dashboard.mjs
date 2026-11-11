@@ -45,15 +45,23 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
  const latest=new Map();
  let assetSeq=0,globalSeq=0,checkingPublic=null;
  let nativeLedger=null,nativeLedgerLoading=false,nativeLedgerLast=0;
+ let nativeLedgerState='UNAVAILABLE';
  let lastReliabilityFingerprint=null;
  function refreshNativeLedger(){
   const at=Date.now();
   if(nativeLedgerLoading||at-nativeLedgerLast<60000)return;
   nativeLedgerLast=at;nativeLedgerLoading=true;
   void getMobileApiReliability().then(report=>{
-   nativeLedger=report?.native===true?report:null;
+   if(report?.native===true&&Array.isArray(report.rows)){
+    nativeLedger=report;
+    nativeLedgerState='CURRENT';
+   }else nativeLedgerState=nativeLedger?'SAVED':'UNAVAILABLE';
    renderReliability();
-  }).catch(()=>{nativeLedger=null;}).finally(()=>{nativeLedgerLoading=false;});
+  }).catch(()=>{
+   // A bridge outage must not erase the last validated local snapshot.
+   nativeLedgerState=nativeLedger?'SAVED':'UNAVAILABLE';
+   renderReliability();
+  }).finally(()=>{nativeLedgerLoading=false;});
  }
  let personalNews={native:false,providers:{}};
  const personalChecks=new Map();
@@ -83,7 +91,8 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   const cache=sourceCohortCacheHealth({storage});
   // Avoid re-rendering on identical source updates; details stay expanded.
   const fingerprint=JSON.stringify([tracked,m1?.auditedAt||0,report.rows,
-   report.comparisons,report.persisted,nativeLedger?.capturedAt||0,cache]);
+   report.comparisons,report.persisted,nativeLedger?.capturedAt||0,
+   nativeLedgerState,cache]);
   if(fingerprint===lastReliabilityFingerprint)return;
   const expanded=new Set([...box.querySelectorAll('details[open]')]
    .map(node=>node.dataset.sourcePanelKey).filter(Boolean));
@@ -216,7 +225,9 @@ export function initFreeSourceDashboard({getSymbol,storage:provided}={}){
   }
   if(nativeLedger?.rows?.length){
    fragment.append(div('strong','api-reliability-native-title',
-    'Android · фактические фоновые запросы (отдельный журнал)'));
+    'Android · фактические фоновые запросы ('+
+    (nativeLedgerState==='CURRENT'?'сводка устройства':'последняя сохранённая сводка')+
+    ') · '+nice(nativeLedger.capturedAt)));
    for(const native of nativeLedger.rows){
     if(!/^[a-z0-9:-]{2,40}$/.test(native.lane)||
        !Number.isInteger(native.attempts)||native.attempts<1)continue;
