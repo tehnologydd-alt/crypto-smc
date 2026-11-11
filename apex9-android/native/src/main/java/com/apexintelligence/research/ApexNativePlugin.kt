@@ -163,7 +163,14 @@ class ApexNativePlugin : Plugin() {
         tasks.launch {
             try {
                 val dao = ApexDatabase.get(context.applicationContext).researchDao()
-                val saved = dao.liquidityHistory(asset, limit)
+                // Split the read budget across exchanges, never synthesize or
+                // join observations with different source-specific depth limits.
+                val perVenue = (limit + 1) / 2
+                val saved = (
+                    dao.liquidityHistoryForSource(asset, "binance:spot:depth", perVenue) +
+                    dao.liquidityHistoryForSource(asset, "bybit:spot:depth", limit / 2)
+                ).sortedWith(compareByDescending<ResearchObservation> { it.observedAt }
+                    .thenByDescending { it.collectedAt })
                 val rows = JSArray()
                 for (record in saved) {
                     if (record.source != "binance:spot:depth" &&
