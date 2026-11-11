@@ -90,7 +90,7 @@ export function parseLiveBookMessage(venue,symbol,raw,receivedAt){
  */
 export function createForegroundBookStreams({
  now=()=>Date.now(),socketFactory=url=>new WebSocket(url),
- onSample=()=>{},onStatus=()=>{}
+ onSample=()=>{},onBook=()=>{},onStatus=()=>{}
 }={}){
  let current='',active=false,generation=0;
  const lanes=new Map(),nextAllowed=new Map();
@@ -130,7 +130,8 @@ export function createForegroundBookStreams({
   }
   const token=generation,expected=current;
   const lane={ws,createdAt:at,lastMessageAt:at,lastSampleAt:0,
-   lastSavedAt:0,lastSequence:null,lastPingAt:0,awaitingPong:false};
+   lastSavedAt:0,lastRenderedAt:0,lastSequence:null,lastPingAt:0,
+   awaitingPong:false};
   lanes.set(venue,lane);state(venue,'CONNECTING');
   const live=()=>active&&generation===token&&expected===current&&
    lanes.get(venue)===lane;
@@ -167,6 +168,10 @@ export function createForegroundBookStreams({
     book.updateId===null;
    lane.lastSequence=book.updateId;
    lane.lastSampleAt=received;lane.lastBook=book;
+   if(changed&&received-lane.lastRenderedAt>=1000){
+    lane.lastRenderedAt=received;
+    onBook({symbol:expected,venue,depth:book,collectedAt:received});
+   }
    if(changed&&received-lane.lastSavedAt>=LIVE_BOOK_POLICY.saveGapMs){
     lane.lastSavedAt=received;
     onSample({symbol:expected,venue,depth:book,collectedAt:received});
