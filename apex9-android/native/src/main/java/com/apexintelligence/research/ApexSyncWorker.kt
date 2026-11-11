@@ -141,6 +141,11 @@ class ApexSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
             ApexRadarMonitor.sync(applicationContext, favorites, dao)
             // Reuse genuine Radar M15/H4 candles; no duplicated download loop.
             ApexMultiFrameForecast.syncAll(applicationContext, favorites, dao)
+            // M15/H4 stages are appended after ApexAutoForecast has already
+            // dispatched H1 alerts. Dispatch once more for these new stages.
+            // The durable per-forecast/stage ledger prevents duplicates.
+            try { ApexForecastNotifier.dispatch(applicationContext, favorites, dao) }
+            catch (_: Exception) { /* Alerts must not fail source synchronization. */ }
             Result.success()
         } catch (_: java.io.IOException) {
             Result.retry()
