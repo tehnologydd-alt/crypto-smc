@@ -5,6 +5,8 @@
  */
 import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
+/** True only when a real Android Room observation writer is available. */
+export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
 const unavailable = {native:false,storage:'WEB_ONLY',observationCount:0,forecastCount:0,
  backgroundSyncEnabled:false,forecastAlertsEnabled:false,alertLimitReady:true,
  alertTargets:true,alertStop:true,keepScreenOn:false,

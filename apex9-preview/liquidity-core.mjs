@@ -63,21 +63,27 @@ export function studyVisibleLiquidity(rows,{now=Date.now(),asset}={}){
    venues.push({venue,status:'NO_SAMPLES',samples:0});
    continue;
   }
-  const first=points[0],last=points.at(-1);
+  const last=points.at(-1);
   const age=now-last.collectedAt;
-  const span=last.observedAt-first.observedAt;
-  const sufficient=points.length>=3&&span>=120000;
-  // Trend is withheld on sparse observations, or a missing/long historical gap.
+  // Old 1h+ outages remain visible as disjoint historical series, but must
+  // not permanently poison a new continuous streak of recent observations.
   const gaps=points.slice(1).map((x,i)=>x.observedAt-points[i].observedAt);
   const longestGap=gaps.length?Math.max(...gaps):0;
-  const continuity=sufficient&&longestGap<=3600000;
+  let firstInStreak=0;
+  for(let i=1;i<points.length;i++)
+   if(points[i].observedAt-points[i-1].observedAt>3600000)
+    firstInStreak=i;
+  const streak=points.slice(firstInStreak);
+  const first=streak[0];
+  const span=last.observedAt-first.observedAt;
+  const continuity=streak.length>=3&&span>=120000;
   const recent=age>=0&&age<=180000;
   const status=!recent?'HISTORICAL':!continuity?'LOW_COVERAGE':'OBSERVED';
   const wallBid=last.bidNotional,wallAsk=last.askNotional;
   const quantityScope=last.bidLevels===null?'Неизвестное число уровней':last.bidLevels+
    ' bid / '+last.askLevels+' ask уровней';
   venues.push({
-   venue,status,samples:points.length,
+   venue,status,samples:points.length,continuousSamples:streak.length,
    lastObservedAt:last.observedAt,lastCollectedAt:last.collectedAt,
    spanMs:span,longestGapMs:longestGap,
    spreadBps:last.spreadBps,

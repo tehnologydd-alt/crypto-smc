@@ -138,6 +138,11 @@ interface ResearchDao {
     @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='liquidity' ORDER BY observedAt DESC LIMIT :limit")
     suspend fun liquidityHistory(asset: String, limit: Int): List<ResearchObservation>
 
+    /** Venue-balanced, bounded read. Active Binance snapshots cannot push
+     * older genuine Bybit snapshots entirely out of the visible history. */
+    @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='liquidity' AND source=:source ORDER BY observedAt DESC LIMIT :limit")
+    suspend fun liquidityHistoryForSource(asset: String, source: String, limit: Int): List<ResearchObservation>
+
     /** Public network observations only; same existing Room schema, no migration. */
     @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='onchain' ORDER BY observedAt DESC LIMIT :limit")
     suspend fun onChainHistory(asset: String, limit: Int): List<ResearchObservation>

@@ -60,3 +60,29 @@ test('no fake data on empty or unsupported inputs',()=>{
  assert.equal(r.status,'EMPTY');assert.equal(r.samples,0);
  assert.equal(studyVisibleLiquidity([], {now,asset:'bad symbol'}).status,'INVALID');
 });
+
+test('an old one-hour outage does not keep a new clean streak in LOW_COVERAGE',()=>{
+ const rows=[
+  sample('binance',-240,{imbalance:-.8}),
+  sample('binance',-239,{imbalance:-.7}),
+  sample('binance',0,{imbalance:.1}),
+  sample('binance',1,{imbalance:.2}),
+  sample('binance',2,{imbalance:.3})
+ ];
+ const r=studyVisibleLiquidity(rows,{asset,now:now+1000});
+ const v=r.venues[0];
+ assert.equal(v.status,'OBSERVED');
+ assert.equal(v.samples,5);
+ assert.equal(v.continuousSamples,3);
+ assert.equal(v.longestGapMs>3600000,true);
+ assert.ok(Math.abs(v.imbalanceChange-.2)<1e-9);
+});
+test('a new incomplete streak is LOW_COVERAGE despite many old samples',()=>{
+ const rows=Array.from({length:30},(_,i)=>sample('binance',-300+i));
+ rows.push(sample('binance',0),sample('binance',1));
+ const r=studyVisibleLiquidity(rows,{asset,now});
+ assert.equal(r.venues[0].samples,32);
+ assert.equal(r.venues[0].continuousSamples,2);
+ assert.equal(r.venues[0].status,'LOW_COVERAGE');
+ assert.equal(r.venues[0].imbalanceChange,null);
+});

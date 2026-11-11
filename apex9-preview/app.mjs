@@ -1,7 +1,8 @@
-import {collectAsset,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
+import {collectAsset,collectVisibleDepth,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
+import {createForegroundDepthPolicy} from './foreground-depth-policy.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -72,6 +73,8 @@ const assessmentNames={
 };
 let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=0;
 let fastTickerAt=0,fastTickerBusy=false;
+const foregroundDepthPolicy=createForegroundDepthPolicy();
+let depthBusy=false,depthController=null;
 try{chosen=normalizeSymbol(localStorage.getItem('apex9_preview_asset'))||chosen;}catch{}
 el('asset-input').value=chosen;
 el('asset-name').textContent=chosen;
@@ -1513,6 +1516,7 @@ async function investigate(value){
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
  if(changed)fastTickerAt=0;
+ if(changed)depthController?.abort();
  if(changed){
   newsM5Panel.reset();
   scenarioRequest++;
@@ -1577,6 +1581,11 @@ async function investigate(value){
   // Persist only actual successful source observations in the phone's Room DB.
   const persisted=await saveMobileSnapshot(snapshot);
   if(active!==pending)return;
+  // This full request already sampled the two books. Do not repeat it.
+  for(const venue of ['binance','bybit']){
+   const seen=snapshot.sources.find(row=>row.id===venue+'-depth');
+   if(seen)foregroundDepthPolicy.record(chosen,venue,seen.state);
+  }
   if(persisted.native){
    try{await setMobileSettings({asset:chosen});}catch{}
    void refreshMobileStatus();
@@ -1601,7 +1610,62 @@ el('search-form').addEventListener('submit',(event)=>{
  navigate('asset','chart');
 });
 el('refresh-button').addEventListener('click',()=>void investigate(chosen));
-// Foreground lightweight quote cadence; no high-rate book/news/on-chain polling.
+/**
+ * Selected favorite, visible Android asset screen only.
+ * Depth-only GETs, at most once a minute per provider with failure backoff.
+ * Android may pause WebView timers; this is not a background service.
+ */
+async function refreshVisibleDepth(){
+ if(depthBusy||controller||document.hidden||
+  document.body.dataset.view!=='asset'||
+  !favoriteManager.hasFavorite(chosen)||
+  !hasMobileObservationStorage())return;
+ const symbol=chosen;
+ const due=['binance','bybit'].filter(venue=>
+  foregroundDepthPolicy.allowed(symbol,venue,{
+   visible:true,favorite:true,native:true,busy:false}).allowed);
+ if(!due.length)return;
+ const seq=pending;
+ depthBusy=true;
+ const local=new AbortController();
+ depthController=local;
+ const deadline=setTimeout(()=>local.abort(),8000);
+ let recorded=false;
+ try{
+  const sample=await collectVisibleDepth(symbol,{
+   venues:due,signal:local.signal,now:()=>Date.now()});
+  if(!local.signal.aborted){
+   for(const venue of due){
+    const reply=sample.sources.find(row=>row.id===venue+'-depth');
+    foregroundDepthPolicy.record(symbol,venue,reply?.state||'OFFLINE');
+   }
+   recorded=true;
+  }
+  if(local.signal.aborted||document.hidden||controller||
+   seq!==pending||chosen!==symbol||
+   !favoriteManager.hasFavorite(symbol))return;
+  // Room receives only successfully validated actual book snapshots.
+  if(sample.depth.length){
+   const saved=await saveMobileSnapshot(sample);
+   if(!saved.native||saved.saved<1)return;
+  }
+  if(local.signal.aborted||document.hidden||controller||
+   seq!==pending||chosen!==symbol||
+   !favoriteManager.hasFavorite(symbol))return;
+  liquidityDashboard.setSourceStatuses(symbol,sample.sources);
+  if(el('view-asset').dataset.assetArea==='data')
+   void liquidityDashboard.refresh(symbol);
+ }catch{
+  if(!recorded&&!local.signal.aborted)for(const venue of due)
+   foregroundDepthPolicy.record(symbol,venue,'OFFLINE');
+ }finally{
+  clearTimeout(deadline);
+  if(depthController===local)depthController=null;
+  depthBusy=false;
+ }
+}
+
+// Visible-asset quote and depth cadence; no background polling.
 async function refreshVisibleQuote(){
  if(document.hidden||document.body.dataset.view!=='asset'||
   !favoriteManager.hasFavorite(chosen)||fastTickerBusy||controller||!chosen||
@@ -1631,15 +1695,24 @@ setInterval(()=>{
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
-  else void refreshVisibleQuote();
+  else {
+   void refreshVisibleQuote();
+   void refreshVisibleDepth();
+  }
  }
 },15000);
 document.addEventListener('visibilitychange',()=>{
- if(document.hidden)return;
+ if(document.hidden){
+  depthController?.abort();
+  return;
+ }
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
-  else void refreshVisibleQuote();
+  else {
+   void refreshVisibleQuote();
+   void refreshVisibleDepth();
+  }
  }
  favoriteManager.resume();
 });
