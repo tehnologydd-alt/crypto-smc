@@ -96,6 +96,8 @@ test('APK adapter, foreground guards and statuses are wired without new worker',
  const native=read('./mobile-bridge.mjs');
  const pipeline=read('../apex9-android/scripts/prepare-web.mjs');
  const history=read('./liquidity-dashboard.mjs');
+ const dao=read('../apex9-android/native/src/main/java/com/apexintelligence/research/ApexDatabase.kt');
+ const plugin=read('../apex9-android/native/src/main/java/com/apexintelligence/research/ApexNativePlugin.kt');
  assert.ok(pipeline.includes("'foreground-depth-policy.mjs'"));
  assert.ok(app.includes("document.body.dataset.view!=='asset'"));
  assert.ok(app.includes('hasMobileObservationStorage()'));
@@ -105,6 +107,10 @@ test('APK adapter, foreground guards and statuses are wired without new worker',
  assert.ok(app.includes('void refreshVisibleDepth()'));
  assert.ok(native.includes("typeof plugin()?.saveObservation==='function'"));
  assert.ok(history.includes("lastAsset=asset"));
+ assert.ok(dao.includes('suspend fun liquidityHistoryForSource('));
+ assert.ok(plugin.includes('dao.liquidityHistoryForSource(asset, "binance:spot:depth", perVenue)'));
+ assert.ok(plugin.includes('dao.liquidityHistoryForSource(asset, "bybit:spot:depth", limit / 2)'));
+ assert.ok(history.includes("'Снимков в выборке'"));
  assert.equal(read('./foreground-depth-policy.mjs').includes('fetch('),false);
  assert.equal(read('./foreground-depth-policy.mjs').includes('setInterval('),false);
 });
