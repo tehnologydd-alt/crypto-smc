@@ -139,7 +139,7 @@ object ApexApiLedger {
                     if (state == "INVALID") invalid++
                     if (state == "RATE_LIMITED") limited++
                     val duration = row.optLong("ms", -1L)
-                    if (duration in 0..120_000) latencies.add(duration)
+                    if (duration >= 0L && duration <= 120_000L) latencies.add(duration)
                     val seen = row.optLong("providerAt", -1L)
                     if (seen > 0L && seen <= t + 60_000L && state == "OK") {
                         checked++
