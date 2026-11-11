@@ -104,8 +104,9 @@ class ApexNativePlugin : Plugin() {
             !record.isNull("exchangeLabel") || !record.isNull("tradeDirection") ||
             record.optBoolean("isWhaleIdentityVerified", true) ||
             record.optString("thresholdAtomic") !=
-                if (bitcoin) "10000000000" else "100000000000000000000" ||
-            record.optString("unit") != if (bitcoin) "BTC" else "ETH") return false
+                (if (bitcoin) "10000000000" else "100000000000000000000") ||
+            record.optString("unit") != (if (bitcoin) "BTC" else "ETH") ||
+            record.optInt("decimals", -1) != (if (bitcoin) 8 else 18)) return false
         val amount = try { java.math.BigInteger(atomic) }
                      catch (_: Exception) { return false }
         val min = java.math.BigInteger(
