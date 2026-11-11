@@ -7,6 +7,7 @@ import {computeReferenceLevels} from './research-level-sequence.mjs';
 import {directionalHypothesis,planDirectionalScenario,directionalOutcomeLabel}
  from './directional-scenario.mjs';
 import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
+import {compactOpenForecastCard} from './forecast-compact-card.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
  completedResearchPresentation,renderCompletedResearchPanel}
  from './forecast-level-metrics.mjs';
@@ -256,6 +257,12 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen}={}){
    'Данные сценария требуют проверки: '+(evidence.reason||'нет подтверждения')));
   card.append(multiFrameCardActions(row,{tracked,onToggle,onOpen}));
   return card;
+ }
+ if(!complete){
+  const stage=evidence.events.has('CONFIRMED')?'ACTIVE':
+   evidence.events.has('LIMIT_READY')?'CONFIRMED':'PENDING_CONFIRMATION';
+  return compactOpenForecastCard(row,{plan,stage,
+   events:row.stageEvents,tracked,onToggle,onOpen});
  }
  if(complete){
   card.classList.add('is-completed','tone-'+completion.tone);
