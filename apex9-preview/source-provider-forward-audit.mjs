@@ -18,6 +18,7 @@ import {planDirectionalScenario} from './directional-scenario.mjs';
 import {planMultiFrameForecast,multiFrameEvidence}
  from './forecast-multiframe.mjs';
 import {verifiedDirectionalEvidence} from './forecast-quality.mjs';
+import {assessProviderSensitivity} from './source-provider-sensitivity.mjs';
 
 export const PROVIDER_FORWARD_VERSION='APEX_PROVIDER_FORWARD_VALUE_V1';
 export const PROVIDER_FORWARD_REGISTRATION=Date.UTC(2026,10,13,0,0,0);
@@ -84,6 +85,13 @@ function providerAlignment(evidence,plan,def){
 const pct=(n,d)=>d?Math.round(1000*n/d)/10:null;
 function summarizeProvider(id,blocks,cutoffsReady){
  const periods=blocks.map(b=>b.providers[id]);
+ // Stage 4 only diagnoses the SAME outcomes selected by frozen Stage 3.
+ // It never reselects publications, modifies weights or affects eligibility.
+ const sensitivity=assessProviderSensitivity(blocks.map((b,i)=>({
+  samples:b.providers[id].samples,
+  decisive:b.counts.decisive,tp3:b.counts.tp3
+ })),{eligible:cutoffsReady&&!blocks.some(b=>
+  b.counts.invalid||b.counts.invalidContext||b.counts.invalidStrength)});
  const diagnostics=periods.map((p,i)=>({
   window:i+1,published:blocks[i].counts.selected,
   observed:p.observed,stale:p.stale,missing:p.missing,
@@ -96,7 +104,7 @@ function summarizeProvider(id,blocks,cutoffsReady){
   state:'COLLECTING',reason:'Нужно три независимых периода и завершённые M1-исходы.',
   windows:diagnostics,baselineAuc:null,withProviderAuc:null,
   reversedControlAuc:null,deltaAuc:null,
-  repeatabilityNotCausation:true};
+  repeatabilityNotCausation:true,sensitivity};
  if(!cutoffsReady)return base;
  for(let i=0;i<blocks.length;i++){
   const b=blocks[i],p=periods[i];

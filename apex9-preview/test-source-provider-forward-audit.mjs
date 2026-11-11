@@ -108,6 +108,11 @@ test('paired 3-window study uses exactly same observed outcomes for both ranks',
  assert.ok(market.deltaAuc.every(x=>x>=PROVIDER_FORWARD_RULES.minDeltaAuc));
  assert.ok(market.negativeControlDeltaAuc.every(x=>x<=0));
  assert.deepEqual(market.windows.map(x=>x.scored),[16,16,16]);
+ assert.equal(market.sensitivity.state,'DESCRIPTIVE');
+ assert.equal(market.sensitivity.windows.length,3);
+ assert.ok(market.sensitivity.windows.every(w=>
+  Number.isFinite(w.leaveOneOutMin)&&Number.isFinite(w.leaveOneOutMax)&&
+  w.leaveOneOutMin<=w.leaveOneOutMax));
  assert.equal(market.windows[0].tp3,8);
  assert.equal(market.windows[0].stop,8);
  const bybit=probe(r,'bybit:spot:depth');
@@ -192,6 +197,11 @@ test('read-only compact cache persists research without raw outcomes, market dat
  assert.equal(view.frames['15m'].providerResearch.required,48);
  assert.equal(view.frames['15m'].providerResearch.studies.length,3);
  assert.ok(view.frames['15m'].providerResearch.studies[0].deltaAuc);
+ assert.equal(view.frames['15m'].providerResearch.studies[0]
+  .sensitivity.state,'DESCRIPTIVE');
+ assert.equal(view.frames['15m'].providerResearch.studies[0]
+  .sensitivity.windows.length,3);
+ assert.ok(!JSON.stringify(view).includes('outcome'));
  const raw=[...data.values()].join('');
  for(const forbidden of ['stageEvents','actualClose','apiKey',
   'quoteVolume24h','visibleDepthImbalance'])
