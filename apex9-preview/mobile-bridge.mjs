@@ -4,6 +4,7 @@
  * Web preview transparently reports unsupported native features.
  */
 import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair.mjs';
+import {chainForWhaleAsset,validateWhaleEvent,parseWhaleHistory} from './whale-observer.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
 /** True only when a real Android Room observation writer is available. */
 export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
@@ -712,4 +713,53 @@ export async function getMobileRadarHistory(){
   return {native:false,records:[],source:'OFFLINE',
    error:String(e?.message||e).slice(0,125)};
  }
+}
+
+/** Stage 1 verified public native-coin transfers; never private wallet actions. */
+export async function saveMobileWhaleObservations(asset,report){
+ const native=plugin();
+ const base={native:Boolean(native),saved:0,attempted:0,errors:[]};
+ if(!native?.saveObservation)return {...base,error:'Требуется Android Room'};
+ if(!chainForWhaleAsset(asset)||!['OK','PARTIAL'].includes(report?.state)||
+  report.asset!==asset||!Array.isArray(report.events)||
+  report.events.length>20)return {...base,error:'Непроверенный набор событий'};
+ let saved=0,attempted=0;
+ const errors=[];
+ const now=Date.now();
+ for(const event of report.events){
+  if(!validateWhaleEvent(event,asset,now)){
+   errors.push('INVALID_EVENT');continue;
+  }
+  const id='whale:'+event.network+':'+event.txid+':'+
+   (event.outputIndex===null?'native':event.outputIndex);
+  if(id.length>125){errors.push('ID_TOO_LONG');continue;}
+  attempted++;
+  try{
+   const response=await native.saveObservation({
+    id,asset,source:event.source,kind:'whale',
+    observedAt:event.observedAt,collectedAt:event.collectedAt,
+    payload:JSON.stringify(event)
+   });
+   if(response?.saved===true)saved++;
+   else errors.push('NOT_SAVED');
+  }catch(e){errors.push(String(e?.message||e).slice(0,80));}
+ }
+ return {...base,saved,attempted,errors};
+}
+/** Exact per-asset source history, distinct from generic network statistics. */
+export async function getMobileWhaleHistory(asset,limit=60){
+ const native=plugin();
+ const base={native:Boolean(native),source:'LOCAL_ROOM_WHALE_STAGE1_V1',
+  events:[],complete:false};
+ if(!chainForWhaleAsset(asset))return {...base,error:'Для актива нет проверенного адаптера'};
+ if(!native?.getWhaleHistory)return {...base,error:'Нужен Android с Whale Room'};
+ try{
+  const result=await native.getWhaleHistory({
+   asset,limit:Math.min(100,Math.max(1,Math.trunc(limit)))
+  });
+  if(result?.source!=='LOCAL_ROOM_WHALE_STAGE1_V1'||
+   !Array.isArray(result.rows)||result.rows.length>100)
+   throw Error('Ответ локального архива не подтверждён');
+  return {...base,events:parseWhaleHistory(result.rows,asset),complete:true};
+ }catch(e){return {...base,error:String(e?.message||e).slice(0,115)};}
 }
