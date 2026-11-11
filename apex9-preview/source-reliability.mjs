@@ -6,13 +6,18 @@
  */
 export const RELIABILITY_VERSION='APEX_API_RELIABILITY_V1';
 export const RELIABILITY_PROVIDERS=Object.freeze([
- 'fear','dex','gecko','okx','paprika','cmc'
+ 'fear','dex','gecko','okx','paprika','cmc',
+ 'binance-ticker','binance-depth','bybit-depth',
+ 'coingecko-global','bitcoin-mempool','gdelt-news'
 ]);
 const KEY='apex9:api-reliability:v1';
 const DAY=86400000,WINDOW=30*DAY,MAX_PER_SOURCE=160,MIN_SAMPLE=12;
 const PROVIDER_AGE=Object.freeze({
  fear:4*DAY,dex:3*3600000,gecko:3*3600000,
- okx:20*60000,paprika:2*3600000,cmc:2*3600000
+ okx:20*60000,paprika:2*3600000,cmc:2*3600000,
+ 'binance-ticker':3*60000,'binance-depth':5*60000,
+ 'bybit-depth':5*60000,'coingecko-global':2*3600000,
+ 'bitcoin-mempool':20*60000,'gdelt-news':48*3600000
 });
 const TERMINAL=new Set(['OK','EMPTY','INVALID','OFFLINE','RATE_LIMITED',
  'ACCESS_DENIED','STALE','CLOCK_SKEW']);
@@ -89,7 +94,8 @@ export function createSourceReliability({storage,now=()=>Date.now()}={}){
   const data=result?.data;
   // Some adapters stamp local reception time into observedAt. It MUST NOT
   // become a fabricated source-freshness success.
-  const providerTimestamped=['fear','paprika','cmc'].includes(provider);
+  const providerTimestamped=['fear','paprika','cmc','binance-ticker',
+   'coingecko-global'].includes(provider);
   const observedAt=!providerTimestamped?null:
    Number.isSafeInteger(data?.observedAt)?data.observedAt:
    Number.isSafeInteger(data?.providerObservedAt)?data.providerObservedAt:null;
