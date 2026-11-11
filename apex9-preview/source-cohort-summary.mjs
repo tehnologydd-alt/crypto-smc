@@ -7,8 +7,8 @@ import {auditM1Cohort,M1_COHORT_VERSION} from './forecast-m1-cohort.mjs';
 import {auditPublishedSourceLineage,SOURCE_LINEAGE_VERSION}
  from './source-lineage-audit.mjs';
 
-export const SOURCE_COHORT_VERSION='APEX_SOURCE_COHORT_VIEW_V1';
-const KEY='apex9:source-cohort-summary:v1',AGE=30*86400000;
+export const SOURCE_COHORT_VERSION='APEX_SOURCE_COHORT_VIEW_V2';
+const KEY='apex9:source-cohort-summary:v2',AGE=30*86400000;
 const FRAMES=['15m','1h','4h'];
 const assetOK=x=>typeof x==='string'&&/^[A-Z0-9]{5,20}$/.test(x);
 const time=x=>Number.isSafeInteger(x)&&x>0;
@@ -29,6 +29,8 @@ function compress(asset,cohort,lineage,now){
    holdoutDecisive:m?.holdout?.decisive||0,
    verifiedSources:s?.verified||0,sourceLegacy:s?.legacy||0,
    sourceInvalid:s?.invalid||0,
+   sourceV1:s?.v1Verified||0,sourceV2:s?.v2Verified||0,
+   multiProviderForecasts:s?.multiProviderForecasts||0,
    providers:(s?.providers||[]).filter(p=>sourceCheck(p.source)&&
     ['market','liquidity','onchain','news','macro','social'].includes(p.feed))
     .slice(0,14).map(p=>({feed:p.feed,source:p.source,
@@ -38,8 +40,8 @@ function compress(asset,cohort,lineage,now){
  return {version:SOURCE_COHORT_VERSION,asset,auditedAt:now,
   archiveRows:cohort.archiveRows,m1State:cohort.state,
   lineageState:lineage.state,frames,
-  note:'Результаты M1 и M5 независимы; источники отражают только наличие '+
-   'при публикации, не точность прогноза.'};
+  note:'Результаты M1 и M5 независимы; V2 считает разных поставщиков '+
+   'только в момент публикации, не точность прогноза.'};
 }
 export function saveSourceCohortSummary(archive,asset,{
  now=Date.now(),storage=safeStorage()
@@ -85,8 +87,11 @@ export function readSourceCohortSummary(asset,{
     const f=report.frames[tf];
     return f&&['COLLECTING','CHECK_DATA','DESCRIPTIVE'].includes(f.m1State)&&
      ['m1Published','m1Forward','m5Archived','referenceDecisive',
-      'holdoutDecisive','verifiedSources','sourceLegacy','sourceInvalid']
+      'holdoutDecisive','verifiedSources','sourceLegacy','sourceInvalid',
+      'sourceV1','sourceV2','multiProviderForecasts']
      .every(k=>Number.isSafeInteger(f[k])&&f[k]>=0)&&
+     f.verifiedSources===f.sourceV1+f.sourceV2&&
+     f.multiProviderForecasts<=f.sourceV2&&
      Array.isArray(f.providers)&&f.providers.length<=14&&
      f.providers.every(p=>sourceCheck(p.source)&&
       Number.isSafeInteger(p.observed)&&p.observed>=0&&
