@@ -8,7 +8,7 @@
  * V5 Nov 2026: OKX WebSocket uses port 443 (old :8443 retired Oct 31).
  * This module never sends API keys, account IDs, private data or trades.
  */
-import {parseDepthSnapshot} from '../updates/v90-market-depth.mjs';
+import {parseDepthSnapshot} from './research.mjs';
 export const LIVE_BOOK_POLICY=Object.freeze({
  saveGapMs:30000,healthyBinanceMs:12000,healthyOkxMs:25000,
  connectionTimeoutMs:12000,okxPingMs:20000,okxDisconnectMs:45000,
