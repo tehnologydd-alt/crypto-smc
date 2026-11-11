@@ -27,7 +27,7 @@ class ApexNativePlugin : Plugin() {
     private val tasks = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val assetRegex = Regex("^[A-Z0-9]{5,20}$")
     private val sourceRegex = Regex("^[a-zA-Z0-9:._-]{2,80}$")
-    private val kindSet = setOf("market", "liquidity", "onchain", "news", "macro", "social", "context")
+    private val kindSet = setOf("market", "liquidity", "onchain", "whale", "news", "macro", "social", "context")
 
     @PluginMethod
     fun getStatus(call: PluginCall) {
@@ -77,6 +77,63 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+
+    /** Never trust a generic WebView payload merely because it says whale. */
+    private fun validatedWhalePayload(
+        asset: String?, source: String?, payload: String?,
+        observedAt: Long, collectedAt: Long
+    ): Boolean {
+        if (asset == null || source == null || payload == null) return false
+        val bitcoin = Regex("^BTC(USDT|USDC|EUR|BTC)$").matches(asset)
+        val ethereum = Regex("^ETH(USDT|USDC|EUR|BTC)$").matches(asset)
+        if (!bitcoin && !ethereum) return false
+        val expected = if (bitcoin) "mempool:bitcoin:tx" else "blockscout:ethereum:transactions"
+        val chain = if (bitcoin) "bitcoin" else "ethereum"
+        val record = try { JSONObject(payload) } catch (_: Exception) { return false }
+        val atomic = record.optString("amountAtomic", "")
+        val txid = record.optString("txid", "")
+        if (source != expected || record.optString("source") != source ||
+            record.optString("version") != "APEX_WHALE_NATIVE_STAGE1_V1" ||
+            record.optString("asset") != asset || record.optString("network") != chain ||
+            record.optLong("observedAt", -1L) != observedAt ||
+            record.optLong("collectedAt", -1L) != collectedAt ||
+            observedAt < collectedAt - 14L * 86_400_000L ||
+            !Regex("^[a-f0-9]{64}$").matches(txid) ||
+            !Regex("^[1-9][0-9]{0,70}$").matches(atomic) ||
+            record.optString("walletOwner") != "UNKNOWN" ||
+            !record.isNull("exchangeLabel") || !record.isNull("tradeDirection") ||
+            record.optBoolean("isWhaleIdentityVerified", true) ||
+            record.optString("thresholdAtomic") !=
+                if (bitcoin) "10000000000" else "100000000000000000000" ||
+            record.optString("unit") != if (bitcoin) "BTC" else "ETH") return false
+        val amount = try { java.math.BigInteger(atomic) }
+                     catch (_: Exception) { return false }
+        val min = java.math.BigInteger(
+            if (bitcoin) "10000000000" else "100000000000000000000")
+        if (amount < min || !record.isNull("calibratedProbability")) return false
+        return if (bitcoin) {
+            record.optString("eventType") == "LARGE_OUTPUT_CANDIDATE" &&
+                record.optString("confirmation") == "UNCONFIRMED_AT_FETCH" &&
+                record.optString("timeBasis") == "CLIENT_SEEN" &&
+                record.optLong("observedAt") == collectedAt &&
+                record.optInt("outputIndex", -1) in 0..10000 &&
+                record.isNull("from") &&
+                record.optString("addressRole") == "OUTPUT_MAY_BE_CHANGE" &&
+                Regex("^[a-zA-Z0-9]{14,90}$").matches(record.optString("to"))
+        } else {
+            val from = record.optString("from")
+            val to = record.optString("to")
+            record.optString("eventType") == "NATIVE_COIN_TRANSFER" &&
+                record.optString("confirmation") == "VALIDATED_AT_FETCH" &&
+                record.optString("timeBasis") == "BLOCK_TIMESTAMP" &&
+                record.isNull("outputIndex") &&
+                record.optString("addressRole") == "UNVERIFIED_ADDRESSES" &&
+                Regex("^0x[a-fA-F0-9]{40}$").matches(from) &&
+                Regex("^0x[a-fA-F0-9]{40}$").matches(to) &&
+                !from.equals(to, ignoreCase = true)
+        }
+    }
+
     @PluginMethod
     fun saveObservation(call: PluginCall) {
         val asset = call.getString("asset")
@@ -93,7 +150,9 @@ class ApexNativePlugin : Plugin() {
             id.isNullOrBlank() || id.length > 125 ||
             payload == null || payload.length > 16_384 ||
             observedAt <= 0L || observedAt > now + 60_000L ||
-            collectedAt < observedAt || collectedAt > now + 60_000L) {
+            collectedAt < observedAt || collectedAt > now + 60_000L ||
+            (kind == "whale" && !validatedWhalePayload(
+                asset,source,payload,observedAt,collectedAt))) {
             call.reject("Invalid or oversized source observation")
             return
         }
@@ -230,6 +289,45 @@ class ApexNativePlugin : Plugin() {
                 call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Could not read network history: " + (e.message ?: "unknown"))
+            }
+        }
+    }
+
+    /** Bounded history for one favorite and one exactly mapped network. */
+    @PluginMethod
+    fun getWhaleHistory(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val source = when {
+            Regex("^BTC(USDT|USDC|EUR|BTC)$").matches(asset) ->
+                "mempool:bitcoin:tx"
+            Regex("^ETH(USDT|USDC|EUR|BTC)$").matches(asset) ->
+                "blockscout:ethereum:transactions"
+            else -> null
+        }
+        if (source == null) {
+            call.reject("No verified whale transaction source for asset")
+            return
+        }
+        val limit = call.data.optInt("limit", 60).coerceIn(1, 100)
+        tasks.launch {
+            try {
+                val saved = ApexDatabase.get(context.applicationContext)
+                    .researchDao().whaleHistoryForSource(asset, source, limit)
+                val rows = JSArray()
+                for (item in saved) {
+                    if (item.source != source || item.kind != "whale" ||
+                        item.sourceState != "OK") continue
+                    rows.put(JSObject().put("asset", item.asset)
+                        .put("source", item.source).put("kind", item.kind)
+                        .put("sourceState", item.sourceState)
+                        .put("observedAt", item.observedAt)
+                        .put("collectedAt", item.collectedAt)
+                        .put("payload", item.payloadJson))
+                }
+                call.resolve(JSObject().put("rows", rows)
+                    .put("source", "LOCAL_ROOM_WHALE_STAGE1_V1"))
+            } catch (_: Exception) {
+                call.reject("Native whale history unavailable")
             }
         }
     }
