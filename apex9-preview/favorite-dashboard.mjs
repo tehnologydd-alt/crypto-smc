@@ -274,7 +274,7 @@ async function copyResearchText(value){
 /** Single card; "Отмеченные" and "демо-журнал" are one and the same saved ID set. */
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  if(multiFrameHypothesis(row))
-  return multiFrameForecastCard(row,{tracked,onToggle,onOpen});
+  return multiFrameForecastCard(row,{tracked,onToggle,onOpen,copyText:copyResearchText});
  if(directionalHypothesis(row))
   return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
    sourceH1,sourceM5,sourceM1:sourceM5,copyText:copyResearchText});

@@ -3571,3 +3571,27 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  .forecast-compact-price strong{font-size:.82rem}
  .forecast-compact-actions button{flex:1}
 }
+
+
+/* The price itself is the copy button on open scenario cards. */
+.forecast-compact-level-copy{display:inline-flex;align-items:center;
+ justify-content:space-between;gap:5px;width:100%;min-width:0;
+ border:0;border-radius:5px;background:transparent;color:#edf8fa;
+ cursor:pointer;text-align:left;padding:2px 0;font:inherit;font-weight:750;
+ font-size:clamp(.82rem,2.2vw,1.01rem);line-height:1.35;
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.forecast-compact-level-copy::after{content:'⧉';flex:none;color:#739da5;
+ font-size:.92rem;font-weight:500}
+.forecast-compact-price.tp1 .forecast-compact-level-copy{color:#86e6c9}
+.forecast-compact-price.sl .forecast-compact-level-copy{color:#ffb0b9}
+.forecast-compact-level-copy:focus-visible{outline:2px solid #77e7d7;
+ outline-offset:3px}
+.forecast-compact-level-copy:active{opacity:.75}
+.forecast-compact-full-level .forecast-compact-level-copy{font-size:.92rem}
+.forecast-compact-copy-feedback{margin:0;font-size:.77rem;
+ color:#9be4cc;line-height:1.35;overflow-wrap:anywhere}
+.forecast-compact-copy-feedback:empty{display:none}
+@media(max-width:390px){
+ .forecast-compact-price .forecast-compact-level-copy{font-size:.8rem}
+ .forecast-compact-level-copy::after{font-size:.81rem}
+}

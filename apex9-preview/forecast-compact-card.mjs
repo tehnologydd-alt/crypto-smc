@@ -22,6 +22,14 @@ const LABELS={
  ACTIVE:['Активный','Касание входа записано; наблюдаем TP1–TP3 и SL']
 };
 const FRAME={'1h':'H1','15m':'M15','4h':'H4'};
+/** Presentation only: five decimals maximum; immutable Room prices are unchanged.
+ * Ultra-small positive prices must not be deceptively rendered as zero.
+ */
+export function compactLevelPrice(value){
+ if(typeof value!=='number'||!Number.isFinite(value)||value<=0)return '—';
+ if(value<0.000005)return '<0.00001';
+ return value.toFixed(5).replace(/\.?0+$/,'');
+}
 export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
  events=[],tracked=false,onToggle,onOpen,copyText}={}){
  if(!plan||!['PENDING_CONFIRMATION','CONFIRMED','ACTIVE'].includes(stage))
@@ -43,16 +51,42 @@ export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
   Number.isSafeInteger(plan.targetCloseAt)&&Date.now()>plan.targetCloseAt?
    'Срок наблюдения прошёл · ожидаем подтверждённый итог Room':note));
  const moves=forecastLevelMetrics(plan);
+ const copied=el('p','forecast-compact-copy-feedback');
+ copied.setAttribute('role','status');
+ copied.setAttribute('aria-live','polite');
+ const copyLevel=async(label,key)=>{
+  if(typeof copyText!=='function'){
+   copied.textContent='Копирование недоступно на этом устройстве';
+   return;
+  }
+  // Always copy the source-derived decimal, not the rounded presentation:
+  // critical for low-price tokens and exact research-level replay.
+  const full=priceText(plan[key]);
+  const ok=full!=='—'&&await copyText(full);
+  copied.textContent=ok?
+   label+': скопирована полная цена '+full:
+   'Не удалось скопировать '+label;
+ };
+ const levelButton=(label,key)=>{
+  const display=key==='entry'?priceText(plan[key]):compactLevelPrice(plan[key]);
+  const button=el('button','forecast-compact-level-copy',display);
+  button.type='button';
+  button.title='Копировать '+label+' (полную цену без округления)';
+  button.setAttribute('aria-label',label+' '+display+
+   ' · скопировать полное значение');
+  button.addEventListener('click',()=>void copyLevel(label,key));
+  return button;
+ };
  const priceRow=el('div','forecast-compact-price-row');
  const near=[['Вход','entry'],['TP1','tp1'],['SL','sl']];
  for(const [label,key] of near){
   const tile=el('div','forecast-compact-price '+key);
-  tile.append(el('small','',label),el('strong','',priceText(plan[key])));
+  tile.append(el('small','',label),levelButton(label,key));
   if(moves.state==='VALID'&&key==='tp1')
    tile.append(el('small','',displayRiskReward(moves.targets.tp1.rMultiple)));
   priceRow.append(tile);
  }
- card.append(priceRow);
+ card.append(priceRow,copied);
  const checked=new Set((Array.isArray(events)?events:[]).map(x=>x.stage));
  const progress=el('div','forecast-compact-progress');
  for(const [key,label] of [['CONFIRMED','Вход'],['TP1','TP1'],
@@ -68,7 +102,7 @@ export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
  for(const [label,key] of [['Вход','entry'],['SL','sl'],['TP1','tp1'],
   ['TP2','tp2'],['TP3','tp3']]){
   const item=el('div','forecast-compact-full-level');
-  item.append(el('span','',label),el('strong','',priceText(plan[key])));
+  item.append(el('span','',label),levelButton(label,key));
   if(moves.state==='VALID'){
    const info=key==='entry'?'Опорная цена':
     key==='sl'?'Δ '+displayPriceMove(moves.sl.deltaPct)+' · риск 1R':
