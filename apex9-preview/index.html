@@ -404,9 +404,15 @@
         <div class="liquidity-venue-grid" id="liquidity-history-venues">
           <p class="muted">Пока нет подтверждённых снимков стакана.</p>
         </div>
+        <details class="asset-quiet-detail" id="depth-quality-panel">
+          <summary>Качество получения данных · Binance / OKX</summary>
+          <p id="depth-quality-status" class="muted" role="status">Проверяем накопленные результаты реальных API-запросов.</p>
+          <div class="depth-quality-sources" id="depth-quality-sources"></div>
+          <p class="footnote">Считаются только завершённые WebView-запросы выбранных активов за 30 дней. Отмены и кэш не считаются ответами API. Выборки разных бирж не выровнены по времени и монетам, поэтому это не доказательство превосходства или качества прогнозов.</p>
+        </details>
         <div class="liquidity-chart-shell">
           <canvas id="liquidity-history-canvas" width="680" height="220"
-             role="img" aria-label="Исторические изменения дисбаланса видимых заявок Binance и Bybit">Для графика нужен Canvas.</canvas>
+             role="img" aria-label="Исторические изменения дисбаланса видимых заявок Binance и OKX">Для графика нужен Canvas.</canvas>
         </div>
         <div class="liquidity-legend"><span><i class="legend-binance"></i> Binance Spot</span><span><i class="legend-okx"></i> OKX Spot</span></div>
         <div class="level-observer" id="level-observer">
