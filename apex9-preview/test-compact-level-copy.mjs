@@ -51,6 +51,8 @@ test('open-card SL and each TP copy source-derived full decimal, not rounded UI 
   assert.equal(buttons.length,8); // entry/TP1/SL, then entry/SL/TP1/TP2/TP3
   assert.equal(buttons[1].textContent,'1.12346');
   assert.equal(buttons[2].textContent,'1.00001');
+  assert.equal(buttons[6].textContent,'1.22346');
+  assert.equal(buttons[7].textContent,'1.32346');
   assert.equal(buttons[1].attrs['aria-label'].includes('скопировать'),true);
   assert.equal(buttons[2].title.includes('полную цену'),true);
   for(const [key,idx] of [['tp1',1],['sl',2],['tp2',6],['tp3',7]]) {
