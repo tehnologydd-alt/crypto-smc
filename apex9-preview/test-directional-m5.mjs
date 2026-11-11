@@ -33,7 +33,7 @@ const entering=bar(2,{open:100.1,high:100.2,low:99.9,close:100.1});
 const start=()=>[bar(1),entering];
 const audit=(candles,at=anchor+5*M+1000,side='UP')=>
  auditDirectionalScenario(plan(side),candles,{now:at});
-test('H1 remains the direction, new study commits M5 as the evaluation method',()=>{
+test('H1 remains the direction, archived M5 studies retain the evaluation method',()=>{
  const fresh=plan();
  assert.equal(fresh.side,'UP');
  assert.equal(fresh.evaluationInterval,'5m');
@@ -125,7 +125,7 @@ test('room bridge, M5 native publisher and card routing are all connected',()=>{
  const cards=readFileSync(new URL('./forecast-directional-card.mjs',import.meta.url),'utf8');
  const favorites=readFileSync(new URL('./favorite-dashboard.mjs',import.meta.url),'utf8');
  assert.ok(auto.includes('ApexM5Evaluation.downloadAndSave(asset, dao, now)'));
- assert.ok(auto.includes('.put("evaluationInterval",ApexM5Evaluation.INTERVAL)'));
+ assert.ok(auto.includes('.put("evaluationInterval",ApexM1Evaluation.INTERVAL)'));
  assert.ok(dir.includes('return ApexM5Evaluation.progress('));
  assert.ok(kotlin.includes('interval=5m&limit=$LIMIT'));
  assert.ok(kotlin.includes('for (index in 1..count)'));
@@ -134,8 +134,8 @@ test('room bridge, M5 native publisher and card routing are all connected',()=>{
  assert.ok(pkg.includes("'ApexM5Evaluation.kt'"));
  assert.ok(bridge.includes('export async function getMobileM5Window('));
  assert.ok(favorites.includes("getMobileM5Window(plan.asset,start,end)"));
- assert.ok(cards.includes('const reader=isM5?sourceM5:sourceH1'));
- assert.ok(cards.includes("const sourceFrame=isM5?'M5':'H1'"));
+ assert.ok(cards.includes('const reader=isM1?sourceM1:isM5?sourceM5:sourceH1'));
+ assert.ok(cards.includes("const sourceFrame=isM1?'M1':isM5?'M5':'H1'"));
 });
 
 test('M5 source window backfill is paged and never creates synthetic candles',()=>{
