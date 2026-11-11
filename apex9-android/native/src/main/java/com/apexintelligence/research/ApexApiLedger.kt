@@ -39,6 +39,7 @@ object ApexApiLedger {
     private fun classification(probe: Probe, error: Throwable?): String {
         val http = probe.http
         return when {
+            error is java.util.concurrent.CancellationException -> "CANCELLED"
             http == 429 -> "RATE_LIMITED"
             http == 401 || http == 403 -> "ACCESS_DENIED"
             http != null && http != HttpURLConnection.HTTP_OK -> "HTTP_ERROR"
@@ -88,7 +89,7 @@ object ApexApiLedger {
                     if (t in cutoff..(end + 60_000L) &&
                         event.optString("state") in setOf(
                             "OK", "INVALID", "OFFLINE", "HTTP_ERROR",
-                            "RATE_LIMITED", "ACCESS_DENIED")) output.put(event)
+                            "RATE_LIMITED", "ACCESS_DENIED", "CANCELLED")) output.put(event)
                 }
                 if (output.length() > 0) cleaned.put(id, output)
             }
@@ -122,7 +123,7 @@ object ApexApiLedger {
                 if (!NAME.matches(key)) continue
                 val events = root.optJSONArray(key) ?: continue
                 var attempts = 0; var good = 0; var invalid = 0
-                var limited = 0; var failures = 0; var lastAt = 0L
+                var limited = 0; var cancelled = 0; var failures = 0; var lastAt = 0L
                 val days = HashSet<Long>()
                 val latencies = mutableListOf<Long>()
                 var checked = 0; var fresh = 0
@@ -132,10 +133,10 @@ object ApexApiLedger {
                     if (t < at - MAX_AGE || t > at + 60_000L) continue
                     val state = row.optString("state")
                     if (state !in setOf("OK", "INVALID", "OFFLINE", "HTTP_ERROR",
-                            "RATE_LIMITED", "ACCESS_DENIED")) continue
+                            "RATE_LIMITED", "ACCESS_DENIED", "CANCELLED")) continue
                     attempts++; days.add(t / TimeUnit.DAYS.toMillis(1))
                     lastAt = maxOf(lastAt, t)
-                    if (state == "OK") good++ else failures++
+                    if (state == "OK") good++ else if (state == "CANCELLED") cancelled++ else failures++
                     if (state == "INVALID") invalid++
                     if (state == "RATE_LIMITED") limited++
                     val duration = row.optLong("ms", -1L)
@@ -150,14 +151,19 @@ object ApexApiLedger {
                 latencies.sort()
                 val median = if (latencies.isEmpty()) JSONObject.NULL else
                     latencies[latencies.size / 2]
-                val enough = attempts >= 12 && days.size >= 2
+                // Cancellation is not an API outage and must not enter the
+                // success/failure denominator or the readiness threshold.
+                val measured = attempts - cancelled
+                val enough = measured >= 12 && days.size >= 2
                 rows.put(JSONObject()
                     .put("lane", key).put("state", if (enough) "OBSERVED" else "COLLECTING")
-                    .put("attempts", attempts).put("uniqueDays", days.size)
+                    .put("attempts", attempts).put("measuredAttempts", measured)
+                    .put("uniqueDays", days.size)
                     .put("ok", good).put("failures", failures)
                     .put("invalid", invalid).put("rateLimited", limited)
+                    .put("cancelled", cancelled)
                     .put("availabilityPercent", if (enough)
-                        (1000L * good / attempts).toDouble() / 10.0 else JSONObject.NULL)
+                        (1000L * good / measured).toDouble() / 10.0 else JSONObject.NULL)
                     .put("latencyMedianMs", median)
                     .put("freshnessChecked", checked).put("freshnessConfirmed", fresh)
                     .put("lastAt", lastAt))
