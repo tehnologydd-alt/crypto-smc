@@ -1,5 +1,6 @@
 import {collectAsset,collectVisibleDepth,fetchSpotCatalog,fetchSpotTicker,normalizeSymbol} from './research.mjs';
 import {createForegroundDepthPolicy} from './foreground-depth-policy.mjs';
+import {createForegroundBookStreams} from './live-depth-streams.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
@@ -73,9 +74,10 @@ const assessmentNames={
  DOWNWARD_CONTEXT:'Отрицательный исторический контекст'
 };
 let chosen='BTCUSDT',current=null,controller=null,catalog=[],pending=0,lastLoad=0;
-let fastTickerAt=0,fastTickerBusy=false;
+let fastTickerAt=0,fastTickerBusy=false,lastVerifiedTickerAt=0;
 const foregroundDepthPolicy=createForegroundDepthPolicy();
-let depthBusy=false,depthController=null;
+let depthBusy=false,depthController=null,depthStream=null;
+const latestLiveDepth=new Map(); // UI only: newest validated frame per venue.
 try{chosen=normalizeSymbol(localStorage.getItem('apex9_preview_asset'))||chosen;}catch{}
 el('asset-input').value=chosen;
 el('asset-name').textContent=chosen;
@@ -296,6 +298,7 @@ const whaleDashboard=initWhaleDashboard({
 
 function updateTab(view){
  document.body.dataset.view=view;
+ if(view!=='asset')depthStream?.stop();
  for(const tab of document.querySelectorAll('[data-tab]')){
   const active=tab.dataset.tab===activeDock(view);
   tab.classList.toggle('active',active);
@@ -326,6 +329,10 @@ function setAssetArea(requested){
   button.setAttribute('aria-pressed',String(active));
  }
  if(document.body.dataset.view==='asset'&&previousArea!==mode){
+  if(mode!=='data'){
+   depthStream?.stop();latestLiveDepth.clear();
+  }
+  if(mode==='data')void syncDepthStreams();
   if(mode==='chart')requestAnimationFrame(()=>{
    candleView.resize();void refreshWhaleChart(chosen);
   });
@@ -386,6 +393,66 @@ el('asset-news-check').addEventListener('click',()=>ensureAssetNewsFeed({force:t
 const newsM5Panel=initNewsM5Panel({getSymbol:()=>chosen,storage:editorialStorage});
 const assetEventArchive=createEventHistory({storage:editorialStorage});
 const freeSourceDashboard=initFreeSourceDashboard({getSymbol:()=>chosen,storage:editorialStorage});
+/** Only the visible favorite's public partial books. No socket traffic in
+ * overview, background Android, or other selected-but-closed favorites.
+ */
+depthStream=createForegroundBookStreams({
+ onBook({symbol,venue,depth}){
+  if(document.hidden||document.body.dataset.view!=='asset'||
+   el('view-asset').dataset.assetArea!=='data'||chosen!==symbol||
+   !favoriteManager.hasFavorite(symbol))return;
+  latestLiveDepth.set(venue,depth);
+  const fallback=current?.symbol===symbol?current.depth||[]:[];
+  const combined=['binance','okx'].map(v=>latestLiveDepth.get(v)||
+   fallback.find(item=>item.venue===v)).filter(Boolean);
+  renderDepth({depth:combined});
+ },
+ onSample({symbol,depth,collectedAt}){
+  if(document.hidden||document.body.dataset.view!=='asset'||
+   el('view-asset').dataset.assetArea!=='data'||chosen!==symbol||
+   !favoriteManager.hasFavorite(symbol)||!hasMobileObservationStorage())return;
+  // The service emits at most one source-checked snapshot per 30 seconds.
+  void saveMobileSnapshot({symbol,collectedAt,depth:[depth],sources:[]})
+   .then(saved=>{
+    if(saved?.saved<1||chosen!==symbol||document.hidden||
+     document.body.dataset.view!=='asset'||
+     el('view-asset').dataset.assetArea!=='data')return;
+    void liquidityDashboard.refresh(symbol);
+   }).catch(()=>{});
+ },
+ onStatus({symbol,venue,state}){
+  if(symbol!==chosen||document.hidden)return;
+  if(state!=='LIVE'){
+   latestLiveDepth.delete(venue);
+   if(document.body.dataset.view==='asset'&&
+    el('view-asset').dataset.assetArea==='data'){
+    const fallback=current?.symbol===symbol?current.depth||[]:[];
+    const rows=['binance','okx'].map(v=>latestLiveDepth.get(v)||
+     fallback.find(item=>item.venue===v)).filter(Boolean);
+    renderDepth({depth:rows});
+   }
+  }
+  const status=el('depth-stream-status');
+  if(!status)return;
+  const label=state==='LIVE'?'поток активен':
+   state==='CONNECTING'?'подключается':
+   ['OFFLINE','DISCONNECTED','TIMEOUT','UNAVAILABLE'].includes(state)?
+    'резерв REST':['INVALID','CLOCK_SKEW','SEQUENCE_RESET'].includes(state)?
+     'ошибка проверки':'ожидание';
+  status.dataset[venue]=label;
+  status.textContent='Потоки: Binance '+(status.dataset.binance||'ожидание')+
+   ' · OKX '+(status.dataset.okx||'ожидание')+
+   ' · REST включается при сбое или устаревании.';
+ }
+});
+function syncDepthStreams(){
+ const inData=document.body.dataset.view==='asset'&&
+  el('view-asset').dataset.assetArea==='data';
+ const favorite=favoriteManager.hasFavorite(chosen);
+ depthStream?.sync({asset:chosen,visible:!document.hidden,
+  favorite,native:hasMobileObservationStorage(),dataArea:inData});
+ if(inData&&!document.hidden)depthStream?.tick();
+}
 researchLayersDashboard=initResearchLayersDashboard({
  getSymbol:()=>chosen,storage:editorialStorage,
  checkSocial:asset=>loadAssetSocial(asset),
@@ -1244,20 +1311,31 @@ async function loadCatalog(){
 
 function renderDepth(snapshot){
  const list=el('depth-list');clear(list);
- if(!snapshot.depth.length){
+ // Current market view is Binance + OKX only. Keep old Bybit
+ // provenance in Room, never render it as a live book.
+ const activeBooks=(Array.isArray(snapshot?.depth)?snapshot.depth:[])
+  .filter(item=>item?.venue==='binance'||item?.venue==='okx');
+ if(!activeBooks.length){
   list.append(create('p','muted','Публичные стаканы сейчас недоступны.'));
   return;
  }
- for(const item of snapshot.depth){
+ for(const item of activeBooks){
   const row=create('div','source-line');
   const content=create('div');
   content.append(
    create('b','',item.venue==='binance'?'Binance Spot':item.venue==='okx'?'OKX Spot':'Источник Spot'),
    create('small','', 'Bid '+fmt(item.bestBid)+' · Ask '+fmt(item.bestAsk)),
    create('small','', 'Видимый дисбаланс: '+fmt(item.visibleDepthImbalance*100,1)+'%'+
-    ' · Спред '+fmt(item.spreadBps,2)+' б.п.')
+    ' · Спред '+fmt(item.spreadBps,2)+' б.п.'),
+   create('small','',item.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'?
+    'WebSocket · до '+item.snapshotLevelsMax+' уровней на сторону':
+    'REST · ограниченный проверенный снимок')
   );
-  row.append(content,create('span','source-state ok',time(item.receivedAt)));
+  const age=Date.now()-item.receivedAt;
+  const fresh=age>=0&&age<(item.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'?
+   12000:180000);
+  row.append(content,create('span','source-state '+(fresh?'ok':'fail'),
+   (fresh?'Свежий ':'Архив ')+time(item.receivedAt)));
   list.append(row);
  }
 }
@@ -1517,6 +1595,8 @@ function renderContext(context){
 
 function renderSnapshot(snapshot){
  current=snapshot;
+ lastVerifiedTickerAt=Number.isSafeInteger(snapshot.ticker?.observedAt)?
+  snapshot.ticker.observedAt:0;
  const srcOk=snapshot.sources.filter(s=>s.state==='OK').length;
  const pct=snapshot.ticker?.changePercent;
  text('market-price',snapshot.ticker?fmt(snapshot.ticker.price)+' USDT':'—');
@@ -1559,8 +1639,16 @@ async function investigate(value){
  const local=controller;
  const deadline=setTimeout(()=>local.abort(),9000);
  const changed=chosen!==symbol;
- if(changed)fastTickerAt=0;
- if(changed)depthController?.abort();
+ if(changed){fastTickerAt=0;lastVerifiedTickerAt=0;}
+ if(changed){
+  depthController?.abort();depthStream?.stop();latestLiveDepth.clear();
+  const streamLabel=el('depth-stream-status');
+  if(streamLabel){
+   delete streamLabel.dataset.binance;
+   delete streamLabel.dataset.okx;
+   streamLabel.textContent='Открывайте «Данные» избранного актива для потоковых снимков.';
+  }
+ }
  if(changed){
   newsM5Panel.reset();
   scenarioRequest++;
@@ -1674,6 +1762,7 @@ async function refreshVisibleDepth(){
   !hasMobileObservationStorage())return;
  const symbol=chosen;
  const due=['binance','okx'].filter(venue=>
+  !depthStream?.isFresh(venue)&&
   foregroundDepthPolicy.allowed(symbol,venue,{
    visible:true,favorite:true,native:true,busy:false}).allowed);
  if(!due.length)return;
@@ -1693,6 +1782,17 @@ async function refreshVisibleDepth(){
    }
    recorded=true;
   }
+  // Show provider status and independent backoff, including when the
+  // response has no valid book and therefore does not add a Room sample.
+  if(recorded&&seq===pending&&chosen===symbol&&
+   favoriteManager.hasFavorite(symbol)){
+   const retryAt=Object.fromEntries(due.map(venue=>{
+    const allowed=foregroundDepthPolicy.allowed(symbol,venue,{
+     visible:true,favorite:true,native:true,busy:false});
+    return [venue,allowed.nextAt||null];
+   }));
+   liquidityDashboard.setSourceStatuses(symbol,sample.sources,retryAt);
+  }
   // Save operational outcomes only for real completed GETs while this
   // selected favorite still owns the response. Never count cached data,
   // cancellations, or replayed UI updates as additional API attempts.
@@ -1710,7 +1810,6 @@ async function refreshVisibleDepth(){
   if(local.signal.aborted||document.hidden||controller||
    seq!==pending||chosen!==symbol||
    !favoriteManager.hasFavorite(symbol))return;
-  liquidityDashboard.setSourceStatuses(symbol,sample.sources);
   if(el('view-asset').dataset.assetArea==='data')
    void liquidityDashboard.refresh(symbol);
  }catch{
@@ -1723,6 +1822,22 @@ async function refreshVisibleDepth(){
  }
 }
 
+/** A cached quote is never displayed as fresh after its provider time expires. */
+function refreshQuoteAge(checkState=''){
+ if(document.body.dataset.view!=='asset')return;
+ const now=Date.now(),age=lastVerifiedTickerAt?now-lastVerifiedTickerAt:Infinity;
+ if(age>90000||age< -60000){
+  el('market-price').classList.add('is-stale');
+  text('updated-at',lastVerifiedTickerAt?
+   'Цена: '+time(lastVerifiedTickerAt)+' · ИСТОРИЯ / нет свежего подтверждения'+
+    (checkState?' · '+checkState:''):
+   'Цена: свежие данные не подтверждены'+(checkState?' · '+checkState:''));
+ }else{
+  el('market-price').classList.remove('is-stale');
+  text('updated-at','Цена: '+time(lastVerifiedTickerAt)+' · Binance Spot'+
+   (checkState?' · последняя попытка '+checkState:''));
+ }
+}
 // Visible-asset quote and depth cadence; no background polling.
 async function refreshVisibleQuote(){
  if(document.hidden||document.body.dataset.view!=='asset'||
@@ -1731,11 +1846,18 @@ async function refreshVisibleQuote(){
  const symbol=chosen;
  fastTickerAt=Date.now();
  fastTickerBusy=true;
+ const local=new AbortController();
+ const deadline=setTimeout(()=>local.abort(),8000);
  try{
-  const result=await fetchSpotTicker(symbol,{now:()=>Date.now()});
+  const result=await fetchSpotTicker(symbol,{now:()=>Date.now(),
+   signal:local.signal});
   if(document.hidden||symbol!==chosen)return;
-  if(result.state!=='OK'||!result.data)return;
+  if(result.state!=='OK'||!result.data){
+   refreshQuoteAge(result.state||'OFFLINE');
+   return;
+  }
   const ticker=result.data;
+  lastVerifiedTickerAt=ticker.observedAt;
   text('market-price',fmt(ticker.price)+' USDT');
   text('market-change','24 ч: '+(ticker.changePercent>0?'+':'')+
    fmt(ticker.changePercent,2)+'%');
@@ -1743,14 +1865,17 @@ async function refreshVisibleQuote(){
    (ticker.changePercent>0?' positive':
     ticker.changePercent<0?' negative':'');
   text('ticker-time',time(ticker.observedAt));
-  text('updated-at','Цена: '+time(ticker.observedAt)+' · публичный Spot');
+  refreshQuoteAge();
  }catch{
-  // A failed refresh never erases the last verified displayed quote.
- }finally{fastTickerBusy=false;}
+  // Keep the last validated price only as a clearly timestamped archive.
+  if(symbol===chosen)refreshQuoteAge('OFFLINE');
+ }finally{clearTimeout(deadline);fastTickerBusy=false;}
 }
 setInterval(()=>{
  if(document.hidden)return;
+ refreshQuoteAge();
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
+  syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
   else {
@@ -1762,9 +1887,11 @@ setInterval(()=>{
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden){
   depthController?.abort();
+  depthStream?.stop();
   return;
  }
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
+  syncDepthStreams();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
   else {

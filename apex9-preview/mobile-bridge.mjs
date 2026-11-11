@@ -96,6 +96,10 @@ export async function saveMobileSnapshot(snapshot) {
     bidLevels:depth.bidLevels,askLevels:depth.askLevels,
     updateId:depth.updateId,scope:'SPOT',
     levelSelection:depth.levelSelection,
+    collectionMethod:depth.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'?
+      'PUBLIC_WS_BOOK_SNAPSHOT':'PUBLIC_REST_BOOK_SNAPSHOT',
+    snapshotLevelsMax:Number.isSafeInteger(depth.snapshotLevelsMax)?
+     depth.snapshotLevelsMax:(depth.venue==='binance'?100:50),
     topVisibleLevels:Array.isArray(depth.topVisibleLevels)
       ?depth.topVisibleLevels.slice(0,16):undefined,
     sampleScope:depth.sampleScope})

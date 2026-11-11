@@ -43,7 +43,13 @@ export function normalizeLiquidityHistory(rows,asset){
    imbalance:payload.visibleDepthImbalance,
    bidNotional:hasNotional?bid:null,askNotional:hasNotional?ask:null,
    bidLevels:Number.isSafeInteger(payload.bidLevels)?payload.bidLevels:null,
-   askLevels:Number.isSafeInteger(payload.askLevels)?payload.askLevels:null
+   askLevels:Number.isSafeInteger(payload.askLevels)?payload.askLevels:null,
+   collectionMethod:payload.collectionMethod==='PUBLIC_WS_BOOK_SNAPSHOT'?
+    'WS':payload.collectionMethod==='PUBLIC_REST_BOOK_SNAPSHOT'?
+     'REST':'LEGACY',
+   snapshotLevelsMax:Number.isSafeInteger(payload.snapshotLevelsMax)&&
+    payload.snapshotLevelsMax>=1&&payload.snapshotLevelsMax<=100?
+     payload.snapshotLevelsMax:null
   });
  }
  cleaned.sort((a,b)=>a.observedAt-b.observedAt||a.collectedAt-b.collectedAt);
@@ -71,7 +77,9 @@ export function studyVisibleLiquidity(rows,{now=Date.now(),asset}={}){
   const longestGap=gaps.length?Math.max(...gaps):0;
   let firstInStreak=0;
   for(let i=1;i<points.length;i++)
-   if(points[i].observedAt-points[i-1].observedAt>3600000)
+   if(points[i].observedAt-points[i-1].observedAt>3600000||
+    points[i].collectionMethod!==points[i-1].collectionMethod||
+    points[i].snapshotLevelsMax!==points[i-1].snapshotLevelsMax)
     firstInStreak=i;
   const streak=points.slice(firstInStreak);
   const first=streak[0];
@@ -91,7 +99,9 @@ export function studyVisibleLiquidity(rows,{now=Date.now(),asset}={}){
    imbalance:last.imbalance,
    imbalanceChange:continuity?last.imbalance-first.imbalance:null,
    bidNotional:wallBid,askNotional:wallAsk,
-   quantityScope
+   quantityScope,
+   collectionMethod:last.collectionMethod,
+   snapshotLevelsMax:last.snapshotLevelsMax
   });
  }
  const counted=venues.filter(x=>x.samples>0);

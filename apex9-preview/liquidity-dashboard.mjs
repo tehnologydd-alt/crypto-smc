@@ -19,7 +19,7 @@ const create=(tag,cls,value)=>{
 };
 const timestamp=n=>Number.isSafeInteger(n)?
  new Date(n).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
-const VENUES={binance:'Binance Spot',okx:'OKX Spot',bybit:'Bybit · архив'};
+const VENUES={binance:'Binance Spot',okx:'OKX Spot'}; // current UI only; historical Bybit remains in Room
 const statusLabels={
  OBSERVED:'Последние наблюдения',
  HISTORICAL:'Только история',
@@ -46,8 +46,20 @@ function describeVenue(v,source){
   ['Спред',fmt(v.spreadBps,2)+' б.п.'],
   ['Снимков в выборке',fmt(v.samples,0)],
   ['В последнем непрерывном участке',fmt(v.continuousSamples??v.samples,0)],
-  ['Последний',timestamp(v.lastCollectedAt)],
-  ['Глубина выборки',v.quantityScope||'Неизвестно']
+  ['Последний успешный снимок',timestamp(v.lastCollectedAt)],
+  ...(Number.isSafeInteger(source?.checkedAt)&&source.checkedAt>0?
+   [['Последняя проверка API',
+    timestamp(source.checkedAt)+' · '+source.state]]:[]),
+  ...(Number.isSafeInteger(source?.nextAt)&&source.nextAt>source.checkedAt?
+   [['Следующая разрешённая REST-проверка',timestamp(source.nextAt)]]:[]),
+  ['Глубина выборки',v.quantityScope||'Неизвестно'],
+  ['Способ получения',v.collectionMethod==='WS'?
+   'WebSocket · отдельные снимки, не все обновления':
+   v.collectionMethod==='REST'?'REST · периодический срез':
+    'Архив · метод не подтверждён'],
+  ['Охват цены',v.snapshotLevelsMax?
+   'До '+v.snapshotLevelsMax+' уровней на сторону':
+   'Ограниченный, точное число неизвестно']
  ];
  if(v.imbalanceChange!==null)
   metrics.push(['Изменение дисбаланса',
@@ -169,12 +181,16 @@ export function initLiquidityDashboard(){
     lastPoints=[];paint();return;
    }
    const analysis=studyVisibleLiquidity(history.rows,{asset,now:Date.now()});
-   renderLevelObserver(history.rows,asset);
-   lastPoints=analysis.points;
-   for(const venue of analysis.venues)
+   const activeVenues=analysis.venues.filter(v=>
+    v.venue==='binance'||v.venue==='okx');
+   renderLevelObserver(history.rows.filter(row=>
+    row.source==='binance:spot:depth'||row.source==='okx:spot:depth'),asset);
+   lastPoints=analysis.points.filter(point=>
+    point.venue==='binance'||point.venue==='okx');
+   for(const venue of activeVenues)
     venueContainer.append(describeVenue(venue,latestSources[venue.venue]));
-   text('liquidity-history-status',analysis.samples
-    ?'Снимков в выборке: '+analysis.samples+
+   text('liquidity-history-status',lastPoints.length
+    ?'Снимков в текущей выборке Binance/OKX: '+lastPoints.length+
      ' · '+asset+' · до 80 последних Binance и OKX; Bybit остаётся архивом в Room'
     :'История '+asset+' пока пуста. Откройте актив при доступном интернете, чтобы накопить снимки.');
    paint();
@@ -187,7 +203,7 @@ export function initLiquidityDashboard(){
  }
  paint();
  return {refresh,clear,
-  setSourceStatuses(asset,sources){
+  setSourceStatuses(asset,sources,retryAt={}){
    if(asset!==lastAsset||!Array.isArray(sources))return;
    // Partial depth refreshes touch only due providers. Preserve the
    // last diagnostic for other venues until they are explicitly checked.
@@ -195,7 +211,10 @@ export function initLiquidityDashboard(){
     const data=sources.find(s=>s?.id===venue+'-depth');
     if(data)latestSources[venue]={
      state:typeof data.state==='string'?data.state:'INVALID',
-     error:typeof data.error==='string'?data.error:''
+     error:typeof data.error==='string'?data.error:'',
+     checkedAt:Date.now(),
+     nextAt:Number.isSafeInteger(retryAt?.[venue])&&retryAt[venue]>0?
+      retryAt[venue]:null
     };
    }
   },
