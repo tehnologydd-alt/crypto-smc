@@ -2,7 +2,7 @@ name: APEX 9 — news and asset research checks
 
 on:
   push:
-    branches: [apex-9-evolution, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2]
+    branches: [apex-9-evolution, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx]
     paths:
       - 'apex9-preview/**'
       - '.github/workflows/apex-9-news-checks.yml'
