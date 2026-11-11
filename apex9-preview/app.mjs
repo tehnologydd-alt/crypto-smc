@@ -2,7 +2,7 @@ import {collectAsset,collectVisibleDepth,fetchSpotCatalog,fetchSpotTicker,normal
 import {createForegroundDepthPolicy} from './foreground-depth-policy.mjs';
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
-import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -326,7 +326,9 @@ function setAssetArea(requested){
   button.setAttribute('aria-pressed',String(active));
  }
  if(document.body.dataset.view==='asset'&&previousArea!==mode){
-  if(mode==='chart')requestAnimationFrame(()=>candleView.resize());
+  if(mode==='chart')requestAnimationFrame(()=>{
+   candleView.resize();void refreshWhaleChart(chosen);
+  });
   if(mode==='structure'){
    void loadCandleHistory(false);
    void restoreMarketMatrix(chosen);
@@ -402,6 +404,38 @@ const candleView=new CandleChart(el('candle-canvas'),{
    (bar.closed?' · закрыта':' · формируется'));
  }
 });
+let whaleChartQuery=0;
+async function refreshWhaleChart(asset){
+ const sequence=++whaleChartQuery;
+ candleView.setWhaleEvents(asset,[]);
+ const status=el('chart-whale-status');
+ if(!favoriteManager.hasFavorite(asset)){
+  status.textContent='Метки W: добавьте актив в избранное. Ранее сохранённые события не подменяются.';
+  return;
+ }
+ const result=await getMobileWhaleHistory(asset,80);
+ if(sequence!==whaleChartQuery||chosen!==asset)return;
+ candleView.setWhaleEvents(asset,result.events||[]);
+ status.textContent=result.complete?
+  'Метки W: '+result.events.length+' событий в локальной выборке Room · '+
+   'только первая фиксация транзакции, не ордера.':
+  'Метки W недоступны: проверенный Android-архив пока отсутствует.';
+}
+function refreshBlockStatus(){
+ const zones=candleView.orderBlocks||[];
+ el('chart-ob-status').textContent='Зоны: '+zones.length+
+  ' подтверждённых структурных зон в истории · показываем не более 3';
+}
+for(const [id,property] of [
+ ['chart-ob-toggle','blocks'],['chart-whale-toggle','whales']]){
+ const button=el(id);
+ button.addEventListener('click',()=>{
+  const enabled=button.getAttribute('aria-pressed')!=='true';
+  button.setAttribute('aria-pressed',String(enabled));
+  button.classList.toggle('selected',enabled);
+  candleView.setOverlayVisibility({[property]:enabled});
+ });
+}
 let candleInterval='1h',candleGeneration=0,candleController=null,
  candleLastKey='',candleLastAt=0;
 let scenarioRequest=0,scenarioMode='all',focusedScenarioId=null,
@@ -839,6 +873,7 @@ function displayCandleStructure(candles,description){
  const analysis=analyzeStructure(candles);
  showMarketCore(candles,description,candleInterval);
  candleView.setData(candles,analysis.events);
+ refreshBlockStatus();
  void showAssetScenarios(chosen);
  const container=el('structure-events');clear(container);
  const mapDir={UP:'вверх',DOWN:'вниз'};
@@ -921,6 +956,7 @@ for(const button of document.querySelectorAll('[data-interval]')){
   drawnCandleInterval='';drawnCandleAsset='';
   candleView.setReplayCursor(null);
   candleView.setInterval(interval);
+  refreshBlockStatus();
   renderScenarioMap(chosen);
   resetMarketMatrix('Таймфрейм графика изменён. При необходимости повторите сравнение.');
   for(const x of document.querySelectorAll('[data-interval]')){
@@ -1037,7 +1073,9 @@ function navigate(view,targetId){
   if(view==='radar')radarDashboard.open();
   if(view==='asset'){
    const area=el('view-asset').dataset.assetArea;
-   if(area==='chart')candleView.resize();
+   if(area==='chart'){
+    candleView.resize();void refreshWhaleChart(chosen);
+   }
    // Both chart and historical structure use the same completed candle data.
    void loadCandleHistory(false);
    void showAssetScenarios(chosen);
@@ -1529,6 +1567,8 @@ async function investigate(value){
   drawnCandleAsset='';drawnCandleInterval='';
   replayScenarioId=null;replayStep=0;
   candleView.setData([]);candleView.setReplayCursor(null);
+  candleView.setWhaleEvents(symbol,[]);
+  whaleChartQuery++;refreshBlockStatus();
   lastScenarioRows=[];lastScenarioAsset='';lastScenarioFetchedAt=0;
   focusedScenarioId=null;
   candleView.setScenarios([]);
@@ -1555,7 +1595,11 @@ async function investigate(value){
  }
  text('asset-name',chosen);
  el('asset-input').value=chosen;
- if(document.body.dataset.view==='asset')void showAssetScenarios(chosen);
+ if(document.body.dataset.view==='asset'){
+  void showAssetScenarios(chosen);
+  if(el('view-asset').dataset.assetArea==='chart')
+   void refreshWhaleChart(chosen);
+ }
  if(changed){text('market-price','—');text('market-change','24 ч: —');}
  text('top-status','Обновление…');
  if(changed)text('updated-at','Запрос публичных источников…');
