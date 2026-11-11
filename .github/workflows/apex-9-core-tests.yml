@@ -1,7 +1,7 @@
 name: APEX 9 Evidence Core Tests
 on:
   push:
-    branches: [apex-9-evolution]
+    branches: [apex-9-evolution, apex-provider-robustness-stage4]
     paths:
       - 'updates/v90-evidence.mjs'
       - 'updates/test-v90-evidence.mjs'
