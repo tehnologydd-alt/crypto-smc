@@ -167,7 +167,7 @@ async function refreshMobileStatus(){
   !data.notificationPermissionGranted?
    'У Android нет разрешения на уведомления. Проверьте системные настройки.':
   data.backgroundSyncEnabled?
-   'Новые M5-события отслеживаются. В фоне возможны задержки Android.':
+   'Новые M1-события отслеживаются; архивные M5 сохраняются. В фоне возможны задержки Android.':
    'Уведомления включены, но для фона нужна синхронизация Android.');
  text('apex-settings-screen-status',!mobileReady?
   'Режим экрана доступен в Android APK.':
