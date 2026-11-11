@@ -1,6 +1,13 @@
 name: APEX 9 Research - Android APK
 
 on:
+  pull_request:
+    branches: [apex-9-evolution]
+    paths:
+      - 'apex9-android/**'
+      - 'apex9-preview/**'
+      - 'updates/v90-*.mjs'
+      - '.github/workflows/apex9-research-apk.yml'
   push:
     branches: [apex-9-evolution]
     paths:
