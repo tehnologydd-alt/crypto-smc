@@ -19,6 +19,7 @@ import {auditRollingFeatureEvidence} from './forecast-feature-rolling.mjs';
 import {auditShadowChallengers} from './forecast-shadow-challengers.mjs';
 import {auditShadowRegimes} from './forecast-shadow-regimes.mjs';
 import {summarizeResearchDataQuality} from './forecast-data-quality-hub.mjs';
+import {auditPublishedSourceLineage} from './source-lineage-audit.mjs';
 import {diagnoseQualityFactors} from './forecast-quality-diagnostics.mjs';
 import {auditFeaturePairs} from './forecast-feature-pairs.mjs';
 import {auditFeaturePairRegimes,summarizeFeatureStageTwo}
@@ -85,6 +86,8 @@ export function computeAutomaticDecisionAudit(archive,asset,{now=Date.now()}={})
   asset,now,reports:{probability,strength,ablation,rolling,
    challenger:challenge,regimes}
  });
+ // Reuse the same bounded Room archive: no additional polling or cache claims.
+ const sourceLineage=auditPublishedSourceLineage(archive,{asset,now});
  const pairs=auditFeaturePairs(rows,{...input,challenge});
  const pairRegimes=auditFeaturePairRegimes(rows,{
   ...input,challenge,pairs,regimes});
@@ -103,7 +106,7 @@ export function computeAutomaticDecisionAudit(archive,asset,{now=Date.now()}={})
  return {
   state:release.state,reason:release.note,
   audits:{challenge,regimes,diagnostics,pairs,pairRegimes,
-   stage2,shadowLearner,calibration,release},
+   stage2,shadowLearner,calibration,release,sourceLineage},
   changedModels:false
  };
 }
