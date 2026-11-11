@@ -160,16 +160,22 @@ class ApexNativePlugin : Plugin() {
         tasks.launch {
             try {
                 val dao = ApexDatabase.get(context).researchDao()
-                dao.saveObservation(
-                    ResearchObservation(
-                        id = id, asset = asset, source = source, kind = kind,
-                        sourceState = "OK", observedAt = observedAt,
-                        collectedAt = collectedAt, payloadJson = payload
-                    )
+                val record = ResearchObservation(
+                    id = id, asset = asset, source = source, kind = kind,
+                    sourceState = "OK", observedAt = observedAt,
+                    collectedAt = collectedAt, payloadJson = payload
                 )
+                // Re-reading a confirmed transaction must not move the
+                // first-seen clock forward or change earlier study provenance.
+                val stored = if (kind == "whale") {
+                    dao.insertWhaleObservationOnce(record) != -1L
+                } else {
+                    dao.saveObservation(record)
+                    true
+                }
                 dao.pruneObservations(System.currentTimeMillis() - 14L * 86_400_000L)
                 val result = JSObject()
-                result.put("saved", true)
+                result.put("saved", stored)
                 call.resolve(result)
             } catch (e: Exception) {
                 call.reject("Failed to persist observation: " + (e.message ?: "unknown"))
