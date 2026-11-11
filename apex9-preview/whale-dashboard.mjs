@@ -25,7 +25,8 @@ const time=x=>Number.isSafeInteger(x)&&x>0?
   hour:'2-digit',minute:'2-digit'}):'—';
 export function initWhaleDashboard({getFavorites=()=>[]}={}){
  let asset='',seq=0,abort=null,marketAbort=null;
- let latestEvents=[],lastMarketAt=0,marketBusy=false;
+ let latestEvents=[],marketBusy=false;
+ const marketChecks=new Map(); // Per-asset explicit H1 requests, at most 10
  const requests=new Map(); // at most 10 recently selected favorites
  const setStatus=(msg,bad=false)=>{
   const n=node('whale-status');
@@ -217,12 +218,13 @@ export function initWhaleDashboard({getFavorites=()=>[]}={}){
    node('view-asset')?.dataset.assetArea!=='data'||
    !getFavorites().includes(asset))return;
   const at=Date.now();
-  if(at-lastMarketAt<120000){
+  if(at-(marketChecks.get(asset)||0)<120000){
    node('whale-market-status').textContent=
-    'Публичные H1 проверяются не чаще одного раза за 2 минуты.';
+    'Публичные H1 проверяются не чаще одного раза за 2 минуты на актив.';
    return;
   }
-  lastMarketAt=at;
+  marketChecks.delete(asset);marketChecks.set(asset,at);
+  while(marketChecks.size>10)marketChecks.delete(marketChecks.keys().next().value);
   marketBusy=true;
   const current=asset,token=seq;
   marketAbort?.abort();
