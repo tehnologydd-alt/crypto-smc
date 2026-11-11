@@ -105,7 +105,7 @@ test('chart layers and native history are source-verified and user-toggleable',(
  const chart=read('./candle-chart.mjs'),app=read('./app.mjs');
  const html=read('./index.html'),pack=read('../apex9-android/scripts/prepare-web.mjs');
  assert.ok(chart.includes('mapOrderBlocksToViewport(this.orderBlocks,bars'));
- assert.ok(chart.includes('mapWhaleEventsToViewport(this.whaleEvents,bars'));
+ assert.ok(chart.includes('mapWhaleEventsToViewport(this.whaleEvents,this.data'));
  assert.ok(chart.includes('setOverlayVisibility('));
  assert.ok(app.includes('await getMobileWhaleHistory(asset,80)'));
  assert.ok(app.includes('if(!favoriteManager.hasFavorite(asset))'));
@@ -134,4 +134,29 @@ test('a pivot confirmation alone must never make an Order Block visible',()=>{
    for(const seg of drawing.segments)
     assert.ok(candles[seg.from].closeAt>=zone.confirmedAt);
  }
+});
+
+test('known gaps stop structural study and never reconnect a broken zone',()=>{
+ const gap=candles.filter((_,i)=>i!==17);
+ const r=analyzeStructuralOrderBlocks(gap,{interval:'1h'});
+ for(const z of r.zones){
+  assert.equal(z.version,ORDER_BLOCK_VERSION);
+  assert.ok(Number.isSafeInteger(z.coverageEndsAt));
+  assert.ok(z.coverageEndsAt>=z.confirmedAt);
+  assert.ok(z.pivotKnownAt<=z.confirmedAt);
+  const mapped=mapOrderBlocksToViewport([z],gap,{interval:'1h'});
+  for(const region of mapped)for(const seg of region.segments)
+   for(let i=seg.from;i<=seg.to;i++)
+    assert.ok(gap[i].closeAt<=z.coverageEndsAt);
+ }
+ const fake={
+  version:ORDER_BLOCK_VERSION,interval:'1h',kind:'SUPPLY',
+  low:99,high:104,originCloseAt:candles[3].closeAt,
+  confirmedAt:candles[9].closeAt,
+  coverageEndsAt:candles[14].closeAt,invalidatedAt:null
+ };
+ const result=mapOrderBlocksToViewport([fake],gap,{interval:'1h'});
+ for(const region of result)for(const seg of region.segments)
+  for(let i=seg.from;i<=seg.to;i++)
+   assert.ok(gap[i].closeAt<=fake.coverageEndsAt);
 });
