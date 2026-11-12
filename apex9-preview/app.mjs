@@ -1511,6 +1511,7 @@ initCleanIntelligenceAssetHub();
 initCleanIntelligenceEditorial();
 initCleanIntelligenceAudit();
 initCleanIntelligenceSourceFolds();
+initCleanIntelligenceUpdatePreparation();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
