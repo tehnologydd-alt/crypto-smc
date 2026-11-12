@@ -1,0 +1,477 @@
+/*
+ * APEX / Clean Intelligence – Major Stage 8
+ * News, Macro and native Android Settings.
+ * Display only the original article, BLS calendar, quota and Room observations.
+ */
+body[data-apex-editorial-layout="professional"]{
+ --ci8-sea:#061d28;
+ --ci8-raised:#10333e;
+ --ci8-line:#376d76;
+ --ci8-mint:#62ead9;
+ --ci8-ink:#e9fbf7;
+ --ci8-muted:#9fc5cb;
+}
+#view-news,#view-macro{min-width:0;max-width:100%;overflow-x:clip;padding-bottom:15px}
+#view-news>.section-title,#view-macro>.section-title{
+ align-items:flex-end;margin:4px 2px 12px;
+}
+#view-news>.section-title h2,#view-macro>.section-title h2{
+ font-size:clamp(24px,6.8vw,32px);line-height:1.15;
+ font-weight:850;letter-spacing:-.04em;color:#eefefb;
+}
+#view-news>.section-title>span,#view-macro>.section-title>span{
+ font-size:10px;line-height:1.4;color:#98bfc4;text-align:right;
+}
+.ci8-kicker{
+ margin:0;color:#65f1d4;letter-spacing:.16em;font-size:9px;
+ line-height:1.5;font-weight:840;
+}
+#view-news>.ci8-editorial-hero,
+#view-macro>.ci8-editorial-hero{
+ display:grid;gap:12px;
+ margin:2px 0 12px;padding:21px 16px 16px;
+ border-radius:21px;border:1px solid #3d8d8b;
+ background:
+  radial-gradient(ellipse 74% 86% at 100% -6%,#2bd1b94d,transparent 85%),
+  linear-gradient(145deg,#0d3b44,#081f2c 88%);
+ box-shadow:inset 0 1px 0 #d0fff41c,0 11px 32px #00101888;
+ position:relative;isolation:isolate;overflow:hidden;
+}
+#view-news>.ci8-news-hero::after,
+#view-macro>.ci8-macro-hero::after{
+ content:"";pointer-events:none;z-index:-1;
+ width:155px;height:155px;position:absolute;
+ right:-61px;top:-62px;border-radius:50%;
+ border:1px solid #7ffff84f;
+ box-shadow:0 0 0 29px #7fffea0d,0 0 0 57px #7fffea09;
+}
+#view-news>.ci8-editorial-hero h3,
+#view-macro>.ci8-editorial-hero h3{
+ font-size:clamp(24px,6.2vw,31px);
+ line-height:1.15;letter-spacing:-.035em;
+ font-weight:845;margin:-5px 0 0;
+ color:#ecfffc;
+}
+.ci8-lead{
+ margin:0;color:#b5d5d6;font-size:11px;line-height:1.58;
+ max-width:340px;
+}
+.ci8-editorial-facts,
+.ci8-macro-brief{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;
+}
+.ci8-editorial-fact,
+.ci8-macro-state{
+ display:grid;align-content:start;gap:10px;min-width:0;
+ min-height:81px;padding:12px 10px;border-radius:12px;
+ border:1px solid #3a6e76;
+ background:linear-gradient(155deg,#103843,#0a2634);
+}
+.ci8-editorial-fact:first-child,
+.ci8-macro-state:first-child{
+ border-color:#448f84;
+ background:linear-gradient(156deg,#145247,#0d313b);
+}
+.ci8-editorial-fact span,
+.ci8-macro-state span{
+ font-size:10px;line-height:1.3;
+ color:#acd2d1;
+}
+.ci8-editorial-fact strong,
+.ci8-macro-state strong{
+ font-size:clamp(11px,3.1vw,13px);line-height:1.4;
+ font-weight:780;color:#e0faf3;overflow-wrap:anywhere;
+}
+.ci8-editorial-fact strong[data-state="UNAVAILABLE"],
+.ci8-macro-state strong[data-state="UNAVAILABLE"]{color:#ffc0b5}
+.ci8-editorial-fact strong[data-state="SAVED"],
+.ci8-macro-state strong[data-state="SAVED"]{color:#f2d6a4}
+.ci8-editorial-fact strong[data-state="LOADING"],
+.ci8-macro-state strong[data-state="LOADING"]{color:#9ab7c0}
+.ci8-editorial-hero-actions{
+ display:flex;align-items:stretch;gap:9px;
+}
+.ci8-editorial-hero-actions #editorial-news-refresh,
+.ci8-editorial-hero-actions #editorial-macro-refresh{
+ min-height:47px;flex:1 1 45%;min-width:0;
+ padding:9px 12px;border-radius:12px;
+ background:#58e7d0!important;border:1px solid #95ffeb!important;
+ color:#063339!important;font-size:12px;font-weight:850;
+ box-shadow:0 5px 19px #1ecdb51f;
+}
+.ci8-editorial-hero-actions .ci8-secondary-action{
+ min-height:47px;flex:1 1 55%;min-width:0;
+ padding:10px 11px;border-radius:12px;
+ background:#12404a;border:1px solid #478485;
+ color:#c0f4eb;font-size:11px;font-weight:750;
+}
+#view-news>.ci8-news-filters{
+ display:grid;gap:8px;margin:2px 0 13px;
+}
+.ci8-news-filter-actions{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;
+}
+.ci8-filter-button{
+ min-width:0;min-height:43px;
+ padding:9px 5px;
+ border-radius:11px;
+ border:1px solid #335e6d;background:#11303e;
+ color:#b6d8db;font-size:11px;font-weight:720;
+ line-height:1.3;cursor:pointer;
+}
+.ci8-filter-button[aria-pressed="true"]{
+ background:linear-gradient(145deg,#0f5e5a,#0c3d49);
+ border-color:#60d2c3;color:#e3fff8;
+ box-shadow:inset 0 1px 0 #affff31a;
+}
+.ci8-news-filter-result{
+ margin:0;padding:7px 3px 0;
+ color:#c0dadb;font-size:10px;line-height:1.5;
+}
+.ci8-filter-explain{
+ margin:0 3px;color:#87abb4;
+ line-height:1.55;font-size:9px;
+}
+#view-news #editorial-news-list{
+ margin:0 0 13px;display:grid;gap:10px;
+}
+#view-news #editorial-news-list>.editorial-story{
+ margin:0;padding:14px 12px;border-radius:16px;
+ background:linear-gradient(150deg,#0c2d3b,#081d2b);
+ border:1px solid #376a77;
+ box-shadow:inset 0 1px 0 #affff40c,0 6px 18px #02121d57;
+}
+#view-news #editorial-news-list>.editorial-story[hidden]{display:none!important}
+#view-news #editorial-news-list .editorial-story-title{
+ font-size:14px;line-height:1.45;font-weight:780;
+ color:#e2faf5;text-decoration:none;
+}
+#view-news #editorial-news-list .editorial-story-title:hover,
+#view-news #editorial-news-list .editorial-story-title:focus-visible{
+ color:#7cf4df;text-decoration:underline;
+}
+#view-news #editorial-news-list .editorial-story-meta{
+ gap:5px;margin-top:10px;justify-content:flex-start;
+}
+#view-news #editorial-news-list .editorial-story-meta span,
+#view-news #editorial-news-list .editorial-story-meta time{
+ background:#123845;border:1px solid #2c626e;
+ padding:5px 7px;border-radius:8px;font-size:9px;
+ color:#abcbd1;line-height:1.4;
+}
+#view-news #editorial-news-list .editorial-stale-label{
+ color:#eec896;background:#463832!important;
+ border-color:#785946!important;
+}
+#view-news #editorial-news-list>.muted{
+ margin:4px 0;padding:14px 11px;border-radius:12px;
+ background:#112a36;font-size:11px;line-height:1.6;
+}
+/* Macro begins with its verified event calendar, not the old long
+ * text-first news list. Dates always originate from BLS responses. */
+#view-macro .ci8-macro-brief{
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;
+}
+#view-macro .ci8-macro-state{
+ min-height:83px;padding:10px 8px;
+}
+#view-macro .ci8-macro-state span{font-size:9px}
+#view-macro .ci8-macro-state strong{font-size:11px}
+#view-macro .ci8-next-event{
+ padding:13px 12px;display:grid;gap:6px;
+ border-radius:12px;
+ border:1px solid #3b7d81;background:#0a2936;
+}
+#view-macro .ci8-next-event small{
+ color:#9ebfc8;font-size:10px;
+}
+#view-macro .ci8-next-event strong{
+ color:#e4fff9;font-size:15px;
+ font-weight:810;line-height:1.3;
+}
+#view-macro .ci8-next-event span{
+ color:#aed0d1;font-size:10px;line-height:1.5;
+}
+#view-macro .ci8-macro-shortcuts{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;margin:0 0 13px;
+}
+#view-macro .ci8-macro-shortcut{
+ min-width:0;min-height:43px;
+ padding:9px 6px;border-radius:10px;
+ background:#123943;color:#cafdf2;
+ border:1px solid #3b7a7c;font-size:11px;
+ font-weight:760;cursor:pointer;
+}
+#view-macro .editorial-calendar-card,
+#view-macro .macro-indicators-panel{
+ border:1px solid #376b78!important;border-radius:17px!important;
+ background:linear-gradient(153deg,#10303d,#081d2a)!important;
+ box-shadow:0 8px 23px #03131c65;
+ margin:0 0 12px!important;padding:15px 12px!important;
+ scroll-margin-top:90px;
+}
+#view-macro .editorial-calendar-card>.section-title,
+#view-macro .macro-indicators-panel>.section-title{
+ margin-bottom:9px;
+}
+#view-macro .editorial-calendar-card>.section-title h3,
+#view-macro .macro-indicators-panel>.section-title h3{
+ font-size:16px;line-height:1.25;color:#e2fff8;
+}
+#view-macro .editorial-calendar-card>.section-title span,
+#view-macro .macro-indicators-panel>.section-title span{
+ color:#91c0c5;font-size:9px;
+}
+#view-macro .editorial-calendar-list{
+ display:grid;gap:9px;
+}
+#view-macro .editorial-calendar-event{
+ display:grid;gap:7px;padding:12px 11px;
+ border:1px solid #396c77;border-radius:12px;
+ background:#0c2b37;
+}
+#view-macro .editorial-calendar-event time{
+ width:fit-content;background:#13473f;
+ border:1px solid #338f77;border-radius:8px;
+ padding:5px 7px;color:#9af0d9;
+ font-size:10px;font-weight:740;
+}
+#view-macro .editorial-calendar-event strong{
+ font-size:13px;color:#dff4ed;line-height:1.42;
+}
+#view-macro .editorial-calendar-event span{
+ font-size:10px;line-height:1.6;color:#9ebec7;
+}
+#view-macro .macro-indicators-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;
+}
+#view-macro .macro-indicator-card{
+ min-width:0;padding:12px 10px;
+ background:#0b2a38;border:1px solid #2d6271;
+ border-radius:12px;
+}
+#view-macro .macro-indicator-card strong{
+ font-size:11px;line-height:1.4;
+}
+#view-macro .macro-indicator-value{
+ font-size:clamp(17px,5vw,22px);
+ color:#a9f6d9;letter-spacing:-.02em;
+}
+#view-macro #editorial-macro-list{
+ display:grid;gap:9px;margin:4px 0 14px;
+ scroll-margin-top:90px;
+}
+#view-macro .editorial-story{
+ border-radius:14px;padding:13px 11px;
+ border:1px solid #356b75;background:#0a2936;
+}
+#view-macro .editorial-story-title{
+ font-size:13px;color:#d8f9ef;line-height:1.5;
+}
+/* An honest, optional detail drawer. Never hide unavailable source messages. */
+#view-news>.ci8-editorial-method,
+#view-macro>.ci8-editorial-method{
+ padding:4px 11px 10px;margin:0 0 14px;
+ border:1px solid #2f5c6c;border-radius:13px;
+ background:#0a2735;
+}
+.ci8-editorial-method>summary{
+ cursor:pointer;min-height:46px;
+ color:#b4d5d6;font-size:11px;line-height:1.45;
+ font-weight:760;display:flex;align-items:center;
+}
+.ci8-editorial-method>*:not(summary){margin:10px 0}
+.ci8-editorial-method .editorial-budget-row{
+ display:flex;align-items:center;gap:9px;
+ font-size:10px;line-height:1.5;
+ padding:9px 10px;
+ background:#10333e;border-radius:10px;
+}
+.ci8-editorial-method .editorial-budget-row>span{
+ overflow-wrap:anywhere;
+}
+.ci8-editorial-method #editorial-news-status,
+.ci8-editorial-method #editorial-macro-status,
+.ci8-editorial-method #editorial-news-analysis,
+.ci8-editorial-method #editorial-news-quality{
+ padding:9px 10px;font-size:10px;line-height:1.5;
+ border:1px solid #2d5361;border-radius:9px;
+ background:#09212d;color:#a8c9ce;
+}
+.ci8-editorial-method .macro-source-links{
+ display:flex;gap:7px;flex-wrap:wrap;
+}
+.ci8-editorial-method .macro-source-links a{
+ min-height:36px;display:flex;align-items:center;
+ font-size:10px;border-radius:9px;
+}
+#view-news .ci8-filter-button:focus-visible,
+#view-macro .ci8-macro-shortcut:focus-visible,
+#view-news .ci8-editorial-hero-actions button:focus-visible,
+#view-macro .ci8-editorial-hero-actions button:focus-visible{
+ outline:2px solid #8dffdf;outline-offset:2px;
+}
+/* Native settings: four understandable sections in one modal; all native
+ * inputs remain the original controls and original Android event listeners. */
+.apex-settings-dialog.ci8-settings-redesigned{
+ width:min(530px,calc(100% - 20px));
+ max-height:min(91dvh,830px);
+ padding:14px 13px calc(18px + env(safe-area-inset-bottom));
+ border:1px solid #378585;border-radius:21px;
+ background:
+ radial-gradient(ellipse 85% 35% at 93% -4%,#1aa99e34,transparent 86%),
+ linear-gradient(160deg,#0b2a36,#071a27);
+ box-shadow:0 21px 72px #000d;
+ scrollbar-width:thin;
+}
+.apex-settings-dialog.ci8-settings-redesigned::backdrop{
+ background:#020b14d5;
+}
+.ci8-settings-redesigned .apex-settings-head{
+ position:sticky;top:-14px;z-index:4;
+ min-height:54px;padding:11px 4px 10px;
+ background:linear-gradient(180deg,#0c2d39f9,#0b2935f4);
+ border-bottom:1px solid #2f6570;
+}
+.ci8-settings-redesigned .apex-settings-head h2{
+ font-size:21px;font-weight:820;letter-spacing:-.025em;color:#eafff9;
+}
+.ci8-settings-redesigned .apex-settings-head #apex-settings-close{
+ min-width:43px;min-height:43px;border-radius:12px;
+ background:#153c45;border:1px solid #427b82;
+ color:#d4f9f0;
+}
+.ci8-settings-redesigned .ci8-settings-nav{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:5px;position:sticky;top:40px;z-index:3;
+ padding:10px 0 9px;
+ background:#0b2935f7;
+ border-bottom:1px solid #295260;
+ margin:0 0 12px;
+}
+.ci8-settings-redesigned .ci8-settings-nav-button{
+ min-width:0;min-height:43px;padding:8px 3px;
+ border-radius:10px;border:1px solid #366a74;
+ background:#123844;color:#afd8d8;
+ font-size:9px;line-height:1.35;font-weight:750;
+ cursor:pointer;overflow-wrap:anywhere;
+}
+.ci8-settings-redesigned .ci8-settings-nav-button:focus-visible{
+ outline:2px solid #8dffdf;outline-offset:2px;
+}
+.ci8-settings-redesigned .ci8-settings-section{
+ display:grid;gap:10px;margin:0 0 12px;
+ padding:16px 12px 14px;
+ background:linear-gradient(156deg,#0e303d,#09212f);
+ border:1px solid #32646e;border-radius:15px;
+ scroll-margin-top:123px;
+}
+.ci8-settings-redesigned .ci8-settings-section:first-of-type{
+ background:linear-gradient(156deg,#12403f,#0c2934);
+ border-color:#38877b;
+}
+.ci8-settings-redesigned .ci8-settings-kicker{
+ margin:0;font-size:9px;font-weight:810;color:#65dbc9;
+ letter-spacing:.09em;line-height:1.5;
+}
+.ci8-settings-redesigned .ci8-settings-section>h3{
+ margin:-6px 0 3px;font-size:17px;line-height:1.3;
+ font-weight:820;color:#e0faf5;letter-spacing:-.02em;
+}
+.ci8-settings-redesigned .ci8-settings-section>.apex-settings-subtitle[hidden]{
+ display:none!important;
+}
+.ci8-settings-redesigned .ci8-settings-section>.muted{
+ font-size:10px;line-height:1.6;color:#a9cad0;margin:0;
+}
+.ci8-settings-redesigned .ci8-settings-section>.apex-setting-line{
+ display:grid;grid-template-columns:1fr;gap:5px;
+ border:1px solid #325b6b;background:#0b2935;
+ border-radius:10px;padding:10px 11px;margin:0;
+}
+.ci8-settings-redesigned .apex-setting-line>span{
+ font-size:11px;color:#b2d9d9;font-weight:700;
+}
+.ci8-settings-redesigned .apex-setting-line>strong{
+ font-size:11px;color:#e1f9f3;line-height:1.45;
+ text-align:left;font-weight:720;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-setting-toggle{
+ display:flex;align-items:flex-start;gap:12px;
+ margin:0;padding:12px 10px;
+ background:#0b2a36;border:1px solid #325e68;
+ border-radius:12px;font-size:12px;color:#d5f2ed;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-setting-toggle input{
+ width:20px;height:20px;flex:0 0 20px;
+ margin:0;accent-color:#59e8d2;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-setting-toggle small{
+ color:#95bec5;font-size:10px;line-height:1.5;
+ margin-top:4px;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-setting-toggle:has(input:disabled){
+ opacity:.66;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-setting-scope{
+ display:grid;gap:8px;color:#b7dcda;font-size:11px;
+}
+.ci8-settings-redesigned .ci8-settings-section select{
+ width:100%;min-height:45px;border-radius:11px;
+ border:1px solid #3a717a;background:#0c2b37;
+ color:#d2fbf4;padding:10px;font-size:11px;
+}
+.ci8-settings-redesigned .ci8-settings-section #apex-settings-alert-types{
+ display:grid;gap:7px;margin:0;padding:0 0 0 8px;
+ border-left:2px solid #38947d;
+}
+.ci8-settings-redesigned .ci8-settings-section #apex-settings-alert-types .apex-setting-toggle{
+ margin:0;padding:11px 9px;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-backup-password-label{
+ display:grid;gap:9px;font-size:11px;color:#d1efe7;
+}
+.ci8-settings-redesigned .ci8-settings-section #apex-backup-passphrase{
+ width:100%;min-height:48px;border-radius:11px;
+ background:#07202d;border:1px solid #377581;color:#e6fbf7;
+ padding:10px 12px;font-size:13px;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-backup-controls{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
+.ci8-settings-redesigned .ci8-settings-section .apex-backup-controls button{
+ min-height:48px;padding:9px 8px;
+ border:1px solid #448e84;border-radius:11px;
+ background:#134945;color:#d0fff2;
+ font-size:10px;font-weight:740;
+}
+.ci8-settings-redesigned .ci8-settings-section #apex-settings-sources{
+ width:100%;min-height:44px;border-radius:11px;
+ background:#103f49;border:1px solid #3c8581;
+ color:#c4fbef;
+}
+@media(max-width:390px){
+ #view-news>.ci8-editorial-hero,
+ #view-macro>.ci8-editorial-hero{
+  padding:16px 11px 13px;
+ }
+ #view-news .ci8-editorial-fact{padding:10px 8px}
+ #view-macro .ci8-macro-state{padding:9px 6px}
+ #view-macro .ci8-macro-state span{font-size:8px}
+ #view-macro .ci8-macro-state strong{font-size:10px}
+ .ci8-settings-redesigned .ci8-settings-nav{gap:4px}
+ .ci8-settings-redesigned .ci8-settings-nav-button{
+  font-size:9px;padding:7px 2px;
+ }
+ .ci8-settings-redesigned .ci8-settings-section{
+  padding:13px 9px;
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ .ci8-editorial-hero *,
+ .ci8-settings-redesigned *{transition:none!important;animation:none!important}
+}
