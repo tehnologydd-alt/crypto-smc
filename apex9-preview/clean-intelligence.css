@@ -821,3 +821,63 @@ body[data-view]:not([data-view="overview"]) .ci-screen-heading{display:none!impo
  #view-quality .ci-research-card{padding:10px;gap:9px}
  .ci-research-symbol{width:36px;height:36px;flex-basis:36px}
 }
+
+
+/* Clean Intelligence / Stage 4: distinguish live API data from saved snapshots. */
+#view-overview .ci-market-tile{
+ min-height:86px;justify-content:space-between;
+}
+#view-overview .ci-market-tile span{
+ line-height:1.35;min-height:24px;overflow-wrap:anywhere;
+}
+#view-overview .ci-market-tile strong{
+ align-self:flex-start;line-height:1.18;
+}
+#view-overview .ci-market-tile strong[data-freshness="STALE"]{
+ color:#9bb8c3!important;
+}
+#view-overview .ci-market-tile strong[data-freshness="UNKNOWN"]{
+ color:#7e9eaa!important;
+}
+#view-overview .ci-market-note{
+ font-size:10px;line-height:1.5;
+ border-left:2px solid #3d8d8e;padding:3px 0 3px 9px;
+}
+#view-overview .ci-market-sources>summary{
+ min-height:41px;display:flex;align-items:center;
+}
+/* Explicit source-state marker in Radar ages and smaller phone widths. */
+#view-radar .ci-radar-observed[data-freshness="STALE"]{
+ color:#f0bdab;
+}
+#view-radar .ci-radar-observed[data-freshness="UNKNOWN"]{
+ color:#d3c3a6;
+}
+#view-radar .ci-radar-age-chip[hidden]{display:none!important}
+#view-radar .ci-radar-age-chip[data-freshness="UNKNOWN"]{
+ background:#403528;color:#f2d09c;
+}
+#view-forecasts .ci-direction-button{
+ min-height:41px;
+}
+#view-forecasts .ci-direction-hint{
+ display:block;line-height:1.5;
+}
+#view-forecasts .ci-direction-empty{line-height:1.6}
+#view-forecasts .ci-direction-button:focus-visible,
+#view-radar .radar-filter-tabs button:focus-visible,
+#view-asset .ci-asset-intel-tab:focus-visible,
+#view-quality .ci-research-card:focus-visible{
+ outline:2px solid #7aebdb;outline-offset:2px;
+}
+@media(max-width:360px){
+ #view-overview .ci-market-tile{padding:8px 6px}
+ #view-overview .ci-market-tile span{font-size:8px}
+ #view-overview .ci-market-tile strong{font-size:12px}
+ #view-forecasts .ci-direction-button{padding:7px 10px}
+ #view-asset .ci-asset-intel-tabs{gap:3px;padding:3px}
+}
+@media(prefers-reduced-motion:reduce){
+ #view-radar .radar-record,
+ #view-forecasts .forecast-compact-card{animation:none!important}
+}
