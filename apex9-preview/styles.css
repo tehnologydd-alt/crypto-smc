@@ -3765,12 +3765,6 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 #view-forecasts .forecast-legacy:not(.is-completed){
  background:linear-gradient(155deg,#112d37,#0c212b);
  border-color:#345963}
-.forecast-journal-row-tools{display:flex;justify-content:flex-end;
- margin-top:7px;border-top:1px solid #294b55;padding-top:9px}
-.forecast-journal-hide{border:1px solid #355660;background:#122a35;
- color:#b7cdd3;padding:8px 10px;border-radius:10px;
- font:inherit;font-size:11px;min-height:36px;cursor:pointer}
-.forecast-journal-hide:focus-visible{outline:2px solid #7ce9d1}
 .forecast-expired-archive,.forecast-hidden-archive{
  border:1px solid #385965;border-radius:14px;
  margin:14px 0;background:#0d2631;padding:5px 9px}
@@ -3792,25 +3786,35 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .forecast-hidden-restore-all{margin:9px 0}
 
 
-/* Completed keeps its original tone-stop/tone-tp3 colors, but its
- * default layout now matches the compact Limit/Active price-row card. */
+/* Completed uses the same compact identity, milestones, single fold and
+   three action buttons as the open cards. Terminal tone colors remain intact. */
 #view-forecasts .forecast-unified-completed{
- display:grid;gap:11px;padding:15px;border-radius:18px}
-#view-forecasts .forecast-unified-completed>.forecast-compact-price-row{
- margin:0}
+ display:grid;gap:12px;padding:16px;border-radius:18px;min-width:0
+}
+#view-forecasts .forecast-unified-completed>.forecast-unified-head{
+ margin:0;min-width:0;align-items:flex-start
+}
+#view-forecasts .forecast-unified-completed>.forecast-compact-note{
+ margin:0
+}
+#view-forecasts .forecast-unified-completed>.forecast-compact-progress{
+ margin:0
+}
 #view-forecasts .forecast-unified-completed>.forecast-compact-details{
- margin:0;min-width:0}
-#view-forecasts .forecast-unified-completed>.forecast-completed-panel{
- margin:1px 0 3px}
-#view-forecasts .forecast-unified-completed>.forecast-visual-actions,
-#view-forecasts .forecast-unified-completed>.forecast-card-actions{
- margin:0;display:flex;gap:7px;flex-wrap:wrap}
-#view-forecasts .forecast-unified-completed .forecast-compact-price{
- background:#10242f;border-color:#3c5c67}
-#view-forecasts .forecast-unified-completed .forecast-compact-price.tp1{
- border-color:#347766}
-#view-forecasts .forecast-unified-completed .forecast-compact-price.sl{
- border-color:#95536b}
+ margin:0;min-width:0
+}
+#view-forecasts .forecast-unified-completed>.forecast-compact-actions{
+ margin:0
+}
+#view-forecasts .forecast-unified-completed.tone-stop .forecast-compact-event.is-hit{
+ color:#ffb6c5;background:#442431
+}
+#view-forecasts .forecast-unified-completed.tone-tp3 .forecast-compact-event.is-hit{
+ color:#a9f1db;background:#16453f
+}
+#view-forecasts .forecast-unified-completed .forecast-compact-full-level{
+ min-width:0
+}
 @media(max-width:390px){
- #view-forecasts .forecast-unified-completed{padding:12px}
+ #view-forecasts .forecast-unified-completed{padding:12px;gap:10px}
 }
