@@ -459,14 +459,26 @@
         </div>
         <section class="large-trade-panel" id="large-trade-panel" aria-label="Поиск крупных рыночных сделок Binance Spot">
           <div class="section-title">
-            <h4>🐋 Крупные сделки · Binance Spot</h4>
+            <h4>🐋 Крупные сделки · 6 бирж Spot</h4>
             <span id="large-trade-count">0 событий</span>
           </div>
           <p id="large-trade-status" class="muted" role="status" aria-live="polite">
-            Подключаем бесплатный публичный поиск крупных сделок избранного актива.
+            Проверяем публичные потоки Binance, Bybit, OKX, Kraken, BingX и Coinbase Exchange выбранного избранного актива.
           </p>
+          <div id="large-trade-venues-status" class="large-trade-venues-status" aria-live="polite"></div>
           <div class="large-trade-controls">
-            <label>Минимальная сумма сделки
+            <label>Источник
+              <select id="large-trade-venue">
+                <option value="all">Все биржи</option>
+                <option value="binance">Binance</option>
+                <option value="bybit">Bybit</option>
+                <option value="okx">OKX</option>
+                <option value="kraken">Kraken</option>
+                <option value="bingx">BingX</option>
+                <option value="coinbase">Coinbase Exchange (USD)</option>
+              </select>
+            </label>
+            <label>Минимальная сумма сделки в валюте котировки
               <select id="large-trade-threshold">
                 <option value="150000">От 150 000 USDT</option>
                 <option value="500000">От 500 000 USDT</option>
@@ -474,15 +486,19 @@
               </select>
             </label>
             <label>ID сделки
-              <input id="large-trade-search" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="Поиск по aggTrade ID"/>
+              <input id="large-trade-search" maxlength="80" placeholder="Поиск по ID сделки"/>
             </label>
+          </div>
+          <div class="large-trade-links">
+            <strong>Взаимосвязи событий · исследование</strong>
+            <div id="large-trade-links-status" class="muted">Проверяем только временные совпадения, не владельцев и не маршруты средств.</div>
           </div>
           <div id="large-trade-list" class="large-trade-list">
             <p class="muted">Нет подтверждённых крупных Spot-сделок в текущей выборке.</p>
           </div>
           <button id="large-trade-archive" class="ghost asset-manual-control" type="button">Обновить локальную историю</button>
           <p id="large-trade-persist" class="muted">История Room проверяется…</p>
-          <p class="footnote">Источник: публичный Binance aggTrade, без ключа API. Это рыночные исполнения одной стороны заявки, а НЕ переводы между кошельками и НЕ официальный Whale Alert. Сторона обозначает инициатора сделки; личность покупателя или продавца неизвестна. Сбор — только для открытого избранного актива, ограниченная выборка.</p>
+          <p class="footnote">Источники: шесть публичных Spot-потоков без API-ключей, доступность зависит от биржи и торговой пары. Coinbase Exchange даёт цены в USD, остальные — в USDT: суммы не смешиваются. События не являются переводами между кошельками или официальным Whale Alert. Направление — сторона агрессивного участника сделки, не личность и не источник средств. Поиск работает только для открытого избранного актива.</p>
         </section>
         <section class="whale-panel" id="whale-panel" aria-label="Наблюдения крупных публичных переводов">
           <div class="section-title">
