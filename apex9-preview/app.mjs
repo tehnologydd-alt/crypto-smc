@@ -300,6 +300,12 @@ async function runCloudBackup(mode){
   }else if(result?.error){
    text('apex-backup-status',result.error);
   }else if(restore&&result?.restored===true){
+   if(result.settingsRestored===false){
+    text('apex-backup-status',
+     'История Room объединена, но настройки не восстановлены. '+
+     'Не удаляйте исходный архив: повторите восстановление.');
+    return;
+   }
    const ui=result.uiMarkedIds;
    if(Array.isArray(ui)){
     let saved=[];
