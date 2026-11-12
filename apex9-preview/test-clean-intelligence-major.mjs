@@ -49,7 +49,7 @@ test('new command center navigates via original app handlers, not custom forecas
  assert.match(major,/existingButton\('\[data-journal-stage="ACTIVE"\]'\)/);
  assert.match(major,/existingButton\('\[data-radar-filter="events"\]'\)/);
  assert.match(major,/existingButton\('\[data-tab="quality"\]'\)/);
- assert.match(major,/new MutationObserver\(schedule\)/);
+ assert.match(major,/createScreenUpdateCoordinator\(root,render\)/);
  for(const id of ['ci6-command-center','ci6-pulse-active','ci6-pulse-limit',
   'ci6-pulse-radar','ci6-stage-board','ci6-radar-workspace'])
   assert.ok(major.includes(id),id);
@@ -67,7 +67,7 @@ test('major redesign reorganizes existing stage and radar controls, no duplicate
  const html=read('./index.html');
  const source=read('./radar-dashboard.mjs');
  assert.match(major,/board.append\(stages\)/);
- assert.match(major,/intro.after\(board\)/);
+ assert.match(major,/workspace.before\(intro,board\)/);
  assert.match(major,/advanced.append\(whales\)/);
  assert.match(major,/workspace.append\(advanced\)/);
  assert.match(major,/top.append\(counters,status\)/);
