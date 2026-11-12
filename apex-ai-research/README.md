@@ -6,16 +6,18 @@ service as live. Never commit secrets or put a shared server token in an APK.
 
 ## What actually runs where
 
-| Runtime | Real deployed model / purpose | Free-tier boundary |
+| Runtime | Planned model / purpose | Free-tier boundary |
 | --- | --- | --- |
 | Cloudflare Workers + Workers AI + D1 | `@cf/zai-org/glm-4.7-flash` (analyst), `@cf/qwen/qwen3.8-27b` (independent critic); HTTP API, auth and quota counter | Workers Free limits; Workers AI 10,000 **Neurons/day total**; internal cap **12 language-agent requests/day** is an additional guard and does NOT guarantee that the Neuron allocation will last |
 | Oracle Cloud Ampere A1 VM | XGBoost and LightGBM (CPU inference; manual candidate training and evaluation) | Oracle Always Free **2 OCPU / 12 GiB RAM across A1 VMs**; capacity availability and idle reclaim are outside APEX control |
 
 The four roles are four independently evaluated components. A "Director"
 can coordinate them later, but it is not a fifth billable model. The
-current Cloudflare Worker supports the GLM analyst and Qwen critic; the
-CPU service supports two boosters. End-to-end orchestration and Android
-pairing are a **subsequent stage**, not quietly enabled here.
+Cloudflare Worker has GLM and Qwen evidence-agent endpoints; it also offers
+a protected proxy for evaluated XGBoost/LightGBM observations when a private
+HTTPS Oracle origin is configured. It **does not** autonomously schedule
+training or issue trading instructions. Android pairing is a subsequent
+stage, not quietly enabled here.
 
 This is separate from the already existing `apex9-cloudflare` news pilot
 and does not replace, redeploy or modify that worker.
@@ -30,7 +32,7 @@ and does not replace, redeploy or modify that worker.
 3. Use the Cloudflare CLI from `apex-ai-research/edge`:
    ```sh
    npx wrangler@latest login
-   npx wrangler@latest d1 execute apex-ai-research --remote --file=./schema.sql
+   npx wrangler@4 d1 execute apex-ai-research --remote --file=./schema.sql --config=./wrangler.jsonc
    npx wrangler@latest secret put APEX_EDGE_TOKEN
    npx wrangler@latest deploy --config wrangler.jsonc
    ```
@@ -52,6 +54,22 @@ credential into Android**: an app-distributable secret is not a secure
 user login. Android auth and per-user tokens need a proper pairing
 and revocation flow before production client integration.
 
+### Optional manual GitHub deployment for Cloudflare
+
+The repository includes `.github/workflows/apex-ai-cloudflare-manual-deploy.yml`.
+Once the workflow exists on the default branch, enter repository Secrets
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and variables
+`APEX_AI_D1_DATABASE_ID`, `APEX_AI_WORKER_ORIGIN`. Configure the Worker
+secret `APEX_EDGE_TOKEN` in Cloudflare. Choose **Actions → APEX AI Collective —
+manual Cloudflare deploy → Run workflow** and enter `DEPLOY_APEX_AI` as
+explicit approval. This job only deploys the separate AI Worker; it does
+not provision Oracle, start paid resources or publish a mobile API key.
+The Worker health check confirms its identity, **not** live Workers AI quota
+or real training. No automatic push-to-cloud deployment is enabled.
+
+Cloudflare's `@cf/qwen/qwen3-30b-a3b-fp8` is scheduled for retirement on
+2026-11-20; this implementation uses its replacement `@cf/qwen/qwen3.8-27b`.
+
 ## Server 2: Oracle Always Free A1
 
 Provision an **Always Free eligible Ubuntu ARM64** A1 VM in the selected
@@ -71,6 +89,11 @@ cp .env.example .env
 docker compose up -d --build
 curl -fsS http://127.0.0.1:8789/health
 ```
+
+The Cloudflare Worker exposes protected `POST /v1/boosters/predict` and
+`GET /v1/boosters/status` routes, which fail closed until the Oracle HTTPS
+origin is configured. Neither endpoint places orders or generates a model
+without evaluated artifacts.
 
 The compute server binds **localhost only**, so the training and
 inference endpoints are not exposed to the internet. To connect it
@@ -126,9 +149,7 @@ After reviewing real holdout data, leakage controls and independent
 forward results, an operator can explicitly activate a candidate:
 
 ```sh
-docker compose run --rm cpu-research python activate.py \\
-  --models /srv/apex/models --version v001 \\
-  --confirm-reviewed-version v001
+docker compose run --rm cpu-research python activate.py --models /srv/apex/models --version v001 --confirm-reviewed-version v001
 ```
 
 Activation refuses invalid hashes and candidates that do not beat the
