@@ -9,6 +9,10 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import android.os.Build
 import android.content.Intent
+import android.app.Activity
+import android.net.Uri
+import androidx.activity.result.ActivityResult
+import com.getcapacitor.annotation.ActivityCallback
 import android.Manifest
 import android.content.pm.PackageManager
 import android.view.WindowManager
@@ -52,6 +56,101 @@ class ApexNativePlugin : Plugin() {
         if (ApexForecastNotifier.notificationTarget(intent) != null)
             notifyListeners("apexNotificationOpen",
                 JSObject().put("pending", true), true)
+    }
+
+    /**
+     * APEX backup is explicitly user-triggered. SAF lets the user choose
+     * Google Drive or another installed document provider; no cloud API key.
+     * Passphrase is never saved in settings or an application database.
+     */
+    @PluginMethod
+    fun backupToCloud(call: PluginCall) {
+        val password=call.getString("passphrase")
+        if(password==null||password.length !in 12..128){
+            call.reject("Введите парольную фразу от 12 до 128 символов")
+            return
+        }
+        val intent=Intent(Intent.ACTION_CREATE_DOCUMENT).apply{
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type=ApexPortableBackup.MIME
+            putExtra(Intent.EXTRA_TITLE,
+                "APEX-Research-"+java.text.SimpleDateFormat(
+                    "yyyy-MM-dd-HHmm",java.util.Locale.US)
+                    .format(java.util.Date())+".apexbackup")
+        }
+        startActivityForResult(call,intent,"onCloudBackupPicked")
+    }
+
+    @ActivityCallback
+    private fun onCloudBackupPicked(call:PluginCall?, result:ActivityResult) {
+        if(call==null)return
+        val uri=result.data?.data
+        if(result.resultCode!=Activity.RESULT_OK||uri==null){
+            call.resolve(JSObject().put("cancelled",true))
+            return
+        }
+        val password=call.getString("passphrase")?.toCharArray()
+        if(password==null){call.reject("Пароль архива недоступен");return}
+        tasks.launch{
+            try {
+                val report=ApexPortableBackup.exportTo(
+                    context.applicationContext,uri,password)
+                call.resolve(JSObject(report.toString()))
+            }catch(e:Exception){
+                call.reject("Не удалось сохранить архив: "+
+                    (e.message ?: "ошибка хранилища"))
+            }finally{password.fill('\u0000')}
+        }
+    }
+
+    /**
+     * Restore requires an explicit UI confirmation BEFORE showing the system
+     * picker. It merges rows, never wipes or replaces existing user data.
+     */
+    @PluginMethod
+    fun restoreFromCloud(call:PluginCall) {
+        val password=call.getString("passphrase")
+        val confirmed=call.data.optBoolean("confirmed",false)
+        if(!confirmed){call.reject("Требуется подтверждение объединения данных");return}
+        if(password==null||password.length !in 12..128){
+            call.reject("Укажите парольную фразу архива (12–128 символов)")
+            return
+        }
+        val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply{
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type="*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivityForResult(call,intent,"onCloudRestorePicked")
+    }
+
+    @ActivityCallback
+    private fun onCloudRestorePicked(call:PluginCall?,result:ActivityResult) {
+        if(call==null)return
+        val uri=result.data?.data
+        if(result.resultCode!=Activity.RESULT_OK||uri==null){
+            call.resolve(JSObject().put("cancelled",true));return
+        }
+        val password=call.getString("passphrase")?.toCharArray()
+        if(password==null){call.reject("Пароль архива недоступен");return}
+        tasks.launch{
+            try {
+                val report=ApexPortableBackup.restoreFrom(
+                    context.applicationContext,uri,password)
+                ApexSyncScheduler.reconcile(context.applicationContext,false)
+                applyKeepScreenOn(false)
+                call.resolve(JSObject(report.toString()))
+            }catch(e:Exception){
+                call.reject("Восстановление отменено: неверный пароль, "+
+                    "повреждённый архив или ошибка Room ("+
+                    (e.message ?: "неизвестно")+")")
+            }finally{password.fill('\u0000')}
+        }
+    }
+
+    @PluginMethod
+    fun getPortableBackupStatus(call:PluginCall) {
+        call.resolve(JSObject(ApexPortableBackup.status(context.applicationContext).toString()))
     }
 
     @PluginMethod
