@@ -100,6 +100,39 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Verified market executions across five independent public sources. */
+    @PluginMethod
+    fun getMultivenueTradeHistory(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val limit = call.data.optInt("limit",120).coerceIn(1,200)
+        if (!Regex("^[A-Z0-9]{2,16}USDT$").matches(asset)) {
+            call.reject("Invalid market asset")
+            return
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context.applicationContext).researchDao()
+                val saved = dao.multivenueTradeHistory(asset,limit)
+                val rows = JSArray()
+                for (record in saved) {
+                    val row = JSObject()
+                    row.put("asset",record.asset)
+                    row.put("source",record.source)
+                    row.put("observedAt",record.observedAt)
+                    row.put("collectedAt",record.collectedAt)
+                    row.put("payload",record.payloadJson)
+                    rows.put(row)
+                }
+                val result=JSObject()
+                result.put("source","MULTIVENUE_SPOT_TRADES_ROOM_V1")
+                result.put("rows",rows)
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject("Multivenue history unavailable: "+(e.message ?: "unknown"))
+            }
+        }
+    }
+
     /** Read-only operational network ledger; never requests data. */
     @PluginMethod
     fun getApiReliability(call: PluginCall) {
@@ -207,6 +240,47 @@ class ApexNativePlugin : Plugin() {
         } catch (_: Exception) { false }
     }
 
+    /**
+     * Public execution provenance. No ownership or wallet/address claims.
+     * Strict per-venue quote accounting; Coinbase Exchange is USD, not USDT.
+     */
+    private fun validatedMultivenueTrade(
+        asset: String?, id: String?, source: String?, payload: String?,
+        observedAt: Long, collectedAt: Long
+    ): Boolean {
+        if (asset == null || id == null || source == null || payload == null ||
+            !Regex("^[A-Z0-9]{2,16}USDT$").matches(asset) ||
+            observedAt <= 0L || collectedAt < observedAt ||
+            collectedAt - observedAt > 120_000L) return false
+        return try {
+            val j = JSONObject(payload)
+            val venue = j.getString("venue")
+            val venues = setOf("bybit","okx","kraken","bingx","coinbase")
+            val tradeId = j.getString("tradeId")
+            val price = j.getDouble("price")
+            val quantity = j.getDouble("quantity")
+            val amount = j.getDouble("quoteNotional")
+            val expectedQuote = if (venue == "coinbase") "USD" else "USDT"
+            venue in venues && source == "$venue:spot:trades" &&
+                j.getString("source") == source &&
+                j.getString("version") == "APEX_MULTIVENUE_SPOT_TRADE_V1" &&
+                j.getString("asset") == asset &&
+                j.getString("market") == "SPOT" &&
+                Regex("^[A-Za-z0-9-]{1,80}$").matches(tradeId) &&
+                id == "spottrade:$venue:$asset:$tradeId" &&
+                price.isFinite() && price > 0.0 &&
+                quantity.isFinite() && quantity > 0.0 &&
+                amount.isFinite() && amount >= 150_000.0 && amount <= 1e12 &&
+                kotlin.math.abs(price * quantity - amount) / amount <= 1e-8 &&
+                j.getString("quoteCurrency") == expectedQuote &&
+                j.getString("takerSide") in setOf("BUY_TAKER","SELL_TAKER") &&
+                j.getLong("tradeAt") == observedAt &&
+                j.getLong("receivedAt") == collectedAt &&
+                j.isNull("walletOwner") && j.isNull("exchangeFlow") &&
+                j.isNull("blockchainTxHash")
+        } catch (_: Exception) { false }
+    }
+
     @PluginMethod
     fun saveObservation(call: PluginCall) {
         val asset = call.getString("asset")
@@ -228,7 +302,10 @@ class ApexNativePlugin : Plugin() {
                 asset,source,payload,observedAt,collectedAt)) ||
             (source == "binance:spot:aggtrade" &&
                 (kind != "market" || !validatedLargeTrade(
-                    asset,id,payload,observedAt,collectedAt)))) {
+                    asset,id,payload,observedAt,collectedAt))) ||
+            (source != null && source.endsWith(":spot:trades") &&
+                (kind != "market" || !validatedMultivenueTrade(
+                    asset,id,source,payload,observedAt,collectedAt)))) {
             call.reject("Invalid or oversized source observation")
             return
         }
@@ -243,7 +320,8 @@ class ApexNativePlugin : Plugin() {
                 // Re-reading a confirmed transaction must not move the
                 // first-seen clock forward or change earlier study provenance.
                 val stored = if (kind == "whale" ||
-                    source == "binance:spot:aggtrade") {
+                    source == "binance:spot:aggtrade" ||
+                    source.endsWith(":spot:trades")) {
                     dao.insertWhaleObservationOnce(record) != -1L
                 } else {
                     dao.saveObservation(record)
