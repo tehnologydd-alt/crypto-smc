@@ -1,0 +1,81 @@
+/* APEX Clean Intelligence — Stage 11: update safety, not an auto installer.
+ * Read-only, on-demand Room/backup/version status in the native Settings.
+ */
+#apex-settings-dialog .ci11-upgrade-desk{
+ margin:3px 0 0;min-width:0;
+ padding:6px 11px 12px;border-radius:13px;
+ border:1px solid #42857e;
+ background:linear-gradient(149deg,#123a41,#082832);
+}
+#apex-settings-dialog .ci11-upgrade-desk>summary{
+ cursor:pointer;min-height:47px;
+ color:#cdfbee;font-weight:800;line-height:1.45;
+ font-size:12px;display:flex;align-items:center;
+}
+#apex-settings-dialog .ci11-upgrade-intro{
+ font-size:10px;line-height:1.6;color:#a3c9cf;
+ margin:3px 0 12px;
+}
+#apex-settings-dialog .ci11-upgrade-status{
+ padding:10px 11px;border:1px solid #386d71;
+ background:#092c37;border-radius:11px;
+ color:#d5f3ed;font-size:11px;line-height:1.6;
+ margin:0 0 10px;overflow-wrap:anywhere;
+}
+#apex-settings-dialog .ci11-upgrade-desk[data-readiness="BACKUP_REQUIRED"] .ci11-upgrade-status,
+#apex-settings-dialog .ci11-upgrade-desk[data-readiness="DEBUG_BACKUP_REQUIRED"] .ci11-upgrade-status{
+ border-color:#a58b65;background:#39352d;color:#fff0d2;
+}
+#apex-settings-dialog .ci11-upgrade-desk[data-readiness="ROOM_UNVERIFIED"] .ci11-upgrade-status{
+ border-color:#935e63;background:#3b2733;color:#ffe4df;
+}
+#apex-settings-dialog .ci11-upgrade-stats{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:6px;
+}
+#apex-settings-dialog .ci11-upgrade-stat{
+ min-width:0;min-height:64px;display:grid;gap:7px;
+ padding:9px 7px;border:1px solid #306773;
+ background:#0c303c;border-radius:10px;
+}
+#apex-settings-dialog .ci11-upgrade-stat span{
+ font-size:9px;color:#9ebec8;line-height:1.4;
+}
+#apex-settings-dialog .ci11-upgrade-stat strong{
+ font-size:16px;font-weight:830;color:#e4fff9;
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
+}
+#apex-settings-dialog .ci11-upgrade-version{
+ font-size:10px;line-height:1.6;color:#b3e8dd;
+ padding:9px;margin:9px 0 0;border-radius:9px;
+ background:#10383f;border:1px solid #336b72;
+}
+#apex-settings-dialog .ci11-upgrade-steps{
+ padding-left:19px;margin:11px 0;color:#b8d8d7;
+ font-size:10px;line-height:1.6;
+}
+#apex-settings-dialog .ci11-upgrade-steps li{
+ margin:5px 0;overflow-wrap:anywhere;
+}
+#apex-settings-dialog .ci11-upgrade-check{
+ min-height:45px;width:100%;padding:10px 11px;
+ border-radius:11px;border:1px solid #70d0b7;
+ background:#135b50;color:#effff7;
+ font-size:11px;font-weight:800;
+ cursor:pointer;
+}
+#apex-settings-dialog .ci11-upgrade-check:disabled{
+ opacity:.7;cursor:wait;
+}
+#apex-settings-dialog .ci11-upgrade-check:focus-visible{
+ outline:2px solid #9fffe4;outline-offset:2px;
+}
+@media(max-width:380px){
+ #apex-settings-dialog .ci11-upgrade-desk{padding:5px 8px 10px}
+ #apex-settings-dialog .ci11-upgrade-stat{padding:8px 6px}
+}
+@media(prefers-reduced-motion:reduce){
+ #apex-settings-dialog .ci11-upgrade-desk *{
+  animation:none!important;transition:none!important;
+ }
+}
