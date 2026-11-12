@@ -4,12 +4,13 @@ on:
   push:
     branches:
       - apex-clean-intelligence-mobile-qa-stage10-20261112
+      - apex-clean-intelligence-release-safety-stage11-20261112
     paths:
       - 'apex9-preview/**'
       - '.github/workflows/apex-clean-intelligence-mobile-qa.yml'
   pull_request:
     branches:
-      - apex-clean-intelligence-integrity-stage9-20261112
+      - apex-clean-intelligence-mobile-qa-stage10-20261112
     paths:
       - 'apex9-preview/**'
       - '.github/workflows/apex-clean-intelligence-mobile-qa.yml'

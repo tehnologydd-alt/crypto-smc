@@ -47,6 +47,7 @@ import {initCleanIntelligenceAssetHub} from './clean-intelligence-asset-hub.mjs'
 import {initCleanIntelligenceEditorial} from './clean-intelligence-editorial.mjs';
 import {initCleanIntelligenceAudit} from './clean-intelligence-ui-audit.mjs';
 import {initCleanIntelligenceSourceFolds} from './clean-intelligence-source-folds.mjs';
+import {initCleanIntelligenceUpdatePreparation} from './clean-intelligence-upgrade-prep.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {publicationCaveat} from './scenario-publication-timing.mjs';
 import {visibleChartScenarios,compactScenarioDetails} from './clean-chart-scenarios.mjs';
@@ -1510,6 +1511,7 @@ initCleanIntelligenceAssetHub();
 initCleanIntelligenceEditorial();
 initCleanIntelligenceAudit();
 initCleanIntelligenceSourceFolds();
+initCleanIntelligenceUpdatePreparation();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
