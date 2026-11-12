@@ -104,6 +104,11 @@ def predict(payload: InputPayload):
     models = load_active()
     if models is None:
         raise HTTPException(409, "No evaluated model has been activated")
+    if meta_asset := models[2].get("asset"):
+        if payload.observation.asset != meta_asset:
+            raise HTTPException(422, "Active model is for another asset")
+    else:
+        raise HTTPException(503, "Model asset identity unavailable")
     row = validate_features(payload.observation.features)
     import numpy as np
     x = np.asarray([row], dtype="float64")
