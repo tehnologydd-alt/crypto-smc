@@ -12,6 +12,8 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import server
 import train
+import activate
+import hashlib
 
 
 class APEXResearchServerTests(unittest.TestCase):
@@ -91,6 +93,43 @@ class APEXResearchServerTests(unittest.TestCase):
                 server.DATA_DIR=old
                 server._cached_key=None
                 server._cached_models=None
+
+    def test_manual_activation_requires_review_and_verified_hashes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            version = "ciOnly1"
+            x = directory / (version + ".xgboost.json")
+            l = directory / (version + ".lightgbm.txt")
+            x.write_text("UNIT_TEST_NON_MODEL_1", encoding="utf-8")
+            l.write_text("UNIT_TEST_NON_MODEL_2", encoding="utf-8")
+            hashes = {
+                "xgboost": hashlib.sha256(x.read_bytes()).hexdigest(),
+                "lightgbm": hashlib.sha256(l.read_bytes()).hexdigest(),
+            }
+            report = {
+                "state": "CANDIDATE_NOT_ACTIVE",
+                "version": version, "asset": "BTCUSDT",
+                "feature_keys": list(server.FEATURES),
+                "train_rows": 200, "holdout_rows": 50,
+                "model_sha256": hashes,
+                "models": {
+                    "baseline": {"brier": 0.25},
+                    "xgboost": {"brier": 0.20},
+                    "lightgbm": {"brier": 0.21},
+                },
+            }
+            (directory / (version + ".candidate.json")).write_text(
+                json.dumps(report), encoding="utf-8"
+            )
+            with self.assertRaises(PermissionError):
+                activate.activate(directory, version, "different")
+            self.assertFalse((directory / "active.json").exists())
+            approved = activate.activate(directory, version, version)
+            self.assertEqual(approved["asset"], "BTCUSDT")
+            self.assertTrue((directory / "active.json").is_file())
+            x.write_text("CORRUPTED_UNIT_TEST_FILE", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "integrity mismatch"):
+                activate.prepare_activation(directory, version, version)
 
     def test_incomplete_and_cross_asset_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
