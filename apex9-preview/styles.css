@@ -3676,3 +3676,22 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .forecast-notification-state{color:#bce3e1;font-size:12px}
 .forecast-notification-selected{box-shadow:0 0 0 2px #59c3bc85;
  border-color:#5bc5bd!important}
+
+
+/* W is a prepublication, partial Room research check — not a trading signal. */
+.forecast-whale-check{display:flex;align-items:center;gap:8px;
+ padding:6px 9px;margin:6px 0;border:1px solid #35606b;
+ border-radius:9px;background:#0b2630;color:#9abcc5;
+ font-size:11px;line-height:1.45;min-width:0}
+.forecast-whale-check strong{display:grid;place-items:center;
+ flex:0 0 23px;height:23px;border-radius:7px;background:#20575b;
+ color:#b7efdf;font-size:13px}
+.forecast-whale-check span{min-width:0;overflow-wrap:anywhere}
+.forecast-whale-check.state-no_observations,
+.forecast-whale-check.state-invalid{
+ border-color:#3c5360;background:#14232b;color:#a2b6bc}
+.forecast-whale-check.state-no_observations strong,
+.forecast-whale-check.state-invalid strong{
+ background:#293b47;color:#a4b6bf}
+.forecast-whale-coverage{font-size:11px;color:#8fadba;
+ line-height:1.5;margin:6px 0 12px}

@@ -161,6 +161,15 @@ interface ResearchDao {
     @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='market' AND source IN ('bybit:spot:trades','okx:spot:trades','kraken:spot:trades','bingx:spot:trades','coinbase:spot:trades') ORDER BY observedAt DESC LIMIT :limit")
     suspend fun multivenueTradeHistory(asset: String, limit: Int): List<ResearchObservation>
 
+    /**
+     * Bounded as-of-publication evidence. Per-source query prevents fast Spot
+     * trade streams pushing slower on-chain transfers out of the W sample.
+     * Only observations actually received before the forecast are eligible.
+     */
+    @Query("SELECT * FROM research_observations WHERE asset=:asset AND source=:source AND collectedAt >= :fromAt AND collectedAt <= :at AND observedAt >= :fromAt AND observedAt <= :at ORDER BY collectedAt DESC LIMIT :limit")
+    suspend fun whaleChecksBySource(asset: String, source: String, fromAt: Long,
+        at: Long, limit: Int): List<ResearchObservation>
+
     @Query("SELECT COUNT(*) FROM research_observations")
     suspend fun observationCount(): Int
 

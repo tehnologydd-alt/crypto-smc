@@ -4,6 +4,7 @@
  * The module only reads immutable Room forecast levels and observed stages.
  */
 import {displayPair,priceText} from './forecast-card-ux.mjs';
+import {whaleCheckBadge} from './forecast-whale-check.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward}
  from './forecast-level-metrics.mjs';
 
@@ -47,6 +48,8 @@ export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
   el('span','',side+' · контроль '+evaluation));
  const badge=el('span','forecast-compact-status',status);
  head.append(title,badge);card.append(head);
+ const w=whaleCheckBadge(row);
+ if(w)card.append(w);
  card.append(el('p','forecast-compact-note',
   Number.isSafeInteger(plan.targetCloseAt)&&Date.now()>plan.targetCloseAt?
    'Срок наблюдения прошёл · ожидаем подтверждённый итог Room':note));
