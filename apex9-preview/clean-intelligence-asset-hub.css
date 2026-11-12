@@ -1,0 +1,511 @@
+/*
+ * APEX / Clean Intelligence — Major Stage 7: Asset Research
+ * Premium, phone-first visual system on original Room-backed panes.
+ * The chart stays FIRST; quick research actions follow it.
+ */
+body[data-apex-asset-layout="research"]{
+ --ci7-ocean:#061925;
+ --ci7-card:#102e3b;
+ --ci7-hairline:#315f6c;
+ --ci7-pale:#dffbf5;
+ --ci7-aqua:#62ead6;
+ --ci7-quiet:#98bbc7;
+}
+.ci7-kicker{
+ margin:0;font-size:9px;line-height:1.55;
+ letter-spacing:.14em;font-weight:830;color:#65e5d1;
+ text-transform:uppercase;
+}
+/* ASSET PASSPORT — hero with live source status and one uncluttered task nav */
+#view-asset{
+ min-width:0;
+}
+#view-asset>.hero{
+ border-radius:21px!important;border-color:#348a8b!important;
+ background:
+ radial-gradient(ellipse 95% 95% at 92% -8%,#21b7a84a,transparent 72%),
+ linear-gradient(155deg,#123743,#071c2b)!important;
+ min-height:159px;padding:19px 16px 16px!important;
+ box-shadow:inset 0 1px 0 #c0fff518,0 13px 31px #02131d9c;
+}
+#view-asset>.hero #asset-name{
+ font-size:clamp(25px,6.7vw,34px)!important;
+ line-height:1.12;letter-spacing:-.035em;
+}
+#view-asset>.hero .eyebrow{font-size:9px;letter-spacing:.12em;color:#8fcecf}
+#view-asset>.hero #refresh-button{
+ border-radius:12px;min-height:41px;font-size:11px;
+ background:#153c47;border:1px solid #3e7a7a;
+ color:#b7f6ea;
+}
+#view-asset>.hero .hero-price strong{
+ font-size:clamp(32px,9vw,47px);letter-spacing:-.045em;
+ color:#efffff;font-variant-numeric:tabular-nums;
+}
+#view-asset>.hero .hero-bottom{
+ padding-top:9px;border-top:1px solid #2a5964;margin-top:11px;
+ display:flex;gap:7px;flex-wrap:wrap;align-items:center;
+}
+#view-asset>.hero #updated-at{
+ font-size:10px;color:#a2c8c9;
+}
+#view-asset>.hero #hero-coverage{
+ font-size:9px;padding:7px 8px;border:1px solid #327d73;
+ background:#0b494a;color:#c3f4e7;border-radius:9px;
+}
+#view-asset #asset-favorite-strip{
+ min-height:45px;padding:2px 0 8px;margin:9px 0 7px;
+ scrollbar-width:none;
+}
+#view-asset #asset-workspace-anchor{
+ border:1px solid #2d6571;background:linear-gradient(150deg,#0b2938,#081c28);
+ border-radius:15px;padding:5px;gap:5px;margin-bottom:10px;
+}
+#view-asset #asset-workspace-anchor .asset-workspace-button{
+ min-height:49px;border-radius:11px;font-size:11px;
+}
+#view-asset #asset-workspace-anchor .asset-workspace-button.is-active{
+ background:#125d5b;border-color:#55cbbb;color:#e1fff6;
+}
+#view-asset #asset-source-diagnostics{
+ margin:3px 0 11px!important;
+ border:1px solid #2a515f;border-radius:11px;
+ background:#092431;padding:6px 10px;
+}
+#view-asset #asset-source-diagnostics>summary{
+ min-height:33px;display:flex;align-items:center;
+ font-size:10px;color:#9ebfcb;
+}
+/* CHART-FIRST. Above new asset menu sits the original candles canvas with
+ * unmodified data, history, overlays, on-tap inspection and zoom handlers. */
+#view-asset .candle-panel{
+ border:1px solid #34828b!important;
+ border-radius:19px!important;padding:14px 10px 11px!important;
+ margin-top:4px!important;
+ background:linear-gradient(158deg,#0b2b38,#061924)!important;
+ box-shadow:0 13px 35px #03121ca0,inset 0 1px 0 #d1ffff10;
+}
+#view-asset .candle-panel .chart-heading{
+ display:flex;justify-content:space-between;gap:8px;align-items:center;
+ padding:1px 4px 9px;
+}
+#view-asset .candle-panel .chart-heading h3{
+ font-size:18px;letter-spacing:-.02em;color:#e8faf9;
+}
+#view-asset .candle-panel .chart-heading p{
+ color:#8daebb;font-size:10px;
+}
+#view-asset .candle-panel .chart-toolbar{
+ display:flex;gap:5px;margin:0 0 7px;
+ padding:4px 0 8px;border-bottom:1px solid #244959;
+}
+#view-asset .candle-panel .chart-tf{
+ min-height:42px;border-radius:10px;
+ background:#10303c;border:1px solid #335f6d;
+ font-size:11px;color:#aac9d0;
+}
+#view-asset .candle-panel .chart-tf.selected,
+#view-asset .candle-panel .chart-tf[aria-pressed="true"]{
+ border-color:#4fcabb;background:#0a5b56;color:#e1fff6;
+}
+#view-asset .candle-panel .chart-reset{
+ min-height:42px;border-radius:10px;
+}
+#view-asset .candle-panel .chart-surface{
+ min-height:300px;border:1px solid #2b6670;
+ border-radius:13px;overflow:hidden;
+ background:
+ repeating-linear-gradient(0deg,transparent,transparent 53px,#24475519 54px),
+ linear-gradient(180deg,#071f2b,#041621);
+}
+#view-asset .candle-panel #candle-canvas{
+ display:block;max-width:100%;width:100%;
+ min-height:280px;
+}
+#view-asset .candle-panel #candle-status{
+ margin:8px 4px;font-size:10px;line-height:1.45;
+ color:#91bdc6;
+}
+#view-asset .candle-panel #chart-selected{
+ margin:10px 0 4px;min-height:42px;
+ border-radius:11px;padding:10px 11px;
+ background:#0b2732;border:1px solid #2a5865;
+}
+#view-asset .candle-panel .chart-evidence-overlays{
+ padding:4px 0;gap:6px;
+}
+#view-asset .candle-panel #chart-scenario-details{
+ border-radius:11px;
+}
+#view-asset .ci-asset-intelligence{
+ border-radius:13px;padding:0;margin:10px 0 0;
+}
+/* NEW RESEARCH DESK — 4 large action modules, no hard-coded feed states. */
+#view-asset>.ci7-asset-desk{
+ margin:13px 0 14px;display:grid;gap:11px;
+ padding:15px 12px 14px;border-radius:18px;
+ border:1px solid #286a73;
+ background:
+ radial-gradient(ellipse 75% 57% at 100% -4%,#137c7750,transparent 79%),
+ linear-gradient(147deg,#0c3140,#081f2c);
+}
+#view-asset .ci7-asset-desk-head{display:grid;gap:2px}
+#view-asset .ci7-asset-desk-head h3{
+ margin:0;font-size:19px;font-weight:850;letter-spacing:-.025em;
+ color:#edfdfb;
+}
+#view-asset .ci7-asset-desk-summary{
+ margin:0;color:#a4c6cb;font-size:10px;line-height:1.5;
+}
+#view-asset .ci7-live-states{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
+#view-asset .ci7-live-state{
+ display:grid;gap:6px;min-width:0;
+ padding:9px 8px;border:1px solid #315e67;
+ background:#0a2632;border-radius:11px;
+}
+#view-asset .ci7-live-state span{
+ font-size:9px;color:#91c3c5;
+}
+#view-asset .ci7-live-state strong{
+ font-size:10px;font-weight:690;line-height:1.5;
+ color:#d0e8e8;overflow-wrap:anywhere;
+}
+#view-asset .ci7-research-entry-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+}
+#view-asset .ci7-research-entry{
+ display:flex;align-items:flex-start;min-width:0;
+ text-align:left;gap:9px;padding:13px 9px 12px;
+ min-height:118px;border:1px solid #377982;
+ border-radius:13px;background:linear-gradient(153deg,#123d48,#0b2735);
+ color:#e2f9f6;cursor:pointer;
+ box-shadow:inset 0 1px 0 #caffff0b;
+}
+#view-asset .ci7-research-entry:nth-child(2){
+ border-color:#328a7e;background:linear-gradient(155deg,#15473d,#0a2a30);
+}
+#view-asset .ci7-research-entry:nth-child(3){
+ background:linear-gradient(155deg,#124151,#0b2e41);
+}
+#view-asset .ci7-research-entry:nth-child(4){
+ background:linear-gradient(155deg,#0e3241,#0a2435);
+}
+#view-asset .ci7-entry-icon{
+ width:31px;height:31px;flex:0 0 31px;
+ border-radius:9px;border:1px solid #347d76;
+ background:#0a5653;display:flex;justify-content:center;
+ align-items:center;color:#b8fff0;font-size:16px;font-weight:850;
+}
+#view-asset .ci7-entry-copy{
+ display:grid;gap:5px;min-width:0;flex:1;overflow-wrap:anywhere;
+}
+#view-asset .ci7-entry-copy strong{
+ font-size:12px;line-height:1.2;color:#e5fffa;
+}
+#view-asset .ci7-entry-copy small{
+ font-size:9px;line-height:1.4;color:#96c1c9;
+}
+#view-asset .ci7-entry-copy .ci7-entry-observation{
+ padding-top:5px;border-top:1px solid #2b5965;
+ color:#c1d9dd;overflow-wrap:anywhere;
+}
+#view-asset .ci7-entry-arrow{font-size:21px;color:#7decd4;line-height:1}
+/* Data hub: the previously very long page gets one real source summary,
+ * anchored navigation, then all original functionality without wrappers. */
+#view-asset>.ci7-data-overview{
+ padding:16px 12px 14px;margin:8px 0 14px;
+ border:1px solid #377c7e;border-radius:19px;
+ background:
+ radial-gradient(ellipse 72% 82% at 100% 3%,#1bb3ae28,transparent 80%),
+ linear-gradient(154deg,#0e3642,#0a2230);
+ box-shadow:0 9px 24px #03152072;
+}
+#view-asset .ci7-data-heading{
+ display:grid;gap:7px;margin-bottom:13px;
+}
+#view-asset .ci7-data-heading h3{
+ margin:0;font-size:24px;letter-spacing:-.035em;color:#ebfffd;
+}
+#view-asset .ci7-data-heading>p:last-child{
+ margin:0;color:#a9c9cf;font-size:10px;
+}
+#view-asset .ci7-data-navigation{
+ display:flex;align-items:center;gap:7px;overflow-x:auto;
+ scroll-snap-type:x proximity;overscroll-behavior-x:contain;
+ scrollbar-width:none;padding:2px 0 13px;
+}
+#view-asset .ci7-data-navigation::-webkit-scrollbar{display:none}
+#view-asset .ci7-data-shortcut{
+ flex:0 0 auto;min-height:43px;padding:9px 12px;
+ border-radius:10px;border:1px solid #377c7b;
+ background:#10464b;color:#c8fff2;
+ font-size:11px;font-weight:750;
+ scroll-snap-align:start;cursor:pointer;
+}
+#view-asset .ci7-data-shortcut:focus-visible{
+ outline:2px solid #85f3df;outline-offset:2px;
+}
+#view-asset .ci7-data-status-grid{display:grid;gap:8px}
+#view-asset .ci7-data-state{
+ display:grid;gap:6px;padding:11px 10px;border-radius:11px;
+ border:1px solid #315d68;background:#092735;
+}
+#view-asset .ci7-data-state span{
+ color:#a1cbd0;font-size:10px;font-weight:730;
+}
+#view-asset .ci7-data-state strong{
+ color:#d4e9e8;font-size:10px;font-weight:580;
+ line-height:1.55;overflow-wrap:anywhere;
+}
+#view-asset .ci7-refined-data-card{
+ margin:9px 0 13px!important;
+ border-radius:16px!important;border-color:#326571!important;
+ background:linear-gradient(155deg,#0d2d3a,#0a202e)!important;
+}
+#view-asset .ci7-refined-data-card>.section-title{
+ padding-bottom:9px;border-bottom:1px solid #2b5260;
+ margin-bottom:12px;
+}
+#view-asset .ci7-refined-data-card>.section-title h3{
+ font-size:17px;font-weight:790;color:#dbf9f4;
+}
+#view-asset .liquidity-history-panel canvas,
+#view-asset #network-history-chart{
+ border-radius:12px;background:#061b25;max-width:100%;
+}
+#view-asset [data-asset-pane="data"] .asset-event-list{
+ gap:8px;
+}
+#view-asset #whale-panel,#view-asset #large-trade-panel{
+ padding:13px 11px;margin:12px 0;
+ border-radius:14px;background:#0a2c35;
+ border:1px solid #397a77;
+}
+#view-asset #whale-panel>.section-title,
+#view-asset #large-trade-panel>.section-title{
+ border-bottom:1px solid #315c64;padding-bottom:9px;
+}
+#view-asset #depth-sync-status{
+ border-radius:10px;padding:10px;
+}
+#view-asset .asset-events-panel #source-reconciliation-status,
+#view-asset .asset-events-panel #free-asset-market-status{
+ padding:9px 10px;border:1px solid #2c5360;border-radius:10px;
+ background:#0a2a36;font-size:10px;line-height:1.5;
+}
+/* Source trust screen — understandable status before deep API logs. */
+#view-sources>.ci7-sources-desk{
+ display:grid;gap:13px;
+ margin:5px 0 17px;padding:19px 13px 16px;
+ border:1px solid #328080;border-radius:20px;
+ background:
+ radial-gradient(ellipse 75% 90% at 100% -10%,#1bbab240,transparent 80%),
+ linear-gradient(148deg,#0f3641,#081e2d);
+}
+#view-sources .ci7-sources-desk h3{
+ margin:-8px 0 0;color:#effffc;
+ font-size:clamp(23px,6.2vw,30px);letter-spacing:-.035em;
+}
+#view-sources .ci7-source-description{
+ margin:0;color:#a2c5cc;line-height:1.55;font-size:11px;
+}
+#view-sources .ci7-source-metrics{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+}
+#view-sources .ci7-source-metric{
+ display:grid;align-content:start;gap:8px;min-width:0;
+ min-height:110px;padding:10px 9px;border-radius:11px;
+ border:1px solid #34616d;background:#0a2735;
+}
+#view-sources .ci7-source-metric:first-child{
+ background:#11504b;border-color:#3b8c79;
+}
+#view-sources .ci7-source-metric span{
+ color:#a2ced1;font-size:9px;font-weight:720;line-height:1.4;
+}
+#view-sources .ci7-source-metric strong{
+ color:#e1f5f4;font-size:10px;line-height:1.45;
+ font-weight:650;overflow-wrap:anywhere;
+}
+#view-sources .ci7-sources-navigation{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+}
+#view-sources .ci7-source-nav-button{
+ display:grid;gap:4px;text-align:left;align-content:center;
+ min-width:0;min-height:66px;padding:10px 12px;
+ color:#c0fcf2;background:#103640;
+ border:1px solid #367778;border-radius:12px;
+ cursor:pointer;
+}
+#view-sources .ci7-source-nav-button:nth-child(2){
+ background:#0b4443;
+}
+#view-sources .ci7-source-nav-button strong{
+ font-size:12px;font-weight:770;overflow-wrap:anywhere;
+}
+#view-sources .ci7-source-nav-button small{
+ font-size:9px;color:#a2c6ce;
+}
+#view-sources .ci7-source-section{
+ border:1px solid #30616d;border-radius:17px;
+ margin:13px 0!important;
+ background:linear-gradient(160deg,#0e2e3a,#081f2e);
+}
+#view-sources .ci7-source-section>.section-title{
+ border-bottom:1px solid #305765;
+ padding:0 0 12px;margin-bottom:12px;
+}
+#view-sources .ci7-source-section .source-audit-details>summary{
+ min-height:43px;
+}
+/* QUALITY RESEARCH — 2-column explorer, featured research tiles, actual
+ * Evidence Lab statuses and original 5 native research area controls. */
+#view-quality>.ci-research-landing{
+ display:grid;gap:10px;padding:18px 13px 14px;
+ margin:5px 0 13px;
+ border:1px solid #367b7c;border-radius:19px;
+ background:
+ radial-gradient(ellipse 76% 80% at 100% 0%,#20b0aa38,transparent 83%),
+ linear-gradient(146deg,#0e3440,#092330);
+}
+#view-quality>.ci-research-landing>h2{
+ color:#f0fffc;font-size:clamp(25px,7vw,33px);
+ letter-spacing:-.04em;
+}
+#view-quality>.ci-research-landing>p{
+ color:#a6cbd3;font-size:11px;
+}
+#view-quality .ci-research-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+}
+#view-quality .ci-research-grid .ci-research-card{
+ display:flex;flex-direction:column;align-items:flex-start;
+ gap:8px;min-width:0;min-height:144px;
+ padding:12px 11px;border-radius:13px;
+ border:1px solid #37817b;
+ background:linear-gradient(160deg,#10464a,#0b2b38);
+ box-shadow:inset 0 1px 0 #d3ffff0e;
+}
+#view-quality .ci-research-grid .ci-research-card:nth-child(2){
+ background:linear-gradient(155deg,#123e4e,#0b2a3b);
+ border-color:#32697d;
+}
+#view-quality .ci-research-grid .ci-research-card:nth-child(3){
+ background:linear-gradient(155deg,#123d43,#0b2834);
+}
+#view-quality .ci-research-grid .ci-research-card:nth-child(4){
+ background:linear-gradient(155deg,#174a40,#0b302f);
+}
+#view-quality .ci-research-grid .ci-research-symbol{
+ width:32px;height:32px;flex-basis:32px;
+ font-size:18px;border-radius:9px;
+ background:#0b5653;border-color:#398679;
+}
+#view-quality .ci-research-grid .ci-research-copy{
+ gap:4px;min-width:0;width:100%;
+}
+#view-quality .ci-research-grid .ci-research-copy strong{
+ font-size:12px;line-height:1.35;color:#defdf5;
+}
+#view-quality .ci-research-grid .ci-research-copy small{
+ font-size:10px;line-height:1.4;color:#9ec4cc;
+}
+#view-quality .ci-research-grid .ci-research-arrow{display:none}
+#view-quality>.ci7-research-insights{
+ border:1px solid #306c72;border-radius:16px;
+ background:linear-gradient(157deg,#102f3d,#092331);
+ padding:15px 12px 13px;margin:0 0 13px;
+ display:grid;gap:9px;
+}
+#view-quality .ci7-research-insights h3{
+ margin:0;font-size:17px;color:#e1f8f5;letter-spacing:-.02em;
+}
+#view-quality .ci7-research-status{
+ margin:0;color:#a6cbd1;font-size:10px;line-height:1.6;
+ padding:10px 11px;border-radius:10px;border:1px solid #305d68;
+ background:#0b2936;
+}
+#view-quality .ci7-research-actions{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+}
+#view-quality .ci7-research-actions button{
+ min-height:46px;border-radius:11px;
+ padding:9px 8px;font-size:11px;font-weight:770;
+ cursor:pointer;
+}
+#view-quality .ci7-primary-action{
+ background:#54e7ce;border:1px solid #75ffdc;color:#06282c;
+}
+#view-quality .ci7-secondary-action{
+ background:#123a46;border:1px solid #397c7d;color:#c1f9ef;
+}
+#view-quality .quality-workspace-nav{
+ display:flex;gap:7px;overflow-x:auto;
+ scrollbar-width:none;padding:5px;
+ border:1px solid #2c5b68;border-radius:13px;background:#082532;
+}
+#view-quality .quality-workspace-button{
+ min-height:44px;flex:1 0 auto;min-width:87px;
+ font-size:11px;padding:9px 11px;border-radius:10px;
+}
+#view-quality #quality-workspace-anchor{
+ padding:12px 10px;
+ border-radius:13px;border:1px solid #2e5d69;
+ background:#092835;
+}
+#view-quality .quality-confluence-workspace,
+#view-quality #evidence-lab-panel{
+ border-color:#326d71!important;
+ border-radius:17px!important;
+ background:linear-gradient(156deg,#0e313c,#09232f);
+}
+#view-quality .forecast-confluence-quality,
+#view-quality #evidence-data-cards{min-width:0}
+/* Controlled horizontal overflow — scroll only carousels/tabs, never body. */
+#view-asset, #view-quality, #view-sources{
+ min-width:0;max-width:100%;overflow-x:clip;
+}
+#view-asset #whale-panel,
+#view-asset #large-trade-panel,
+#view-asset .ci7-data-status-grid,
+#view-sources #free-provider-center-panel{
+ min-width:0;max-width:100%;
+}
+#view-asset .ci7-research-entry:focus-visible,
+#view-sources .ci7-source-nav-button:focus-visible,
+#view-quality .ci-research-card:focus-visible{
+ outline:2px solid #99ffe6;outline-offset:2px;
+}
+#view-asset #whale-panel,
+#view-asset #liquidity-history-panel,
+#view-asset #asset-news-list,
+#view-asset #source-reconciliation-list,
+#view-sources #source-list,
+#view-sources #free-provider-center-panel,
+#view-sources #native-storage-panel,
+#view-sources .update-panel{
+ scroll-margin-top:95px;
+}
+@media(max-width:390px){
+ #view-asset>.hero{padding:16px 11px 13px!important}
+ #view-asset .candle-panel{padding:11px 7px 10px!important}
+ #view-asset>.ci7-asset-desk{padding:12px 9px}
+ #view-asset .ci7-research-entry-grid{gap:6px}
+ #view-asset .ci7-research-entry{
+  padding:10px 7px;gap:5px;min-height:117px;
+ }
+ #view-asset .ci7-entry-icon{width:27px;height:27px;flex-basis:27px}
+ #view-asset .ci7-entry-copy strong{font-size:11px}
+ #view-asset .ci7-entry-copy small{font-size:9px}
+ #view-sources .ci7-source-metrics{gap:5px}
+ #view-sources .ci7-source-metric{padding:8px 6px}
+ #view-quality .ci-research-grid{gap:7px}
+ #view-quality .ci-research-grid .ci-research-card{padding:10px 8px}
+}
+@media(prefers-reduced-motion:reduce){
+ #view-asset .ci7-research-entry,
+ #view-sources .ci7-source-nav-button,
+ #view-quality .ci-research-card{transition:none!important}
+}
