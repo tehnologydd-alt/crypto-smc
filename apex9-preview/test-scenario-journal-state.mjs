@@ -73,16 +73,19 @@ test('source-verified M15 stages override generic cached native status',()=>{
 });
 test('All counts and list both use the same directional M15/H4 records',()=>{
  const view=scenarioJournalState(rows,{now,stage:'CONFIRMED'});
+ // At this test time the three M15 windows are overdue without a
+ // verified terminal Room result. They must NOT count as live, nor completed.
  assert.deepEqual(view.counts,{
-  PENDING_CONFIRMATION:1,CONFIRMED:1,ACTIVE:1,COMPLETED:1
+  PENDING_CONFIRMATION:0,CONFIRMED:0,ACTIVE:0,COMPLETED:1
  });
- assert.equal(view.inWork,3);
+ assert.equal(view.inWork,0);
  assert.equal(view.completed,1);
- assert.deepEqual(view.visible.map(x=>x.id),[limit.id]);
+ assert.deepEqual(view.visible.map(x=>x.id),[]);
  assert.equal(view.archive.length,0);
+ assert.equal(view.archiveUnverified.length,3);
  assert.equal(view.loaded,5);
- assert.equal(view.scenarios.length,4);
- assert.equal(view.preferred,'PENDING_CONFIRMATION');
+ assert.equal(view.scenarios.length,1);
+ assert.equal(view.preferred,'COMPLETED');
 });
 test('Marked mode does not copy All tab badges or historical entry totals',()=>{
  const onlyCompleted=scenarioJournalState(rows,{
@@ -98,8 +101,9 @@ test('Marked mode does not copy All tab badges or historical entry totals',()=>{
  const onlyLive=scenarioJournalState(rows,{
   now,mode:'tracked',stage:'ACTIVE',selectedIds:[active.id]
  });
- assert.equal(onlyLive.inWork,1);
- assert.deepEqual(onlyLive.visible.map(x=>x.id),[active.id]);
+ assert.equal(onlyLive.inWork,0);
+ assert.deepEqual(onlyLive.visible.map(x=>x.id),[]);
+ assert.deepEqual(onlyLive.archiveUnverified.map(x=>x.id),[active.id]);
  assert.equal(onlyLive.completed,0);
  assert.equal(scenarioJournalState(rows,{
   now,mode:'tracked',stage:'ACTIVE',selectedIds:[]
@@ -107,7 +111,8 @@ test('Marked mode does not copy All tab badges or historical entry totals',()=>{
 });
 test('V1 range archive does not inflate live directed-scenario counters',()=>{
  const counted=scenarioJournalState(rows,{now,stage:'ACTIVE'});
- assert.equal(counted.counts.ACTIVE,1);
+ assert.equal(counted.counts.ACTIVE,0);
+ assert.equal(counted.archiveUnverified.length,3);
  assert.equal(counted.archive.length,1);
  const onlyOld=scenarioJournalState(rows,{
   now,mode:'tracked',stage:'ACTIVE',selectedIds:[legacy.id]

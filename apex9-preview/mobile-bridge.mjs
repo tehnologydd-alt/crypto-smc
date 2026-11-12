@@ -30,16 +30,17 @@ export async function listenMobileNotificationOpen(onOpen){
 }
 
 /** User-initiated encrypted archive to a SAF cloud document (Google Drive etc). */
-export async function exportMobileCloudBackup(passphrase,uiMarkedIds=[]){
+export async function exportMobileCloudBackup(passphrase,uiMarkedIds=[],uiHiddenIds=[]){
  const native=plugin();
  if(typeof native?.backupToCloud!=='function')
   return {saved:false,error:'Нужна Android-сборка с облачным архивом'};
  if(typeof passphrase!=='string'||passphrase.length<12||passphrase.length>128)
   return {saved:false,error:'Парольная фраза: от 12 до 128 символов'};
- if(!Array.isArray(uiMarkedIds)||uiMarkedIds.length>300)
-  return {saved:false,error:'Слишком много отмеченных сценариев'};
+ if(!Array.isArray(uiMarkedIds)||uiMarkedIds.length>300||
+  !Array.isArray(uiHiddenIds)||uiHiddenIds.length>300)
+  return {saved:false,error:'Слишком много отмеченных или скрытых сценариев'};
  try {
-  return await native.backupToCloud({passphrase,uiMarkedIds});
+  return await native.backupToCloud({passphrase,uiMarkedIds,uiHiddenIds});
  }catch(error){
   return {saved:false,error:String(error?.message||error).slice(0,210)};
  }

@@ -70,13 +70,13 @@ class ApexNativePlugin : Plugin() {
             call.reject("Введите парольную фразу от 12 до 128 символов")
             return
         }
-        val ui=call.data.optJSONArray("uiMarkedIds")
-        if(ui!=null){
+        for(key in listOf("uiMarkedIds","uiHiddenIds")){
+            val ids=call.data.optJSONArray(key) ?: continue
             val regex=Regex("^(direction[23]|range1):[A-Z0-9]{5,20}:(1h|15m|4h):[0-9]{10,16}$")
-            val marks=(0 until ui.length()).map{ui.opt(it)}
-            if(ui.length()>300||marks.any{it !is String||!regex.matches(it)}||
-                marks.distinct().size!=marks.size){
-                call.reject("Недопустимые ID отмеченных сценариев")
+            val values=(0 until ids.length()).map{ids.opt(it)}
+            if(ids.length()>300||values.any{it !is String||!regex.matches(it)}||
+                values.distinct().size!=values.size){
+                call.reject("Недопустимые ID отмеченных/скрытых сценариев")
                 return
             }
         }
@@ -106,8 +106,11 @@ class ApexNativePlugin : Plugin() {
                 val ui=call.data.optJSONArray("uiMarkedIds")
                 val stars=if(ui==null) emptyList() else
                     (0 until ui.length()).map{ui.getString(it)}
+                val hidden=call.data.optJSONArray("uiHiddenIds")
+                val hiddenIds=if(hidden==null)emptyList() else
+                    (0 until hidden.length()).map{hidden.getString(it)}
                 val report=ApexPortableBackup.exportTo(
-                    context.applicationContext,uri,password,stars)
+                    context.applicationContext,uri,password,stars,hiddenIds)
                 call.resolve(JSObject(report.toString()))
             }catch(e:Exception){
                 call.reject("Не удалось сохранить архив: "+

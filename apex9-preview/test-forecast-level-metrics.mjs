@@ -101,5 +101,7 @@ test('both All and Marked render through shared cards with outcome strip and lev
  assert.ok(css.includes('.forecast-record.forecast-visual.is-completed.tone-tp3'));
  assert.ok(prep.includes("'forecast-level-metrics.mjs'"));
  const legacy=file('./forecast-directional-card.mjs');
- assert.ok(legacy.includes('Архив диапазона · H1 · без направления'));
+ assert.ok(legacy.includes('Архив диапазона · без направления'));
+ assert.ok(legacy.includes('createForecastIdentity(row,{frame:'));
+ assert.ok(prep.includes("'forecast-card-identity.mjs'"));
 });

@@ -16,6 +16,7 @@ import {attachAssetLogo} from './asset-logo.mjs';
 import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {scenarioJournalState,scenarioJournalRows} from './scenario-journal-state.mjs';
+import {forecastExpiredUnverified} from './forecast-stale-archive.mjs';
 import {directionalQualitySummary,verifiedDirectionalEvidence} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
@@ -25,9 +26,12 @@ import {displayPair,priceText,stagePresentation,
  observedLevelSummary,scenarioCopyText,SIDE_LABEL} from './forecast-card-ux.mjs';
 import {readRadarChanges} from './radar-changes.mjs';
 import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.mjs';
-import {directionalHypothesis} from './directional-scenario.mjs';
+import {directionalHypothesis,planDirectionalScenario} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
-import {multiFrameHypothesis,multiFrameForecastCard,multiFrameQuality,
+import {compactLevelPrice} from './forecast-compact-card.mjs';
+import {forecastLevelMetrics,displayPriceMove,displayRiskReward}
+ from './forecast-level-metrics.mjs';
+import {multiFrameHypothesis,multiFrameForecastCard,planMultiFrameForecast,multiFrameQuality,
  multiFrameAgreement,multiFrameEvidence} from './forecast-multiframe.mjs';
 import {evidenceCohorts} from './forecast-evidence-context.mjs';
 import {initFeatureHoldoutDashboard} from './forecast-feature-dashboard.mjs';
@@ -273,13 +277,116 @@ async function copyResearchText(value){
  input.remove();
  return ok;
 }
-/** Single card; "Отмеченные" and "демо-журнал" are one and the same saved ID set. */
+/**
+ * Completed records use the SAME closed compact shell as Limit/Active.
+ * Full verified terminal history, source panels and their callbacks remain
+ * in a single on-demand details section. Terminal tone colors are untouched.
+ */
+function compactifyCompletedCard(row,card,{tracked=false,onToggle,onOpen}={}){
+ if(!card?.classList?.contains('is-completed'))return card;
+ const verification=row.interval==='1h'?
+  planDirectionalScenario(row,{now:Date.now()}):
+  planMultiFrameForecast(row,{now:Date.now()});
+ if(verification?.state!=='READY')return card;
+ const plan=verification.plan;
+ const head=card.querySelector('.forecast-unified-head');
+ if(!head)return card;
+ const whale=card.querySelector('.forecast-whale-check');
+ const panel=card.querySelector('.forecast-completed-panel');
+ const oldFold=card.querySelector('.forecast-card-fold');
+ const originalResult=card.querySelector('.forecast-final-snapshot');
+ const verificationStages=[...(panel?.querySelectorAll('.forecast-completed-stage')||[])];
+ const hits=[...(panel?.querySelectorAll('.forecast-completed-tp')||[])];
+ const entered=verificationStages[1]?.classList.contains('is-verified')===true;
+ const finalVerified=verificationStages[2]?.classList.contains('is-verified')===true;
+ const frame=plan.evaluationInterval==='1m'?'M1':
+  plan.evaluationInterval==='5m'?'M5':
+  row.interval==='15m'?'M15':row.interval==='4h'?'H4':'H1';
+ const note=create('p','forecast-compact-note',finalVerified?
+  'Наблюдение завершено · итог проверен по '+frame:
+  'Наблюдение завершено · последовательность исхода требует проверки');
+ const progress=create('div','forecast-compact-progress');
+ for(const [index,label] of ['Вход','TP1','TP2','TP3'].entries()){
+  const observed=index===0?entered:hits[index-1]?.classList.contains('is-hit')===true;
+  progress.append(create('span','forecast-compact-event'+(observed?' is-hit':''),
+   (observed?'✓ ':'· ')+label));
+ }
+ const details=create('details','forecast-compact-details forecast-completed-details');
+ details.append(create('summary','','Все уровни и история'));
+ const levels=create('div','forecast-compact-full-levels');
+ const metrics=forecastLevelMetrics(plan);
+ const feedback=create('p','forecast-compact-copy-feedback');
+ feedback.setAttribute('role','status');
+ feedback.setAttribute('aria-live','polite');
+ for(const [label,key] of [['Вход','entry'],['SL','sl'],
+  ['TP1','tp1'],['TP2','tp2'],['TP3','tp3']]){
+  const tile=create('div','forecast-compact-full-level');
+  const button=create('button','forecast-compact-level-copy',
+   key==='entry'?priceText(plan[key]):compactLevelPrice(plan[key]));
+  button.type='button';
+  button.title='Копировать '+label+' (полную цену без округления)';
+  button.setAttribute('aria-label',label+' · скопировать полную цену');
+  button.addEventListener('click',()=>void copyResearchText(priceText(plan[key]))
+   .then(ok=>{feedback.textContent=ok?
+    label+': скопировано полное значение '+priceText(plan[key]):
+    'Не удалось скопировать '+label;}));
+  tile.append(create('span','',label),button);
+  if(metrics.state==='VALID'){
+   const info=key==='entry'?'Опорная цена':
+    key==='sl'?'Δ '+displayPriceMove(metrics.sl.deltaPct)+' · риск 1R':
+    'Δ '+displayPriceMove(metrics.targets[key].deltaPct)+
+    ' · '+displayRiskReward(metrics.targets[key].rMultiple);
+   tile.append(create('small','',info));
+  }
+  levels.append(tile);
+ }
+ details.append(levels,feedback);
+ // One common fold like Active, keeping the original validated event order.
+ // Never place the previous large summary/level cards inside this compact shell.
+ if(originalResult&&!originalResult.hidden)details.append(originalResult);
+ for(const selector of ['.forecast-event-timeline','.forecast-event-replay',
+  '.forecast-technical-notes','.forecast-visual-provenance',
+  '.forecast-level-math-note']){
+  const section=oldFold?.querySelector(selector);
+  if(section)details.append(section);
+ }
+ const provenance=panel?.querySelector('.forecast-completed-source');
+ if(provenance)details.append(provenance);
+ details.append(create('p','forecast-compact-meta',
+  'Касание уровня — наблюдение, а не исполненная сделка.'));
+ const actions=create('div','forecast-compact-actions');
+ const mark=create('button','forecast-compact-mark',tracked?'★ Отмечен':'☆ Отметить');
+ mark.type='button';mark.setAttribute('aria-pressed',String(tracked));
+ mark.addEventListener('click',()=>onToggle?.(row.id));
+ const open=create('button','forecast-compact-open','Открыть актив');
+ open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset,row.id));
+ const copy=create('button','forecast-compact-copy','Копировать');
+ copy.type='button';
+ copy.addEventListener('click',async()=>{
+  const title=row.interval==='15m'?'M15':row.interval==='4h'?'H4':'H1';
+  const lines=[displayPair(row.asset)+' · '+title+' · '+
+   (plan.side==='UP'?'↑ Рост':'↓ Снижение'),
+   'Вход '+priceText(plan.entry),'SL '+priceText(plan.sl),
+   ...['tp1','tp2','tp3'].map(k=>k.toUpperCase()+' '+priceText(plan[k]))];
+  copy.textContent=await copyResearchText(lines.join('\n'))?
+   '✓ Скопировано':'Копировать';
+ });
+ actions.append(mark,open,copy);
+ card.replaceChildren(head);
+ if(whale)card.append(whale);
+ card.append(note,progress,details,actions);
+ card.classList.add('forecast-compact-card','forecast-unified-completed');
+ return card;
+}
+/** Single card; all and marked scenarios share the same compact shape. */
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  if(multiFrameHypothesis(row))
-  return multiFrameForecastCard(row,{tracked,onToggle,onOpen,copyText:copyResearchText});
+  return compactifyCompletedCard(row,multiFrameForecastCard(row,{
+   tracked,onToggle,onOpen,copyText:copyResearchText}),{tracked,onToggle,onOpen});
  if(directionalHypothesis(row))
-  return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
-   sourceH1,sourceM5,sourceM1:sourceM5,copyText:copyResearchText});
+  return compactifyCompletedCard(row,directionalForecastCard(row,{
+   tracked,onToggle,onOpen,getMini,sourceH1,sourceM5,sourceM1:sourceM5,
+   copyText:copyResearchText}),{tracked,onToggle,onOpen});
  return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
 }
 function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
@@ -523,6 +630,18 @@ export function initFavoriteResearch({
     'Цены Binance недоступны';
   });
  }
+ let hidden=new Set();
+ try {
+  const items=JSON.parse(localStorage.getItem('apex9_hidden_research_ids_v1')||'[]');
+  if(Array.isArray(items))
+   hidden=new Set(items.filter(x=>typeof x==='string'&&
+    /^(direction2|direction3|range1):[A-Z0-9]{5,20}:(1h|15m|4h):\d{10,16}$/.test(x))
+    .slice(-300));
+ }catch{}
+ const persistHidden=()=>{
+  try{localStorage.setItem('apex9_hidden_research_ids_v1',
+   JSON.stringify([...hidden].slice(-300)));}catch{}
+ };
  let selected=new Set();
  try{
   const stored=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');
@@ -1100,7 +1219,7 @@ export function initFavoriteResearch({
   }
   if(journalMode==='tracked'){
    const view=scenarioJournalState(displayedJournal(),{
-    selectedIds:[...selected],mode:journalMode,stage
+    selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
    });
    if(!view.counts[stage]&&view.scenarios.length)
     stage=view.preferred;
@@ -1233,7 +1352,7 @@ export function initFavoriteResearch({
    return;
   }
   const view=scenarioJournalState(displayedJournal(),{
-   selectedIds:[...selected],mode:journalMode,stage
+   selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
   });
   for(const [key,count] of Object.entries(view.counts))
    id('stage-count-'+key).textContent=String(count);
@@ -1244,6 +1363,7 @@ export function initFavoriteResearch({
   const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
   const multi=visible.filter(row=>Boolean(multiFrameHypothesis(row)));
   const legacy=view.archive;
+  const expired=view.archiveUnverified;
   if(journalMode==='tracked'){
    box.append(create('p','forecast-marked-restored',
     'Сохранено отметок: '+selected.size+
@@ -1266,7 +1386,7 @@ export function initFavoriteResearch({
     'Не найдены в Room: '+markedMissing.length+
     ' сохранённых отметок. Они не удалены из настроек и не засчитаны как прогнозы.'));
   }
-  if(!directed.length&&!multi.length&&!legacy.length){
+  if(!directed.length&&!multi.length&&!legacy.length&&!expired.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
      (selected.size?
@@ -1276,6 +1396,47 @@ export function initFavoriteResearch({
   }else {
    for(const row of directed)box.append(renderCard(row));
    for(const row of multi)box.append(renderCard(row));
+  }
+  if(expired.length){
+   const archive=create('details','forecast-expired-archive');
+   archive.append(create('summary','forecast-range-archive-title',
+    'Просроченные · без подтверждённого исхода · '+expired.length),
+    create('p','forecast-range-archive-note',
+     'Это не завершённые сделки. Срок исследования истёк, но Room '+
+     'не подтвердил итог. История сохранена для проверки.'));
+   for(const row of expired){
+    const card=renderCard(row);
+    card.prepend(create('p','forecast-expired-label',
+     'Архив без результата · '+row.archiveReason));
+    archive.append(card);
+   }
+   box.append(archive);
+  }
+  if(hidden.size){
+   const undo=create('details','forecast-hidden-archive');
+   undo.append(create('summary','forecast-range-archive-title',
+    'Скрытые карточки · '+hidden.size+' · восстановить'));
+   undo.append(create('p','forecast-range-archive-note',
+    'Скрытие убирает карточку с экрана, не удаляет исходный прогноз из Room.'));
+   const allHidden=[...hidden].slice(-300).reverse();
+   for(const key of allHidden){
+    const row=displayedJournal().find(x=>x.id===key);
+    const line=create('div','forecast-hidden-row');
+    const title=create('small','',row?
+     displayPair(row.asset)+' · '+row.interval+' · '+
+      new Date(row.publishedAt).toLocaleString('ru-RU'):
+      'ID '+key);
+    const restore=create('button','ghost','Вернуть');
+    restore.type='button';
+    restore.addEventListener('click',()=>{
+     hidden.delete(key);persistHidden();renderRows();
+    });
+    line.append(title,restore);undo.append(line);
+   }
+   const all=create('button','ghost forecast-hidden-restore-all','Вернуть все');
+   all.type='button';
+   all.addEventListener('click',()=>{hidden.clear();persistHidden();renderRows();});
+   undo.append(all);box.append(undo);
   }
   if(legacy.length){
    const archive=create('details','forecast-range-archive');
@@ -1310,7 +1471,7 @@ export function initFavoriteResearch({
   lastRows=Array.isArray(data.forecasts)?data.forecasts:[];
   lastTotal=data.publishedCount||lastRows.length;
   const scope=scenarioJournalState(lastRows,{
-   selectedIds:[...selected],mode:journalMode,stage
+   selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
   });
   if(!stageTouched&&journalMode==='all')stage=scope.preferred;
   for(const b of document.querySelectorAll('[data-forecast-stage]')){
@@ -1322,6 +1483,7 @@ export function initFavoriteResearch({
  }
  function getScenarioRows(asset){
   return lastRows.filter(x=>x.asset===asset&&
+   !hidden.has(x.id)&&!forecastExpiredUnverified(x)&&
    ['PENDING_CONFIRMATION','CONFIRMED','ACTIVE'].includes(forecastStage(x)));
  }
  function message(text,error=false){
@@ -1386,7 +1548,7 @@ export function initFavoriteResearch({
    if(journalMode==='tracked'){
     if(markedReadyFor===selectedKey()&&!markedError){
      const view=scenarioJournalState(displayedJournal(),{
-      selectedIds:[...selected],mode:journalMode,stage
+      selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
      });
      if(!view.counts[stage]&&view.scenarios.length)
       stage=view.preferred;
@@ -1394,7 +1556,7 @@ export function initFavoriteResearch({
     }else void loadMarkedRows();
    }else{
     const view=scenarioJournalState(lastRows,{
-     selectedIds:[...selected],mode:journalMode,stage
+     selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
     });
     if(!view.counts[stage])stage=view.preferred;
     renderRows();

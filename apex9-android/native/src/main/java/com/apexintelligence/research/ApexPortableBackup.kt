@@ -82,13 +82,15 @@ object ApexPortableBackup {
             }
         } finally { material.fill(0) }
     }
-    private fun settingsJson(settings:ResearchSettings,uiIds:List<String>):JSONObject {
+    private fun settingsJson(settings:ResearchSettings,uiIds:List<String>,hiddenIds:List<String>):JSONObject {
         val favourites=JSONArray()
         settings.favorites.forEach{favourites.put(it)}
         val marked=JSONArray()
         settings.alertMarkedIds.sorted().forEach{marked.put(it)}
         val ui=JSONArray()
         uiIds.forEach{ui.put(it)}
+        val hidden=JSONArray()
+        hiddenIds.forEach{hidden.put(it)}
         return JSONObject().put("asset",settings.asset)
             .put("favorites",favourites)
             .put("backgroundSyncEnabled",settings.backgroundSyncEnabled)
@@ -99,6 +101,7 @@ object ApexPortableBackup {
             .put("alertScope",settings.alertScope)
             .put("alertMarkedIds",marked)
             .put("uiMarkedIds",ui)
+            .put("uiHiddenIds",hidden)
             .put("alertsEnabledAt",settings.alertsEnabledAt)
             .put("keepScreenOn",settings.keepScreenOn)
     }
@@ -142,7 +145,8 @@ object ApexPortableBackup {
      * Zip is encrypted BEFORE it touches the filesystem, so even an abrupt
      * crash cannot strand a plaintext research export in Android cache.
      */
-    private fun makeEncrypted(context:Context,password:CharArray,uiIds:List<String>):Pair<File,JSONObject> {
+    private fun makeEncrypted(context:Context,password:CharArray,
+        uiIds:List<String>,hiddenIds:List<String>):Pair<File,JSONObject> {
         securePassword(password)
         val app=context.applicationContext
         val settings=kotlinx.coroutines.runBlocking { ApexPreferences.read(app) }
@@ -159,7 +163,7 @@ object ApexPortableBackup {
                 ZipOutputStream(BufferedOutputStream(
                     CipherOutputStream(file,cipher))).use { zip ->
                     db.runInTransaction {
-                        zipText(zip,"settings.json",settingsJson(settings,uiIds).toString())
+                        zipText(zip,"settings.json",settingsJson(settings,uiIds,hiddenIds).toString())
                         for((table,columns) in tableColumns)
                             counts.put(table,rowsToZip(
                                 db.openHelper.writableDatabase,zip,table,columns))
@@ -182,8 +186,8 @@ object ApexPortableBackup {
      * that the selected document stream was written and closed successfully.
      */
     fun exportTo(context:Context,uri:Uri,password:CharArray,
-        uiIds:List<String>):JSONObject {
-        val (encrypted,counts)=makeEncrypted(context,password,uiIds)
+        uiIds:List<String>,hiddenIds:List<String>):JSONObject {
+        val (encrypted,counts)=makeEncrypted(context,password,uiIds,hiddenIds)
         try{
             val output=context.contentResolver.openOutputStream(uri,"w")
                 ?:throw IllegalStateException("Облачный документ недоступен для записи")
@@ -369,6 +373,7 @@ object ApexPortableBackup {
                 return JSONObject().put("restored",true)
                     .put("settingsRestored",settingsRestored)
                     .put("uiMarkedIds",settings.optJSONArray("uiMarkedIds")?:JSONArray())
+                    .put("uiHiddenIds",settings.optJSONArray("uiHiddenIds")?:JSONArray())
                     .put("exportedAt",manifest.getLong("exportedAt"))
                     .put("scannedRows",scanned)
                     .put("note",if(settingsRestored)

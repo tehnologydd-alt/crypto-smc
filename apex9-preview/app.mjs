@@ -294,7 +294,15 @@ async function runCloudBackup(mode){
    }catch{
     throw Error('Не удалось проверить сохранённые отметки сценариев.');
    }
-   result=await exportMobileCloudBackup(passphrase,ids);
+   // Reversible UI-only hidden cards are portable too; the Room originals
+   // and forecast outcomes remain unchanged in the encrypted research file.
+   const hiddenRaw=JSON.parse(localStorage.getItem(
+    'apex9_hidden_research_ids_v1')||'[]');
+   const hiddenIds=Array.isArray(hiddenRaw)?[...new Set(hiddenRaw.filter(
+    key=>typeof key==='string'&&
+     /^(direction2|direction3|range1):[A-Z0-9]{5,20}:(1h|15m|4h):\d{10,16}$/.test(key)
+   ))].slice(-300):[];
+   result=await exportMobileCloudBackup(passphrase,ids,hiddenIds);
   }
   if(result?.cancelled){
    text('apex-backup-status','Выбор файла отменён. История не изменена.');
@@ -319,6 +327,18 @@ async function runCloudBackup(mode){
     ]).slice(0,300);
     try{localStorage.setItem('apex9_selected_research_ids_v1',
      JSON.stringify(merged));}catch{}
+   }
+   if(Array.isArray(result.uiHiddenIds)){
+    let savedHidden=[];
+    try{savedHidden=JSON.parse(localStorage.getItem(
+     'apex9_hidden_research_ids_v1')||'[]');}catch{}
+    const mergedHidden=[...new Set([
+     ...result.uiHiddenIds,...(Array.isArray(savedHidden)?savedHidden:[])
+    ].filter(key=>typeof key==='string'&&
+     /^(direction2|direction3|range1):[A-Z0-9]{5,20}:(1h|15m|4h):\d{10,16}$/.test(key)
+    ))].slice(-300);
+    try{localStorage.setItem('apex9_hidden_research_ids_v1',
+     JSON.stringify(mergedHidden));}catch{}
    }
    text('apex-backup-status',
     'История APEX объединена с архивом. Перезапускаем экран для проверки…');

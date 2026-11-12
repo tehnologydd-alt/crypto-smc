@@ -8,6 +8,7 @@ import {planDirectionalScenario,auditDirectionalScenario,directionalOutcomeLabel
 import {forecastStage} from './favorite-logic.mjs';
 import {compactOpenForecastCard} from './forecast-compact-card.mjs';
 import {whaleCheckBadge} from './forecast-whale-check.mjs';
+import {createForecastIdentity} from './forecast-card-identity.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
@@ -44,10 +45,8 @@ export function legacyRangeCard(row,options={}){
  const finished=trace.state==='EVALUATED'||forecastStage(row)==='COMPLETED';
  const card=create('article','forecast-record forecast-visual forecast-legacy'+
   (finished?' is-completed':''));
- const head=create('div','forecast-visual-head');
- const name=create('div','forecast-visual-identity');
- name.append(create('strong','',displayPair(row.asset)),
-  create('small','','Архив диапазона · H1 · без направления'));
+ const head=create('div','forecast-visual-head forecast-compact-head forecast-unified-head');
+ const name=createForecastIdentity(row,{frame:'H1',method:'Архив диапазона · без направления'});
  head.append(name,create('span','forecast-visual-state '+(finished?'finished':'warning'),
   finished?'Завершено · архив':'Архив · не направленный'));
  card.append(head,create('p','forecast-visual-provenance',
@@ -92,16 +91,18 @@ export function directionalForecastCard(row,{
   frame:sourceFrame
  });
  const card=create('article','forecast-record forecast-visual forecast-directional'+
-  (finishedRoom?' is-completed tone-'+completion.tone:''));
- const top=create('div','forecast-visual-head');
- const names=create('div','forecast-visual-identity');
- names.append(create('strong','',displayPair(row.asset)+
-  (plan?' · H1 · '+(plan.side==='DOWN'?'SHORT':'LONG'):'')),
-  create('small','',plan?control.label+' · '+labelForSide(plan.side):
-   'Сценарий · проверка целостности'));
+  (finishedRoom?' is-completed tone-'+completion.tone:' forecast-compact-card forecast-unverified-card'));
+ const top=create('div','forecast-visual-head forecast-compact-head forecast-unified-head');
+ const names=createForecastIdentity(row,{
+  frame:'H1',side:plan?.side,
+  method:plan?control.label+' · '+labelForSide(plan.side):
+   'Сценарий · проверка целостности',
+  unverified:verified.state!=='READY'
+ });
  const state=create('span','forecast-visual-state '+(finishedRoom?
-  'finished tone-'+completion.tone:'active'),
+  'finished tone-'+completion.tone:verified.state!=='READY'?'warning':'active'),
   finishedRoom?completion.symbol+' '+completion.label:
+   verified.state!=='READY'?'Проверка данных':
    visibleStage==='ACTIVE'?'Активный':
    visibleStage==='CONFIRMED'?'Лимитный':'Ожидает');
  top.append(names,state);card.append(top);
