@@ -3730,3 +3730,11 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 #view-forecasts .forecast-whale-details .forecast-whale-coverage{
  padding:8px 12px 12px;margin:0;line-height:1.65;font-size:11px;
  overflow-wrap:anywhere}
+
+
+/* Late old forecasts stay immutable; flag the delay instead of backfilling
+   imaginary entries or portraying the original anchor as publication time. */
+.clean-chart-publication-warning,.forecast-publication-warning{
+ border:1px solid #8f6d43;border-radius:10px;
+ padding:9px 11px;margin:8px 0 10px;background:#312a20;
+ color:#e9ce9d;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
