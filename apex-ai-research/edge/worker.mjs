@@ -11,6 +11,29 @@ export const MODELS=Object.freeze({
  critic:'@cf/qwen/qwen3.8-27b',
 });
 const CAP=12; // conservative attempt ceiling shared by both language agents
+const BOOSTER_FEATURES=Object.freeze([
+ 'return_1m','return_5m','volatility_15m','volume_z_15m',
+ 'spread_bps','book_imbalance','large_trade_pressure',
+ 'whale_flow_score','relative_volume','cross_venue_disagreement'
+]);
+export function validateBoosterPayload(value){
+ const obs=value?.observation;
+ if(!obs||!(/^[A-Z0-9]{2,24}$/.test(obs.asset||''))||
+  !Array.isArray(obs.source_ids)||!obs.source_ids.length||
+  obs.source_ids.length>20||obs.source_ids.some(x=>
+   typeof x!=='string'||!x.trim()||x.length>100))
+   return null;
+ const features=obs.features;
+ if(!features||typeof features!=='object'||Array.isArray(features)||
+  Object.keys(features).length!==BOOSTER_FEATURES.length||
+  BOOSTER_FEATURES.some(x=>
+   typeof features[x]!=='number'||!Number.isFinite(features[x])))
+   return null;
+ return {observation:{asset:obs.asset,
+  source_ids:obs.source_ids,features:Object.fromEntries(
+   BOOSTER_FEATURES.map(x=>[x,features[x]]))}};
+}
+
 const json=(body,status=200)=>new Response(JSON.stringify(body),{
  status,headers:{
   'Content-Type':'application/json;charset=utf-8',
@@ -112,6 +135,33 @@ export default {
     return json(await r.json());
    }catch{return json({state:'OFFLINE'},503);}
   }
+  if(path==='/v1/boosters/predict'&&request.method==='POST'){
+   if(!env?.COMPUTE_ORIGIN||!env?.APEX_COMPUTE_TOKEN)
+    return json({state:'NOT_CONFIGURED'},503);
+   const origin=String(env.COMPUTE_ORIGIN);
+   if(!origin.startsWith('https://'))return json({state:'INVALID_ORIGIN'},503);
+   const data=await readBoundedJson(request);
+   if(!data)return json({error:'INVALID_JSON_OR_TOO_LARGE'},400);
+   const observation=validateBoosterPayload(data);
+   if(!observation)return json({error:'INVALID_OBSERVATION'},422);
+   try{
+    const result=await fetch(new URL('/v1/predict',origin),{
+     method:'POST',headers:{
+      'Content-Type':'application/json',
+      Authorization:'Bearer '+env.APEX_COMPUTE_TOKEN
+     },
+     body:JSON.stringify(observation),
+     signal:AbortSignal.timeout(7000),
+    });
+    if(result.status===409)return json({state:'NOT_TRAINED'},409);
+    if(!result.ok)return json({state:'COMPUTE_UNAVAILABLE'},503);
+    const payload=await result.json();
+    if(payload?.state!=='MODEL_ESTIMATE'||payload.source_ids?.length!==
+       observation.observation.source_ids.length)
+      return json({state:'INVALID_COMPUTE_RESPONSE'},503);
+    return json(payload);
+   }catch{return json({state:'COMPUTE_OFFLINE'},503);}
+  }
   if(path!=='/v1/agents/analyze'||request.method!=='POST')
    return json({error:'NOT_FOUND'},404);
   if(!env?.AI||!env?.DB)return json({error:'NOT_CONFIGURED'},503);
@@ -131,7 +181,7 @@ export default {
      {role:'system',content:instructions[verified.role]},
      {role:'user',content:JSON.stringify({evidence:verified.evidence})}
     ],
-    max_tokens:650,temperature:0.2,
+    max_completion_tokens:650,temperature:0.2,
    });
    const response=extractText(answer);
    if(!response)return json({error:'EMPTY_MODEL_OUTPUT'},503);
