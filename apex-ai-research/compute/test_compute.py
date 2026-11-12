@@ -69,7 +69,9 @@ class APEXResearchServerTests(unittest.TestCase):
             try:
                 self.assertEqual(server.model_status()["state"],"NOT_TRAINED")
                 (model_dir/"active.json").write_text(json.dumps({
-                    "version":"ciTest1","asset":"BTCUSDT"
+                    "version":"ciTest1","asset":"BTCUSDT",
+                    "feature_keys":list(server.FEATURES),
+                    "model_sha256":report["model_sha256"]
                 }),encoding="utf-8")
                 self.assertEqual(server.model_status()["state"],"ACTIVE")
                 features={k:0.1 for k in server.FEATURES}
