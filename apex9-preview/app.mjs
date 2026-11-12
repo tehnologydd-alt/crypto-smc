@@ -1509,6 +1509,7 @@ initCleanIntelligenceMajor();
 initCleanIntelligenceAssetHub();
 initCleanIntelligenceEditorial();
 initCleanIntelligenceAudit();
+initCleanIntelligenceSourceFolds();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
