@@ -28,6 +28,9 @@ def load_rows(path: Path):
         keys = set(raw)
         if keys != {"asset", "observed_at", "resolved_at", "label", "source_ids", "features"}:
             raise ValueError(f"Line {line_number}: unexpected or missing field")
+        if not (isinstance(raw["asset"], str) and raw["asset"].isalnum()
+                and raw["asset"].isupper() and 2 <= len(raw["asset"]) <= 24):
+            raise ValueError(f"Line {line_number}: invalid asset")
         if type(raw["label"]) is not int or raw["label"] not in (0, 1):
             raise ValueError(f"Line {line_number}: outcome not confirmed")
         if (type(raw["observed_at"]) is not int or
