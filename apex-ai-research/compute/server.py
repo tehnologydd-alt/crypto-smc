@@ -3,6 +3,7 @@
 This service cannot invent a trained model. No live prediction is returned
 until a separately evaluated candidate is activated on the server.
 """
+import hashlib
 import json
 import math
 import os
