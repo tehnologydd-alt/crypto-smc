@@ -457,6 +457,33 @@
              role="img" aria-label="История сохранённых наблюдений о состоянии выбранной сети">График требует Canvas.</canvas>
           <p id="network-history-note" class="muted">История хранится на этом Android-телефоне.</p>
         </div>
+        <section class="large-trade-panel" id="large-trade-panel" aria-label="Поиск крупных рыночных сделок Binance Spot">
+          <div class="section-title">
+            <h4>🐋 Крупные сделки · Binance Spot</h4>
+            <span id="large-trade-count">0 событий</span>
+          </div>
+          <p id="large-trade-status" class="muted" role="status" aria-live="polite">
+            Подключаем бесплатный публичный поиск крупных сделок избранного актива.
+          </p>
+          <div class="large-trade-controls">
+            <label>Минимальная сумма сделки
+              <select id="large-trade-threshold">
+                <option value="150000">От 150 000 USDT</option>
+                <option value="500000">От 500 000 USDT</option>
+                <option value="1000000">От 1 000 000 USDT</option>
+              </select>
+            </label>
+            <label>ID сделки
+              <input id="large-trade-search" inputmode="numeric" pattern="[0-9]*" maxlength="20" placeholder="Поиск по aggTrade ID"/>
+            </label>
+          </div>
+          <div id="large-trade-list" class="large-trade-list">
+            <p class="muted">Нет подтверждённых крупных Spot-сделок в текущей выборке.</p>
+          </div>
+          <button id="large-trade-archive" class="ghost asset-manual-control" type="button">Обновить локальную историю</button>
+          <p id="large-trade-persist" class="muted">История Room проверяется…</p>
+          <p class="footnote">Источник: публичный Binance aggTrade, без ключа API. Это рыночные исполнения одной стороны заявки, а НЕ переводы между кошельками и НЕ официальный Whale Alert. Сторона обозначает инициатора сделки; личность покупателя или продавца неизвестна. Сбор — только для открытого избранного актива, ограниченная выборка.</p>
+        </section>
         <section class="whale-panel" id="whale-panel" aria-label="Наблюдения крупных публичных переводов">
           <div class="section-title">
             <h4>🐋 Крупные переводы · Whale Intelligence</h4>
