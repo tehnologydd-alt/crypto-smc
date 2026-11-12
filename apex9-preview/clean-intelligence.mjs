@@ -124,6 +124,43 @@ function mountForecasts(){
  if(insights)archives.append(insights);
  journal.after(archives);
 }
+/** One threshold for initial render, foreground re-entry and periodic UI
+ * refresh. Source candle time remains immutable; this makes NO API calls.
+ */
+export function radarCandleFreshness({
+ closedAt,interval='1h',saved=false,now=Date.now()
+}={}){
+ const valid=Number.isSafeInteger(closedAt)&&closedAt>0&&
+  Number.isSafeInteger(now)&&closedAt<=now+60000;
+ if(!valid)return {state:'UNKNOWN',label:'Время свечи не подтверждено',
+  warning:'Нет подтверждённого времени'};
+ const step={'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000}[interval];
+ if(!step)return {state:'UNKNOWN',label:'Таймфрейм неизвестен',
+  warning:'Невозможно оценить свежесть'};
+ const archive=saved===true||now-closedAt>2*step+60000;
+ const when=new Date(closedAt).toLocaleString('ru-RU',{
+  day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
+ });
+ return {state:archive?'STALE':'OBSERVED',
+  label:(archive?'Архив':'Свеча')+' · '+when,
+  warning:archive?'Архивные данные':null};
+}
+function refreshRadarAge(card,now=Date.now()){
+ const age=radarCandleFreshness({
+  closedAt:Number(card.dataset.candleAt),
+  interval:card.dataset.interval,
+  saved:card.dataset.saved==='true',now
+ });
+ const observed=card.querySelector('.ci-radar-observed');
+ if(observed){observed.textContent=age.label;observed.dataset.freshness=age.state;}
+ const chip=card.querySelector('.ci-radar-age-chip');
+ if(chip){
+  chip.hidden=!age.warning;
+  chip.textContent=age.warning||'';
+  chip.dataset.freshness=age.state;
+ }
+ return age;
+}
 /** Radar cards keep the original verified metadata but show only the meaningful
  * surface summary until the reader requests the observed measurements.
  */
@@ -145,16 +182,7 @@ export function compactRadarCard(card){
   attachAssetLogo(coin,symbol,base.slice(0,1));
   head.prepend(coin);
  }
- const time=Number(card.dataset.candleAt);
- const stored=card.dataset.saved==='true';
- const observed=Number.isSafeInteger(time)&&time>0&&time<=Date.now()+60000?
-  new Date(time).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',
-   hour:'2-digit',minute:'2-digit'}):null;
- const ms={'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000}[
-  card.dataset.interval]||3600000;
- const stale=!observed||Date.now()-time>2*ms+60000;
- const timeNote=create('small','ci-radar-observed',
-  (stored||stale?'Архив':'Свеча')+' · '+(observed||'время неизвестно'));
+ const timeNote=create('small','ci-radar-observed','Время свечи не подтверждено');
  head.querySelector('.radar-record-name')?.append(timeNote);
  const metrics=[...card.querySelectorAll('.radar-record-metric')];
  const extract=label=>metrics.find(x=>x.querySelector('span')
@@ -168,7 +196,9 @@ export function compactRadarCard(card){
   ' · закрытые свечи');
  const chips=create('div','ci-radar-chips');
  if(volume&&volume!=='—')chips.append(create('span','ci-radar-chip','Объём '+volume));
- if(stored||stale)chips.append(create('span','ci-radar-chip is-caution','Архивные данные'));
+ const ageChip=create('span','ci-radar-chip is-caution ci-radar-age-chip');
+ ageChip.hidden=true;
+ chips.append(ageChip);
  const change=card.dataset.changeState==='CHANGED';
  if(change){
   for(const tag of [...card.querySelectorAll('.radar-change-tag')].slice(0,2)){
@@ -184,15 +214,28 @@ export function compactRadarCard(card){
  }
  head.after(statement,chips);
  card.insertBefore(details,open);
+ refreshRadarAge(card);
  return card;
 }
 function mountRadar(){
  const list=byId('radar-results');
  if(!list)return;
  const enhance=()=>{
-  for(const card of list.children)compactRadarCard(card);
+  for(const card of list.children){
+   compactRadarCard(card);
+   if(card.classList?.contains('radar-record'))refreshRadarAge(card);
+  }
  };
  new MutationObserver(enhance).observe(list,{childList:true});
+ // Re-evaluate displayed age without touching source polling or Room:
+ // important when the user leaves APEX open across a candle boundary.
+ document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)enhance();
+ });
+ const ageClock=setInterval(()=>{
+  if(!document.hidden&&document.body.dataset.view==='radar')enhance();
+ },60000);
+ if(typeof ageClock?.unref==='function')ageClock.unref();
  enhance();
 }
 /** Actual favorites carousel pagination (0..10), not static preview dots. */
