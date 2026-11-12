@@ -16,11 +16,13 @@ export function editorialState(raw){
  const text=meaningful(raw);
  if(!text||/^(?:проверяем|ожидаем|загружаем|читаем)(?:\s|$|[.…])/i.test(text))
   return {state:'LOADING',label:'Проверяем источники'};
- if(/\b(?:OFFLINE|ERROR|FAILED|INVALID|недоступ|сбой|не удалось|не получен)\b/i.test(text))
+ if(/(?:\b(?:OFFLINE|ERROR|FAILED|INVALID)\b|недоступ|сбой|не удалось|не получен)/i.test(text))
   return {state:'UNAVAILABLE',label:'Источник недоступен'};
  if(/(?:архив|локальный кеш|локальный кэш|сохранён|устарел|требуется перепроверка|актуальность не подтверждена)/i.test(text))
   return {state:'SAVED',label:'Сохранённые данные'};
- if(/(?:^новостей:\s*\d+|обновлено|фактические источники|календарь|^BLS ·)/i.test(text))
+ if(/^новостей:\s*\d+/i.test(text))
+  return {state:'REPORTED',label:'Сводка источников доступна'};
+ if(/(?:обновлено|календарь|^BLS ·)/i.test(text))
   return {state:'OBSERVED',label:'Проверен ответ источника'};
  return {state:'UNKNOWN',label:'Свежесть неизвестна'};
 }
