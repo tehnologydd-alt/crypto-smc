@@ -1417,6 +1417,11 @@ function renderDepth(snapshot){
    Number.isSafeInteger(b.receivedAt))
    .sort((a,b)=>b.receivedAt-a.receivedAt)[0];
  }).filter(Boolean);
+ // Drive the two liquidity columns from the same verified books shown above,
+ // not only from periodically saved Room checkpoints.
+ if(document.body.dataset.view==='asset'&&
+  el('view-asset').dataset.assetArea==='data')
+  liquidityDashboard.setVisibleBooks(chosen,activeBooks);
  const matched=selectDepthComparison(activeBooks,
   ['binance','okx'].map(venue=>latestRestDepth.get(venue)).filter(Boolean),{
    asset:chosen,now:Date.now()

@@ -14,7 +14,7 @@ const okx=(ts=T,id=1,instId='BTC-USDT')=>JSON.stringify({
 });
 function setup(){
  let time=T;
- const connections=[],samples=[],statuses=[];
+ const connections=[],samples=[],statuses=[],books=[];
  const manager=createForegroundBookStreams({
   now:()=>time,
   socketFactory:url=>{
@@ -24,9 +24,10 @@ function setup(){
    connections.push(ws);return ws;
   },
   onSample:item=>samples.push(item),
+  onBook:item=>books.push(item),
   onStatus:item=>statuses.push(item)
  });
- return {manager,connections,samples,statuses,
+ return {manager,connections,samples,statuses,books,
   get now(){return time},set now(value){time=value}};
 }
 test('public snapshot streams use correct production ports and fixed pair',()=>{
@@ -191,4 +192,22 @@ test('Android/Web integrations only observe foreground and bounded persistence',
  assert.equal(core.includes('fetch('),false);
  assert.equal(core.includes('wss://ws.okx.com:8443'),false);
  assert.equal(read('./research.mjs').includes('export {parseDepthSnapshot};'),true);
+});
+
+test('unchanged verified WS snapshot refreshes live column, not Room history',()=>{
+ const v=setup(),gate={asset:A,visible:true,favorite:true,
+  native:true,dataArea:true};
+ v.manager.sync(gate);
+ const [bin,ok]=v.connections;bin.onopen();ok.onopen();
+ bin.onmessage({data:binance(30)});
+ ok.onmessage({data:okx(T-100,10)});
+ assert.equal(v.books.length,2);
+ assert.equal(v.samples.length,2);
+ v.now+=1200;
+ // Same exchange sequence and same visible book, genuinely received again.
+ bin.onmessage({data:binance(30)});
+ ok.onmessage({data:okx(v.now-100,10)});
+ assert.equal(v.books.length,4);
+ assert.equal(v.samples.length,2);
+ assert.equal(v.books[3].depth.receivedAt,v.now);
 });

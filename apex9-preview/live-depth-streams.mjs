@@ -175,7 +175,10 @@ export function createForegroundBookStreams({
    lane.lastSignature=signature;
    lane.lastSequence=book.updateId;
    lane.lastSampleAt=received;lane.lastBook=book;
-   if(changed&&received-lane.lastRenderedAt>=1000){
+   // Every valid snapshot refreshes the live view (throttled to 1/s),
+   // including unchanged books. Persisted Room history still records only
+   // meaningful changes at a separate 30s cadence.
+   if(received-lane.lastRenderedAt>=1000){
     lane.lastRenderedAt=received;
     onBook({symbol:expected,venue,depth:book,collectedAt:received});
    }
