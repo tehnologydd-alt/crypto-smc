@@ -4,6 +4,7 @@
  */
 import {getMobileLiquidityHistory} from './mobile-bridge.mjs';
 import {studyVisibleLiquidity} from './liquidity-core.mjs';
+import {currentLiquidityBooks} from './liquidity-current.mjs';
 import {describeDepthAvailability} from './source-availability.mjs';
 import {renderLevelObserver} from './level-dashboard.mjs';
 
@@ -19,24 +20,57 @@ const create=(tag,cls,value)=>{
 };
 const timestamp=n=>Number.isSafeInteger(n)?
  new Date(n).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+const clock=n=>Number.isSafeInteger(n)?
+ new Date(n).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
 const VENUES={binance:'Binance Spot',okx:'OKX Spot'}; // current UI only; historical Bybit remains in Room
 const statusLabels={
  OBSERVED:'Недавний снимок',
  HISTORICAL:'Только история',
  NO_SAMPLES:'Пока нет снимков'
 };
+/**
+ * The large live readout is driven by the verified WS/REST book already on
+ * screen, not by a saved historical sample. Room metrics below stay intact.
+ */
+function paintCurrent(card,report){
+ const pane=card.querySelector('.liquidity-current');
+ if(!pane)return;
+ pane.replaceChildren();
+ if(report?.state!=='FRESH'){
+  pane.dataset.state=report?.state||'UNAVAILABLE';
+  pane.append(create('strong','','Сейчас: нет подтверждённого свежего стакана'),
+   create('small','',report?.state==='STALE'?
+    'Последнее получение '+clock(report.at)+' · ожидаем новый стакан':
+    'Ожидаем данные WebSocket/REST'));
+  return;
+ }
+ pane.dataset.state='FRESH';
+ pane.append(create('small','',
+  'Текущий стакан · '+report.source+' · '+clock(report.at)),
+  create('strong','',
+   (report.imbalancePct>0?'+':'')+fmt(report.imbalancePct,1)+'%'),
+  create('small','',
+   'Спред '+fmt(report.spreadBps,2)+' б.п. · '+
+   'видимая глубина до '+report.depthMax+' уровней'));
+}
 function describeVenue(v,source){
  const available=describeDepthAvailability(v.venue,source,v.samples);
  const card=create('div','liquidity-venue-card');
+ card.dataset.venue=v.venue;
  const title=create('div','liquidity-venue-header');
  title.append(create('strong','',VENUES[v.venue]||v.venue),
   create('span','liquidity-age '+(v.status==='OBSERVED'?'fresh':'historical'),
    v.samples?(statusLabels[v.status]||v.status):available.label));
  card.append(title);
+ const current=create('div','liquidity-current');
+ current.setAttribute('aria-label','Текущий стакан '+(VENUES[v.venue]||v.venue));
+ card.append(current);
  if(!v.samples){
-  card.append(create('p','muted',available.reason));
+  card.append(create('p','muted','История Room: '+available.reason));
   return card;
  }
+ card.append(create('small','liquidity-archive-label',
+  'История Room · последний сохранённый снимок'));
  const value=create('div','liquidity-imbalance',
   (v.imbalance>0?'+':'')+fmt(v.imbalance*100,1)+'%');
  card.append(value,create('div','liquidity-im-label','Соотношение видимых заявок · исторический снимок'));
@@ -147,8 +181,17 @@ function draw(canvas,points){
 }
 
 export function initLiquidityDashboard(){
- let generation=0,lastAsset='',lastPoints=[];
+ let generation=0,lastAsset='',lastPoints=[],visibleBooks=[];
  let latestSources={};
+ function paintVisible(){
+  const report=currentLiquidityBooks(visibleBooks,{asset:lastAsset,now:Date.now()});
+  const root=get('liquidity-history-venues');
+  for(const card of root.querySelectorAll('.liquidity-venue-card')){
+   const venue=card.dataset.venue;
+   if(venue==='binance'||venue==='okx')
+    paintCurrent(card,report.venues?.[venue]);
+  }
+ }
  let chartFrame=0;
  const canvas=get('liquidity-history-canvas');
  function paint(){
@@ -160,7 +203,7 @@ export function initLiquidityDashboard(){
  observer?.observe(canvas);
  if(!observer)window.addEventListener('resize',paint);
  function clear(asset){
-  generation++;lastAsset=asset;lastPoints=[];latestSources={};
+  generation++;lastAsset=asset;lastPoints=[];latestSources={};visibleBooks=[];
   text('liquidity-history-status','Проверяем историю видимых заявок '+asset+'…');
   get('liquidity-history-venues').replaceChildren();
   get('level-observer-content').replaceChildren();
@@ -195,6 +238,7 @@ export function initLiquidityDashboard(){
     point.venue==='binance'||point.venue==='okx');
    for(const venue of activeVenues)
     venueContainer.append(describeVenue(venue,latestSources[venue.venue]));
+   paintVisible();
    text('liquidity-history-status',lastPoints.length
     ?'Снимков в текущей выборке Binance/OKX: '+lastPoints.length+
      ' · '+asset+' · до 80 последних Binance и OKX; Bybit остаётся архивом в Room'
@@ -209,6 +253,13 @@ export function initLiquidityDashboard(){
  }
  paint();
  return {refresh,clear,
+  // Called by the existing asset-book renderer, not a new polling loop.
+  // A live update changes only current readouts, without rereading Room.
+  setVisibleBooks(asset,books){
+   if(asset!==lastAsset)return;
+   visibleBooks=Array.isArray(books)?books.slice(0,4):[];
+   paintVisible();
+  },
   setSourceStatuses(asset,sources,retryAt={}){
    if(asset!==lastAsset||!Array.isArray(sources))return;
    // Partial depth refreshes touch only due providers. Preserve the
