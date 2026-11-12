@@ -3710,3 +3710,23 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  min-height:44px;white-space:normal;padding:9px}
 #apex-backup-status{margin-top:10px;line-height:1.5}
 @media(max-width:430px){.apex-backup-controls{grid-template-columns:1fr}}
+
+
+/* Scenario cleanup: the complete M15/H1/H4 audit belongs on Quality only. */
+.quality-view .quality-confluence-workspace{display:none!important;margin:0 0 16px}
+.quality-view[data-quality-area="summary"] .quality-confluence-workspace{
+ display:block!important}
+.quality-view .quality-confluence-workspace{scroll-margin-top:70px}
+#forecast-feature-audit{scroll-margin-top:82px}
+/* W is a short expandable audit, not another full-width paragraph above stages. */
+#view-forecasts .forecast-whale-details{
+ margin:5px 0 12px;border:1px solid #305763;border-radius:11px;
+ background:#102831;min-width:0}
+#view-forecasts .forecast-whale-details>summary{
+ padding:10px 12px;cursor:pointer;color:#b5dad7;font-size:12px;
+ font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+#view-forecasts .forecast-whale-details[open]>summary{
+ border-bottom:1px solid #305763}
+#view-forecasts .forecast-whale-details .forecast-whale-coverage{
+ padding:8px 12px 12px;margin:0;line-height:1.65;font-size:11px;
+ overflow-wrap:anywhere}
