@@ -133,6 +133,13 @@ object ApexPreferences {
             require(json.get(key) is Boolean){"Invalid saved preference: $key"}
         }
         require(json.getLong("alertsEnabledAt")>=0L){"Invalid alert time"}
+        if(json.has("uiMarkedIds")){
+            val bookmarks=json.getJSONArray("uiMarkedIds")
+            require(bookmarks.length()<=MAX_ALERT_MARKS){"Too many UI bookmarks"}
+            val keys=(0 until bookmarks.length()).map{bookmarks.getString(it)}
+            require(keys.distinct().size==keys.size&&
+                keys.all{forecastIdRegex.matches(it)}){"Invalid UI bookmarks"}
+        }
     }
 
     /**
