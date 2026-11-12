@@ -83,7 +83,7 @@ test('completed cards share compact outer layout but preserve verified result de
  assert.match(single,/renderCompletedResearchPanel/);
  assert.match(multi,/renderCompletedResearchPanel/);
  const dispatcher=read('./favorite-dashboard.mjs');
- assert.match(dispatcher,/function compactifyCompletedCard\(row,card\)/);
- assert.match(dispatcher,/card.append\(details,\.\.\.buttons\)/);
+ assert.match(dispatcher,/function compactifyCompletedCard\(row,card,/);
+ assert.match(dispatcher,/card.append\(note,progress,details,actions\)/);
  assert.match(dispatcher,/card.classList.add\('forecast-compact-card','forecast-unified-completed'\)/);
 });
