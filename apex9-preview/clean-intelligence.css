@@ -421,3 +421,239 @@ body[data-view]:not([data-view="overview"]) .ci-screen-heading{display:none!impo
 @media(prefers-reduced-motion:reduce){
  .ci-screen-heading::after{filter:none}
 }
+
+
+/* ---- Concept 1 · second pass: consistency, hierarchy, and mobile polish ---- */
+/* Prior legacy favorite-card rules had !important and caused 190px tall, 89vw
+   blocks, overriding the approved 2-across carousel from Clean Intelligence. */
+#overview-favorites-anchor .favorite-card.asset-chip{
+ position:relative;display:grid!important;
+ grid-template-columns:minmax(0,1fr)!important;
+ grid-template-rows:38px 1fr 21px!important;
+ flex:0 0 clamp(158px,47vw,204px)!important;
+ width:clamp(158px,47vw,204px)!important;
+ min-width:158px!important;height:173px!important;
+ gap:3px!important;padding:11px 10px 8px!important;
+ overflow:hidden!important;align-items:stretch;
+}
+#overview-favorites-anchor .favorite-card .favorite-open{
+ order:0!important;grid-row:1;display:flex!important;
+ min-height:36px!important;height:36px!important;
+ gap:7px!important;flex:initial!important;padding:0!important;
+}
+#overview-favorites-anchor .favorite-card .coin-mark{
+ width:28px!important;height:28px!important;
+ min-width:28px!important;border-radius:50%;
+}
+#overview-favorites-anchor .favorite-card .favorite-names strong{
+ font-size:12px!important;letter-spacing:-.01em;
+}
+#overview-favorites-anchor .favorite-card .favorite-names small{
+ font-size:9px!important;margin-top:1px;
+}
+#overview-favorites-anchor .favorite-card .favorite-market-row{
+ order:1!important;grid-row:2;
+ display:grid!important;grid-template-columns:1fr!important;
+ grid-template-rows:min-content 35px!important;
+ width:100%;min-height:0!important;gap:5px!important;
+ padding:0!important;margin:0!important;
+}
+#overview-favorites-anchor .favorite-card .favorite-price-box{
+ display:flex!important;flex-direction:column!important;
+ gap:4px!important;justify-content:start!important;
+ align-items:start!important;min-height:0!important;
+ padding:1px 0 0!important;background:none!important;
+ border:0!important;border-radius:0!important;
+}
+#overview-favorites-anchor .favorite-card .favorite-price-value{
+ font-size:clamp(15px,4.3vw,22px)!important;font-weight:830!important;
+ line-height:1.12!important;letter-spacing:-.03em;
+}
+#overview-favorites-anchor .favorite-card .favorite-price-change{
+ font-size:10px!important;font-weight:780;
+}
+#overview-favorites-anchor .favorite-card .favorite-chart{
+ display:block!important;grid-row:2;
+ width:100%!important;height:35px!important;
+ min-height:35px!important;max-height:35px!important;
+ order:initial!important;padding:0!important;margin:0!important;
+ border:0!important;border-radius:0!important;background:none!important;
+}
+#overview-favorites-anchor .favorite-card .favorite-chart .apex-sparkline{
+ width:100%!important;height:35px!important;
+}
+#overview-favorites-anchor .favorite-card .favorite-explain{
+ position:absolute!important;bottom:5px!important;right:7px!important;
+ min-height:22px!important;font-size:9px!important;
+ padding:2px 5px!important;
+}
+#overview-favorites-anchor .favorite-card .favorite-radar-link{
+ position:absolute;bottom:5px;left:7px;max-width:67%;font-size:9px;
+}
+.ci-favorite-pagination{
+ display:flex;justify-content:center;align-items:center;gap:7px;
+ min-height:20px;padding:1px 0 2px;
+}
+.ci-favorite-pagination[hidden]{display:none!important}
+.ci-favorite-dot{
+ width:17px;height:18px;border:0;background:transparent;
+ cursor:pointer;position:relative;padding:0;
+}
+.ci-favorite-dot::after{
+ content:"";display:block;position:absolute;top:50%;left:50%;
+ width:6px;height:6px;transform:translate(-50%,-50%);
+ border-radius:50%;background:#476471;transition:background-color .14s ease,width .14s ease;
+}
+.ci-favorite-dot[aria-pressed="true"]::after{
+ background:#61eada;width:11px;box-shadow:0 0 8px #40dcc350;
+}
+/* Larger target area than its visible pagination dot. */
+.ci-favorite-dot:focus-visible{border-radius:8px;outline:2px solid #6aefde}
+
+/* Concise radar records: make source / candle age unmistakable. */
+#view-radar .radar-record{
+ display:flex;flex-direction:column;gap:8px;min-height:174px;
+ padding:12px 11px 10px;
+ border-color:#2d6470;background:linear-gradient(145deg,#0f313d,#091e2a);
+}
+#view-radar .radar-record-top{display:flex;gap:9px;align-items:center;min-width:0}
+.ci-radar-coin{
+ width:33px;height:33px;flex:0 0 33px;
+ display:flex;align-items:center;justify-content:center;
+ border-radius:50%;background:#143d4b;color:#f0fbfb;
+ font-weight:800;font-size:16px;overflow:hidden;
+}
+.ci-radar-coin img,.ci-radar-coin svg{display:block;width:100%;height:100%;object-fit:contain}
+#view-radar .radar-record-name{flex:1;min-width:0;gap:3px}
+#view-radar .radar-record-name strong{font-size:14px;line-height:1.25}
+#view-radar .radar-record-name small{font-size:9px;color:#8eafbc}
+#view-radar .radar-record-name .ci-radar-observed{
+ display:block;color:#6f9ba9;font-size:9px;
+}
+#view-radar .radar-direction{padding:6px 8px;font-size:10px}
+.ci-radar-synopsis{
+ color:#c1dbe1;font-size:11px;line-height:1.45;
+ margin:0;min-height:31px;
+}
+#view-radar .ci-radar-chips{gap:6px;min-height:24px;align-items:flex-start}
+#view-radar .ci-radar-chip{
+ font-size:9px;line-height:1.3;padding:5px 7px;
+ background:#173743;color:#a8cbd2;
+}
+#view-radar .ci-radar-chip.is-change{
+ background:#15483e;color:#84e4bd;
+}
+#view-radar .ci-radar-chip.is-caution{
+ background:#382b33;color:#eab8b1;
+}
+#view-radar .ci-radar-details{
+ margin-top:0;border-top:1px solid #27515e;padding-top:2px;
+}
+#view-radar .ci-radar-details summary{min-height:30px}
+#view-radar .ci-radar-details .radar-record-metrics{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+}
+#view-radar .radar-open{
+ margin-top:auto;border-radius:10px;min-height:39px;
+ background:#114b4b;border:1px solid #298d80;color:#b1ffeb;
+}
+
+/* Scenario filters use factual original direction, without changing counts. */
+#view-forecasts .ci-direction-filters{
+ display:flex;align-items:center;justify-content:space-between;gap:9px;
+ margin:2px 0 9px;flex-wrap:wrap;
+}
+.ci-direction-buttons{display:flex;gap:6px;align-items:center}
+.ci-direction-button{
+ min-height:35px;padding:7px 12px;
+ border:1px solid #2e6370;border-radius:10px;
+ color:#aed1d8;background:#122d3a;
+ cursor:pointer;font-size:11px;font-weight:740;
+}
+.ci-direction-button[aria-pressed="true"]{
+ background:#155959;color:#c8fff3;border-color:#45d2c4;
+}
+.ci-direction-button:nth-child(3)[aria-pressed="true"]{
+ background:#4b2738;border-color:#b96787;color:#ffd4df;
+}
+.ci-direction-hint{font-size:9px;color:#789da9;line-height:1.3}
+#research-forecast-list>[data-ci-side][hidden]{display:none!important}
+.ci-direction-empty{
+ border:1px dashed #3d6370;border-radius:12px;
+ margin:9px 0;padding:17px 12px;
+ text-align:center;color:#9cbfca;font-size:11px;
+}
+.ci-direction-empty[hidden]{display:none!important}
+#view-forecasts .forecast-compact-stage{transition:border-color .12s ease,background-color .12s ease}
+#view-forecasts .forecast-compact-stage:focus-visible{outline:2px solid #5cf1de}
+#view-forecasts .forecast-mode-tabs{margin:0 0 9px}
+#view-forecasts .forecast-workspace>.section-title{margin-bottom:9px}
+#view-forecasts .forecast-compact-card .forecast-compact-head{align-items:flex-start}
+#view-forecasts .forecast-unified-completed .forecast-compact-details{
+ border-top-color:#33545f;
+}
+/* Long unbroken low-priced token values wrap within the three control boxes. */
+#view-forecasts .forecast-compact-price{
+ overflow:hidden;min-width:0;
+}
+#view-forecasts .forecast-compact-level-copy{
+ overflow-wrap:anywhere;word-break:break-word;min-width:0;
+}
+#view-forecasts .forecast-compact-full-levels{
+ grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+/* Price first, then favorite asset shortcuts and one compact task switcher. */
+#view-asset>.section-title{display:none}
+#view-asset>.hero{margin:3px 0 11px!important}
+#view-asset>.hero .hero-heading h2{font-size:clamp(20px,6vw,28px);line-height:1.2}
+#view-asset .hero-heading .eyebrow{font-size:9px;letter-spacing:.09em}
+#view-asset .hero-price{margin-top:9px}
+#view-asset .hero-price strong{font-size:clamp(28px,8vw,39px)}
+#view-asset .hero-bottom{font-size:10px;gap:5px}
+#view-asset .asset-favorite-strip{
+ width:100%;max-width:100%;overflow-x:auto;gap:6px;
+ margin:0 0 9px;padding:3px 0 7px;
+}
+#view-asset .asset-workspace-nav{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:6px;background:#0a2330;border:1px solid #2b5662;
+ border-radius:13px;padding:5px;margin:0 0 10px;
+}
+#view-asset .asset-workspace-button{
+ min-width:0;min-height:43px;padding:9px 6px;
+ border-radius:10px;font-size:11px;
+}
+#view-asset .asset-workspace-button small{display:none}
+#view-asset #asset-source-diagnostics{
+ background:#091e27;border-color:#264d58;margin:4px 0 10px;
+}
+#view-asset .chart-heading h3{font-size:15px}
+#view-asset .chart-heading p{font-size:9px}
+#view-asset .chart-evidence-overlays{
+ display:flex;flex-wrap:wrap;gap:6px;
+}
+#view-asset .chart-overlay-toggle{
+ font-size:10px;min-height:35px;border-radius:9px;
+}
+#view-asset .chart-evidence-status{font-size:10px}
+#view-asset .chart-surface canvas{height:340px}
+#view-asset #chart-selected{font-size:10px}
+#view-asset .asset-scenarios{
+ margin-top:11px;border-color:#2c5a66;
+}
+/* Small-screen controls remain full tap targets without side-scrolling body. */
+@media(max-width:390px){
+ #overview-favorites-anchor .favorite-card.asset-chip{
+  flex-basis:clamp(154px,46vw,182px)!important;
+  width:clamp(154px,46vw,182px)!important;
+  min-width:154px!important;
+ }
+ #view-forecasts .ci-direction-filters{align-items:flex-start}
+ .ci-direction-hint{display:block;width:100%}
+ #view-radar .radar-record{min-height:173px}
+ #view-asset .chart-surface canvas{height:295px}
+}
+@media(prefers-reduced-motion:reduce){
+ .ci-favorite-dot::after{transition:none}
+}
