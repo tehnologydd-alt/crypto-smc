@@ -102,6 +102,10 @@ def train(path, output_dir, version):
         raise FileExistsError("Model version already exists, never overwrite")
     m1.save_model(x_path)
     m2.booster_.save_model(str(l_path))
+    hashes = {
+        "xgboost": hashlib.sha256(x_path.read_bytes()).hexdigest(),
+        "lightgbm": hashlib.sha256(l_path.read_bytes()).hexdigest(),
+    }
     report = {
         "state":"CANDIDATE_NOT_ACTIVE",
         "version":version,
