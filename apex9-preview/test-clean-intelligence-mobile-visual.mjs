@@ -119,6 +119,10 @@ try{
   await preview('research','#ci-research-landing');
   await page.locator('#view-quality .quality-sources-link').click();
   await preview('sources','#ci7-sources-desk');
+  const metricGeometry=await page.locator('#view-sources .ci7-source-metric')
+   .evaluateAll(cards=>cards.map(x=>x.getBoundingClientRect().width));
+  requireCondition(metricGeometry.length===3&&metricGeometry.every(w=>w>=width*.72),
+   width+'px: original API status text is squeezed into narrow columns');
   requireCondition(await page.locator('#view-sources > details.ci10-source-fold').count()===6,
    width+'px: original seven source articles were not grouped into six sections');
   requireCondition(await page.locator('#view-sources > details.ci10-source-fold[open]').count()===0,
@@ -153,6 +157,10 @@ try{
   await preview('settings','#ci8-settings-nav');
   requireCondition(await page.locator('#apex-settings-dialog .ci8-settings-section').count()===4,
    width+'px: native settings controls not regrouped into four categories');
+  const categoryColumns=await page.locator('#ci8-settings-nav').evaluate(node=>
+   getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+  requireCondition(categoryColumns===(width<=380?2:4),
+   width+'px: settings category buttons are too cramped for the viewport');
   await page.locator('#ci9-interface-audit summary').click();
   // HTML <details> toggle is queued asynchronously. Wait for its actual
   // event-driven DOM report rather than asserting in the click's same turn.
