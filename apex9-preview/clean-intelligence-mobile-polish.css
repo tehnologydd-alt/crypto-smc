@@ -149,3 +149,42 @@
 @media(prefers-reduced-motion:reduce){
  #view-sources .ci10-source-chevron{transition:none!important}
 }
+
+
+/* Real Chromium screenshot review: three equal status columns were too dense
+ * at 360px. Keep all exact source strings, but let each use the full width. */
+@media(max-width:430px){
+ #view-sources .ci7-source-metrics{
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:7px!important;
+ }
+ #view-sources .ci7-source-metric{
+  grid-column:auto!important;min-height:0;
+  display:grid;grid-template-columns:minmax(88px,35%) minmax(0,1fr);
+  align-items:start;align-content:center;gap:9px;
+  padding:11px 10px;
+ }
+ #view-sources .ci7-source-metric span{
+  font-size:10px;line-height:1.45;
+ }
+ #view-sources .ci7-source-metric strong{
+  font-size:11px;line-height:1.5;
+  overflow-wrap:anywhere;
+ }
+}
+/* Mobile settings: never break category names into unreadable fragments.
+ * Two large thumb targets per row in narrow native dialogs. */
+@media(max-width:380px){
+ .ci8-settings-redesigned .ci8-settings-nav{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:6px!important;
+ }
+ .ci8-settings-redesigned .ci8-settings-nav-button{
+  min-height:41px;font-size:10.5px!important;
+  padding:8px 5px!important;line-height:1.35;
+  overflow-wrap:normal;
+ }
+ .ci8-settings-redesigned .ci8-settings-section{
+  scroll-margin-top:176px!important;
+ }
+}
