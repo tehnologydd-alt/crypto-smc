@@ -3,6 +3,7 @@
  * hypotheses and recorded source-time H1 stages. Never implies orders or fills.
  */
 import {inspectResearchTimeline} from './research-timeline.mjs';
+import {publishedBarCloseAt} from './scenario-publication-timing.mjs';
 import {directionalHypothesis,planDirectionalScenario} from './directional-scenario.mjs';
 import {forecastStage} from './favorite-logic.mjs';
 import {multiFrameHypothesis,multiFrameEvidence}
@@ -164,12 +165,11 @@ export function mapScenarioToViewport(scenario,bars,{interval='1h'}={}){
  if(indices.length)segments.push({from:indices[0].index,to:indices.at(-1).index});
  const marks=[];
  for(const mark of scenario.milestones||[]){
-  // Publication is shortly AFTER its last known H1 close. Its anchor is that
-  // actual bar, not an invented candle at the HTTP/save timestamp.
-  // A M5 stage appears on the enclosing actual CLOSED M15/H4 candle,
-  // not at an invented source-timestamp or on an unfinished candle.
+  // P marks the actual publication TIME, never its previous reference
+  // candle. All marks are anchored to existing completed chart bars;
+  // on H1 we cannot infer an exact point within the publication candle.
   const sourceCloseAt=mark.key==='PUBLISHED'?
-   scenario.anchorCloseAt:
+   publishedBarCloseAt(mark.observedAt,interval):
    scenario.model==='MULTIFRAME'&&interval!=='1m'?
     Math.floor(mark.observedAt/step)*step+step-1:
     mark.observedAt;
