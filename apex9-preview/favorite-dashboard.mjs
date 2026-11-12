@@ -8,6 +8,7 @@ import {getMobileFavorites,changeMobileFavorite,
  getMobileMarkedResearchForecasts,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,
  getMobileCandleArchive,getMobileM5Window,getMobileM1Window} from './mobile-bridge.mjs';
 import {stageNotificationLabel} from './forecast-notification-route.mjs';
+import {whaleCheckCoverage} from './forecast-whale-check.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
@@ -1174,6 +1175,15 @@ export function initFavoriteResearch({
  }
  function renderRows(){
   const box=id('research-forecast-list');box.replaceChildren();
+  const w=whaleCheckCoverage(displayedJournal());
+  const label=id('forecast-whale-coverage');
+  if(label)label.textContent='W · проверка китов при публикации: '+
+   (w.observed+w.noObservations)+' из '+w.published+
+   ' доступных сценариев · с сохранёнными событиями '+w.observed+
+   ' · без своевременных наблюдений '+w.noObservations+
+   (w.legacy?' · старый архив без W '+w.legacy:'')+
+   (w.invalid?' · требуют проверки '+w.invalid:'')+
+   '. История частичная; W не доказывает причину или направление движения.';
   for(const b of document.querySelectorAll('[data-journal-stage]')){
    const on=b.dataset.journalStage===stage;
    b.classList.toggle('active',on);
