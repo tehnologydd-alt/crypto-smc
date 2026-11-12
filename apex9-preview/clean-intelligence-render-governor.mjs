@@ -6,6 +6,10 @@
  * defers work for hidden Android tabs, and catches up when shown again.
  * The original source DOM keeps receiving new data in the background.
  */
+const liveMetrics=new Map();
+export function getRenderMetrics(){
+ return [...liveMetrics].map(([screen,stats])=>({screen,...stats()}));
+}
 export function canRenderView({pageHidden=false,documentHidden=false,
  expectedArea=null,currentArea=null}={}){
  return !pageHidden&&!documentHidden&&
@@ -56,8 +60,11 @@ export function createScreenUpdateCoordinator(view,render,{
   doc.removeEventListener('visibilitychange',schedule);
   if(scheduled&&frameId!==null)cancelFrame(frameId);
   scheduled=false;frameId=null;
+  liveMetrics.delete(metricKey);
  };
  const stats=()=>({...counters,dirty,scheduled,disposed});
+ const metricKey=(view.id||'screen')+(area?':'+area:'');
+ liveMetrics.set(metricKey,stats);
  return {schedule,flush,dispose,stats};
 }
 export function observeSourceUpdates(nodes,schedule,{
