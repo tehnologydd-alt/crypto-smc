@@ -1,0 +1,6 @@
+model_store/
+*.jsonl
+.env
+.env.*
+!.env.example
+__pycache__/
