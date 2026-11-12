@@ -29,6 +29,8 @@ import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.m
 import {directionalHypothesis,planDirectionalScenario} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
 import {compactLevelPrice} from './forecast-compact-card.mjs';
+import {forecastLevelMetrics,displayPriceMove,displayRiskReward}
+ from './forecast-level-metrics.mjs';
 import {multiFrameHypothesis,multiFrameForecastCard,planMultiFrameForecast,multiFrameQuality,
  multiFrameAgreement,multiFrameEvidence} from './forecast-multiframe.mjs';
 import {evidenceCohorts} from './forecast-evidence-context.mjs';
@@ -280,7 +282,7 @@ async function copyResearchText(value){
  * Full verified terminal history, source panels and their callbacks remain
  * in a single on-demand details section. Terminal tone colors are untouched.
  */
-function compactifyCompletedCard(row,card){
+function compactifyCompletedCard(row,card,{tracked=false,onToggle,onOpen}={}){
  if(!card?.classList?.contains('is-completed'))return card;
  const verification=row.interval==='1h'?
   planDirectionalScenario(row,{now:Date.now()}):
@@ -289,37 +291,90 @@ function compactifyCompletedCard(row,card){
  const plan=verification.plan;
  const head=card.querySelector('.forecast-unified-head');
  if(!head)return card;
- const badge=card.querySelector('.forecast-whale-check');
- const complete=card.querySelector('.forecast-completed-panel');
- const levelRow=create('div','forecast-compact-price-row');
- const feedback=create('p','forecast-compact-copy-feedback');
- feedback.setAttribute('role','status');
- for(const [label,key] of [['Вход','entry'],['TP1','tp1'],['SL','sl']]){
-  const tile=create('div','forecast-compact-price '+key);
-  const action=create('button','forecast-compact-level-copy',
-   key==='entry'?priceText(plan[key]):compactLevelPrice(plan[key]));
-  action.type='button';
-  action.title='Копировать '+label+' — полное исходное значение';
-  action.addEventListener('click',()=>void copyResearchText(priceText(plan[key]))
-   .then(ok=>{feedback.textContent=ok?'✓ '+label+' скопировано':
-    'Не удалось скопировать '+label;}));
-  tile.append(create('small','',label),action);levelRow.append(tile);
+ const whale=card.querySelector('.forecast-whale-check');
+ const panel=card.querySelector('.forecast-completed-panel');
+ const oldFold=card.querySelector('.forecast-card-fold');
+ const originalResult=card.querySelector('.forecast-final-snapshot');
+ const verificationStages=[...(panel?.querySelectorAll('.forecast-completed-stage')||[])];
+ const hits=[...(panel?.querySelectorAll('.forecast-completed-tp')||[])];
+ const entered=verificationStages[1]?.classList.contains('is-verified')===true;
+ const finalVerified=verificationStages[2]?.classList.contains('is-verified')===true;
+ const frame=plan.evaluationInterval==='1m'?'M1':
+  plan.evaluationInterval==='5m'?'M5':
+  row.interval==='15m'?'M15':row.interval==='4h'?'H4':'H1';
+ const note=create('p','forecast-compact-note',finalVerified?
+  'Наблюдение завершено · итог проверен по '+frame:
+  'Наблюдение завершено · последовательность исхода требует проверки');
+ const progress=create('div','forecast-compact-progress');
+ for(const [index,label] of ['Вход','TP1','TP2','TP3'].entries()){
+  const observed=index===0?entered:hits[index-1]?.classList.contains('is-hit')===true;
+  progress.append(create('span','forecast-compact-event'+(observed?' is-hit':''),
+   (observed?'✓ ':'· ')+label));
  }
  const details=create('details','forecast-compact-details forecast-completed-details');
- details.append(create('summary','','Все уровни, события и методика'));
- const buttons=[];
- for(const item of Array.from(card.children)){
-  if(item===head||item===badge||item===complete)continue;
-  if(item.classList?.contains('forecast-visual-actions')||
-   item.classList?.contains('forecast-card-actions')){
-   buttons.push(item);
-  }else details.append(item);
+ details.append(create('summary','','Все уровни и история'));
+ const levels=create('div','forecast-compact-full-levels');
+ const metrics=forecastLevelMetrics(plan);
+ const feedback=create('p','forecast-compact-copy-feedback');
+ feedback.setAttribute('role','status');
+ feedback.setAttribute('aria-live','polite');
+ for(const [label,key] of [['Вход','entry'],['SL','sl'],
+  ['TP1','tp1'],['TP2','tp2'],['TP3','tp3']]){
+  const tile=create('div','forecast-compact-full-level');
+  const button=create('button','forecast-compact-level-copy',
+   key==='entry'?priceText(plan[key]):compactLevelPrice(plan[key]));
+  button.type='button';
+  button.title='Копировать '+label+' (полную цену без округления)';
+  button.setAttribute('aria-label',label+' · скопировать полную цену');
+  button.addEventListener('click',()=>void copyResearchText(priceText(plan[key]))
+   .then(ok=>{feedback.textContent=ok?
+    label+': скопировано полное значение '+priceText(plan[key]):
+    'Не удалось скопировать '+label;}));
+  tile.append(create('span','',label),button);
+  if(metrics.state==='VALID'){
+   const info=key==='entry'?'Опорная цена':
+    key==='sl'?'Δ '+displayPriceMove(metrics.sl.deltaPct)+' · риск 1R':
+    'Δ '+displayPriceMove(metrics.targets[key].deltaPct)+
+    ' · '+displayRiskReward(metrics.targets[key].rMultiple);
+   tile.append(create('small','',info));
+  }
+  levels.append(tile);
  }
+ details.append(levels,feedback);
+ // One common fold like Active, keeping the original validated event order.
+ // Never place the previous large summary/level cards inside this compact shell.
+ if(originalResult&&!originalResult.hidden)details.append(originalResult);
+ for(const selector of ['.forecast-event-timeline','.forecast-event-replay',
+  '.forecast-technical-notes','.forecast-visual-provenance',
+  '.forecast-level-math-note']){
+  const section=oldFold?.querySelector(selector);
+  if(section)details.append(section);
+ }
+ const provenance=panel?.querySelector('.forecast-completed-source');
+ if(provenance)details.append(provenance);
+ details.append(create('p','forecast-compact-meta',
+  'Касание уровня — наблюдение, а не исполненная сделка.'));
+ const actions=create('div','forecast-compact-actions');
+ const mark=create('button','forecast-compact-mark',tracked?'★ Отмечен':'☆ Отметить');
+ mark.type='button';mark.setAttribute('aria-pressed',String(tracked));
+ mark.addEventListener('click',()=>onToggle?.(row.id));
+ const open=create('button','forecast-compact-open','Открыть актив');
+ open.type='button';open.addEventListener('click',()=>onOpen?.(row.asset,row.id));
+ const copy=create('button','forecast-compact-copy','Копировать');
+ copy.type='button';
+ copy.addEventListener('click',async()=>{
+  const title=row.interval==='15m'?'M15':row.interval==='4h'?'H4':'H1';
+  const lines=[displayPair(row.asset)+' · '+title+' · '+
+   (plan.side==='UP'?'↑ Рост':'↓ Снижение'),
+   'Вход '+priceText(plan.entry),'SL '+priceText(plan.sl),
+   ...['tp1','tp2','tp3'].map(k=>k.toUpperCase()+' '+priceText(plan[k]))];
+  copy.textContent=await copyResearchText(lines.join('\n'))?
+   '✓ Скопировано':'Копировать';
+ });
+ actions.append(mark,open,copy);
  card.replaceChildren(head);
- if(badge)card.append(badge);
- card.append(levelRow,feedback);
- if(complete)card.append(complete);
- card.append(details,...buttons);
+ if(whale)card.append(whale);
+ card.append(note,progress,details,actions);
  card.classList.add('forecast-compact-card','forecast-unified-completed');
  return card;
 }
@@ -327,11 +382,11 @@ function compactifyCompletedCard(row,card){
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  if(multiFrameHypothesis(row))
   return compactifyCompletedCard(row,multiFrameForecastCard(row,{
-   tracked,onToggle,onOpen,copyText:copyResearchText}));
+   tracked,onToggle,onOpen,copyText:copyResearchText}),{tracked,onToggle,onOpen});
  if(directionalHypothesis(row))
   return compactifyCompletedCard(row,directionalForecastCard(row,{
    tracked,onToggle,onOpen,getMini,sourceH1,sourceM5,sourceM1:sourceM5,
-   copyText:copyResearchText}));
+   copyText:copyResearchText}),{tracked,onToggle,onOpen});
  return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
 }
 function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
@@ -1316,31 +1371,16 @@ export function initFavoriteResearch({
     (markedMissing.length?' · недоступно: '+markedMissing.length:'')+
     '. Архивные исследования показаны отдельно от этапов.'));
   }
-  const renderCard=row=>{
-   const card=cardForForecast(row,{
-    tracked:selected.has(row.id),
-    onToggle:key=>{
-     if(selected.has(key))selected.delete(key);else selected.add(key);
-     persistSelected();
-     if(journalMode==='tracked')void loadMarkedRows({force:true});
-     else renderRows();
-    },
-    onOpen:onSelectSymbol,getMini:renderMini
-   });
-   const tools=create('div','forecast-journal-row-tools');
-   const remove=create('button','forecast-journal-hide',
-    'Убрать из журнала');
-   remove.type='button';
-   remove.title='Скрыть карточку здесь, сохранив запись Room и статистику';
-   remove.addEventListener('click',()=>{
-    hidden.add(row.id);persistHidden();
-    // Hidden rows never alter the immutable research log or result statistics.
-    renderRows();
-   });
-   tools.append(remove);
-   card.append(tools);
-   return card;
-  };
+  const renderCard=row=>cardForForecast(row,{
+   tracked:selected.has(row.id),
+   onToggle:key=>{
+    if(selected.has(key))selected.delete(key);else selected.add(key);
+    persistSelected();
+    if(journalMode==='tracked')void loadMarkedRows({force:true});
+    else renderRows();
+   },
+   onOpen:onSelectSymbol,getMini:renderMini
+  });
   if(journalMode==='tracked'&&markedMissing.length){
    box.append(create('p','forecast-quality-warning',
     'Не найдены в Room: '+markedMissing.length+
