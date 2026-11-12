@@ -1,3 +1,4 @@
+import {createScreenUpdateCoordinator,observeSourceUpdates} from './clean-intelligence-render-governor.mjs';
 /**
  * APEX 9 / Clean Intelligence - major redesign stage 6.
  *
@@ -122,18 +123,15 @@ function mountCommandOverview(){
   const text=data.source==='—'?'Проверяем доступность источников':data.source;
   if(source.textContent!==text)source.textContent=text;
  };
- let pending=false;
- const schedule=()=>{if(pending)return;pending=true;queueMicrotask(()=>{
-  pending=false;render();
- });};
- const observer=new MutationObserver(schedule);
- for(const field of ['forecast-pending-count','stage-count-ACTIVE',
-  'stage-count-CONFIRMED','radar-coverage','radar-change-count',
-  'radar-status','top-status','favorites-count']){
-  const node=id(field);
-  if(node)observer.observe(node,{subtree:true,characterData:true,childList:true});
- }
- render();
+ // Read native counters only when the Overview is visible. Market/Radar
+ // polling continues in their original modules, not in this UI adapter.
+ const controller=createScreenUpdateCoordinator(root,render);
+ observeSourceUpdates([
+  'forecast-pending-count','stage-count-ACTIVE','stage-count-CONFIRMED',
+  'radar-coverage','radar-change-count','radar-status','top-status',
+  'favorites-count'
+ ].map(id),controller.schedule);
+ controller.schedule();
 }
 function mountScenarioWorkspace(){
  const view=id('view-forecasts');
