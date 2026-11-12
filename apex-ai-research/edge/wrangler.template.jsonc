@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "apex-ai-collective",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-11-12",
+  "workers_dev": true,
+  "ai": {"binding": "AI"},
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "apex-ai-research",
+      "database_id": "REPLACE_WITH_YOUR_CLOUDFLARE_D1_DATABASE_UUID"
+    }
+  ]
+}
