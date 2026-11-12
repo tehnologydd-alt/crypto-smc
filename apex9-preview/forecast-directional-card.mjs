@@ -7,6 +7,7 @@ import {planDirectionalScenario,auditDirectionalScenario,directionalOutcomeLabel
  from './directional-scenario.mjs';
 import {forecastStage} from './favorite-logic.mjs';
 import {compactOpenForecastCard} from './forecast-compact-card.mjs';
+import {whaleCheckBadge} from './forecast-whale-check.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
 import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
@@ -104,6 +105,8 @@ export function directionalForecastCard(row,{
    visibleStage==='ACTIVE'?'Активный':
    visibleStage==='CONFIRMED'?'Лимитный':'Ожидает');
  top.append(names,state);card.append(top);
+ const w=whaleCheckBadge(row);
+ if(w)card.append(w);
  if(verified.state!=='READY'){
   card.append(create('p','forecast-level-warning',
    'Исходный сценарий не прошёл проверку: '+verified.reason));
