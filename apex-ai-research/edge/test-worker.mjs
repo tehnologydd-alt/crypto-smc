@@ -11,7 +11,7 @@ const item={source_id:'unit-test-only',observed_at:1234567,
 
 test('two distinct cloud-hosted agents use actual catalog identifiers',()=>{
  assert.equal(MODELS.analyst,'@cf/zai-org/glm-4.7-flash');
- assert.equal(MODELS.critic,'@cf/qwen/qwen3-30b-a3b-fp8');
+ assert.equal(MODELS.critic,'@cf/qwen/qwen3.8-27b');
  assert.notEqual(MODELS.analyst,MODELS.critic);
 });
 test('evidence schema rejects anonymous, oversized and ungrounded input',()=>{
