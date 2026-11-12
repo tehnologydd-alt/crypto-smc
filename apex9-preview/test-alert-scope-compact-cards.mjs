@@ -42,7 +42,7 @@ test('scope chooser and stars update native atomically without changing Room',()
  assert.match(dashboard,/await syncNativeMarks\(\)/);
  assert.match(view,/Исследования продолжают собирать статистику/);
 });
-test('all open scenario cards use compact design but completed cards keep previous panels',()=>{
+test('open and completed cards share one compact design with verified history preserved',()=>{
  assert.equal(typeof compactOpenForecastCard,'function');
  assert.throws(()=>compactOpenForecastCard({},{}),/Only verified open scenarios/);
  assert.match(directional,/if\(!finishedRoom&&visibleStage!=='COMPLETED'\)/);
@@ -50,6 +50,10 @@ test('all open scenario cards use compact design but completed cards keep previo
  assert.match(directional,/renderCompletedResearchPanel\(plan/);
  assert.match(multiframe,/renderCompletedResearchPanel\(plan/);
  assert.match(pack,/'forecast-compact-card\.mjs'/);
+ const dashboard=read('./favorite-dashboard.mjs');
+ assert.match(dashboard,/card.append\(note,progress,details,actions\)/);
+ assert.ok(!dashboard.includes("'Убрать из журнала'"));
+ assert.match(dashboard,/details.append\(create\('summary','','Все уровни и история'\)\)/);
  const src=read('./forecast-compact-card.mjs');
  for(const s of ['Все уровни и история','forecast-compact-price-row','forecast-compact-progress',
   'forecast-compact-mark','forecast-compact-open','TP1','TP2','TP3','SL',
