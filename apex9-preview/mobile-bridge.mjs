@@ -29,6 +29,44 @@ export async function listenMobileNotificationOpen(onOpen){
  }catch{return null;}
 }
 
+/** User-initiated encrypted archive to a SAF cloud document (Google Drive etc). */
+export async function exportMobileCloudBackup(passphrase,uiMarkedIds=[]){
+ const native=plugin();
+ if(typeof native?.backupToCloud!=='function')
+  return {saved:false,error:'Нужна Android-сборка с облачным архивом'};
+ if(typeof passphrase!=='string'||passphrase.length<12||passphrase.length>128)
+  return {saved:false,error:'Парольная фраза: от 12 до 128 символов'};
+ if(!Array.isArray(uiMarkedIds)||uiMarkedIds.length>300)
+  return {saved:false,error:'Слишком много отмеченных сценариев'};
+ try {
+  return await native.backupToCloud({passphrase,uiMarkedIds});
+ }catch(error){
+  return {saved:false,error:String(error?.message||error).slice(0,210)};
+ }
+}
+/** Restores by merging existing Room histories, never replaces/clears data. */
+export async function importMobileCloudBackup(passphrase,{confirmed=false}={}){
+ const native=plugin();
+ if(typeof native?.restoreFromCloud!=='function')
+  return {restored:false,error:'Нужна Android-сборка с переносом истории'};
+ if(!confirmed)
+  return {restored:false,error:'Восстановление требует подтверждения'};
+ if(typeof passphrase!=='string'||passphrase.length<12||passphrase.length>128)
+  return {restored:false,error:'Парольная фраза: от 12 до 128 символов'};
+ try {
+  return await native.restoreFromCloud({passphrase,confirmed:true});
+ }catch(error){
+  return {restored:false,error:String(error?.message||error).slice(0,210)};
+ }
+}
+export async function getMobileCloudBackupStatus(){
+ const native=plugin();
+ if(typeof native?.getPortableBackupStatus!=='function')
+  return {available:false,lastWrittenAt:0};
+ try{return await native.getPortableBackupStatus();}
+ catch{return {available:false,lastWrittenAt:0};}
+}
+
 /** True only when a real Android Room observation writer is available. */
 export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
 const unavailable = {native:false,storage:'WEB_ONLY',observationCount:0,forecastCount:0,
