@@ -1,6 +1,7 @@
 package com.apexintelligence.research;
 
 import android.graphics.Color;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -18,6 +19,13 @@ import com.getcapacitor.BridgeActivity;
  * Fits system insets at the native Android content-root boundary.
  */
 public class MainActivity extends BridgeActivity {
+    /** Retain the newest notification intent for the WebView on warm starts. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ApexNativePlugin.class);
