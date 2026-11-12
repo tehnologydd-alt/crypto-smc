@@ -1,0 +1,190 @@
+/*
+ * APEX Clean Intelligence / Stage 10: phone-tested source center and polish.
+ *
+ * Only layout changes. Source articles, Room status, API budget controls,
+ * Keystore forms and update buttons are exactly their original DOM nodes.
+ */
+#view-sources[data-apex-sources-compact="true"]{
+ display:flex;flex-direction:column;gap:10px;
+}
+#view-sources[data-apex-sources-compact="true"]>.section-title{
+ order:0;
+}
+#view-sources[data-apex-sources-compact="true"]>.ci7-sources-desk{
+ order:1;margin-bottom:3px;
+}
+#view-sources[data-apex-sources-compact="true"]>.ci10-source-fold{
+ position:relative;order:2;
+ margin:0;padding:0;min-width:0;
+ border:1px solid #315f6b;border-radius:15px;
+ background:linear-gradient(152deg,#0e2e3b,#071f2b);
+ overflow:hidden;
+ box-shadow:inset 0 1px 0 #c7fff609,0 5px 17px #03141b55;
+}
+#view-sources .ci10-source-fold:nth-of-type(2){
+ border-color:#377c78;
+}
+#view-sources .ci10-source-fold[open]{
+ border-color:#45988a;
+ box-shadow:inset 0 1px 0 #8bffe81c,0 8px 24px #03151a78;
+}
+#view-sources .ci10-source-summary{
+ min-height:68px;display:flex;align-items:center;
+ gap:9px;justify-content:space-between;cursor:pointer;
+ padding:12px 14px;list-style:none;
+ background:transparent;outline-offset:-3px;
+}
+#view-sources .ci10-source-summary::-webkit-details-marker{display:none}
+#view-sources .ci10-source-summary-copy{
+ flex:1;min-width:0;display:grid;gap:5px;
+}
+#view-sources .ci10-source-summary-copy strong{
+ font-size:13px;font-weight:820;line-height:1.35;
+ color:#d9fcf5;letter-spacing:-.015em;
+}
+#view-sources .ci10-source-summary-copy small{
+ font-size:10px;color:#97bac5;line-height:1.45;
+ overflow-wrap:anywhere;
+}
+#view-sources .ci10-source-chevron{
+ flex:0 0 28px;width:28px;height:28px;
+ display:grid;place-items:center;font-size:23px;
+ font-weight:500;line-height:1;
+ color:#84e7d0;background:#143f46;
+ border:1px solid #34776e;border-radius:9px;
+ transform:rotate(0deg);transition:transform .16s ease;
+}
+#view-sources .ci10-source-fold[open] .ci10-source-chevron{
+ transform:rotate(90deg);
+ background:#115346;color:#d8ffef;
+}
+#view-sources .ci10-source-body{
+ display:grid;gap:10px;padding:0 8px 10px;
+ min-width:0;
+}
+#view-sources .ci10-source-body>.card.block{
+ margin:0!important;min-width:0;
+ border-radius:12px!important;
+ background:#092633!important;
+ border-color:#2d5664!important;
+ padding:13px 11px!important;
+}
+#view-sources .ci10-source-body>.card.block .section-title{
+ gap:9px;
+}
+#view-sources .ci10-source-body>.card.block .section-title h3{
+ font-size:14px!important;line-height:1.4;
+}
+#view-sources .ci10-source-body>.card.block .source-line{
+ gap:7px;padding:10px 8px;
+}
+#view-sources .ci10-source-body>.card.block .source-line small{
+ font-size:10px;
+}
+#view-sources .ci10-source-body>.card.block .source-line .source-state{
+ white-space:normal;max-width:84px;text-align:center;
+}
+#view-sources .ci10-source-body>.card.block .personal-news-inputs{
+ display:flex;flex-wrap:wrap;gap:7px;
+}
+#view-sources .ci10-source-body>.card.block .personal-news-inputs input{
+ width:100%;min-width:0;min-height:44px;
+}
+#view-sources .ci10-source-body>.card.block .personal-news-inputs button{
+ min-height:42px;flex:1;
+}
+#view-sources .ci10-source-body>.card.block .update-controls{
+ display:flex;flex-wrap:wrap;gap:7px;
+}
+#view-sources .ci10-source-body>.card.block .update-controls button{
+ min-height:44px;flex:1;
+}
+#view-sources .ci10-source-body :is(
+ #source-list,#context-source-list,#news-articles,
+ #free-provider-center-panel,#native-storage-panel,.update-panel
+){
+ scroll-margin-top:94px;
+}
+#view-sources .ci10-source-fold-actions{
+ display:grid;gap:9px;margin:12px 0 0;
+ padding:12px 10px;border:1px solid #326974;
+ border-radius:11px;background:#0b2b35;
+}
+#view-sources .ci10-source-fold-note{
+ font-size:10px;color:#9ebfca;
+ line-height:1.6;margin:0;
+}
+#view-sources .ci10-source-expand{
+ min-height:44px;width:100%;font-size:11px;
+ border:1px solid #3f9786;border-radius:10px;
+ color:#e7fff5;font-weight:780;
+ background:#145149;cursor:pointer;
+}
+#view-sources .ci10-source-expand:focus-visible,
+#view-sources .ci10-source-summary:focus-visible{
+ outline:2px solid #8bffe6;outline-offset:-3px;
+}
+/* Protect the premium dark shell against screen bars and phone notches
+ * without forcing fake Android coordinates or absolute positioning. */
+@media(max-width:650px){
+ .topbar{
+  padding-top:calc(11px + env(safe-area-inset-top));
+  padding-inline:max(11px,env(safe-area-inset-left));
+ }
+ .content{
+  padding-bottom:calc(140px + env(safe-area-inset-bottom));
+ }
+ .tabs.bottom-dock{
+  bottom:max(9px,env(safe-area-inset-bottom));
+ }
+ #view-sources .ci10-source-summary{padding:12px 11px}
+ #view-sources .ci10-source-body{padding:0 6px 8px}
+}
+@media(max-width:360px){
+ #view-sources .ci10-source-summary-copy strong{font-size:12px}
+ #view-sources .ci10-source-summary-copy small{font-size:9px}
+ #view-sources .ci10-source-body>.card.block{padding:11px 8px!important}
+ #view-sources .ci10-source-fold-actions{padding:10px 8px}
+}
+@media(prefers-reduced-motion:reduce){
+ #view-sources .ci10-source-chevron{transition:none!important}
+}
+
+
+/* Real Chromium screenshot review: three equal status columns were too dense
+ * at 360px. Keep all exact source strings, but let each use the full width. */
+@media(max-width:430px){
+ #view-sources .ci7-source-metrics{
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:7px!important;
+ }
+ #view-sources .ci7-source-metric{
+  grid-column:auto!important;min-height:0;
+  display:grid;grid-template-columns:minmax(88px,35%) minmax(0,1fr);
+  align-items:start;align-content:center;gap:9px;
+  padding:11px 10px;
+ }
+ #view-sources .ci7-source-metric span{
+  font-size:10px;line-height:1.45;
+ }
+ #view-sources .ci7-source-metric strong{
+  font-size:11px;line-height:1.5;
+  overflow-wrap:anywhere;
+ }
+}
+/* Mobile settings: never break category names into unreadable fragments.
+ * Two large thumb targets per row in narrow native dialogs. */
+@media(max-width:380px){
+ .ci8-settings-redesigned .ci8-settings-nav{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:6px!important;
+ }
+ .ci8-settings-redesigned .ci8-settings-nav-button{
+  min-height:41px;font-size:10.5px!important;
+  padding:8px 5px!important;line-height:1.35;
+  overflow-wrap:normal;
+ }
+ .ci8-settings-redesigned .ci8-settings-section{
+  scroll-margin-top:176px!important;
+ }
+}
