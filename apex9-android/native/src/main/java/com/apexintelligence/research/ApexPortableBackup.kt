@@ -82,11 +82,13 @@ object ApexPortableBackup {
             }
         } finally { material.fill(0) }
     }
-    private fun settingsJson(settings:ResearchSettings):JSONObject {
+    private fun settingsJson(settings:ResearchSettings,uiIds:List<String>):JSONObject {
         val favourites=JSONArray()
         settings.favorites.forEach{favourites.put(it)}
         val marked=JSONArray()
         settings.alertMarkedIds.sorted().forEach{marked.put(it)}
+        val ui=JSONArray()
+        uiIds.forEach{ui.put(it)}
         return JSONObject().put("asset",settings.asset)
             .put("favorites",favourites)
             .put("backgroundSyncEnabled",settings.backgroundSyncEnabled)
@@ -96,6 +98,7 @@ object ApexPortableBackup {
             .put("alertStop",settings.alertStop)
             .put("alertScope",settings.alertScope)
             .put("alertMarkedIds",marked)
+            .put("uiMarkedIds",ui)
             .put("alertsEnabledAt",settings.alertsEnabledAt)
             .put("keepScreenOn",settings.keepScreenOn)
     }
@@ -139,7 +142,7 @@ object ApexPortableBackup {
      * Zip is encrypted BEFORE it touches the filesystem, so even an abrupt
      * crash cannot strand a plaintext research export in Android cache.
      */
-    private fun makeEncrypted(context:Context,password:CharArray):Pair<File,JSONObject> {
+    private fun makeEncrypted(context:Context,password:CharArray,uiIds:List<String>):Pair<File,JSONObject> {
         securePassword(password)
         val app=context.applicationContext
         val settings=kotlinx.coroutines.runBlocking { ApexPreferences.read(app) }
@@ -156,7 +159,7 @@ object ApexPortableBackup {
                 ZipOutputStream(BufferedOutputStream(
                     CipherOutputStream(file,cipher))).use { zip ->
                     db.runInTransaction {
-                        zipText(zip,"settings.json",settingsJson(settings).toString())
+                        zipText(zip,"settings.json",settingsJson(settings,uiIds).toString())
                         for((table,columns) in tableColumns)
                             counts.put(table,rowsToZip(
                                 db.openHelper.writableDatabase,zip,table,columns))
@@ -178,8 +181,9 @@ object ApexPortableBackup {
      * SAF provider performs the actual cloud upload; an app can confirm only
      * that the selected document stream was written and closed successfully.
      */
-    fun exportTo(context:Context,uri:Uri,password:CharArray):JSONObject {
-        val (encrypted,counts)=makeEncrypted(context,password)
+    fun exportTo(context:Context,uri:Uri,password:CharArray,
+        uiIds:List<String>):JSONObject {
+        val (encrypted,counts)=makeEncrypted(context,password,uiIds)
         try{
             val output=context.contentResolver.openOutputStream(uri,"w")
                 ?:throw IllegalStateException("Облачный документ недоступен для записи")
@@ -344,6 +348,7 @@ object ApexPortableBackup {
                     ApexPreferences.restoreFromBackup(context.applicationContext,settings)
                 }
                 return JSONObject().put("restored",true)
+                    .put("uiMarkedIds",settings.optJSONArray("uiMarkedIds")?:JSONArray())
                     .put("exportedAt",manifest.getLong("exportedAt"))
                     .put("mergedRows",scanned)
                     .put("note","Объединено с существующей базой. Перезапустите APEX.")
