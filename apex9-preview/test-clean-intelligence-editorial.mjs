@@ -86,7 +86,7 @@ test('news and macro layouts preserve original source panels and fetch quotas',(
  assert.match(ui,/calendar\.after\(indicators\)/);
  assert.match(ui,/indicators\.after\(feed\)/);
  assert.match(ui,/entries\.map\(entry=>\(\{/);
- assert.match(ui,/new MutationObserver\(render\)\.observe\(list,\{childList:true\}\)/);
+ assert.match(ui,/createScreenUpdateCoordinator\(page,render\)/);
  assert.match(original,/budget\.load\(mode,/);
  assert.match(original,/fetchPublicRssNews\(\)/);
  assert.match(original,/budget\.load\('calendar'/);
