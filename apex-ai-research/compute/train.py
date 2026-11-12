@@ -105,6 +105,7 @@ def train(path, output_dir, version):
     report = {
         "state":"CANDIDATE_NOT_ACTIVE",
         "version":version,
+        "asset":rows[0][4],
         "trained_at":datetime.now(timezone.utc).isoformat(),
         "feature_keys":list(FEATURES),
         "source_file_sha256":hashlib.sha256(path.read_bytes()).hexdigest(),
