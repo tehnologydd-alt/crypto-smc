@@ -135,8 +135,12 @@ try{
   requireCondition(await page.locator('#apex-settings-dialog .ci8-settings-section').count()===4,
    width+'px: native settings controls not regrouped into four categories');
   await page.locator('#ci9-interface-audit summary').click();
-  requireCondition(await page.locator('#ci9-interface-audit .ci9-audit-status').innerText()!=='Диагностика не запущена',
-   width+'px: UI audit did not refresh on demand');
+  // HTML <details> toggle is queued asynchronously. Wait for its actual
+  // event-driven DOM report rather than asserting in the click's same turn.
+  await page.waitForFunction(()=>{
+   const label=document.querySelector('#ci9-interface-audit .ci9-audit-status');
+   return Boolean(label&&label.textContent!=='Диагностика не запущена');
+  },null,{timeout:4000});
   requireCondition(!exceptions.length,
    width+'px: unexpected JavaScript exceptions: '+exceptions.slice(0,5).join(' | '));
   await context.close();
