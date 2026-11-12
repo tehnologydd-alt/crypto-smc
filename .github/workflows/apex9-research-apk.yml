@@ -2,14 +2,14 @@ name: APEX 9 Research - Android APK
 
 on:
   pull_request:
-    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2]
+    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2, apex-unified-cards-stale-archive-20261112]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
       - 'updates/v90-*.mjs'
       - '.github/workflows/apex9-research-apk.yml'
   push:
-    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx, apex-whale-stage4-validation-quality, apex-fresh-market-ws-and-quality-20261111, apex-synchronized-depth-20261111, apex-clean-chart-selected-scenario-20261111, apex-depth-equal-50-20261111, apex-m1-notifications-20261111, apex-notification-scope-compact-scenarios-20261111, apex-compact-levels-5dp-copy-20261111, apex-liquidity-freshness-research-20261112, apex-live-liquidity-columns-20261112, apex-public-large-trades-20261112, apex-multivenue-large-trades-20261112, apex-notification-open-exact-scenario-20261112, apex-early-whale-w-research-20261112, apex-cloud-transfer-backup-20261112, apex-scenarios-clean-quality-w-fold-20261112, apex-publish-timing-entry-audit-20261112, apex-unified-cards-stale-archive-20261112]
+    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx, apex-whale-stage4-validation-quality, apex-fresh-market-ws-and-quality-20261111, apex-synchronized-depth-20261111, apex-clean-chart-selected-scenario-20261111, apex-depth-equal-50-20261111, apex-m1-notifications-20261111, apex-notification-scope-compact-scenarios-20261111, apex-compact-levels-5dp-copy-20261111, apex-liquidity-freshness-research-20261112, apex-live-liquidity-columns-20261112, apex-public-large-trades-20261112, apex-multivenue-large-trades-20261112, apex-notification-open-exact-scenario-20261112, apex-early-whale-w-research-20261112, apex-cloud-transfer-backup-20261112, apex-scenarios-clean-quality-w-fold-20261112, apex-publish-timing-entry-audit-20261112, apex-unified-cards-stale-archive-20261112, apex-clean-intelligence-concept1-20261112]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
@@ -88,6 +88,7 @@ jobs:
           node --test apex9-preview/test-scenarios-clean-quality.mjs
           node --test apex9-preview/test-forecast-publication-timing.mjs
           node --test apex9-preview/test-unified-forecast-card-archive.mjs
+          node --test apex9-preview/test-clean-intelligence.mjs
           node --test apex9-preview/test-multivenue-trades.mjs
           node --test apex9-preview/test-whale-activity-stage2.mjs
           node --test apex9-preview/test-order-blocks-chart-stage3.mjs
