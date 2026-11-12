@@ -154,6 +154,9 @@ interface ResearchDao {
     /** Stage 1: only source-scoped large native-transfer evidence. */
     @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='whale' AND source=:source ORDER BY observedAt DESC LIMIT :limit")
     suspend fun whaleHistoryForSource(asset: String, source: String, limit: Int): List<ResearchObservation>
+    /** Genuine Binance Spot aggTrade is a market execution, NOT on-chain whale flow. */
+    @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='market' AND source='binance:spot:aggtrade' ORDER BY observedAt DESC LIMIT :limit")
+    suspend fun largeTradeHistory(asset: String, limit: Int): List<ResearchObservation>
 
     @Query("SELECT COUNT(*) FROM research_observations")
     suspend fun observationCount(): Int
