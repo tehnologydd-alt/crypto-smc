@@ -47,7 +47,9 @@ def load_rows(path: Path):
         arr = [float(features[k]) for k in FEATURES]
         if not all(math.isfinite(x) for x in arr):
             raise ValueError(f"Line {line_number}: non-finite feature")
-        records.append((raw["observed_at"], raw["resolved_at"], raw["label"], arr))
+        records.append((raw["observed_at"], raw["resolved_at"], raw["label"], arr, raw["asset"]))
+    if len({r[4] for r in records}) != 1:
+        raise ValueError("Train one asset per dataset to avoid cross-asset leakage")
     records.sort(key=lambda item: item[0])
     if len(records) < 240:
         raise ValueError("Minimum 240 real, completed observations required")
