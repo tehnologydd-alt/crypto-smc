@@ -12,6 +12,7 @@ services:
       - "127.0.0.1:8789:8080"
     volumes:
       - ./model_store:/srv/apex/models
+      - ./verified_observations:/srv/apex/verified_observations:ro
     mem_limit: 8g
     cpus: "2.0"
     read_only: true
