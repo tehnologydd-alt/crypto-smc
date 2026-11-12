@@ -70,6 +70,15 @@ def load_active():
         lgb_path = DATA_DIR / f"{version}.lightgbm.txt"
         if not xgb_path.exists() or not lgb_path.exists():
             return None
+        expected = meta.get("model_sha256", {})
+        if not isinstance(expected, dict) or any(
+            not isinstance(expected.get(name), str) or
+            expected[name] != hashlib.sha256(path.read_bytes()).hexdigest()
+            for name, path in (("xgboost", xgb_path), ("lightgbm", lgb_path))
+        ):
+            return None
+        if meta.get("feature_keys") != list(FEATURES):
+            return None
         key = (version, active.stat().st_mtime_ns,
                xgb_path.stat().st_mtime_ns, lgb_path.stat().st_mtime_ns)
         if key != _cached_key:
