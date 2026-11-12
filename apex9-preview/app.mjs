@@ -42,6 +42,7 @@ import {globalMarketSnapshot} from './market-overview.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {initCleanIntelligence} from './clean-intelligence.mjs';
+import {initCleanIntelligenceMajor} from './clean-intelligence-major.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {publicationCaveat} from './scenario-publication-timing.mjs';
 import {visibleChartScenarios,compactScenarioDetails} from './clean-chart-scenarios.mjs';
@@ -1500,6 +1501,7 @@ function markSelectedAsset(){
  evidenceDashboard.refreshAssetChoices();
 }
 initCleanIntelligence();
+initCleanIntelligenceMajor();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
