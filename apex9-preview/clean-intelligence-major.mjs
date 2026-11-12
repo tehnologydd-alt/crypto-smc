@@ -65,10 +65,14 @@ function mountCommandOverview(){
  source.setAttribute('role','status');
  const pulse=el('div','ci6-pulse-grid');
  const metrics=[
-  ['Активные','ci6-pulse-active',()=>existingButton(
-   '[data-tab="forecasts"]')||undefined,'Открыть сценарии'],
-  ['Лимитные','ci6-pulse-limit',()=>existingButton(
-   '[data-tab="forecasts"]'),'Открыть журнал лимитных'],
+  ['Активные','ci6-pulse-active',()=>{
+   existingButton('[data-tab="forecasts"]');
+   existingButton('[data-journal-stage="ACTIVE"]');
+  },'Открыть активные сценарии'],
+  ['Лимитные','ci6-pulse-limit',()=>{
+   existingButton('[data-tab="forecasts"]');
+   existingButton('[data-journal-stage="CONFIRMED"]');
+  },'Открыть лимитные сценарии'],
   ['Изменения','ci6-pulse-radar',()=>existingButton(
    '[data-tab="radar"]'),'Открыть рыночный радар']
  ];
