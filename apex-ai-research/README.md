@@ -121,6 +121,19 @@ docker compose run --rm cpu-research python train.py \
 Results are written as `v001.xgboost.json`,
 `v001.lightgbm.txt` and `v001.candidate.json`. **They are NOT
 activated automatically** even if a holdout score looks favorable.
+
+After reviewing real holdout data, leakage controls and independent
+forward results, an operator can explicitly activate a candidate:
+
+```sh
+docker compose run --rm cpu-research python activate.py \\
+  --models /srv/apex/models --version v001 \\
+  --confirm-reviewed-version v001
+```
+
+Activation refuses invalid hashes and candidates that do not beat the
+historical baseline on the held-out sample. This is a minimum software
+gate, not proof of future predictive improvement.
 Check temporal leakage, data lineage, changes in market regime and
 calibration on additional forward periods first. Activation is a
 separate deliberate operator action with a matching `active.json`.
