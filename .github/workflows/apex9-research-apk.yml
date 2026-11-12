@@ -2,14 +2,14 @@ name: APEX 9 Research - Android APK
 
 on:
   pull_request:
-    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2, apex-unified-cards-stale-archive-20261112, apex-clean-intelligence-concept1-20261112, apex-clean-intelligence-polish-20261112, apex-clean-intelligence-asset-research-20261112, apex-clean-intelligence-status-polish-20261112, apex-clean-intelligence-continuity-20261112, apex-clean-intelligence-major-stage6-20261112, apex-clean-intelligence-major-stage7-20261112, apex-clean-intelligence-editorial-stage8-20261112, apex-clean-intelligence-integrity-stage9-20261112]
+    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2, apex-unified-cards-stale-archive-20261112, apex-clean-intelligence-concept1-20261112, apex-clean-intelligence-polish-20261112, apex-clean-intelligence-asset-research-20261112, apex-clean-intelligence-status-polish-20261112, apex-clean-intelligence-continuity-20261112, apex-clean-intelligence-major-stage6-20261112, apex-clean-intelligence-major-stage7-20261112, apex-clean-intelligence-editorial-stage8-20261112, apex-clean-intelligence-integrity-stage9-20261112, apex-clean-intelligence-mobile-qa-stage10-20261112]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
       - 'updates/v90-*.mjs'
       - '.github/workflows/apex9-research-apk.yml'
   push:
-    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx, apex-whale-stage4-validation-quality, apex-fresh-market-ws-and-quality-20261111, apex-synchronized-depth-20261111, apex-clean-chart-selected-scenario-20261111, apex-depth-equal-50-20261111, apex-m1-notifications-20261111, apex-notification-scope-compact-scenarios-20261111, apex-compact-levels-5dp-copy-20261111, apex-liquidity-freshness-research-20261112, apex-live-liquidity-columns-20261112, apex-public-large-trades-20261112, apex-multivenue-large-trades-20261112, apex-notification-open-exact-scenario-20261112, apex-early-whale-w-research-20261112, apex-cloud-transfer-backup-20261112, apex-scenarios-clean-quality-w-fold-20261112, apex-publish-timing-entry-audit-20261112, apex-unified-cards-stale-archive-20261112, apex-clean-intelligence-concept1-20261112, apex-clean-intelligence-polish-20261112, apex-clean-intelligence-asset-research-20261112, apex-clean-intelligence-status-polish-20261112, apex-clean-intelligence-continuity-20261112, apex-clean-intelligence-major-stage6-20261112, apex-clean-intelligence-major-stage7-20261112, apex-clean-intelligence-editorial-stage8-20261112, apex-clean-intelligence-integrity-stage9-20261112, apex-clean-intelligence-mobile-qa-stage10-20261112]
+    branches: [apex-9-evolution, apex-provider-robustness-stage4, apex-source-ux-resource-stage5, apex-foreground-depth-cadence-20261111, apex-m1-legacy-label-20261111, apex-whale-intelligence-stage1, apex-whale-intelligence-stage2, apex-whale-orderblocks-stage3-okx, apex-whale-stage4-validation-quality, apex-fresh-market-ws-and-quality-20261111, apex-synchronized-depth-20261111, apex-clean-chart-selected-scenario-20261111, apex-depth-equal-50-20261111, apex-m1-notifications-20261111, apex-notification-scope-compact-scenarios-20261111, apex-compact-levels-5dp-copy-20261111, apex-liquidity-freshness-research-20261112, apex-live-liquidity-columns-20261112, apex-public-large-trades-20261112, apex-multivenue-large-trades-20261112, apex-notification-open-exact-scenario-20261112, apex-early-whale-w-research-20261112, apex-cloud-transfer-backup-20261112, apex-scenarios-clean-quality-w-fold-20261112, apex-publish-timing-entry-audit-20261112, apex-unified-cards-stale-archive-20261112, apex-clean-intelligence-concept1-20261112, apex-clean-intelligence-polish-20261112, apex-clean-intelligence-asset-research-20261112, apex-clean-intelligence-status-polish-20261112, apex-clean-intelligence-continuity-20261112, apex-clean-intelligence-major-stage6-20261112, apex-clean-intelligence-major-stage7-20261112, apex-clean-intelligence-editorial-stage8-20261112, apex-clean-intelligence-integrity-stage9-20261112, apex-clean-intelligence-mobile-qa-stage10-20261112, apex-clean-intelligence-release-safety-stage11-20261112]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: apex9-research-apk-v2-${{ github.ref }}
@@ -98,6 +99,7 @@ jobs:
           node --test apex9-preview/test-clean-intelligence-editorial.mjs
           node --test apex9-preview/test-clean-intelligence-integrity.mjs
           node --test apex9-preview/test-clean-intelligence-mobile-polish.mjs
+          node --test apex9-preview/test-clean-intelligence-release-safety.mjs
           node --test apex9-preview/test-multivenue-trades.mjs
           node --test apex9-preview/test-whale-activity-stage2.mjs
           node --test apex9-preview/test-order-blocks-chart-stage3.mjs
@@ -275,6 +277,38 @@ jobs:
           (cd apex9-android/output && sha256sum *.apk > SHA256SUMS.txt)
           ls -lh apex9-android/output/*.apk
 
+      - name: Audit APK signature, installed identity and update compatibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
+          command -v apksigner
+          command -v aapt
+          APK="$(find apex9-android/output -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          CURRENT=apex9-android/output/apex-build-info.json
+          PREVIOUS=apex9-android/previous-stage10
+          mkdir -p "$PREVIOUS"
+          # Compare with the known Stage 10 GitHub artifact when still available.
+          # This comparison is optional because Actions artifact retention expires.
+          if gh api repos/tehnologydd-alt/crypto-smc/actions/artifacts/13978404937/zip >"$PREVIOUS/prior.zip" 2>/dev/null &&
+             unzip -tq "$PREVIOUS/prior.zip" >/dev/null 2>&1; then
+            unzip -oq "$PREVIOUS/prior.zip" -d "$PREVIOUS"
+          else
+            echo "::notice::Previous APK unavailable: signer compatibility will remain UNVERIFIED."
+          fi
+          OLD_APK="$(find "$PREVIOUS" -maxdepth 1 -name '*.apk' -print -quit)"
+          if [ -n "$OLD_APK" ] && [ -s "$PREVIOUS/apex-build-info.json" ]; then
+            node apex9-android/scripts/audit-apk.mjs "$APK" "$CURRENT" apex9-android/output \
+              "$OLD_APK" "$PREVIOUS/apex-build-info.json"
+          else
+            node apex9-android/scripts/audit-apk.mjs "$APK" "$CURRENT" apex9-android/output
+          fi
+          test -s apex9-android/output/APEX-install-readiness.json
+          test -s apex9-android/output/APEX-install-readiness.md
+          cat apex9-android/output/APEX-install-readiness.md >>"$GITHUB_STEP_SUMMARY"
+
       - name: Publish approved signed preview for in-app update checks
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_prerelease }}
         env:
@@ -295,3 +329,43 @@ jobs:
           path: apex9-android/output/*
           if-no-files-found: error
           retention-days: 30
+
+  android-emulator-smoke:
+    name: Android emulator first-run, relaunch and reinstall
+    needs: apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: APEX9-Research-Android-APK
+          path: apex9-android/output
+      - name: Enable hardware acceleration for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install APK and check relaunch/reinstall in a real Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          cores: 2
+          ram-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            APK="$(find apex9-android/output -maxdepth 1 -name '*.apk' -print -quit)"
+            test -n "$APK"
+            bash apex9-android/scripts/emulator-upgrade-smoke.sh "$APK" apex9-emulator-report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: APEX-Android-Emulator-Smoke
+          path: apex9-emulator-report/
+          if-no-files-found: warn
+          retention-days: 14
+
