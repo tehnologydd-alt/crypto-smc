@@ -84,20 +84,24 @@ export function studyVisibleLiquidity(rows,{now=Date.now(),asset}={}){
   const streak=points.slice(firstInStreak);
   const first=streak[0];
   const span=last.observedAt-first.observedAt;
+  // Snapshot freshness and temporal stability are separate properties.
+  // A single valid recent book IS usable as a current descriptive snapshot;
+  // several observations are only required to measure changes over time.
   const continuity=streak.length>=3&&span>=120000;
   const recent=age>=0&&age<=180000;
-  const status=!recent?'HISTORICAL':!continuity?'LOW_COVERAGE':'OBSERVED';
+  const status=recent?'OBSERVED':'HISTORICAL';
+  const trendState=recent&&continuity?'OBSERVED':'COLLECTING';
   const wallBid=last.bidNotional,wallAsk=last.askNotional;
   const quantityScope=last.bidLevels===null?'Неизвестное число уровней':last.bidLevels+
    ' bid / '+last.askLevels+' ask уровней';
   venues.push({
-   venue,status,samples:points.length,continuousSamples:streak.length,
+   venue,status,trendState,samples:points.length,continuousSamples:streak.length,
    lastObservedAt:last.observedAt,lastCollectedAt:last.collectedAt,
    spanMs:span,longestGapMs:longestGap,
    spreadBps:last.spreadBps,
-   spreadChangeBps:continuity?last.spreadBps-first.spreadBps:null,
+   spreadChangeBps:recent&&continuity?last.spreadBps-first.spreadBps:null,
    imbalance:last.imbalance,
-   imbalanceChange:continuity?last.imbalance-first.imbalance:null,
+   imbalanceChange:recent&&continuity?last.imbalance-first.imbalance:null,
    bidNotional:wallBid,askNotional:wallAsk,
    quantityScope,
    collectionMethod:last.collectionMethod,
