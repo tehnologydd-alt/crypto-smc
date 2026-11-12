@@ -74,7 +74,8 @@ export function parseVenueTrades(venue,asset,payload,now=Date.now()){
  let rows=[];
  if(venue==='bybit'){
   if(data?.topic!=='publicTrade.'+asset||!Array.isArray(data.data))return [];
-  rows=data.data.slice(0,1024).map(x=>convert(venue,asset,
+  rows=data.data.slice(0,1024).filter(x=>x?.s===asset)
+   .map(x=>convert(venue,asset,
    {id:x.i,price:x.p,quantity:x.v,time:x.T,
     side:x.S==='Buy'?'BUY_TAKER':x.S==='Sell'?'SELL_TAKER':null},now));
  }else if(venue==='okx'){
@@ -93,7 +94,8 @@ export function parseVenueTrades(venue,asset,payload,now=Date.now()){
  }else if(venue==='bingx'){
   if(data?.dataType!==base(asset)+'-USDT@trade')return [];
   const items=Array.isArray(data.data)?data.data:[data.data];
-  rows=items.slice(0,1024).map(x=>convert(venue,asset,
+  rows=items.slice(0,1024).filter(x=>x?.s===base(asset)+'-USDT')
+   .map(x=>convert(venue,asset,
    {id:x?.t,price:x?.p,quantity:x?.q,time:x?.T,
     side:x?.m===false?'BUY_TAKER':x?.m===true?'SELL_TAKER':null},now));
  }else if(venue==='coinbase'){
