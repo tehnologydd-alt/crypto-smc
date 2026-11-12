@@ -162,7 +162,7 @@ try{
   requireCondition(categoryColumns===(width<=380?2:4),
    width+'px: settings category buttons are too cramped for the viewport');
   await page.locator('#ci11-upgrade-desk summary').click();
-  await page.locator('#ci11-upgrade-check').click();
+  await page.locator('#ci11-upgrade-desk .ci11-upgrade-check').click();
   await page.waitForFunction(()=>{
    const status=document.querySelector('#ci11-upgrade-status');
    return Boolean(status&&status.textContent.includes('Нативная база Room не подтверждена'));
