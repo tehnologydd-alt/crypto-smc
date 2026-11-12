@@ -8,6 +8,7 @@ import {directionalHypothesis,planDirectionalScenario,directionalOutcomeLabel}
  from './directional-scenario.mjs';
 import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {compactOpenForecastCard} from './forecast-compact-card.mjs';
+import {whaleCheckBadge} from './forecast-whale-check.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
  completedResearchPresentation,renderCompletedResearchPanel}
  from './forecast-level-metrics.mjs';
@@ -252,6 +253,8 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen,copyTe
   'finished tone-'+completion.tone:
   evidence.state!=='OBSERVED'?'warning':'active'),stageLabel);
  head.append(identity,badge);card.append(head);
+ const w=whaleCheckBadge(row);
+ if(w)card.append(w);
  if(evidence.state!=='OBSERVED'){
   card.append(el('p','forecast-quality-warning',
    'Данные сценария требуют проверки: '+(evidence.reason||'нет подтверждения')));
