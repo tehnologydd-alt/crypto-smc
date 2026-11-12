@@ -3614,3 +3614,33 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .liquidity-archive-label{display:block;color:#91b3bc;font-size:10px;
  line-height:1.4;margin:10px 0 1px;border-top:1px solid #27525a;
  padding-top:10px}
+
+
+/* Source-scoped market trades — separate from on-chain whale transfer cards. */
+.large-trade-panel{margin:16px 0;padding:16px;border:1px solid #32646e;
+ border-radius:18px;background:#0b222d;display:grid;gap:12px;min-width:0}
+.large-trade-panel .section-title{margin-bottom:0;align-items:center}
+.large-trade-panel #large-trade-status,
+.large-trade-panel #large-trade-persist{margin:0;color:#a3bdc5;
+ font-size:12px;line-height:1.5}
+.large-trade-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.large-trade-controls label{display:grid;gap:6px;color:#bdd9de;
+ font-size:11px;line-height:1.35;min-width:0}
+.large-trade-controls select,.large-trade-controls input{
+ width:100%;min-width:0;border:1px solid #3a6970;border-radius:10px;
+ background:#08202a;color:#e5f7f5;font:inherit;font-size:12px;
+ min-height:42px;padding:8px}
+.large-trade-list{display:grid;gap:8px;max-height:340px;overflow:auto}
+.large-trade-card{padding:12px 13px;border:1px solid #2c4e59;
+ border-radius:12px;background:#0b2a35;display:grid;gap:5px}
+.large-trade-head{display:flex;align-items:start;justify-content:space-between;
+ gap:10px}
+.large-trade-head strong{font-size:12px;color:#d9f7ef;line-height:1.4}
+.large-trade-head span{font-size:11px;color:#91b2bc;white-space:nowrap}
+.large-trade-usdt{font-size:18px;font-variant-numeric:tabular-nums;
+ color:#80e6d8}
+.large-trade-meta{font-size:11px;color:#a5c0c8;line-height:1.55;
+ margin:0;overflow-wrap:anywhere}
+@media(max-width:420px){.large-trade-controls{grid-template-columns:1fr}
+ .large-trade-panel{padding:12px}
+}
