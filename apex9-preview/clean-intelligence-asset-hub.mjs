@@ -45,7 +45,13 @@ function selectArea(area){
 function scrollTo(selector){
  const target=document.querySelector(selector);
  if(!target||target.hidden)return false;
- target.scrollIntoView({behavior:'smooth',block:'start'});
+ // Stage 10 folds the extremely long API source center. Open the existing
+ // group BEFORE navigating, preserving the original target and handlers.
+ const fold=target.closest('details.ci10-source-fold');
+ if(fold&&!fold.open)fold.open=true;
+ requestAnimationFrame(()=>target.scrollIntoView({
+  behavior:'smooth',block:'start'
+ }));
  return true;
 }
 function openAssetResearch(area,selector){
