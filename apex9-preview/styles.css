@@ -3738,3 +3738,55 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  border:1px solid #8f6d43;border-radius:10px;
  padding:9px 11px;margin:8px 0 10px;background:#312a20;
  color:#e9ce9d;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+
+
+/* One forecast-card identity across waiting, limit, active, invalid and done.
+ * Keep existing .is-completed.tone-* backgrounds and borders unchanged. */
+#view-forecasts .forecast-unified-head{
+ display:flex;align-items:flex-start;justify-content:space-between;
+ gap:10px;min-width:0}
+#view-forecasts .forecast-unified-identity{
+ display:grid;gap:5px;min-width:0;flex:1}
+#view-forecasts .forecast-unified-identity strong{
+ font-size:clamp(17px,4.6vw,21px);line-height:1.22;
+ overflow-wrap:anywhere}
+#view-forecasts .forecast-unified-identity .forecast-created-at{
+ display:block;font-size:11px;font-weight:600;
+ color:#91bac2;line-height:1.4;letter-spacing:normal}
+#view-forecasts .forecast-unified-identity .forecast-unified-context{
+ color:#98b9c3;font-size:11px;line-height:1.45}
+#view-forecasts .forecast-visual.is-completed .forecast-created-at{
+ color:#a9b8c4}
+#view-forecasts .forecast-unverified-card:not(.is-completed){
+ background:linear-gradient(155deg,#112d37,#0c212b);
+ border-color:#345963;border-radius:18px}
+#view-forecasts .forecast-unverified-card .forecast-visual-state.warning{
+ background:#4b3927;color:#f0cd93;font-size:12px}
+#view-forecasts .forecast-legacy:not(.is-completed){
+ background:linear-gradient(155deg,#112d37,#0c212b);
+ border-color:#345963}
+.forecast-journal-row-tools{display:flex;justify-content:flex-end;
+ margin-top:7px;border-top:1px solid #294b55;padding-top:9px}
+.forecast-journal-hide{border:1px solid #355660;background:#122a35;
+ color:#b7cdd3;padding:8px 10px;border-radius:10px;
+ font:inherit;font-size:11px;min-height:36px;cursor:pointer}
+.forecast-journal-hide:focus-visible{outline:2px solid #7ce9d1}
+.forecast-expired-archive,.forecast-hidden-archive{
+ border:1px solid #385965;border-radius:14px;
+ margin:14px 0;background:#0d2631;padding:5px 9px}
+.forecast-expired-archive>summary,.forecast-hidden-archive>summary{
+ cursor:pointer;color:#d8e4df;font-weight:750;font-size:12px;
+ padding:12px 8px;line-height:1.4}
+.forecast-expired-archive>.forecast-record{
+ margin:10px 0 13px;max-width:100%}
+.forecast-expired-archive .forecast-expired-label{
+ border:1px solid #7b5c3a;color:#e2c28f;
+ background:#30271d;border-radius:10px;
+ padding:9px;font-size:11px;line-height:1.5;margin:0}
+.forecast-hidden-row{display:flex;gap:8px;justify-content:space-between;
+ align-items:center;padding:9px 5px;border-top:1px solid #30515b;
+ flex-wrap:wrap}
+.forecast-hidden-row small{font-size:11px;color:#abc3cb;overflow-wrap:anywhere}
+.forecast-hidden-row button,.forecast-hidden-restore-all{
+ min-height:36px;border-radius:9px;font-size:12px}
+.forecast-hidden-restore-all{margin:9px 0}
