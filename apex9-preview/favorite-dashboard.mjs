@@ -16,6 +16,7 @@ import {attachAssetLogo} from './asset-logo.mjs';
 import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {scenarioJournalState,scenarioJournalRows} from './scenario-journal-state.mjs';
+import {forecastExpiredUnverified} from './forecast-stale-archive.mjs';
 import {directionalQualitySummary,verifiedDirectionalEvidence} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
@@ -1391,6 +1392,7 @@ export function initFavoriteResearch({
  }
  function getScenarioRows(asset){
   return lastRows.filter(x=>x.asset===asset&&
+   !hidden.has(x.id)&&!forecastExpiredUnverified(x)&&
    ['PENDING_CONFIRMATION','CONFIRMED','ACTIVE'].includes(forecastStage(x)));
  }
  function message(text,error=false){
