@@ -657,3 +657,167 @@ body[data-view]:not([data-view="overview"]) .ci-screen-heading{display:none!impo
 @media(prefers-reduced-motion:reduce){
  .ci-favorite-dot::after{transition:none}
 }
+
+
+/* --- Concept 1 / Phase 3: graph-led asset intelligence and research hub --- */
+#view-asset .candle-panel{
+ padding:15px 12px 12px!important;
+ background:linear-gradient(158deg,#0c2a37,#061a26);
+ border-color:#2e6975;
+}
+#view-asset .chart-heading{align-items:center;gap:8px}
+#view-asset .chart-heading h3{font-size:16px}
+#view-asset .chart-heading .ghost{min-height:37px;min-width:37px}
+#view-asset .chart-toolbar{
+ display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+ padding:2px 0 9px;margin:5px 0 2px;gap:5px;
+}
+#view-asset .chart-toolbar::-webkit-scrollbar{display:none}
+#view-asset .chart-tf{
+ flex:1 0 auto;min-width:39px;min-height:35px;
+ font-size:10px;border-radius:9px;padding:6px 7px;
+}
+#view-asset .chart-reset{
+ min-height:35px;flex:0 0 auto;font-size:10px;
+}
+#view-asset .chart-evidence-overlays{margin:0 0 2px;padding:0;gap:6px}
+#view-asset .chart-evidence-overlays #chart-scenario-hide:disabled{
+ display:none!important;
+}
+#view-asset .chart-surface{
+ margin:2px 0 0;border-radius:13px;
+ background:linear-gradient(180deg,#061925,#04121b);
+ border-color:#234f5d;
+}
+#view-asset #chart-selected{
+ padding:8px 10px;min-height:35px;margin-top:9px;
+ color:#a0c6cb;background:#0a2630;border:1px solid #29535e;
+ border-radius:10px;
+}
+#view-asset .ci-asset-intelligence{
+ display:grid;gap:9px;margin:11px 0 2px;
+ min-width:0;
+}
+.ci-asset-intel-tabs{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:5px;padding:4px;
+ background:#0c2732;border:1px solid #2b5b65;border-radius:13px;
+}
+.ci-asset-intel-tab{
+ min-width:0;min-height:41px;border:1px solid transparent;
+ border-radius:10px;padding:8px 4px;
+ background:transparent;color:#a8c9ce;font-weight:740;
+ font-size:11px;cursor:pointer;
+}
+.ci-asset-intel-tab[aria-pressed="true"]{
+ border-color:#44caba;background:#0e5557;color:#dcfff7;
+ box-shadow:inset 0 1px 0 #b9fff415;
+}
+.ci-asset-intel-contents{min-width:0}
+.ci-asset-intel-panel{
+ display:grid;grid-template-columns:minmax(0,1fr);
+ gap:8px;min-width:0;padding:12px 11px;
+ background:linear-gradient(160deg,#102d3a,#0a2230);
+ border:1px solid #315965;border-radius:13px;
+}
+.ci-asset-intel-panel[hidden]{display:none!important}
+.ci-asset-intel-panel>strong{
+ color:#d3f2ee;font-size:12px;line-height:1.4;
+}
+.ci-asset-intel-panel .chart-overlay-toggle{
+ width:fit-content;max-width:100%;
+ min-height:37px;padding:8px 12px!important;
+ background:#113a46;border:1px solid #36717d;color:#b6eee8;
+ border-radius:10px;font-size:11px;
+}
+.ci-asset-intel-panel .chart-overlay-toggle[aria-pressed="true"]{
+ background:#0f584c;border-color:#4ac6a8;color:#ceffec;
+}
+.ci-asset-intel-panel .chart-evidence-status,
+.ci-asset-intel-panel #chart-ob-status{
+ display:block;margin:0;max-width:100%;
+ font-size:10px;line-height:1.6;color:#8db5c0;
+ overflow-wrap:anywhere;
+}
+.ci-asset-intel-disclaimer,
+.ci-asset-intel-source{
+ margin:0;color:#9ebfca;line-height:1.6;font-size:10px;
+}
+.ci-asset-intel-source{padding:7px 9px;background:#0a222e;
+ border:1px solid #254955;border-radius:9px}
+.ci-asset-intel-action{
+ display:flex;align-items:center;justify-content:center;
+ min-height:40px;min-width:0;border:1px solid #318179;
+ background:#123b43;color:#befff2;border-radius:10px;
+ padding:8px 11px;font-size:11px;font-weight:750;
+ cursor:pointer;overflow-wrap:anywhere;
+}
+.ci-asset-intel-action:active{background:#175653}
+#view-asset .clean-chart-scenario{margin-top:9px}
+#view-asset .asset-scenarios{margin-top:12px}
+#view-asset .scenario-map-list{min-width:0}
+
+/* Research is a real navigation hub; original Evidence Lab stays intact below. */
+#view-quality .ci-research-landing{
+ margin:4px 0 16px;padding:0;display:grid;gap:9px;
+}
+#view-quality .ci-research-landing h2{
+ margin:0;color:#eefcff;font-weight:800;
+ font-size:clamp(24px,6.3vw,31px);letter-spacing:-.035em;
+}
+#view-quality .ci-research-landing>p{
+ margin:0 0 6px;color:#94b8c6;font-size:11px;line-height:1.55;
+}
+#view-quality .ci-research-grid{
+ display:grid;grid-template-columns:minmax(0,1fr);gap:9px;
+}
+#view-quality .ci-research-card{
+ display:flex;align-items:center;gap:11px;min-width:0;
+ min-height:72px;padding:11px 12px;
+ border-radius:15px;
+ background:linear-gradient(145deg,#0d2c38,#091d29);
+ border:1px solid #315e68;cursor:pointer;
+ color:#d6f5f4;text-align:left;
+ box-shadow:inset 0 1px 0 #a6fff70a;
+}
+#view-quality .ci-research-card:nth-child(1){
+ background:linear-gradient(135deg,#123a40,#0b2b35);
+ border-color:#397d7a;
+}
+#view-quality .ci-research-card:nth-child(2){
+ background:linear-gradient(135deg,#102f40,#0a2735);
+}
+#view-quality .ci-research-card:nth-child(4){
+ border-color:#328270;
+ background:linear-gradient(135deg,#103a38,#0b2931);
+}
+.ci-research-symbol{
+ width:40px;height:40px;flex:0 0 40px;
+ display:flex;align-items:center;justify-content:center;
+ background:#114a4d;color:#7ff0d9;
+ border:1px solid #35766f;border-radius:12px;
+ font-size:23px;
+}
+.ci-research-copy{flex:1;min-width:0;display:grid;gap:4px}
+.ci-research-copy strong{font-size:13px;line-height:1.3;color:#e1faf5}
+.ci-research-copy small{font-size:10px;line-height:1.4;color:#90b7bf}
+.ci-research-arrow{flex:0 0 auto;font-size:24px;color:#70daca}
+#view-quality .quality-page-heading{margin:16px 0 9px}
+#view-quality .quality-page-heading::before{content:"Лаборатория качества";
+ color:#c5e9e7;font-size:14px;font-weight:750}
+#view-quality .quality-page-marker{font-size:9px}
+#view-quality .quality-lead{font-size:11px;line-height:1.55}
+#view-quality .quality-workspace-nav{
+ gap:5px;overflow-x:auto;scrollbar-width:none;
+}
+#view-quality .quality-workspace-button{
+ min-width:0;min-height:43px;font-size:10px;
+ padding:8px 6px;
+}
+@media(max-width:390px){
+ #view-asset .chart-toolbar{gap:4px}
+ #view-asset .chart-tf{padding:6px 5px;min-width:35px}
+ #view-asset .ci-asset-intel-tab{font-size:10px}
+ #view-quality .ci-research-card{padding:10px;gap:9px}
+ .ci-research-symbol{width:36px;height:36px;flex-basis:36px}
+}
