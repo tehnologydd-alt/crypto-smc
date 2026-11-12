@@ -36,6 +36,7 @@ def require_key(authorization: Annotated[str | None, Header()] = None):
 
 class Observation(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    asset: str = Field(min_length=2, max_length=24, pattern=r"^[A-Z0-9]+$")
     features: dict[str, float] = Field(description="Only real measured values")
     source_ids: list[str] = Field(min_length=1, max_length=20)
 
