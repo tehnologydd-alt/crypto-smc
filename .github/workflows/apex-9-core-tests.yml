@@ -14,7 +14,7 @@ on:
       - 'apex9-cloudflare/**'
       - '.github/workflows/apex-9-core-tests.yml'
   pull_request:
-    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2]
+    branches: [apex-9-evolution, apex-m1-precision-charts, apex-source-audit-phase1, apex-multi-provider-evidence-v2, apex-unified-cards-stale-archive-20261112]
     paths:
       - 'apex9-preview/**'
       - 'apex9-android/**'
