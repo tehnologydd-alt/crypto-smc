@@ -273,6 +273,160 @@ function mountAsset(){
  strip.before(hero);
  strip.after(workspace);
 }
+/** Asset intelligence uses the ORIGINAL chart overlay controls and source
+ * status nodes. Moving them preserves their event listeners, live timestamps,
+ * and original native Room/M1/whale data flow. No cloned "whale" figures.
+ */
+export function assetIntelligenceTabs(){
+ return [
+  {id:'whales',label:'Киты'},
+  {id:'blocks',label:'Ордер-блоки'},
+  {id:'info',label:'Инфо'}
+ ];
+}
+function mountAssetIntelligence(){
+ const asset=byId('view-asset');
+ const chart=asset?.querySelector('.candle-panel');
+ const after=byId('chart-selected');
+ const ob=byId('chart-ob-toggle');
+ const whales=byId('chart-whale-toggle');
+ const obStatus=byId('chart-ob-status');
+ const whaleStatus=byId('chart-whale-status');
+ if(!asset||!chart||!after||!ob||!whales||!obStatus||!whaleStatus)return;
+ if(byId('ci-asset-intelligence'))return;
+ const root=create('section','ci-asset-intelligence');
+ root.id='ci-asset-intelligence';
+ root.setAttribute('aria-label','Исследования на графике');
+ const tabs=create('div','ci-asset-intel-tabs');
+ tabs.setAttribute('role','group');
+ tabs.setAttribute('aria-label','Выберите исследование');
+ const contents=create('div','ci-asset-intel-contents');
+ const panelMap=new Map();
+ const buttons=new Map();
+ for(const {id,label} of assetIntelligenceTabs()){
+  const button=create('button','ci-asset-intel-tab',label);
+  button.type='button';button.dataset.ciIntelTab=id;
+  button.setAttribute('aria-pressed',String(id==='whales'));
+  tabs.append(button);buttons.set(id,button);
+  const panel=create('div','ci-asset-intel-panel');
+  panel.id='ci-asset-intel-'+id;
+  panel.hidden=id!=='whales';panelMap.set(id,panel);
+  contents.append(panel);
+  button.addEventListener('click',()=>{
+   for(const [key,control] of buttons)
+    control.setAttribute('aria-pressed',String(key===id));
+   for(const [key,content] of panelMap)content.hidden=key!==id;
+  });
+ }
+ const whalesPanel=panelMap.get('whales');
+ whalesPanel.append(create('strong','','W · архив крупных переводов'),whales,
+  whaleStatus);
+ const whalesHelp=create('p','ci-asset-intel-disclaimer',
+  'W показывает время подтверждённого наблюдения. Перевод не означает покупку или продажу.');
+ whalesPanel.append(whalesHelp);
+ const whaleArchive=create('button','ci-asset-intel-action',
+  'История китов и крупных сделок');
+ whaleArchive.type='button';
+ whaleArchive.addEventListener('click',()=>{
+  // App owns the actual data-pane switch, streams and native refresh.
+  const target=asset.querySelector('[data-asset-area-button="data"]');
+  target?.click();
+  requestAnimationFrame(()=>{
+   const full=byId('whale-panel')||byId('large-trade-panel');
+   if(full&&!full.hidden)full.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+ });
+ whalesPanel.append(whaleArchive);
+ const blocksPanel=panelMap.get('blocks');
+ blocksPanel.append(create('strong','','Расчётные зоны по закрытым свечам'),ob,
+  obStatus);
+ blocksPanel.append(create('p','ci-asset-intel-disclaimer',
+  'Order Blocks — исторические расчётные зоны, не реальные лимитные ордера.'));
+ const orderResearch=create('button','ci-asset-intel-action',
+  'Исследовать структуру рынка');
+ orderResearch.type='button';
+ orderResearch.addEventListener('click',()=>{
+  asset.querySelector('[data-asset-area-button="structure"]')?.click();
+ });
+ blocksPanel.append(orderResearch);
+ const infoPanel=panelMap.get('info');
+ infoPanel.append(create('strong','','Источник и свежесть графика'));
+ const updated=create('p','ci-asset-intel-source','Нет проверенного обновления');
+ updated.setAttribute('aria-live','polite');
+ const candle=create('p','ci-asset-intel-source','История свечей ещё не получена');
+ candle.setAttribute('aria-live','polite');
+ infoPanel.append(updated,candle);
+ const update=()=>{
+  updated.textContent=byId('updated-at')?.textContent||'Время источника неизвестно';
+  candle.textContent=byId('candle-status')?.textContent||'Свечи не проверены';
+ };
+ const infoButton=create('button','ci-asset-intel-action','Состояние источников');
+ infoButton.type='button';
+ infoButton.addEventListener('click',()=>{
+  const diagnostics=byId('asset-source-diagnostics');
+  if(!diagnostics)return;
+  diagnostics.open=true;
+  diagnostics.scrollIntoView({behavior:'smooth',block:'center'});
+ });
+ infoPanel.append(infoButton);
+ for(const source of [byId('updated-at'),byId('candle-status')]){
+  if(source)new MutationObserver(update).observe(source,{
+   childList:true,characterData:true,subtree:true
+  });
+ }
+ update();
+ root.append(tabs,contents);
+ after.after(root);
+}
+/** Research landing sits above the original Evidence Lab without remounting
+ * any native module or double-fetching sources. Navigation delegates to
+ * pre-existing, already wired buttons in app.mjs.
+ */
+export function researchEntryPoints(){
+ return [
+  {id:'news',label:'Новости',description:'Проверенные публикации и важные события',
+   target:'[data-go="news"]',symbol:'▤'},
+  {id:'macro',label:'Макроэкономика',
+   description:'Календарь, показатели и рыночный контекст',
+   target:'[data-go="macro"]',symbol:'◉'},
+  {id:'patterns',label:'Паттерны и режимы',
+   description:'Исторические условия и проверка устойчивости',
+   target:'[data-quality-area-button="regimes"]',symbol:'▥'},
+  {id:'quality',label:'Надёжность источников',
+   description:'Проверка доступа, свежести и ограничений API',
+   target:'.quality-sources-link[data-go="sources"]',symbol:'◇'}
+ ];
+}
+function mountResearchLanding(){
+ const quality=byId('view-quality');
+ if(!quality||byId('ci-research-landing'))return;
+ const heading=create('section','ci-research-landing');
+ heading.id='ci-research-landing';
+ heading.append(create('h2','','Исследования'),
+  create('p','','Новости, макроэкономика, закономерности и качество данных.'));
+ const grid=create('div','ci-research-grid');
+ for(const entry of researchEntryPoints()){
+  const button=create('button','ci-research-card');
+  button.type='button';
+  button.setAttribute('aria-label',entry.label+' · открыть раздел');
+  const symbol=create('span','ci-research-symbol',entry.symbol);
+  symbol.setAttribute('aria-hidden','true');
+  const body=create('span','ci-research-copy');
+  body.append(create('strong','',entry.label),
+   create('small','',entry.description));
+  const arrow=create('span','ci-research-arrow','›');
+  arrow.setAttribute('aria-hidden','true');
+  button.append(symbol,body,arrow);
+  button.addEventListener('click',()=>{
+   // Original navigation enforces the same permissions and refresh policy.
+   const existing=document.querySelector(entry.target);
+   existing?.click();
+  });
+  grid.append(button);
+ }
+ heading.append(grid);
+ quality.prepend(heading);
+}
 /** Navigation, handlers, and data fetching remain owned by app.mjs. */
 export function initCleanIntelligence(){
  mountOverview();
@@ -281,6 +435,8 @@ export function initCleanIntelligence(){
  mountFavoritePagination();
  mountDirectionFilter();
  mountAsset();
+ mountAssetIntelligence();
+ mountResearchLanding();
  document.body.dataset.apexTheme='clean-intelligence';
  return true;
 }
