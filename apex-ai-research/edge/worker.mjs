@@ -70,6 +70,26 @@ const instructions={
  analyst:'You are an evidence auditor. Identify themes in verified observations. Cite only source_id values that are actually provided. State uncertainty, stale data, and disagreement. Do not create prices or trading instructions.',
  critic:'You are an independent scientific critic. Challenge causal assumptions, detect confounding and leakage, and identify missing evidence. Cite only given source_id values. Do not suggest trades or invent data.'
 };
+/** Read at most 25 KB of evidence to protect 128 MB Workers Free memory. */
+async function readBoundedJson(request){
+ if(!request.body)return null;
+ const reader=request.body.getReader();
+ const chunks=[];
+ let total=0;
+ try{
+  while(true){
+   const {value,done}=await reader.read();
+   if(done)break;
+   total+=value.byteLength;
+   if(total>25000){await reader.cancel();return null;}
+   chunks.push(value);
+  }
+  const bytes=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  return JSON.parse(new TextDecoder().decode(bytes));
+ }catch{return null;}
+}
 export default {
  async fetch(request,env){
   const path=new URL(request.url).pathname;
@@ -97,8 +117,8 @@ export default {
   if(!env?.AI||!env?.DB)return json({error:'NOT_CONFIGURED'},503);
   const size=Number(request.headers.get('Content-Length')||0);
   if(size>25000)return json({error:'TOO_LARGE'},413);
-  let input;
-  try{input=await request.json();}catch{return json({error:'INVALID_JSON'},400);}
+  const input=await readBoundedJson(request);
+  if(!input)return json({error:'INVALID_JSON_OR_TOO_LARGE'},400);
   const verified=validateAgentInput(input);
   if(!verified)return json({error:'INVALID_EVIDENCE'},422);
   let allowed=false;
