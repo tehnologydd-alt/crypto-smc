@@ -136,7 +136,7 @@ test('new cards are single-sided and completed cards grey by CSS',()=>{
  assert.ok(ui.includes('planDirectionalScenario(row'));
  assert.ok(ui.includes('auditDirectionalScenario(plan,archive.candles'));
  assert.ok(ui.includes("card.classList.toggle('is-completed'"));
- assert.ok(favorites.includes('return directionalForecastCard(row,'));
+ assert.ok(favorites.includes('compactifyCompletedCard(row,directionalForecastCard(row,'));
  assert.ok(favorites.includes('return legacyRangeCard(row,'));
  assert.ok(css.includes('.forecast-visual.is-completed'));
  assert.match(directionalOutcomeLabel('AMBIGUOUS'),/не установлен/);
