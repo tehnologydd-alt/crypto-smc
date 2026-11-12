@@ -1,0 +1,62 @@
+/* APEX / Clean Intelligence Stage 9: real, on-demand UI diagnostics.
+ * Compact, optional and isolated from native forecast/backup controls. */
+#apex-settings-dialog .ci9-interface-audit{
+ margin:7px 0 0;padding:7px 10px 12px;
+ border:1px solid #397a7c;border-radius:12px;
+ background:linear-gradient(150deg,#0c343e,#082330);
+ min-width:0;
+}
+#apex-settings-dialog .ci9-interface-audit>summary{
+ color:#baf5e7;font-size:11px;font-weight:780;
+ line-height:1.5;min-height:41px;cursor:pointer;
+ display:flex;align-items:center;
+}
+#apex-settings-dialog .ci9-audit-intro{
+ font-size:10px;line-height:1.6;color:#99bbc6;
+ margin:5px 0 10px;
+}
+#apex-settings-dialog .ci9-audit-status{
+ padding:9px;margin:0 0 9px;
+ border-radius:10px;border:1px solid #32636c;
+ background:#092b37;color:#d1f5eb;
+ font-size:11px;line-height:1.4;
+}
+#apex-settings-dialog .ci9-audit-grid{display:grid;gap:6px}
+#apex-settings-dialog .ci9-audit-line{
+ display:grid;gap:4px;min-width:0;padding:8px 10px;
+ border:1px solid #315968;border-radius:9px;
+ background:#092734;
+}
+#apex-settings-dialog .ci9-audit-line strong{
+ font-size:10px;color:#d1f3ed;overflow-wrap:anywhere;
+}
+#apex-settings-dialog .ci9-audit-line span,
+#apex-settings-dialog .ci9-audit-missing,
+#apex-settings-dialog .ci9-audit-empty{
+ font-size:10px;line-height:1.6;color:#9ebfc8;
+ overflow-wrap:anywhere;
+}
+#apex-settings-dialog .ci9-audit-missing{color:#edc1a6}
+#apex-settings-dialog .ci9-audit-refresh{
+ width:100%;min-height:43px;margin-top:10px;
+ border:1px solid #51ad9a;border-radius:10px;
+ background:#164c4b;color:#ddfff5;
+ font-size:11px;font-weight:770;
+ cursor:pointer;
+}
+#apex-settings-dialog .ci9-audit-refresh:focus-visible{
+ outline:2px solid #82f7df;outline-offset:2px;
+}
+/* Responsive visibility/keyboard protection for corrected stageboard. */
+#view-forecasts>.forecast-intro.ci6-scenarios-glance{
+ width:100%;min-width:0;
+}
+#view-forecasts>.ci6-stage-board{
+ width:100%;min-width:0;
+}
+@media(max-width:380px){
+ #apex-settings-dialog .ci9-interface-audit{padding:5px 8px 11px}
+}
+@media(prefers-reduced-motion:reduce){
+ #apex-settings-dialog .ci9-interface-audit *{transition:none!important}
+}
