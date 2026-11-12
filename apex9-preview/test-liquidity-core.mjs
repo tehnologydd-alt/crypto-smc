@@ -29,9 +29,10 @@ test('spread and visible-depth totals cannot contradict snapshot fields',()=>{
  wrongNotional.payload=JSON.stringify({...JSON.parse(wrongNotional.payload),bidNotional:10});
  assert.equal(normalizeLiquidityHistory([wrongNotional],asset).length,0);
 });
-test('one point, or two recent points cannot form a liquidity trend',()=>{
+test('one or two recent snapshots are fresh but cannot establish a temporal trend',()=>{
  const r=studyVisibleLiquidity([sample(),sample('binance',1)],{now,asset});
- assert.equal(r.venues[0].status,'LOW_COVERAGE');
+ assert.equal(r.venues[0].status,'OBSERVED');
+ assert.equal(r.venues[0].trendState,'COLLECTING');
  assert.equal(r.venues[0].imbalanceChange,null);
 });
 test('three independent recent points create retrospective change for one venue only',()=>{
@@ -43,9 +44,11 @@ test('three independent recent points create retrospective change for one venue 
  // Compare only once this synthetic reception actually happened.
  const r=studyVisibleLiquidity(rows,{now:now+1000,asset});
  assert.equal(r.venues[0].status,'OBSERVED');
+ assert.equal(r.venues[0].trendState,'OBSERVED');
  assert.ok(Math.abs(r.venues[0].imbalanceChange-.4)<1e-9);
  assert.ok(Math.abs(r.venues[0].spreadChangeBps+2)<1e-9);
- assert.equal(r.venues[1].status,'LOW_COVERAGE');
+ assert.equal(r.venues[1].status,'OBSERVED');
+ assert.equal(r.venues[1].trendState,'COLLECTING');
  assert.equal(r.venues[1].imbalanceChange,null);
 });
 test('stale records remain visible as history, never current quotes',()=>{
@@ -77,12 +80,13 @@ test('an old one-hour outage does not keep a new clean streak in LOW_COVERAGE',(
  assert.equal(v.longestGapMs>3600000,true);
  assert.ok(Math.abs(v.imbalanceChange-.2)<1e-9);
 });
-test('a new incomplete streak is LOW_COVERAGE despite many old samples',()=>{
+test('an incomplete streak cannot establish a trend despite many old samples',()=>{
  const rows=Array.from({length:30},(_,i)=>sample('binance',-300+i));
  rows.push(sample('binance',0),sample('binance',1));
  const r=studyVisibleLiquidity(rows,{asset,now});
  assert.equal(r.venues[0].samples,32);
  assert.equal(r.venues[0].continuousSamples,2);
- assert.equal(r.venues[0].status,'LOW_COVERAGE');
+ assert.equal(r.venues[0].status,'OBSERVED');
+ assert.equal(r.venues[0].trendState,'COLLECTING');
  assert.equal(r.venues[0].imbalanceChange,null);
 });
