@@ -6,6 +6,7 @@
 import {displayPair,priceText} from './forecast-card-ux.mjs';
 import {whaleCheckBadge} from './forecast-whale-check.mjs';
 import {publicationCaveat} from './scenario-publication-timing.mjs';
+import {createForecastIdentity} from './forecast-card-identity.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward}
  from './forecast-level-metrics.mjs';
 
@@ -43,10 +44,11 @@ export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
  const [status,note]=LABELS[stage];
  const card=el('article','forecast-record forecast-compact-card stage-'+stage.toLowerCase());
  card.dataset.scenarioId=row.id;
- const head=el('div','forecast-compact-head');
- const title=el('div','forecast-compact-identity');
- title.append(el('strong','',displayPair(row.asset)+' · '+timeframe),
-  el('span','',side+' · контроль '+evaluation));
+ const head=el('div','forecast-compact-head forecast-unified-head');
+ const title=createForecastIdentity(row,{
+  frame:timeframe,side:plan.side,
+  method:side+' · контроль '+evaluation
+ });
  const badge=el('span','forecast-compact-status',status);
  head.append(title,badge);card.append(head);
  const w=whaleCheckBadge(row);
