@@ -14,7 +14,7 @@ const make=(tag,cls='',text)=>{
 const meaningful=s=>String(s??'').trim().replace(/\s+/g,' ');
 export function editorialState(raw){
  const text=meaningful(raw);
- if(!text||/^(?:проверяем|ожидаем|загружаем|читаем)\b/i.test(text))
+ if(!text||/^(?:проверяем|ожидаем|загружаем|читаем)(?:\s|$|[.…])/i.test(text))
   return {state:'LOADING',label:'Проверяем источники'};
  if(/\b(?:OFFLINE|ERROR|FAILED|INVALID|недоступ|сбой|не удалось|не получен)\b/i.test(text))
   return {state:'UNAVAILABLE',label:'Источник недоступен'};
