@@ -72,7 +72,7 @@ test('Concept 1 phase 2 remains responsive and never fabricates market metrics',
  assert.match(css,/#research-forecast-list>\[data-ci-side\]\[hidden\]/);
  assert.match(css,/#view-asset>\.hero/);
  assert.match(css,/@media\(max-width:390px\)/);
- assert.match(layout,/new MutationObserver\(apply\)\.observe\(list,\{childList:true,subtree:true\}\)/);
+ assert.match(layout,/createScreenUpdateCoordinator\(byId\('view-forecasts'\),apply\)/);
  assert.ok(!layout.includes('setMobileSettings('));
  assert.ok(!layout.includes('getMobileResearchForecasts('));
 });

@@ -1,3 +1,4 @@
+import {createScreenUpdateCoordinator,observeSourceUpdates} from './clean-intelligence-render-governor.mjs';
 import {attachAssetLogo} from './asset-logo.mjs';
 /**
  * APEX Clean Intelligence / Concept 1
@@ -59,9 +60,7 @@ function mountOverview(){
  const experience=overview.querySelector('.overview-experience-panel');
  const quick=document.querySelector('main .home-actions.overview-only');
  if(quick&&experience)experience.after(quick);
- let scheduled=false;
  const update=()=>{
-  scheduled=false;
   const state=byId('overview-global-state')?.dataset.state;
   const snapshot=marketOverviewSnapshot({
    change:byId('overview-global-change')?.textContent,
@@ -90,20 +89,13 @@ function mountOverview(){
   const provenance=byId('ci-market-provenance');
   if(provenance)provenance.textContent=snapshot.note;
  };
- const schedule=()=>{
-  if(scheduled)return;
-  scheduled=true;
-  queueMicrotask(update);
- };
- const observer=new MutationObserver(schedule);
- for(const target of [
+ const coordinator=createScreenUpdateCoordinator(overview,update);
+ observeSourceUpdates([
   byId('overview-global-change'),byId('overview-global-btc'),
   byId('overview-global-state'),byId('free-fear-label'),
-  byId('free-fear-value'),byId('free-fear-status')]){
-  if(target)observer.observe(target,{childList:true,characterData:true,
-   attributes:true,subtree:true});
- }
- update();
+  byId('free-fear-value'),byId('free-fear-status')
+ ],coordinator.schedule,{attributes:true});
+ coordinator.schedule();
 }
 /** Preserve the old stats/data sections but stop forcing users to scroll
  * through them before seeing the actual forecasts.
@@ -336,8 +328,9 @@ function mountDirectionFilter(){
  filters.append(buttons,note);
  stageTabs.before(filters);
  list.after(empty);
- new MutationObserver(apply).observe(list,{childList:true,subtree:true});
- apply();
+ const coordinator=createScreenUpdateCoordinator(byId('view-forecasts'),apply);
+ observeSourceUpdates([list],coordinator.schedule);
+ coordinator.schedule();
 }
 /**
  * A per-screen-only UI memory of expanded forecast details. Room owns the

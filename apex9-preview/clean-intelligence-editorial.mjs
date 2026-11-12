@@ -1,3 +1,4 @@
+import {createScreenUpdateCoordinator,observeSourceUpdates} from './clean-intelligence-render-governor.mjs';
 /**
  * APEX 9 / Clean Intelligence - Major Stage 8.
  * News + Macro + Settings are re-composed around existing API-backed DOM
@@ -40,13 +41,6 @@ export function nextObservedMacroEvent(entries=[]){
  if(!first)return null;
  return {title:first.title.trim(),time:first.time.trim(),
   archive:first.archive===true};
-}
-function bindSourceText(source,render){
- if(!source)return;
- new MutationObserver(render).observe(source,{
-  childList:true,characterData:true,subtree:true
- });
- render();
 }
 function button(label,cls,callback){
  const node=make('button',cls,label);
@@ -135,7 +129,7 @@ function mountNews(){
     .includes('Упоминает ')
   }));
   const count=countBox.querySelector('strong');
-  const known=sourceState.state!=='LOADING'&&sourceState.state!=='UNKNOWN';
+  const known=['OBSERVED','REPORTED','SAVED'].includes(sourceState.state);
   count.textContent=known?String(entries.length):'—';
   let shown=0;
   for(const entry of entries){
@@ -143,16 +137,20 @@ function mountNews(){
    entry.node.hidden=!visible;
    if(visible)shown++;
   }
-  const message=!known?'Ожидаем подтверждения источников':
+  const message=sourceState.state==='UNAVAILABLE'?
+   'Источник недоступен · количество публикаций не подтверждено':
+   !known?'Ожидаем подтверждения источников':
    !entries.length?'Подходящих публикаций пока нет':
    'Показано '+shown+' из '+entries.length+' · '+(
     current==='all'?'все материалы':
     current==='direct'?'упоминания актива':'архивные материалы');
   result.textContent=message;
  };
- new MutationObserver(render).observe(list,{childList:true});
- bindSourceText(status,render);
- render();
+ // News can update while users inspect another screen. Re-render only
+ // when visible; preserve the feed data and its selected UI filter.
+ const newsUpdates=createScreenUpdateCoordinator(page,render);
+ observeSourceUpdates([list,status],newsUpdates.schedule);
+ newsUpdates.schedule();
 }
 function mountMacro(){
  const page=id('view-macro'),title=page?.querySelector(':scope > .section-title');
@@ -243,9 +241,11 @@ function mountMacro(){
    sub.textContent='Календарь BLS не сообщил ближайшего события.';
   }
  };
- new MutationObserver(update).observe(events,{childList:true});
- for(const s of Object.values(stateTexts))bindSourceText(s,update);
- update();
+ // Three BLS/public-source status nodes and the calendar share ONE DOM
+ // observer and ONE animation-frame update, even after a batch refresh.
+ const macroUpdates=createScreenUpdateCoordinator(page,update);
+ observeSourceUpdates([events,...Object.values(stateTexts)],macroUpdates.schedule);
+ macroUpdates.schedule();
 }
 export function settingGroupTitles(){
  return [

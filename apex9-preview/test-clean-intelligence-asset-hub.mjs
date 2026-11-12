@@ -48,7 +48,7 @@ test('major research desk keeps chart first and never relocates native canvas',(
  assert.match(hub,/anchor\.after\(section\)/);
  assert.match(hub,/section\.dataset\.assetPane='data'/);
  assert.match(hub,/requestAnimationFrame\(\(\)=>scrollTo\(selector\)\)/);
- assert.match(hub,/new MutationObserver\(update\)\.observe\(node/);
+ assert.match(hub,/createScreenUpdateCoordinator\(view,render,\{area\}\)/);
  assert.ok(html.includes('id="candle-canvas"'));
  assert.ok(html.includes('id="asset-workspace-anchor"'));
  assert.match(app,/initCleanIntelligenceAssetHub\(\)/);
