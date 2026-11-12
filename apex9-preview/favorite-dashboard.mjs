@@ -1383,6 +1383,10 @@ export function initFavoriteResearch({
     },
     onOpen:onSelectSymbol,getMini:renderMini
    });
+   // Stable presentation ID allows expanded details to survive Room refreshes.
+   // No mutation of the persisted scenario, event sequence or underlying stage.
+   if(typeof row.id==='string'&&row.id)
+    card.dataset.ciScenarioId=row.id;
    // UI-only direction; legacy hypotheses are never assigned guessed sides.
    card.dataset.ciSide=recordedForecastSide(row)||'UNKNOWN';
    return card;
