@@ -9,6 +9,7 @@ import {directionalHypothesis,planDirectionalScenario,directionalOutcomeLabel}
 import {displayPair,priceText,controlMethodLabel} from './forecast-card-ux.mjs';
 import {compactOpenForecastCard} from './forecast-compact-card.mjs';
 import {whaleCheckBadge} from './forecast-whale-check.mjs';
+import {createForecastIdentity} from './forecast-card-identity.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward,
  completedResearchPresentation,renderCompletedResearchPanel}
  from './forecast-level-metrics.mjs';
@@ -230,8 +231,7 @@ function multiFrameCardActions(row,{tracked=false,onToggle,onOpen}={}){
 export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen,copyText}={}){
  const evidence=multiFrameEvidence(row);
  const card=el('article','forecast-record forecast-visual forecast-multiframe');
- const head=el('div','forecast-visual-head');
- const identity=el('div','forecast-visual-identity');
+ const head=el('div','forecast-visual-head forecast-compact-head forecast-unified-head');
  const title=MULTIFRAME_SPEC[row.interval]?.title||row.interval;
  const complete=evidence.state==='OBSERVED'&&evidence.finished;
  const {plan}=evidence.state==='OBSERVED'?evidence:{plan:null};
@@ -241,10 +241,11 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen,copyTe
   outcome:evidence.outcome,verified:complete,entered:evidence.entered,
   touched:evidence.touched||[],frame:sourceFrame
  });
- identity.append(el('strong','',displayPair(row.asset)+
-  (plan?' · '+title+' · '+(plan.side==='DOWN'?'SHORT':'LONG'):'')),
-  el('small','',title+' · '+(plan?control.label:'метод не подтверждён')+
-   ' · отдельное исследование'));
+ const identity=createForecastIdentity(row,{
+  frame:title,side:plan?.side,
+  method:plan?control.label+' · отдельное исследование':'Проверка исходного метода',
+  unverified:evidence.state!=='OBSERVED'
+ });
  const stageLabel=complete?completion.symbol+' '+completion.label:
   evidence.state!=='OBSERVED'?'Проверка данных':
   evidence.events.has('CONFIRMED')?'Активный':
@@ -256,6 +257,7 @@ export function multiFrameForecastCard(row,{tracked=false,onToggle,onOpen,copyTe
  const w=whaleCheckBadge(row);
  if(w)card.append(w);
  if(evidence.state!=='OBSERVED'){
+  card.classList.add('forecast-compact-card','forecast-unverified-card');
   card.append(el('p','forecast-quality-warning',
    'Данные сценария требуют проверки: '+(evidence.reason||'нет подтверждения')));
   card.append(multiFrameCardActions(row,{tracked,onToggle,onOpen}));
