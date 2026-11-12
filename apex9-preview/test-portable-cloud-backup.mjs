@@ -38,7 +38,8 @@ test('import verifies full archive before non-destructive Room merge',()=>{
  assert.ok(backup.includes('INSERT OR IGNORE INTO'));
  assert.ok(backup.includes('require(expected in 0..MAX_LINES)'));
  assert.ok(backup.includes('expected==found'));
- assert.ok(backup.includes('val present=zip.entries().toList()'));
+ assert.ok(backup.includes('val entries=zip.entries().toList()'));
+ assert.ok(backup.includes('expanded<=MAX_UNCOMPRESSED'));
  for(const forbidden of ['DELETE FROM research_forecasts','DROP TABLE',
   'DELETE FROM market_candles','FileOutputStream(databaseFile)'])
   assert.ok(!backup.includes(forbidden),forbidden);
