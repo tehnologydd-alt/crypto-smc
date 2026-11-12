@@ -110,6 +110,7 @@ def train(path, output_dir, version):
         "state":"CANDIDATE_NOT_ACTIVE",
         "version":version,
         "asset":rows[0][4],
+        "model_sha256":hashes,
         "trained_at":datetime.now(timezone.utc).isoformat(),
         "feature_keys":list(FEATURES),
         "source_file_sha256":hashlib.sha256(path.read_bytes()).hexdigest(),
