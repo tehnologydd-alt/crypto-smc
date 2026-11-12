@@ -469,6 +469,25 @@ function mountAssetIntelligence(){
   asset.querySelector('[data-asset-area-button="structure"]')?.click();
  });
  blocksPanel.append(orderResearch);
+ // Expose the real chart-layer toggle states even when their panels are closed.
+ // Tab selection and overlay visibility are independent user choices.
+ const syncOverlays=()=>{
+  for(const [key,source,title] of [
+   ['whales',whales,'W'],
+   ['blocks',ob,'Order Blocks']
+  ]){
+   const tab=buttons.get(key);
+   if(!tab)continue;
+   const enabled=source.getAttribute('aria-pressed')==='true';
+   tab.dataset.ciOverlayEnabled=String(enabled);
+   tab.title=title+' · слой '+(enabled?'включён':'выключен');
+  }
+ };
+ for(const source of [whales,ob])
+  new MutationObserver(syncOverlays).observe(source,{
+   attributes:true,attributeFilter:['aria-pressed']
+  });
+ syncOverlays();
  const infoPanel=panelMap.get('info');
  infoPanel.append(create('strong','','Источник и свежесть графика'));
  const updated=create('p','ci-asset-intel-source','Нет проверенного обновления');
