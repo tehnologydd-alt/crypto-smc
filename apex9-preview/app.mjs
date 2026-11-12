@@ -1505,6 +1505,7 @@ function markSelectedAsset(){
 initCleanIntelligence();
 initCleanIntelligenceMajor();
 initCleanIntelligenceAssetHub();
+initCleanIntelligenceEditorial();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
