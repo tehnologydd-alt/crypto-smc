@@ -26,9 +26,10 @@ import {displayPair,priceText,stagePresentation,
  observedLevelSummary,scenarioCopyText,SIDE_LABEL} from './forecast-card-ux.mjs';
 import {readRadarChanges} from './radar-changes.mjs';
 import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.mjs';
-import {directionalHypothesis} from './directional-scenario.mjs';
+import {directionalHypothesis,planDirectionalScenario} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
-import {multiFrameHypothesis,multiFrameForecastCard,multiFrameQuality,
+import {compactLevelPrice} from './forecast-compact-card.mjs';
+import {multiFrameHypothesis,multiFrameForecastCard,planMultiFrameForecast,multiFrameQuality,
  multiFrameAgreement,multiFrameEvidence} from './forecast-multiframe.mjs';
 import {evidenceCohorts} from './forecast-evidence-context.mjs';
 import {initFeatureHoldoutDashboard} from './forecast-feature-dashboard.mjs';
@@ -274,13 +275,63 @@ async function copyResearchText(value){
  input.remove();
  return ok;
 }
-/** Single card; "Отмеченные" and "демо-журнал" are one and the same saved ID set. */
+/**
+ * Completed records use the SAME closed compact shell as Limit/Active.
+ * Full verified terminal history, source panels and their callbacks remain
+ * in a single on-demand details section. Terminal tone colors are untouched.
+ */
+function compactifyCompletedCard(row,card){
+ if(!card?.classList?.contains('is-completed'))return card;
+ const verification=row.interval==='1h'?
+  planDirectionalScenario(row,{now:Date.now()}):
+  planMultiFrameForecast(row,{now:Date.now()});
+ if(verification?.state!=='READY')return card;
+ const plan=verification.plan;
+ const head=card.querySelector('.forecast-unified-head');
+ if(!head)return card;
+ const badge=card.querySelector('.forecast-whale-check');
+ const complete=card.querySelector('.forecast-completed-panel');
+ const levelRow=create('div','forecast-compact-price-row');
+ const feedback=create('p','forecast-compact-copy-feedback');
+ feedback.setAttribute('role','status');
+ for(const [label,key] of [['Вход','entry'],['TP1','tp1'],['SL','sl']]){
+  const tile=create('div','forecast-compact-price '+key);
+  const action=create('button','forecast-compact-level-copy',
+   key==='entry'?priceText(plan[key]):compactLevelPrice(plan[key]));
+  action.type='button';
+  action.title='Копировать '+label+' — полное исходное значение';
+  action.addEventListener('click',()=>void copyResearchText(priceText(plan[key]))
+   .then(ok=>{feedback.textContent=ok?'✓ '+label+' скопировано':
+    'Не удалось скопировать '+label;}));
+  tile.append(create('small','',label),action);levelRow.append(tile);
+ }
+ const details=create('details','forecast-compact-details forecast-completed-details');
+ details.append(create('summary','','Все уровни, события и методика'));
+ const buttons=[];
+ for(const item of Array.from(card.children)){
+  if(item===head||item===badge||item===complete)continue;
+  if(item.classList?.contains('forecast-visual-actions')||
+   item.classList?.contains('forecast-card-actions')){
+   buttons.push(item);
+  }else details.append(item);
+ }
+ card.replaceChildren(head);
+ if(badge)card.append(badge);
+ card.append(levelRow,feedback);
+ if(complete)card.append(complete);
+ card.append(details,...buttons);
+ card.classList.add('forecast-compact-card','forecast-unified-completed');
+ return card;
+}
+/** Single card; all and marked scenarios share the same compact shape. */
 function cardForForecast(row,{tracked,onToggle,onOpen,getMini}={}){
  if(multiFrameHypothesis(row))
-  return multiFrameForecastCard(row,{tracked,onToggle,onOpen,copyText:copyResearchText});
+  return compactifyCompletedCard(row,multiFrameForecastCard(row,{
+   tracked,onToggle,onOpen,copyText:copyResearchText}));
  if(directionalHypothesis(row))
-  return directionalForecastCard(row,{tracked,onToggle,onOpen,getMini,
-   sourceH1,sourceM5,sourceM1:sourceM5,copyText:copyResearchText});
+  return compactifyCompletedCard(row,directionalForecastCard(row,{
+   tracked,onToggle,onOpen,getMini,sourceH1,sourceM5,sourceM1:sourceM5,
+   copyText:copyResearchText}));
  return legacyRangeCard(row,{tracked,onToggle,onOpen,getMini});
 }
 function unusedLegacyForecastVisual(row,{tracked,onToggle,onOpen,getMini}={}){
