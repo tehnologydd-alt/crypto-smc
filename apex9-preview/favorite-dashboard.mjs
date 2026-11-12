@@ -29,6 +29,7 @@ import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.m
 import {directionalHypothesis,planDirectionalScenario} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
 import {compactLevelPrice} from './forecast-compact-card.mjs';
+import {recordedForecastSide} from './forecast-card-identity.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward}
  from './forecast-level-metrics.mjs';
 import {multiFrameHypothesis,multiFrameForecastCard,planMultiFrameForecast,multiFrameQuality,
@@ -1371,16 +1372,21 @@ export function initFavoriteResearch({
     (markedMissing.length?' · недоступно: '+markedMissing.length:'')+
     '. Архивные исследования показаны отдельно от этапов.'));
   }
-  const renderCard=row=>cardForForecast(row,{
-   tracked:selected.has(row.id),
-   onToggle:key=>{
-    if(selected.has(key))selected.delete(key);else selected.add(key);
-    persistSelected();
-    if(journalMode==='tracked')void loadMarkedRows({force:true});
-    else renderRows();
-   },
-   onOpen:onSelectSymbol,getMini:renderMini
-  });
+  const renderCard=row=>{
+   const card=cardForForecast(row,{
+    tracked:selected.has(row.id),
+    onToggle:key=>{
+     if(selected.has(key))selected.delete(key);else selected.add(key);
+     persistSelected();
+     if(journalMode==='tracked')void loadMarkedRows({force:true});
+     else renderRows();
+    },
+    onOpen:onSelectSymbol,getMini:renderMini
+   });
+   // UI-only direction; legacy hypotheses are never assigned guessed sides.
+   card.dataset.ciSide=recordedForecastSide(row)||'UNKNOWN';
+   return card;
+  };
   if(journalMode==='tracked'&&markedMissing.length){
    box.append(create('p','forecast-quality-warning',
     'Не найдены в Room: '+markedMissing.length+
