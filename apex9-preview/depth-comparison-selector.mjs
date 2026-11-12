@@ -29,6 +29,8 @@ export function needsMatchedRest(availableBooks,{asset,now=Date.now(),due={}}={}
  // existing per-provider rate limits. A live WS + REST mix, or a missing WS,
  // must NOT block acquiring a same-depth 50/50 comparison pair.
  if(due.binance!==true||due.okx!==true)return false;
+ if(!Array.isArray(availableBooks)||
+  availableBooks.some(b=>b&&b.symbol!==asset))return false;
  const current=pair(availableBooks,asset);
  return synchronizeSpotDepth(current,{asset,now}).state!=='SYNCED';
 }
