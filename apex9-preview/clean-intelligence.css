@@ -881,3 +881,43 @@ body[data-view]:not([data-view="overview"]) .ci-screen-heading{display:none!impo
  #view-radar .radar-record,
  #view-forecasts .forecast-compact-card{animation:none!important}
 }
+
+
+/* Stage 5: persistent visual continuity for card details and chart layers. */
+#view-forecasts .forecast-compact-details[open],
+#view-forecasts .forecast-completed-details[open]{
+ border-top-color:#408d92;
+}
+#view-forecasts .forecast-compact-details[open]>summary{
+ color:#bcf8ee;
+}
+#view-asset .ci-asset-intel-tab[data-ci-overlay-enabled]{
+ position:relative;padding-right:15px;
+}
+#view-asset .ci-asset-intel-tab[data-ci-overlay-enabled]::after{
+ content:"";position:absolute;right:8px;top:10px;
+ width:6px;height:6px;border-radius:50%;background:#6c8a95;
+}
+#view-asset .ci-asset-intel-tab[data-ci-overlay-enabled="true"]::after{
+ background:#74e8bf;box-shadow:0 0 0 2px #133c3b,0 0 8px #54deae70;
+}
+#view-asset .ci-asset-intel-tab[data-ci-overlay-enabled="false"]::after{
+ background:#6b8390;box-shadow:none;
+}
+#view-asset .ci-asset-intel-action,
+#view-quality .ci-research-card,
+#view-forecasts .forecast-compact-actions button{
+ -webkit-tap-highlight-color:transparent;
+}
+#view-asset .ci-asset-intel-tab:focus-visible,
+#view-asset .ci-asset-intel-action:focus-visible{
+ outline:2px solid #6be8d8;outline-offset:2px;
+}
+@media(max-width:360px){
+ #view-asset .ci-asset-intel-tab[data-ci-overlay-enabled]{
+  padding-left:2px;padding-right:13px;font-size:10px;
+ }
+ #view-asset .ci-asset-intel-tab[data-ci-overlay-enabled]::after{
+  right:6px;width:5px;height:5px;
+ }
+}
