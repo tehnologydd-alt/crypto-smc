@@ -1400,6 +1400,8 @@ function navigate(view,targetId){
   if(view==='forecasts')favoriteManager.openForecasts();
   if(view==='quality'){
    evidenceDashboard.open();
+   if(targetId==='forecast-feature-audit')
+    el('forecast-feature-audit').open=true;
    const back=el('quality-context-back');
    const fromPassport=targetId==='synthesis-panel';
    el('view-quality').dataset.qualityEntry=fromPassport?'asset':'dock';
@@ -1418,7 +1420,9 @@ function navigate(view,targetId){
   // Contextual entry must keep the flat task selector on screen.
   const node=view==='overview'?
    el('overview-favorites-anchor'):
-   view==='quality'&&targetId?
+   view==='quality'&&targetId==='forecast-feature-audit'?
+    el('forecast-feature-audit'):
+    view==='quality'&&targetId?
     el('quality-workspace-anchor'):
     targetId?el(targetId):el('view-'+view);
   if(node)node.scrollIntoView({behavior:'smooth',block:'start'});

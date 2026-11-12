@@ -104,7 +104,7 @@
         <p id="overview-experience-status" class="overview-experience-status" role="status" aria-live="polite">Читаем сохранённые наблюдения...</p>
         <div id="overview-experience-bars" class="overview-experience-bars" aria-label="Шкалы накопленных записей M15 H1 H4"></div>
         <section id="overview-decision-quality" class="overview-decision-quality" aria-label="Независимая проверка качества решений" aria-live="polite"></section>
-        <button type="button" class="ghost overview-quality-open" data-go="forecasts" data-target="forecast-feature-audit">Проверить качество по полному архиву</button>
+        <button type="button" class="ghost overview-quality-open" data-go="quality" data-target="forecast-feature-audit">Проверить качество по полному архиву</button>
         <details class="overview-experience-details">
           <summary>Что означают проценты?</summary>
           <p>Шкалы показывают заполнение трёх порогов количества записей Room: опубликованные сценарии, записанные исходы TP3/SL и новые сценарии для Shadow Challenger. Это не обученность ИИ, не проверенная точность и не вероятность прибыльного результата.</p>
@@ -588,41 +588,6 @@
           </article>
         </div>
       </section>
-      <article class="card block forecast-confluence" aria-label="Исследования на M15, H1 и H4">
-        <div class="section-title"><h3>Три горизонта · M15 / H1 / H4</h3><span>Наблюдения Room</span></div>
-        <p class="forecast-confluence-caveat">Совпадение направлений — исследовательский факт, а не доказательство точности. Каждый горизонт проверяется отдельно.</p>
-        <div id="forecast-multiframe-quality" class="forecast-confluence-quality" aria-live="polite"></div>
-        <details class="forecast-confluence-details">
-          <summary>Согласованность по избранным активам</summary>
-          <div id="forecast-confluence-summary" class="forecast-confluence-list"></div>
-        </details>
-        <details class="forecast-confluence-details" id="forecast-evidence-details">
-          <summary>Источники при публикации · обучающий архив</summary>
-          <p class="forecast-confluence-caveat">Учитываются только записи, существовавшие до публикации. Свежесть не означает достоверность направления. Новые показатели пока не управляют прогнозом.</p>
-          <div id="forecast-evidence-cohorts" class="forecast-evidence-cohorts" aria-live="polite"></div>
-        </details>
-        <details class="forecast-confluence-details" id="forecast-feature-audit">
-          <summary>Проверка полезности источников · M15 / H1 / H4</summary>
-          <p class="forecast-confluence-caveat">Исследование по полному архиву одного избранного актива. Сравниваем ранний и последующий периоды без пересечения горизонтов. Никакие выводы не меняют прогнозы автоматически.</p>
-          <div class="forecast-feature-controls">
-            <select id="feature-holdout-asset" aria-label="Актив для временной проверки"></select>
-            <button type="button" id="feature-holdout-run">Исследовать полный архив</button>
-          </div>
-          <p id="feature-holdout-status" class="forecast-confluence-caveat" role="status" aria-live="polite"></p>
-          <div id="feature-holdout-report" class="forecast-feature-report"></div>
-          <details id="forecast-probability-audit" class="forecast-feature-stability">
-            <summary>Частоты исходов · готовность к калибровке</summary>
-            <p class="forecast-confluence-caveat">Только полный архив выбранного актива. Частота TP3/SL не является вероятностью будущего прогноза или доходности. Для настоящей калибровки нужна вероятность, зафиксированная до исхода.</p>
-            <div id="forecast-probability-report" class="forecast-feature-report"></div>
-          </details>
-          <details id="feature-shadow-panel" class="forecast-feature-stability">
-            <summary>Теневое исследование · только будущие прогнозы</summary>
-            <p class="forecast-confluence-caveat">Кандидат сохраняется в Android Room только по вашему нажатию. Исторический результат не засчитывается как будущая проверка. Веса прогнозирования и реальные ордера не изменяются.</p>
-            <p id="feature-shadow-status" class="forecast-confluence-caveat" role="status" aria-live="polite"></p>
-            <div id="feature-shadow-content" class="forecast-feature-report"></div>
-          </details>
-        </details>
-      </article>
       <article class="card block forecast-workspace">
         <div class="section-title"><h3>Журнал сценариев</h3></div>
         <details class="forecast-technical-notes">
@@ -630,7 +595,10 @@
           <p>Направление и уровни входа, TP1–TP3 и SL фиксируются при публикации. Лимитный сценарий ожидает касания входа по закрытой M1 (для архивных — M5), активный отслеживает следующие уровни. Неизвестный порядок событий не засчитывается как подтверждённый исход.</p>
         </details>
 
-        <p id="forecast-whale-coverage" class="forecast-whale-coverage" role="status" aria-live="polite">W · проверяем данные китов, сохранённые до публикации новых прогнозов.</p>
+        <details class="forecast-whale-details" id="forecast-whale-details">
+          <summary id="forecast-whale-summary">W · проверка активности китов</summary>
+          <p id="forecast-whale-coverage" class="forecast-whale-coverage" role="status" aria-live="polite">Проверяем данные китов, сохранённые до публикации новых прогнозов.</p>
+        </details>
         <div class="forecast-compact-stages" role="group" aria-label="Стадия наблюдения">
           <button class="forecast-compact-stage active" type="button" data-journal-stage="PENDING_CONFIRMATION">Ожидает <small id="stage-count-PENDING_CONFIRMATION">0</small></button>
           <button class="forecast-compact-stage" type="button" data-journal-stage="CONFIRMED">Лимитный <small id="stage-count-CONFIRMED">0</small></button>
@@ -667,6 +635,41 @@
         <button type="button" class="quality-workspace-button" data-quality-area-button="regimes" aria-pressed="false">Режимы</button>
         <button type="button" class="quality-workspace-button" data-quality-area-button="compare" aria-pressed="false">Активы</button>
       </nav>
+      <article class="card block forecast-confluence quality-confluence-workspace" aria-label="Исследования на M15, H1 и H4">
+        <div class="section-title"><h3>Три горизонта · M15 / H1 / H4</h3><span>Наблюдения Room</span></div>
+        <p class="forecast-confluence-caveat">Совпадение направлений — исследовательский факт, а не доказательство точности. Каждый горизонт проверяется отдельно.</p>
+        <div id="forecast-multiframe-quality" class="forecast-confluence-quality" aria-live="polite"></div>
+        <details class="forecast-confluence-details">
+          <summary>Согласованность по избранным активам</summary>
+          <div id="forecast-confluence-summary" class="forecast-confluence-list"></div>
+        </details>
+        <details class="forecast-confluence-details" id="forecast-evidence-details">
+          <summary>Источники при публикации · обучающий архив</summary>
+          <p class="forecast-confluence-caveat">Учитываются только записи, существовавшие до публикации. Свежесть не означает достоверность направления. Новые показатели пока не управляют прогнозом.</p>
+          <div id="forecast-evidence-cohorts" class="forecast-evidence-cohorts" aria-live="polite"></div>
+        </details>
+        <details class="forecast-confluence-details" id="forecast-feature-audit">
+          <summary>Проверка полезности источников · M15 / H1 / H4</summary>
+          <p class="forecast-confluence-caveat">Исследование по полному архиву одного избранного актива. Сравниваем ранний и последующий периоды без пересечения горизонтов. Никакие выводы не меняют прогнозы автоматически.</p>
+          <div class="forecast-feature-controls">
+            <select id="feature-holdout-asset" aria-label="Актив для временной проверки"></select>
+            <button type="button" id="feature-holdout-run">Исследовать полный архив</button>
+          </div>
+          <p id="feature-holdout-status" class="forecast-confluence-caveat" role="status" aria-live="polite"></p>
+          <div id="feature-holdout-report" class="forecast-feature-report"></div>
+          <details id="forecast-probability-audit" class="forecast-feature-stability">
+            <summary>Частоты исходов · готовность к калибровке</summary>
+            <p class="forecast-confluence-caveat">Только полный архив выбранного актива. Частота TP3/SL не является вероятностью будущего прогноза или доходности. Для настоящей калибровки нужна вероятность, зафиксированная до исхода.</p>
+            <div id="forecast-probability-report" class="forecast-feature-report"></div>
+          </details>
+          <details id="feature-shadow-panel" class="forecast-feature-stability">
+            <summary>Теневое исследование · только будущие прогнозы</summary>
+            <p class="forecast-confluence-caveat">Кандидат сохраняется в Android Room только по вашему нажатию. Исторический результат не засчитывается как будущая проверка. Веса прогнозирования и реальные ордера не изменяются.</p>
+            <p id="feature-shadow-status" class="forecast-confluence-caveat" role="status" aria-live="polite"></p>
+            <div id="feature-shadow-content" class="forecast-feature-report"></div>
+          </details>
+        </details>
+      </article>
       <article class="card block evidence-lab-panel" id="evidence-lab-panel">
         <div class="section-title"><h3>Evidence Lab · качество исследований</h3><span>Android · Room</span></div>
         <p class="muted">Проверка фактически сохранённых свечей, истории стакана, активности блокчейна и исходов опубликованных гипотез. Без новых запросов к бирже.</p>
