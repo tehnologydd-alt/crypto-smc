@@ -43,6 +43,7 @@ import {createOverviewCache} from './overview-cache.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {initCleanIntelligence} from './clean-intelligence.mjs';
 import {initCleanIntelligenceMajor} from './clean-intelligence-major.mjs';
+import {initCleanIntelligenceAssetHub} from './clean-intelligence-asset-hub.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
 import {publicationCaveat} from './scenario-publication-timing.mjs';
 import {visibleChartScenarios,compactScenarioDetails} from './clean-chart-scenarios.mjs';
@@ -1502,6 +1503,7 @@ function markSelectedAsset(){
 }
 initCleanIntelligence();
 initCleanIntelligenceMajor();
+initCleanIntelligenceAssetHub();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
