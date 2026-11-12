@@ -8,7 +8,7 @@ service as live. Never commit secrets or put a shared server token in an APK.
 
 | Runtime | Real deployed model / purpose | Free-tier boundary |
 | --- | --- | --- |
-| Cloudflare Workers + Workers AI + D1 | `@cf/zai-org/glm-4.7-flash` (analyst), `@cf/qwen/qwen3-30b-a3b-fp8` (independent critic); HTTP API, auth and quota counter | Workers Free limits; Workers AI 10,000 **Neurons/day total**; internal cap **12 language-agent requests/day** is an additional guard and does NOT guarantee that the Neuron allocation will last |
+| Cloudflare Workers + Workers AI + D1 | `@cf/zai-org/glm-4.7-flash` (analyst), `@cf/qwen/qwen3.8-27b` (independent critic); HTTP API, auth and quota counter | Workers Free limits; Workers AI 10,000 **Neurons/day total**; internal cap **12 language-agent requests/day** is an additional guard and does NOT guarantee that the Neuron allocation will last |
 | Oracle Cloud Ampere A1 VM | XGBoost and LightGBM (CPU inference; manual candidate training and evaluation) | Oracle Always Free **2 OCPU / 12 GiB RAM across A1 VMs**; capacity availability and idle reclaim are outside APEX control |
 
 The four roles are four independently evaluated components. A "Director"
