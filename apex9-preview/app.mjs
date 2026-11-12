@@ -15,6 +15,7 @@ import {createMarketMatrixCache,matrixFromNativeRadar} from './market-matrix-cac
 import {initLiquidityDashboard} from './liquidity-dashboard.mjs';
 import {initOnChainDashboard} from './onchain-dashboard.mjs';
 import {initWhaleDashboard} from './whale-dashboard.mjs';
+import {initLargeTradeDashboard} from './large-trade-dashboard.mjs';
 import {initEvidenceDashboard} from './evidence-dashboard.mjs';
 import {initValidationDashboard} from './validation-dashboard.mjs';
 import {initResearchPatternsDashboard} from './research-patterns-dashboard.mjs';
@@ -326,9 +327,13 @@ const onChainDashboard=initOnChainDashboard();
 const whaleDashboard=initWhaleDashboard({
  getFavorites:()=>favoriteManager.getFavorites()
 });
+const largeTradeDashboard=initLargeTradeDashboard({
+ getFavorites:()=>favoriteManager.getFavorites()
+});
 
 function updateTab(view){
  document.body.dataset.view=view;
+ largeTradeDashboard.sync();
  if(view!=='asset'){
   depthStream?.stop();latestLiveDepth.clear();latestRestDepth.clear();
  }
@@ -356,6 +361,7 @@ function setAssetArea(requested){
  const previousArea=panel.dataset.assetArea;
  panel.dataset.assetArea=mode;
  lastAssetArea=mode;
+ largeTradeDashboard.sync();
  for(const button of document.querySelectorAll('[data-asset-area-button]')){
   const active=button.dataset.assetAreaButton===mode;
   button.classList.toggle('is-active',active);
@@ -380,6 +386,7 @@ function setAssetArea(requested){
    void liquidityDashboard.refresh(chosen);
    void onChainDashboard.refresh(chosen);
    void whaleDashboard.refresh(chosen);
+   void largeTradeDashboard.refresh(chosen);
    void loadAssetSocial(chosen);
    void ensureAssetNewsFeed();
   });
@@ -1247,6 +1254,7 @@ function navigate(view,targetId){
     void liquidityDashboard.refresh(chosen);
     void onChainDashboard.refresh(chosen);
     void whaleDashboard.refresh(chosen);
+    void largeTradeDashboard.refresh(chosen);
     void loadAssetSocial(chosen);
     void freeSourceDashboard.openAsset(chosen);
     void ensureAssetNewsFeed();
@@ -1800,6 +1808,7 @@ async function investigate(value){
   liquidityDashboard.clear(symbol);
   onChainDashboard.clear(symbol);
   whaleDashboard.clear(symbol);
+  largeTradeDashboard.clear(symbol);
  }
  markSelectedAsset();
  if(changed&&document.body.dataset.view==='asset'){
@@ -1810,6 +1819,7 @@ async function investigate(value){
    // trigger the same network source check as when opening the tab.
    void onChainDashboard.refresh(symbol);
    void whaleDashboard.refresh(symbol);
+   void largeTradeDashboard.refresh(symbol);
   }
  }
  text('asset-name',chosen);
@@ -2030,6 +2040,8 @@ setInterval(()=>{
   renderDepth({depth:[]}); // Expire a previously matched pair even when WS stalls.
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   syncDepthStreams();
+  largeTradeDashboard.sync();
+  largeTradeDashboard.tick();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
   else {
@@ -2042,10 +2054,12 @@ document.addEventListener('visibilitychange',()=>{
  if(document.hidden){
   depthController?.abort();
   depthStream?.stop();
+  largeTradeDashboard.sync();
   return;
  }
  if(document.body.dataset.view==='asset'&&favoriteManager.hasFavorite(chosen)){
   syncDepthStreams();
+  largeTradeDashboard.sync();
   if(!controller&&lastLoad&&Date.now()-lastLoad>10*60000)
    void investigate(chosen);
   else {
