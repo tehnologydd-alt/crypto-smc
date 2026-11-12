@@ -156,8 +156,15 @@ export default {
     if(result.status===409)return json({state:'NOT_TRAINED'},409);
     if(!result.ok)return json({state:'COMPUTE_UNAVAILABLE'},503);
     const payload=await result.json();
-    if(payload?.state!=='MODEL_ESTIMATE'||payload.source_ids?.length!==
-       observation.observation.source_ids.length)
+    if(payload?.state!=='MODEL_ESTIMATE'||
+       typeof payload.model_version!=='string'||
+       !/^[A-Za-z0-9]{1,48}$/.test(payload.model_version)||
+       !Array.isArray(payload.source_ids)||
+       JSON.stringify(payload.source_ids)!==
+        JSON.stringify(observation.observation.source_ids)||
+       !['xgboost_p','lightgbm_p','disagreement'].every(key=>
+        typeof payload[key]==='number'&&Number.isFinite(payload[key])&&
+        payload[key]>=0&&payload[key]<=1))
       return json({state:'INVALID_COMPUTE_RESPONSE'},503);
     return json(payload);
    }catch{return json({state:'COMPUTE_OFFLINE'},503);}
