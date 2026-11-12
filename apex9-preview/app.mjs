@@ -1891,14 +1891,15 @@ async function refreshVisibleDepth(){
   venue,foregroundDepthPolicy.allowed(symbol,venue,{
    visible:true,favorite:true,native:true,busy:false}).allowed
  ]));
- // Read-only matched depth: only if both WS snapshots are fresh but their
- // common near-mid price coverage cannot be verified, and BOTH REST
- // providers are independently due (at most once a minute each).
+ // One fresh snapshot is usable for each source separately.
+ // A paired 50/50 REST request is warranted whenever BOTH provider slots
+ // are independently due and the best WS/REST pair lacks comparability.
+ // This covers a working Binance WS with a resting OKX REST snapshot.
+ const depthChoices=['binance','okx'].map(venue=>
+  depthStream?.isFresh(venue)?
+   latestLiveDepth.get(venue):latestRestDepth.get(venue)).filter(Boolean);
  const pairedRest=el('view-asset').dataset.assetArea==='data'&&
-  needsMatchedRest(['binance','okx'].map(venue=>
-   depthStream?.isFresh(venue)?latestLiveDepth.get(venue):null).filter(Boolean),{
-    asset:symbol,now:Date.now(),due:allowed
-   });
+  needsMatchedRest(depthChoices,{asset:symbol,now:Date.now(),due:allowed});
  const due=pairedRest?['binance','okx']:
   ['binance','okx'].filter(venue=>
    !depthStream?.isFresh(venue)&&allowed[venue]);
