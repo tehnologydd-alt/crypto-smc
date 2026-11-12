@@ -24,10 +24,11 @@ export function selectDepthComparison(activeBooks,restBooks,{asset,now=Date.now(
   b.snapshotLevelsMax===50);
  return {comparison:fallback,method:'PAIRED_REST',levelsEqual};
 }
-export function needsMatchedRest(liveBooks,{asset,now=Date.now(),due={}}={}){
+export function needsMatchedRest(availableBooks,{asset,now=Date.now(),due={}}={}){
+ // Both REST slots must be due independently; no extra requests beyond
+ // existing per-provider rate limits. A live WS + REST mix, or a missing WS,
+ // must NOT block acquiring a same-depth 50/50 comparison pair.
  if(due.binance!==true||due.okx!==true)return false;
- const live=pair(liveBooks,asset);
- if(live.length!==2||live.some(b=>b.collectionMethod!=='PUBLIC_WS_BOOK_SNAPSHOT'))
-  return false;
- return synchronizeSpotDepth(live,{asset,now}).state==='INSUFFICIENT_COVERAGE';
+ const current=pair(availableBooks,asset);
+ return synchronizeSpotDepth(current,{asset,now}).state!=='SYNCED';
 }
