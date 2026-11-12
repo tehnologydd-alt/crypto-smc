@@ -8,7 +8,7 @@
  */
 export const MODELS=Object.freeze({
  analyst:'@cf/zai-org/glm-4.7-flash',
- critic:'@cf/qwen/qwen3-30b-a3b-fp8',
+ critic:'@cf/qwen/qwen3.8-27b',
 });
 const CAP=12; // conservative attempt ceiling shared by both language agents
 const json=(body,status=200)=>new Response(JSON.stringify(body),{
