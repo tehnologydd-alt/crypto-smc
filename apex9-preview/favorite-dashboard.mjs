@@ -7,6 +7,7 @@ import {getMobileFavorites,changeMobileFavorite,
  syncMobileFavoriteResearch,getMobileResearchForecasts,
  getMobileMarkedResearchForecasts,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,
  getMobileCandleArchive,getMobileM5Window,getMobileM1Window} from './mobile-bridge.mjs';
+import {stageNotificationLabel} from './forecast-notification-route.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
@@ -1105,6 +1106,72 @@ export function initFavoriteResearch({
    renderRows();
   }
  }
+ let notificationFocusRequest=0;
+ /**
+  * Open an exact immutable Room forecast, including one older than the
+  * ordinary journal page or not starred by the user. Never show another
+  * scenario as a fallback to a missing notification ID.
+  */
+ async function openNotificationForecast(target){
+  const container=id('forecast-notification-focus');
+  if(!container)return false;
+  const request=++notificationFocusRequest;
+  container.hidden=false;
+  container.dataset.forecastId=target.forecastId;
+  container.replaceChildren(create('p','forecast-notification-state',
+   'Открываем сценарий из уведомления · '+target.asset+
+   ' · '+stageNotificationLabel(target.stage)+'…'));
+  const result=await getMobileMarkedResearchForecasts([target.forecastId]);
+  if(request!==notificationFocusRequest)return false;
+  container.replaceChildren();
+  const heading=create('div','forecast-notification-heading');
+  const intro=create('div');
+  intro.append(create('strong','','Из уведомления · '+target.asset),
+   create('small','',stageNotificationLabel(target.stage)+
+    ' · запись из локального журнала Room'));
+  const close=create('button','ghost forecast-notification-close','Закрыть');
+  close.type='button';
+  close.addEventListener('click',()=>{
+   notificationFocusRequest++;
+   container.hidden=true;container.replaceChildren();
+  });
+  heading.append(intro,close);container.append(heading);
+  if(result?.complete!==true||result.error||
+   result.forecasts?.length!==1||
+   result.forecasts[0]?.id!==target.forecastId||
+   result.forecasts[0]?.asset!==target.asset){
+   container.append(create('p','forecast-quality-warning',
+    'Точная карточка сценария недоступна в Room. '+
+    'Другой прогноз вместо неё не подставляется.'));
+  }else{
+   const record=result.forecasts[0];
+   const observed=Array.isArray(record.stageEvents)&&
+    record.stageEvents.some(event=>event.stage===target.stage);
+   if(!observed)container.append(create('p','forecast-quality-warning',
+    'Этап '+target.stage+' пока не подтверждён загруженным журналом Room. '+
+    'Показан исходный сценарий без выдуманного события.'));
+   const card=cardForForecast(record,{
+    tracked:selected.has(record.id),
+    onToggle:key=>{
+     if(selected.has(key))selected.delete(key);else selected.add(key);
+     persistSelected();renderRows();
+     void openNotificationForecast(target);
+    },
+    onOpen:onSelectSymbol,getMini:renderMini
+   });
+   card.dataset.scenarioId=record.id;
+   card.classList.add('forecast-notification-selected');
+   for(const detail of card.querySelectorAll('details.forecast-compact-details, details.forecast-card-fold'))
+    detail.open=true;
+   container.append(card);
+  }
+  requestAnimationFrame(()=>{
+   if(request!==notificationFocusRequest||container.hidden)return;
+   container.scrollIntoView({behavior:'smooth',block:'start'});
+   container.focus({preventScroll:true});
+  });
+  return result?.complete===true&&result.forecasts?.length===1;
+ }
  function renderRows(){
   const box=id('research-forecast-list');box.replaceChildren();
   for(const b of document.querySelectorAll('[data-journal-stage]')){
@@ -1329,6 +1396,7 @@ export function initFavoriteResearch({
   },
   selectChanged(){renderFavorites();},
   openForecasts(){void loadJournal();void sync(false);},
+  openNotificationForecast,
   resume(){void sync(false);},
   getFavorites:()=>[...favorites],
   hasFavorite:symbol=>favorites.includes(symbol),
