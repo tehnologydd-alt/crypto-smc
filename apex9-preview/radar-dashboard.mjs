@@ -212,6 +212,12 @@ export function initRadarDashboard({getCatalog=()=>[],getFavorites=()=>[],onOpen
   }
   for(const row of sorted){
    const card=create('article','radar-record');
+   // Stable presentation identifiers: exact observed symbol and candle time.
+   card.dataset.symbol=row.symbol;
+   card.dataset.interval=interval;
+   card.dataset.candleAt=String(row.analysis.lastClosedAt||0);
+   card.dataset.saved=String(Boolean(row.saved));
+   card.dataset.changeState=String(row.change?.state||'UNKNOWN');
    const top=create('div','radar-record-top');
    const names=create('div','radar-record-name');
    names.append(create('strong','',nicePair(row.symbol)),
