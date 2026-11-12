@@ -15,7 +15,7 @@ const javaRoot=join(appRoot,'src/main/java');
 const nativeRoot=join(project,'native/src/main/java/com/apexintelligence/research');
 if(!existsSync(appGradle)||!existsSync(rootGradle)||!existsSync(javaRoot))
  throw Error('Run npx cap add android first');
-const nativeFiles=['ApexApiLedger.kt','ApexDatabase.kt','ApexPreferences.kt','ApexPortableBackup.kt','ApexSyncWorker.kt','ApexNativePlugin.kt','ApexAutoForecast.kt','ApexPreOutcomeStrength.kt','ApexEvidenceContext.kt','ApexWhalePrepublication.kt','ApexMultiFrameForecast.kt','ApexDirectionalForecast.kt','ApexM5Evaluation.kt','ApexM1Evaluation.kt','ApexResearchLevels.kt','ApexHistoricalBackfill.kt','ApexForecastNotifier.kt','ApexRadarMonitor.kt','ApexPrivateNews.kt','ApexPublicNews.kt'];
+const nativeFiles=['ApexApiLedger.kt','ApexDatabase.kt','ApexPreferences.kt','ApexPortableBackup.kt','ApexSyncWorker.kt','ApexNativePlugin.kt','ApexAutoForecast.kt','ApexPublicationGate.kt','ApexPreOutcomeStrength.kt','ApexEvidenceContext.kt','ApexWhalePrepublication.kt','ApexMultiFrameForecast.kt','ApexDirectionalForecast.kt','ApexM5Evaluation.kt','ApexM1Evaluation.kt','ApexResearchLevels.kt','ApexHistoricalBackfill.kt','ApexForecastNotifier.kt','ApexRadarMonitor.kt','ApexPrivateNews.kt','ApexPublicNews.kt'];
 for(const file of nativeFiles)if(!existsSync(join(nativeRoot,file)))throw Error('Native Kotlin file missing: '+file);
 
 let root=readFileSync(rootGradle,'utf8');

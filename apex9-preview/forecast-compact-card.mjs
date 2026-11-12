@@ -5,6 +5,7 @@
  */
 import {displayPair,priceText} from './forecast-card-ux.mjs';
 import {whaleCheckBadge} from './forecast-whale-check.mjs';
+import {publicationCaveat} from './scenario-publication-timing.mjs';
 import {forecastLevelMetrics,displayPriceMove,displayRiskReward}
  from './forecast-level-metrics.mjs';
 
@@ -50,6 +51,8 @@ export function compactOpenForecastCard(row,{plan,stage='PENDING_CONFIRMATION',
  head.append(title,badge);card.append(head);
  const w=whaleCheckBadge(row);
  if(w)card.append(w);
+ const delayNotice=publicationCaveat({...plan,sourceInterval:row.interval});
+ if(delayNotice)card.append(el('p','forecast-publication-warning',delayNotice));
  card.append(el('p','forecast-compact-note',
   Number.isSafeInteger(plan.targetCloseAt)&&Date.now()>plan.targetCloseAt?
    'Срок наблюдения прошёл · ожидаем подтверждённый итог Room':note));

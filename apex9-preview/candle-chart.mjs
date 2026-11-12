@@ -352,7 +352,8 @@ export class CandleChart {
    }
   }
 
-  // P = published anchor, 1 / 2 = observed H1 stages, 4 = verified outcome.
+  // P = chart interval containing the actual publication, not its earlier
+  // anchor close. 1 / 2 = observed stages, 4 = verified outcome.
   // Annotate only confirmed retrospective breaks, never preemptive signals.
   const eventByTime=new Map(this.events.map(e=>[e.time,e]));
   for(let i=0;i<bars.length;i++){
