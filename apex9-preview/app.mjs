@@ -1503,6 +1503,7 @@ function markSelectedAsset(){
 }
 initCleanIntelligence();
 initCleanIntelligenceMajor();
+initCleanIntelligenceAssetHub();
 updateTab('overview');
 void editorialDashboard.openOverview();
 void freeSourceDashboard.openOverview();
