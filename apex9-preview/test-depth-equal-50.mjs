@@ -39,7 +39,7 @@ test('paired REST requests ask BOTH public exchanges for 50 real price levels',a
  assert.equal(match.comparison.affectsForecast,false);
  assert.equal(match.comparison.predictive,false);
 });
-test('pairing is only requested for failed, recent WS coverage and both due sources',()=>{
+test('pairing refreshes incomparable books only when both REST providers are due',()=>{
  const binance=parseDepthSnapshot('binance',asset,payload('binance',6),T);
  binance.collectionMethod='PUBLIC_WS_BOOK_SNAPSHOT';
  binance.snapshotLevelsMax=20;
@@ -57,7 +57,7 @@ test('pairing is only requested for failed, recent WS coverage and both due sour
  assert.equal(needsMatchedRest(live,{asset,now:T+250,
   due:{binance:true,okx:false}}),false);
  assert.equal(needsMatchedRest(live,{asset,now:T+15000,
-  due:{binance:true,okx:true}}),false);
+  due:{binance:true,okx:true}}),true); // stale books need a fresh pair
  assert.equal(needsMatchedRest(live,{asset:'ETHUSDT',now:T+250,
   due:{binance:true,okx:true}}),false);
 });
@@ -79,4 +79,20 @@ test('never borrow a stale, cross-asset or unmatched REST snapshot',()=>{
 test('selected asset only, no polling or private API dependencies',async()=>{
  const selector=await import('./depth-comparison-selector.mjs');
  assert.ok(selector.needsMatchedRest&&selector.selectDepthComparison);
+});
+
+test('live WS plus fallback REST may request aligned 50/50 when both due',()=>{
+ const ws=parseDepthSnapshot('binance',asset,payload('binance',6),T);
+ ws.collectionMethod='PUBLIC_WS_BOOK_SNAPSHOT';ws.snapshotLevelsMax=20;
+ const rest=parseDepthSnapshot('okx',asset,payload('okx',50),T+150);
+ rest.collectionMethod='PUBLIC_REST_BOOK_SNAPSHOT';rest.snapshotLevelsMax=50;
+ const due={binance:true,okx:true};
+ assert.equal(needsMatchedRest([ws],{asset,now:T+250,due}),true);
+ assert.equal(needsMatchedRest([ws,rest],{asset,now:T+250,due}),
+  synchronizeSpotDepth([ws,rest],{asset,now:T+250}).state!=='SYNCED');
+ assert.equal(needsMatchedRest([],{asset,now:T+250,due}),true);
+ assert.equal(needsMatchedRest([ws,{...rest,symbol:'ETHUSDT'}],
+  {asset,now:T+250,due}),false);
+ assert.equal(needsMatchedRest([ws,rest],{asset,now:T+250,
+  due:{binance:true,okx:false}}),false);
 });
