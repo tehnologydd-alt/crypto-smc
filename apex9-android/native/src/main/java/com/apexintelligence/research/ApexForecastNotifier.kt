@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
+import com.getcapacitor.JSObject
 import java.text.DateFormat
 import java.util.Date
 
@@ -28,6 +29,36 @@ object ApexForecastNotifier {
     private const val LEDGER = "apex_forecast_alert_delivery_v1"
     private const val MAX_AGE = 6L * 60L * 60L * 1000L
     private val stages = setOf("LIMIT_READY", "TP1", "TP2", "TP3", "SL")
+    internal const val OPEN_FORECAST_ACTION = "com.apexintelligence.research.OPEN_FORECAST"
+    internal const val EXTRA_FORECAST = "apex.open.forecastId"
+    internal const val EXTRA_ASSET = "apex.open.asset"
+    internal const val EXTRA_STAGE = "apex.open.stage"
+    internal const val EXTRA_VERSION = "apex.open.version"
+
+    /** Parse our own explicit notification only; never trust arbitrary intents. */
+    internal fun notificationTarget(intent: Intent?): JSObject? {
+        if (intent?.action != OPEN_FORECAST_ACTION ||
+            intent.getIntExtra(EXTRA_VERSION, 0) != 1) return null
+        val forecastId = intent.getStringExtra(EXTRA_FORECAST) ?: return null
+        val asset = intent.getStringExtra(EXTRA_ASSET) ?: return null
+        val stage = intent.getStringExtra(EXTRA_STAGE) ?: return null
+        val allowedId = Regex(
+            "^(direction2:[A-Z0-9]{5,20}:1h|direction3:[A-Z0-9]{5,20}:(15m|4h)):[0-9]{10,16}$")
+        if (!allowedId.matches(forecastId) ||
+            forecastId.split(":").getOrNull(1) != asset ||
+            stage !in stages) return null
+        return JSObject().put("pending", true).put("version", 1)
+            .put("forecastId", forecastId).put("asset", asset)
+            .put("stage", stage)
+    }
+
+    internal fun clearNotificationTarget(intent: Intent) {
+        intent.removeExtra(EXTRA_FORECAST)
+        intent.removeExtra(EXTRA_ASSET)
+        intent.removeExtra(EXTRA_STAGE)
+        intent.removeExtra(EXTRA_VERSION)
+        intent.action = null
+    }
 
     private fun permitted(context: Context): Boolean =
         NotificationManagerCompat.from(context).areNotificationsEnabled() &&
@@ -126,6 +157,11 @@ object ApexForecastNotifier {
                             ledger.edit().putBoolean(key, true).commit()) try {
                             val intent = Intent(context, MainActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                action = OPEN_FORECAST_ACTION
+                                putExtra(EXTRA_VERSION, 1)
+                                putExtra(EXTRA_FORECAST, forecast.id)
+                                putExtra(EXTRA_ASSET, asset)
+                                putExtra(EXTRA_STAGE, stage.stage)
                             }
                             val pending = PendingIntent.getActivity(context, id.hashCode(), intent,
                                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

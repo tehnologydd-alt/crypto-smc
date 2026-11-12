@@ -9,6 +9,7 @@ import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
 import {initFavoriteResearch} from './favorite-dashboard.mjs';
+import {consumeMobileNotificationTarget,listenMobileNotificationOpen} from './mobile-bridge.mjs';
 import {initOverviewResearchProgress} from './overview-research-progress.mjs';
 import {initAssetFavoritePicker} from './asset-favorites-picker.mjs';
 import {createMarketMatrixCache,matrixFromNativeRadar} from './market-matrix-cache.mjs';
@@ -1172,7 +1173,7 @@ assetFavoritePicker=initAssetFavoritePicker({
  getSelected:()=>chosen,
  onSelect:symbol=>{void investigate(symbol);}
 });
-void favoriteManager.initialize().then(()=>{
+const favoritesReady=favoriteManager.initialize().then(()=>{
  assetFavoritePicker.render();
  // The native favorite list is now hydrated; queue independent read-only
  // per-favorite quality audits without visiting the Scenarios page.
@@ -1188,6 +1189,34 @@ void favoriteManager.initialize().then(()=>{
  }
  if(document.body.dataset.view==='overview')void investigate(chosen);
 });
+/**
+ * Cold-start notification intent survives WebView startup. A warm tap emits
+ * an ApexNative event; either path consumes exactly one native target and
+ * loads that exact Room scenario. Never infer the target from just a symbol.
+ */
+let notificationOpening=false,notificationOpenQueued=false;
+function requestNotificationOpen(){
+ notificationOpenQueued=true;
+ if(notificationOpening)return;
+ notificationOpening=true;
+ void (async()=>{
+  try{
+   await favoritesReady;
+   while(notificationOpenQueued){
+    notificationOpenQueued=false;
+    const target=await consumeMobileNotificationTarget();
+    if(!target)continue;
+    navigate('forecasts','forecast-notification-focus');
+    await favoriteManager.openNotificationForecast(target);
+   }
+  }catch{
+   // Native/Room unavailability must never replace a target with a guess.
+  }finally{notificationOpening=false;}
+ })();
+}
+void listenMobileNotificationOpen(requestNotificationOpen);
+void favoritesReady.then(requestNotificationOpen).catch(()=>{});
+
 const evidenceDashboard=initEvidenceDashboard({
  getSelectedSymbol:()=>chosen,
  getFavorites:()=>favoriteManager.getFavorites()

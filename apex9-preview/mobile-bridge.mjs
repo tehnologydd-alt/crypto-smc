@@ -7,7 +7,28 @@ import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair
 import {chainForWhaleAsset,validateWhaleEvent,parseWhaleHistory} from './whale-observer.mjs';
 import {validateLargeTrade,LARGE_TRADE_SOURCE} from './large-trade-stream.mjs';
 import {validateVenueTrade} from './multivenue-trades.mjs';
+import {normalizeForecastNotificationTarget} from './forecast-notification-route.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
+/** Consume an Android notification's exact scenario reference once.
+ * Reject anything not signed by our own source-scoped native Intent parser. */
+export async function consumeMobileNotificationTarget(){
+ const native=plugin();
+ if(typeof native?.consumeNotificationTarget!=='function')return null;
+ try{
+  const result=await native.consumeNotificationTarget();
+  return normalizeForecastNotificationTarget(result);
+ }catch{return null;}
+}
+/** Warm app reopening; cold start is separately handled by consume. */
+export async function listenMobileNotificationOpen(onOpen){
+ const native=plugin();
+ if(typeof native?.addListener!=='function'||typeof onOpen!=='function')
+  return null;
+ try{
+  return await native.addListener('apexNotificationOpen',()=>onOpen());
+ }catch{return null;}
+}
+
 /** True only when a real Android Room observation writer is available. */
 export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
 const unavailable = {native:false,storage:'WEB_ONLY',observationCount:0,forecastCount:0,

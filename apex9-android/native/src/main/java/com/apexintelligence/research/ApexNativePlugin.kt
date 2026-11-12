@@ -8,6 +8,7 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import android.os.Build
+import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.view.WindowManager
@@ -28,6 +29,30 @@ class ApexNativePlugin : Plugin() {
     private val assetRegex = Regex("^[A-Z0-9]{5,20}$")
     private val sourceRegex = Regex("^[a-zA-Z0-9:._-]{2,80}$")
     private val kindSet = setOf("market", "liquidity", "onchain", "whale", "news", "macro", "social", "context")
+
+    /**
+     * Android may deliver this Intent before WebView JavaScript is ready.
+     * Keep it in MainActivity and consume it exactly once after hydration.
+     * No URL, unrestricted route, or untrusted activity extras are accepted.
+     */
+    @PluginMethod
+    fun consumeNotificationTarget(call: PluginCall) {
+        val intent = activity?.intent
+        val route = ApexForecastNotifier.notificationTarget(intent)
+        if (route == null) {
+            call.resolve(JSObject().put("pending", false))
+            return
+        }
+        if (intent != null) ApexForecastNotifier.clearNotificationTarget(intent)
+        call.resolve(route)
+    }
+
+    override fun handleOnNewIntent(intent: Intent) {
+        super.handleOnNewIntent(intent)
+        if (ApexForecastNotifier.notificationTarget(intent) != null)
+            notifyListeners("apexNotificationOpen",
+                JSObject().put("pending", true), true)
+    }
 
     @PluginMethod
     fun getStatus(call: PluginCall) {
