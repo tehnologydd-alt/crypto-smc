@@ -88,21 +88,30 @@ test('all category layouts use the shared heading; terminal tone styles remain',
  for(const s of [compact,direction,multi])
   assert.match(s,/createForecastIdentity\(row/);
  assert.ok(css.includes('.forecast-visual.is-completed .forecast-created-at'));
- assert.ok(css.includes('.forecast-journal-hide'));
+ assert.ok(!css.includes('.forecast-journal-hide'));
+ assert.ok(!dashboard.includes('forecast-journal-hide'));
+ assert.ok(!dashboard.includes("'Убрать из журнала'"));
  assert.ok(css.includes('.forecast-expired-archive'));
  assert.ok(dashboard.includes('apex9_hidden_research_ids_v1'));
  assert.ok(dashboard.includes('Перенесено в архив')===false); // archive reason comes from helper
  assert.ok(dashboard.includes('Просроченные · без подтверждённого исхода'));
- assert.ok(dashboard.includes("'Убрать из журнала'"));
  assert.ok(dashboard.includes("'Вернуть все'"));
- assert.ok(dashboard.includes('function compactifyCompletedCard(row,card)'));
+ assert.ok(dashboard.includes('function compactifyCompletedCard(row,card,'));
  assert.ok(dashboard.includes("card.classList.add('forecast-compact-card','forecast-unified-completed')"));
- assert.ok(dashboard.includes('card.append(levelRow,feedback)'));
- assert.ok(dashboard.includes('card.append(details,...buttons)'));
- assert.ok(css.includes('.forecast-unified-completed>.forecast-compact-price-row'));
- // The visual wrapper must not discard source levels/events: its original
- // full card nodes are attached to the single folded source-data section.
- assert.ok(dashboard.includes('else details.append(item)'));
+ // One identical three-button action row on every active and completed card.
+ assert.ok(dashboard.includes('actions.append(mark,open,copy)'));
+ assert.ok(dashboard.includes('card.append(note,progress,details,actions)'));
+ assert.ok(dashboard.includes("details.append(create('summary','','Все уровни и история'))"));
+ assert.ok(dashboard.includes("const levels=create('div','forecast-compact-full-levels')"));
+ assert.ok(css.includes('.forecast-unified-completed>.forecast-compact-actions'));
+ assert.ok(css.includes('.forecast-unified-completed>.forecast-compact-details'));
+ // No duplicate top price strip, completed-stage block, or nested old fold.
+ assert.ok(!dashboard.includes('card.append(levelRow,feedback)'));
+ assert.ok(!dashboard.includes('card.append(details,...buttons)'));
+ assert.ok(dashboard.includes("const section=oldFold?.querySelector(selector)"));
+ // The history and provenance must remain available behind the unified fold.
+ assert.ok(dashboard.includes("'.forecast-event-timeline'"));
+ assert.ok(dashboard.includes('if(provenance)details.append(provenance)'));
  assert.ok(source('./app.mjs').includes("'apex9_hidden_research_ids_v1'"));
  assert.ok(source('../apex9-android/native/src/main/java/com/apexintelligence/research/ApexPortableBackup.kt')
   .includes('uiHiddenIds'));
