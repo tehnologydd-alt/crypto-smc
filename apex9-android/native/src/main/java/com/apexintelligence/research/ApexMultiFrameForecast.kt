@@ -127,8 +127,10 @@ object ApexMultiFrameForecast {
             return Report(asset,spec.interval,"GAP","UNKNOWN")
         val last=candles.last()
         val anchor=last.closeTime
-        if(anchor!=last.openTime+spec.step-1||anchor>=now||
-            now-anchor>spec.step+90_000L)
+        // Delayed WorkManager passes cannot publish a new scenario using
+        // an old M15/H4 close as if its entry were still newly available.
+        if(anchor!=last.openTime+spec.step-1||
+            !ApexPublicationGate.isFresh(spec.interval,anchor,now))
             return Report(asset,spec.interval,"STALE","UNKNOWN")
         if(latest!=null){
             val old=try{JSONObject(latest.hypothesisJson).optLong("anchorCloseAt",0L)}
