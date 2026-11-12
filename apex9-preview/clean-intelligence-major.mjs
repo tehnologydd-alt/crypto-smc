@@ -150,7 +150,10 @@ function mountScenarioWorkspace(){
  board.append(head);
  // Use the ACTUAL stage buttons; do not add a second event router.
  board.append(stages);
- intro.after(board);
+ // Stage 1 archived the old intro inside a collapsed <details>.
+ // Stage 6 must lift the original Room counters and the stageboard OUT
+ // of that archive; otherwise the primary journal navigation is invisible.
+ workspace.before(intro,board);
  const info=workspace.querySelector('.forecast-technical-notes');
  const whales=id('forecast-whale-details');
  const system=intro.querySelector('#forecast-system-details');
