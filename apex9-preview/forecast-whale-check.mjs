@@ -105,3 +105,32 @@ export function whaleCheckCoverage(rows){
  }
  return counts;
 }
+
+/**
+ * Prospective W shadow cohorts. No future information enters the W label:
+ * result data is read later, from the separately verified closed-candle
+ * outcome. Counts are descriptive; never turn small/biased samples into
+ * success rates or change the original price-direction hypothesis.
+ */
+export function whaleShadowOutcomes(rows,{evaluate}={}){
+ const empty=()=>({published:0,verifiedCompleted:0,tp3:0,sl:0,other:0,
+  unverified:0});
+ const result={withW:empty(),withoutEvents:empty(),legacy:0,invalid:0};
+ for(const row of Array.isArray(rows)?rows:[]){
+  if(!row||!['1h','15m','4h'].includes(row.interval))continue;
+  const w=inspectWhaleCheck(row);
+  if(w.state==='LEGACY'){result.legacy++;continue;}
+  if(w.state==='INVALID'){result.invalid++;continue;}
+  const cohort=w.state==='OBSERVED'?result.withW:result.withoutEvents;
+  cohort.published++;
+  const evidence=typeof evaluate==='function'?evaluate(row):null;
+  if(evidence?.state!=='OBSERVED'||evidence.finished!==true){
+   cohort.unverified++;continue;
+  }
+  cohort.verifiedCompleted++;
+  if(evidence.outcome==='TP3')cohort.tp3++;
+  else if(evidence.outcome==='STOP')cohort.sl++;
+  else cohort.other++;
+ }
+ return result;
+}
