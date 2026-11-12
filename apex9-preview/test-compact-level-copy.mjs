@@ -73,7 +73,7 @@ test('clipboard is wired for both one-frame and multiframe active card renderers
  assert.match(single,/tracked,onToggle,onOpen,copyText/);
  assert.match(multi,/events:row.stageEvents,tracked,onToggle,onOpen,copyText/);
  assert.match(dispatcher,/compactifyCompletedCard\(row,multiFrameForecastCard\(row,\{/);
- assert.match(dispatcher,/sourceM1:sourceM5,copyText:copyResearchText/);
+ assert.match(dispatcher,/sourceM1:sourceM5,\s*copyText:copyResearchText/);
 });
 test('completed cards share compact outer layout but preserve verified result details',()=>{
  const single=read('./forecast-directional-card.mjs');
