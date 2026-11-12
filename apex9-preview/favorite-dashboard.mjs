@@ -523,6 +523,18 @@ export function initFavoriteResearch({
     'Цены Binance недоступны';
   });
  }
+ let hidden=new Set();
+ try {
+  const items=JSON.parse(localStorage.getItem('apex9_hidden_research_ids_v1')||'[]');
+  if(Array.isArray(items))
+   hidden=new Set(items.filter(x=>typeof x==='string'&&
+    /^(direction2|direction3|range1):[A-Z0-9]{5,20}:(1h|15m|4h):\d{10,16}$/.test(x))
+    .slice(-300));
+ }catch{}
+ const persistHidden=()=>{
+  try{localStorage.setItem('apex9_hidden_research_ids_v1',
+   JSON.stringify([...hidden].slice(-300)));}catch{}
+ };
  let selected=new Set();
  try{
   const stored=JSON.parse(localStorage.getItem('apex9_selected_research_ids_v1')||'[]');
@@ -1100,7 +1112,7 @@ export function initFavoriteResearch({
   }
   if(journalMode==='tracked'){
    const view=scenarioJournalState(displayedJournal(),{
-    selectedIds:[...selected],mode:journalMode,stage
+    selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
    });
    if(!view.counts[stage]&&view.scenarios.length)
     stage=view.preferred;
@@ -1233,7 +1245,7 @@ export function initFavoriteResearch({
    return;
   }
   const view=scenarioJournalState(displayedJournal(),{
-   selectedIds:[...selected],mode:journalMode,stage
+   selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
   });
   for(const [key,count] of Object.entries(view.counts))
    id('stage-count-'+key).textContent=String(count);
@@ -1244,6 +1256,7 @@ export function initFavoriteResearch({
   const directed=visible.filter(row=>Boolean(directionalHypothesis(row)));
   const multi=visible.filter(row=>Boolean(multiFrameHypothesis(row)));
   const legacy=view.archive;
+  const expired=view.archiveUnverified;
   if(journalMode==='tracked'){
    box.append(create('p','forecast-marked-restored',
     'Сохранено отметок: '+selected.size+
@@ -1251,22 +1264,37 @@ export function initFavoriteResearch({
     (markedMissing.length?' · недоступно: '+markedMissing.length:'')+
     '. Архивные исследования показаны отдельно от этапов.'));
   }
-  const renderCard=row=>cardForForecast(row,{
-   tracked:selected.has(row.id),
-   onToggle:key=>{
-    if(selected.has(key))selected.delete(key);else selected.add(key);
-    persistSelected();
-    if(journalMode==='tracked')void loadMarkedRows({force:true});
-    else renderRows();
-   },
-   onOpen:onSelectSymbol,getMini:renderMini
-  });
+  const renderCard=row=>{
+   const card=cardForForecast(row,{
+    tracked:selected.has(row.id),
+    onToggle:key=>{
+     if(selected.has(key))selected.delete(key);else selected.add(key);
+     persistSelected();
+     if(journalMode==='tracked')void loadMarkedRows({force:true});
+     else renderRows();
+    },
+    onOpen:onSelectSymbol,getMini:renderMini
+   });
+   const tools=create('div','forecast-journal-row-tools');
+   const remove=create('button','forecast-journal-hide',
+    'Убрать из журнала');
+   remove.type='button';
+   remove.title='Скрыть карточку здесь, сохранив запись Room и статистику';
+   remove.addEventListener('click',()=>{
+    hidden.add(row.id);persistHidden();
+    // Hidden rows never alter the immutable research log or result statistics.
+    renderRows();
+   });
+   tools.append(remove);
+   card.append(tools);
+   return card;
+  };
   if(journalMode==='tracked'&&markedMissing.length){
    box.append(create('p','forecast-quality-warning',
     'Не найдены в Room: '+markedMissing.length+
     ' сохранённых отметок. Они не удалены из настроек и не засчитаны как прогнозы.'));
   }
-  if(!directed.length&&!multi.length&&!legacy.length){
+  if(!directed.length&&!multi.length&&!legacy.length&&!expired.length){
    box.append(create('p','forecast-direction-empty',
     journalMode==='tracked'?
      (selected.size?
@@ -1276,6 +1304,47 @@ export function initFavoriteResearch({
   }else {
    for(const row of directed)box.append(renderCard(row));
    for(const row of multi)box.append(renderCard(row));
+  }
+  if(expired.length){
+   const archive=create('details','forecast-expired-archive');
+   archive.append(create('summary','forecast-range-archive-title',
+    'Просроченные · без подтверждённого исхода · '+expired.length),
+    create('p','forecast-range-archive-note',
+     'Это не завершённые сделки. Срок исследования истёк, но Room '+
+     'не подтвердил итог. История сохранена для проверки.'));
+   for(const row of expired){
+    const card=renderCard(row);
+    card.prepend(create('p','forecast-expired-label',
+     'Архив без результата · '+row.archiveReason));
+    archive.append(card);
+   }
+   box.append(archive);
+  }
+  if(hidden.size){
+   const undo=create('details','forecast-hidden-archive');
+   undo.append(create('summary','forecast-range-archive-title',
+    'Скрытые карточки · '+hidden.size+' · восстановить'));
+   undo.append(create('p','forecast-range-archive-note',
+    'Скрытие убирает карточку с экрана, не удаляет исходный прогноз из Room.'));
+   const allHidden=[...hidden].slice(-300).reverse();
+   for(const key of allHidden){
+    const row=displayedJournal().find(x=>x.id===key);
+    const line=create('div','forecast-hidden-row');
+    const title=create('small','',row?
+     displayPair(row.asset)+' · '+row.interval+' · '+
+      new Date(row.publishedAt).toLocaleString('ru-RU'):
+      'ID '+key);
+    const restore=create('button','ghost','Вернуть');
+    restore.type='button';
+    restore.addEventListener('click',()=>{
+     hidden.delete(key);persistHidden();renderRows();
+    });
+    line.append(title,restore);undo.append(line);
+   }
+   const all=create('button','ghost forecast-hidden-restore-all','Вернуть все');
+   all.type='button';
+   all.addEventListener('click',()=>{hidden.clear();persistHidden();renderRows();});
+   undo.append(all);box.append(undo);
   }
   if(legacy.length){
    const archive=create('details','forecast-range-archive');
@@ -1310,7 +1379,7 @@ export function initFavoriteResearch({
   lastRows=Array.isArray(data.forecasts)?data.forecasts:[];
   lastTotal=data.publishedCount||lastRows.length;
   const scope=scenarioJournalState(lastRows,{
-   selectedIds:[...selected],mode:journalMode,stage
+   selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
   });
   if(!stageTouched&&journalMode==='all')stage=scope.preferred;
   for(const b of document.querySelectorAll('[data-forecast-stage]')){
@@ -1386,7 +1455,7 @@ export function initFavoriteResearch({
    if(journalMode==='tracked'){
     if(markedReadyFor===selectedKey()&&!markedError){
      const view=scenarioJournalState(displayedJournal(),{
-      selectedIds:[...selected],mode:journalMode,stage
+      selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
      });
      if(!view.counts[stage]&&view.scenarios.length)
       stage=view.preferred;
@@ -1394,7 +1463,7 @@ export function initFavoriteResearch({
     }else void loadMarkedRows();
    }else{
     const view=scenarioJournalState(lastRows,{
-     selectedIds:[...selected],mode:journalMode,stage
+     selectedIds:[...selected],hiddenIds:[...hidden],mode:journalMode,stage
     });
     if(!view.counts[stage])stage=view.preferred;
     renderRows();
