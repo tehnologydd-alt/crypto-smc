@@ -58,6 +58,18 @@
     <h3 class="apex-settings-subtitle">Экран</h3>
     <label class="apex-setting-toggle"><input id="apex-settings-screen" type="checkbox" disabled><span>Не выключать экран<small>Только пока APEX открыт на экране телефона. Увеличивает расход батареи.</small></span></label>
     <p id="apex-settings-screen-status" class="muted" role="status">По умолчанию экран гаснет по настройкам телефона.</p>
+    <div class="apex-settings-divider"></div>
+    <h3 class="apex-settings-subtitle">Резервное копирование в облако</h3>
+    <p class="muted">Полный перенос истории исследований, свечей, прогнозов, TP/SL, избранного и настроек. В системном окне можно выбрать Google Drive или другое подключённое облако.</p>
+    <label class="apex-backup-password-label">Парольная фраза для архива (не менее 12 символов)
+      <input type="password" id="apex-backup-passphrase" autocomplete="off" minlength="12" maxlength="128" placeholder="Запомните пароль: без него восстановление невозможно" spellcheck="false">
+    </label>
+    <div class="apex-backup-controls">
+      <button type="button" class="ghost" id="apex-backup-export" disabled>Сохранить архив в облако</button>
+      <button type="button" class="ghost" id="apex-backup-import" disabled>Восстановить архив</button>
+    </div>
+    <p id="apex-backup-status" class="muted" role="status" aria-live="polite">Резервная копия зашифрована на устройстве; пароль не сохраняется в APEX.</p>
+    <p class="muted">Восстановление объединяет записи, не удаляя текущие. После переноса фон и уведомления включаются отдельно. Проверьте появление файла в облаке перед удалением APEX со старого телефона.</p>
     <button type="button" id="apex-settings-sources" class="ghost">Источники, лимиты и данные</button>
   </dialog>
   <main class="content">
