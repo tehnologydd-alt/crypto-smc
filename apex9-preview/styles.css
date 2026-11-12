@@ -3660,3 +3660,19 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .large-trade-links p{font-size:11px;line-height:1.55;margin:0;color:#a6c8c9}
 @media(max-width:420px){.large-trade-venues-status{
  grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Tap on a forecast notification -> the exact original Room card, not a guess. */
+.forecast-notification-focus{display:grid;gap:11px;margin:12px 0 18px;
+ padding:12px;border:1px solid #55aba9;border-radius:14px;
+ background:#12343b;scroll-margin-top:100px;min-width:0}
+.forecast-notification-focus[hidden]{display:none!important}
+.forecast-notification-heading{display:flex;justify-content:space-between;
+ align-items:center;gap:10px;flex-wrap:wrap}
+.forecast-notification-heading>div{display:grid;gap:5px}
+.forecast-notification-heading strong{font-size:14px;color:#d5fff9}
+.forecast-notification-heading small{font-size:11px;color:#add2d5}
+.forecast-notification-close{min-height:36px;font-size:11px}
+.forecast-notification-state{color:#bce3e1;font-size:12px}
+.forecast-notification-selected{box-shadow:0 0 0 2px #59c3bc85;
+ border-color:#5bc5bd!important}
