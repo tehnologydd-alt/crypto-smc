@@ -26,7 +26,7 @@ def load_rows(path: Path):
             continue
         raw = json.loads(line)
         keys = set(raw)
-        if keys != {"observed_at", "resolved_at", "label", "source_ids", "features"}:
+        if keys != {"asset", "observed_at", "resolved_at", "label", "source_ids", "features"}:
             raise ValueError(f"Line {line_number}: unexpected or missing field")
         if type(raw["label"]) is not int or raw["label"] not in (0, 1):
             raise ValueError(f"Line {line_number}: outcome not confirmed")
