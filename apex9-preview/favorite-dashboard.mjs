@@ -8,7 +8,7 @@ import {getMobileFavorites,changeMobileFavorite,
  getMobileMarkedResearchForecasts,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,
  getMobileCandleArchive,getMobileM5Window,getMobileM1Window} from './mobile-bridge.mjs';
 import {stageNotificationLabel} from './forecast-notification-route.mjs';
-import {whaleCheckCoverage} from './forecast-whale-check.mjs';
+import {whaleCheckCoverage,whaleShadowOutcomes} from './forecast-whale-check.mjs';
 import {sanitizeFavorites,journalCounts,forecastStage,
  FORECAST_STAGES,FORECAST_STAGE_LABELS,FAVORITES_MAX} from './favorite-logic.mjs';
 import {attachSparkline} from './sparkline.mjs';
@@ -16,7 +16,7 @@ import {attachAssetLogo} from './asset-logo.mjs';
 import {createFavoriteTickerFeed} from './favorite-ticker.mjs';
 import {journalObservedStats} from './journal-stats.mjs';
 import {scenarioJournalState,scenarioJournalRows} from './scenario-journal-state.mjs';
-import {directionalQualitySummary} from './forecast-quality.mjs';
+import {directionalQualitySummary,verifiedDirectionalEvidence} from './forecast-quality.mjs';
 import {summarizeAssetQuality} from './asset-quality.mjs';
 import {compareScenarioConditions} from './scenario-condition-compare.mjs';
 import {inspectResearchTimeline} from './research-timeline.mjs';
@@ -28,7 +28,7 @@ import {getFavoriteRadarNotices,summarizeFavoriteRadar} from './favorite-radar.m
 import {directionalHypothesis} from './directional-scenario.mjs';
 import {directionalForecastCard,legacyRangeCard} from './forecast-directional-card.mjs';
 import {multiFrameHypothesis,multiFrameForecastCard,multiFrameQuality,
- multiFrameAgreement} from './forecast-multiframe.mjs';
+ multiFrameAgreement,multiFrameEvidence} from './forecast-multiframe.mjs';
 import {evidenceCohorts} from './forecast-evidence-context.mjs';
 import {initFeatureHoldoutDashboard} from './forecast-feature-dashboard.mjs';
 import {bindFavoriteHoldSwipe} from './favorite-gesture.mjs';
@@ -1175,7 +1175,13 @@ export function initFavoriteResearch({
  }
  function renderRows(){
   const box=id('research-forecast-list');box.replaceChildren();
-  const w=whaleCheckCoverage(displayedJournal());
+  const journal=displayedJournal();
+  const w=whaleCheckCoverage(journal);
+  const shadow=whaleShadowOutcomes(journal,{
+   evaluate:row=>row.interval==='1h'?
+    verifiedDirectionalEvidence(row,{now:Date.now()}):
+    multiFrameEvidence(row,{now:Date.now()})
+  });
   const label=id('forecast-whale-coverage');
   if(label)label.textContent='W · проверка китов при публикации: '+
    (w.observed+w.noObservations)+' из '+w.published+
@@ -1183,7 +1189,9 @@ export function initFavoriteResearch({
    ' · без своевременных наблюдений '+w.noObservations+
    (w.legacy?' · старый архив без W '+w.legacy:'')+
    (w.invalid?' · требуют проверки '+w.invalid:'')+
-   '. История частичная; W не доказывает причину или направление движения.';
+   '. Проверенные завершения: с W '+shadow.withW.verifiedCompleted+
+   ', без событий W '+shadow.withoutEvents.verifiedCompleted+
+   '. История частичная; это не оценка вероятности или причины движения.';
   for(const b of document.querySelectorAll('[data-journal-stage]')){
    const on=b.dataset.journalStage===stage;
    b.classList.toggle('active',on);
