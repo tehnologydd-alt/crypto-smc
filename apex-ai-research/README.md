@@ -93,7 +93,8 @@ Protected local endpoints:
 
 The training script reads **user-provided, real, completed and
 source-traceable** JSONL. It never generates price rows or missing
-outcomes. Each record must have exactly:
+outcomes. Train one asset per dataset. Each record must have exactly:
+`asset` (e.g. the verified ticker's market symbol),
 `observed_at` (Unix seconds),
 `resolved_at` (Unix seconds after the observation),
 `label` (confirmed binary outcome),
