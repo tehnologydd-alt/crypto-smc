@@ -163,13 +163,21 @@ try{
    width+'px: settings category buttons are too cramped for the viewport');
   await page.locator('#ci11-upgrade-desk summary').click();
   await page.locator('#ci11-upgrade-desk .ci11-upgrade-check').click();
+  // Capture the actual device-readiness state, including unexpected errors,
+  // instead of hiding an issue behind a Playwright-only timeout.
   await page.waitForFunction(()=>{
+   const root=document.querySelector('#ci11-upgrade-desk');
    const status=document.querySelector('#ci11-upgrade-status');
-   return Boolean(status&&status.textContent.includes('Нативная база Room не подтверждена'));
-  },null,{timeout:6000});
-  requireCondition(
-   await page.locator('#ci11-upgrade-desk').getAttribute('data-readiness')==='NO_ROOM',
-   width+'px: browser mode must not claim Room or backup continuity');
+   return Boolean(root?.dataset.readiness||
+    status?.textContent?.includes('Проверка не удалась'));
+  },null,{timeout:9000}).catch(()=>{});
+  const readiness=await page.locator('#ci11-upgrade-desk').evaluate(root=>({
+   state:root.dataset.readiness||'NOT_UPDATED',
+   status:root.querySelector('.ci11-upgrade-status')?.textContent||'NO_STATUS'
+  }));
+  console.log('APEX_STAGE11_BROWSER_READINESS '+width+'px '+JSON.stringify(readiness));
+  requireCondition(readiness.state==='NO_ROOM',
+   width+'px: browser preview must not claim native Room; observed '+JSON.stringify(readiness));
   await page.locator('#ci9-interface-audit summary').click();
   // HTML <details> toggle is queued asynchronously. Wait for its actual
   // event-driven DOM report rather than asserting in the click's same turn.
