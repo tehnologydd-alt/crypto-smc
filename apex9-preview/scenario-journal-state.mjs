@@ -6,6 +6,7 @@
 import {forecastStage,journalCounts,FORECAST_STAGES} from './favorite-logic.mjs';
 import {directionalHypothesis} from './directional-scenario.mjs';
 import {multiFrameHypothesis} from './forecast-multiframe.mjs';
+import {filterForecastJournal} from './forecast-stale-archive.mjs';
 
 const stageOrder=['PENDING_CONFIRMATION','CONFIRMED','ACTIVE','COMPLETED'];
 /**
@@ -24,25 +25,28 @@ export function scenarioJournalRows(recent,bookmarked,{mode='all'}={}){
 }
 
 export function scenarioJournalState(rows,{
- selectedIds=[],mode='all',stage='PENDING_CONFIRMATION',now=Date.now()
+ selectedIds=[],hiddenIds=[],mode='all',stage='PENDING_CONFIRMATION',now=Date.now()
 }={}){
  const all=Array.isArray(rows)?rows:[];
+ const {active,expired,suppressed}=filterForecastJournal(all,{hiddenIds,now});
  const marked=new Set(selectedIds);
  const isTracked=mode==='tracked';
  // A visible stage card must also be eligible to appear in this journal.
- const scenarios=all.filter(row=>Boolean(directionalHypothesis(row)||
+ const scenarios=active.filter(row=>Boolean(directionalHypothesis(row)||
   multiFrameHypothesis(row)));
  const scoped=isTracked?scenarios.filter(row=>marked.has(row.id)):scenarios;
  const stages=journalCounts(scoped,{now});
  const visible=scoped.filter(row=>forecastStage(row,{now})===stage);
  // When viewing saved records, the legacy archive must remain accessible
  // regardless of the active directed stage tab (which it never contributes to).
- const archive=all.filter(row=>!directionalHypothesis(row)&&
+ const archive=active.filter(row=>!directionalHypothesis(row)&&
   !multiFrameHypothesis(row)&&(!isTracked||marked.has(row.id))&&
   (isTracked||forecastStage(row,{now})===stage));
+ const archiveUnverified=expired.filter(row=>!isTracked||marked.has(row.id));
  const preferred=stageOrder.find(key=>stages[key]>0)||stageOrder[0];
  const inWork=stages.PENDING_CONFIRMATION+stages.CONFIRMED+stages.ACTIVE;
- return {scenarios:scoped,visible,archive,counts:stages,
+ return {scenarios:scoped,visible,archive,archiveUnverified,
+  hiddenCount:suppressed.length,counts:stages,
   inWork,completed:stages.COMPLETED,
   preferred,chosen:stage,mode,
   markedLoaded:scenarios.filter(row=>marked.has(row.id)).length,
