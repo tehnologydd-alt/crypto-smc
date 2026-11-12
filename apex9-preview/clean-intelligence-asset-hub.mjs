@@ -1,3 +1,4 @@
+import {createScreenUpdateCoordinator,observeSourceUpdates} from './clean-intelligence-render-governor.mjs';
 /**
  * APEX 9 / Clean Intelligence - major redesign stage 7.
  *
@@ -58,19 +59,12 @@ function button(label,klass,handler){
  node.type='button';node.addEventListener('click',handler);
  return node;
 }
-function observeText(sourceIds,render){
+function observeText(sourceIds,render,{view,area=null}={}){
+ if(!view)return;
  const targets=sourceIds.map(id).filter(Boolean);
- let pending=false;
- const update=()=>{
-  if(pending)return;
-  pending=true;
-  queueMicrotask(()=>{pending=false;render();});
- };
- for(const node of targets)
-  new MutationObserver(update).observe(node,{
-   childList:true,subtree:true,characterData:true,attributes:false
-  });
- render();
+ const coordinator=createScreenUpdateCoordinator(view,render,{area});
+ observeSourceUpdates(targets,coordinator.schedule);
+ coordinator.schedule();
 }
 function mountAssetDesk(){
  const root=id('view-asset'),hero=root?.querySelector(':scope > .hero');
@@ -125,7 +119,7 @@ function mountAssetDesk(){
    const current=condensedVerifiedText(id(source)?.textContent,{max:72});
    if(output.textContent!==current)output.textContent=current;
   }
- });
+ },{view:root,area:'chart'});
 }
 function mountAssetDataNavigator(){
  const root=id('view-asset'),anchor=id('asset-workspace-anchor');
@@ -169,7 +163,7 @@ function mountAssetDataNavigator(){
    const value=condensedVerifiedText(id(item.dataset.source)?.textContent,{max:105});
    if(output.textContent!==value)output.textContent=value;
   }
- });
+ },{view:root,area:'data'});
  for(const klass of ['asset-events-panel','liquidity-history-panel','network-panel']){
   root.querySelector('.'+klass)?.classList.add('ci7-refined-data-card');
  }
@@ -213,7 +207,7 @@ function mountSourcesDesk(){
    const value=condensedVerifiedText(id(box.dataset.source)?.textContent,{max:93});
    if(target.textContent!==value)target.textContent=value;
   }
- });
+ },{view:root});
  for(const selector of [
   '#view-sources #free-provider-center-panel',
   '#view-sources #native-storage-panel',
@@ -247,7 +241,7 @@ function mountResearchDeck(){
  observeText(['evidence-status'],()=>{
   const value=condensedVerifiedText(id('evidence-status')?.textContent,{max:160});
   if(label.textContent!==value)label.textContent=value;
- });
+ },{view:quality});
 }
 export function initCleanIntelligenceAssetHub(){
  mountAssetDesk();
