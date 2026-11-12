@@ -6,6 +6,7 @@
 import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair.mjs';
 import {chainForWhaleAsset,validateWhaleEvent,parseWhaleHistory} from './whale-observer.mjs';
 import {validateLargeTrade,LARGE_TRADE_SOURCE} from './large-trade-stream.mjs';
+import {validateVenueTrade} from './multivenue-trades.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
 /** True only when a real Android Room observation writer is available. */
 export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
@@ -112,6 +113,51 @@ export async function saveMobileSnapshot(snapshot) {
   catch(error){errors.push(String(error?.message||error));}
  }
  return {native:true,saved,errors};
+}
+/** Immutable, source-scoped public Spot executions (five other venues). */
+export async function saveMobileVenueTrade(trade){
+ const native=plugin(),asset=trade?.asset,now=Date.now();
+ if(!native?.saveObservation)return {native:false,saved:false};
+ if(!validateVenueTrade(trade,asset,{now,maxAgeMs:120000}))
+  return {native:true,saved:false,error:'Invalid venue execution'};
+ const id='spottrade:'+trade.venue+':'+asset+':'+trade.tradeId;
+ if(id.length>125)return {native:true,saved:false,error:'Trade ID too long'};
+ try{
+  const result=await native.saveObservation({
+   id,asset,source:trade.source,kind:'market',
+   observedAt:trade.tradeAt,collectedAt:trade.receivedAt,
+   payload:JSON.stringify(trade)
+  });
+  return {native:true,saved:result?.saved===true};
+ }catch(error){
+  return {native:true,saved:false,error:String(error?.message||error).slice(0,140)};
+ }
+}
+export async function getMobileVenueTradeHistory(asset,limit=120){
+ const native=plugin(),empty={native:Boolean(native),
+  source:'MULTIVENUE_SPOT_TRADES_ROOM_V1',events:[],complete:false};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{2,16}USDT$/.test(asset)||
+  !Number.isSafeInteger(limit)||limit<1||limit>200)
+  return {...empty,error:'Invalid trade history request'};
+ if(!native?.getMultivenueTradeHistory)
+  return {...empty,error:'Requires updated Android APK'};
+ try{
+  const data=await native.getMultivenueTradeHistory({asset,limit});
+  if(data?.source!==empty.source||!Array.isArray(data.rows)||
+   data.rows.length>limit)throw Error('Incomplete trade Room response');
+  const events=[],ids=new Set();
+  for(const row of data.rows){
+   const t=JSON.parse(row.payload),key=t.venue+':'+t.tradeId;
+   if(row.asset!==asset||row.source!==t.source||
+    row.observedAt!==t.tradeAt||row.collectedAt!==t.receivedAt||
+    !validateVenueTrade(t,asset,{now:Date.now()})||ids.has(key))
+    throw Error('Invalid source-scoped trade archive');
+   ids.add(key);events.push(t);
+  }
+  return {...empty,complete:true,events};
+ }catch(error){
+  return {...empty,error:String(error?.message||error).slice(0,140)};
+ }
 }
 /** Verified large taker executions from Binance Spot, not blockchain whales. */
 export async function saveMobileLargeTrade(trade){
