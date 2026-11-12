@@ -54,7 +54,7 @@ test('model calls require D1 and never claim Oracle is present before setup',asy
 test('quota reservation is made before each Workers AI invocation',async()=>{
  const calls=[];
  const db={prepare(sql){calls.push(sql);return {bind(key){
-  assert.match(key,/^\\d{4}-\\d\\d-\\d\\d$/);
+  assert.match(key,/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);
   return {first:async()=>({attempts:1})};
  }}}};
  assert.equal(await reserveRequest(db,1794500000000),true);
