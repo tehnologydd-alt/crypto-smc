@@ -339,6 +339,49 @@ function mountDirectionFilter(){
  new MutationObserver(apply).observe(list,{childList:true,subtree:true});
  apply();
 }
+/**
+ * A per-screen-only UI memory of expanded forecast details. Room owns the
+ * scenario itself. Expanding a card is not a prediction state and must never
+ * modify or be restored from the immutable research log.
+ */
+export function scenarioDisclosureKey(id,slot=0){
+ if(typeof id!=='string'||!id||!Number.isSafeInteger(slot)||slot<0)return null;
+ return id+'::detail::'+slot;
+}
+function mountForecastContinuity(){
+ const list=byId('research-forecast-list');
+ if(!list||list.dataset.ciContinuityMounted==='true')return;
+ list.dataset.ciContinuityMounted='true';
+ const preferences=new Map();
+ const cardDetails=card=>[...card.querySelectorAll(
+  'details.forecast-compact-details, details.forecast-card-fold')];
+ // Capture is important: the <details> toggle event does not bubble.
+ list.addEventListener('toggle',event=>{
+  const detail=event.target;
+  if(!detail?.matches?.(
+   'details.forecast-compact-details, details.forecast-card-fold'))return;
+  const card=detail.closest('[data-ci-scenario-id]');
+  if(!card)return;
+  const slot=cardDetails(card).indexOf(detail);
+  const key=scenarioDisclosureKey(card.dataset.ciScenarioId,slot);
+  if(!key)return;
+  // Bounded local UI map, not a stored journal or background task.
+  if(preferences.has(key))preferences.delete(key);
+  preferences.set(key,detail.open===true);
+  if(preferences.size>250)preferences.delete(preferences.keys().next().value);
+ },true);
+ const restore=()=>{
+  for(const card of list.querySelectorAll('[data-ci-scenario-id]')){
+   for(const [slot,detail] of cardDetails(card).entries()){
+    const key=scenarioDisclosureKey(card.dataset.ciScenarioId,slot);
+    if(key&&preferences.has(key))
+     detail.open=preferences.get(key);
+   }
+  }
+ };
+ new MutationObserver(restore).observe(list,{childList:true});
+ restore();
+}
 /** Keep asset price on top, before advanced workspace tabs; do not move graph
  * canvases out of their original asset pane, preserving all event listeners. */
 function mountAsset(){
@@ -511,6 +554,7 @@ export function initCleanIntelligence(){
  mountRadar();
  mountFavoritePagination();
  mountDirectionFilter();
+ mountForecastContinuity();
  mountAsset();
  mountAssetIntelligence();
  mountResearchLanding();
