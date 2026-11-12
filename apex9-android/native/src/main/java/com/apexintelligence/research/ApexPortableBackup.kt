@@ -136,59 +136,59 @@ object ApexPortableBackup {
         return count
     }
     /**
-     * Snapshot all Room rows while SQLite holds one read transaction.
-     * The app may continue after the transaction; no original database files
-     * are copied, and no incompatible SQLite-WAL files are exported.
+     * Zip is encrypted BEFORE it touches the filesystem, so even an abrupt
+     * crash cannot strand a plaintext research export in Android cache.
      */
-    private fun makeZip(context:Context):Pair<File,JSONObject> {
+    private fun makeEncrypted(context:Context,password:CharArray):Pair<File,JSONObject> {
+        securePassword(password)
         val app=context.applicationContext
         val settings=kotlinx.coroutines.runBlocking { ApexPreferences.read(app) }
         val db=ApexDatabase.get(app)
-        val temp=File.createTempFile("apex-export-", ".zip",app.cacheDir)
+        val temp=File.createTempFile("apex-encrypted-", ".apexbackup",app.cacheDir)
         try {
+            val salt=ByteArray(16).also{SecureRandom().nextBytes(it)}
+            val iv=ByteArray(12).also{SecureRandom().nextBytes(it)}
+            val cipher=aes(password,salt,Cipher.ENCRYPT_MODE,iv)
             val counts=countMap()
-            db.runInTransaction {
-                ZipOutputStream(BufferedOutputStream(FileOutputStream(temp))).use { zip ->
-                    zipText(zip,"settings.json",settingsJson(settings).toString())
-                    for((table,columns) in tableColumns)
-                        counts.put(table,rowsToZip(db.openHelper.writableDatabase,
-                            zip,table,columns))
-                    zipText(zip,"manifest.json",JSONObject()
-                        .put("format",FORMAT)
-                        .put("schemaVersion",5)
-                        .put("exportedAt",System.currentTimeMillis())
-                        .put("tableCounts",counts).toString())
+            FileOutputStream(temp).use { file ->
+                file.write(MAGIC.toByteArray(StandardCharsets.US_ASCII))
+                file.write(salt);file.write(iv)
+                ZipOutputStream(BufferedOutputStream(
+                    CipherOutputStream(file,cipher))).use { zip ->
+                    db.runInTransaction {
+                        zipText(zip,"settings.json",settingsJson(settings).toString())
+                        for((table,columns) in tableColumns)
+                            counts.put(table,rowsToZip(
+                                db.openHelper.writableDatabase,zip,table,columns))
+                        zipText(zip,"manifest.json",JSONObject()
+                            .put("format",FORMAT)
+                            .put("schemaVersion",5)
+                            .put("exportedAt",System.currentTimeMillis())
+                            .put("tableCounts",counts).toString())
+                    }
                 }
             }
-            require(temp.length() in 1..MAX_ZIP) {
-                "Архив слишком большой. Сохранение не завершено."
+            require(temp.length() in 40..MAX_ZIP){
+                "Зашифрованный архив слишком большой"
             }
             return temp to counts
         }catch(e:Exception){temp.delete();throw e}
     }
-    private fun encodeFile(zip:File,context:Context,uri:Uri,password:CharArray) {
-        securePassword(password)
-        val salt=ByteArray(16).also{SecureRandom().nextBytes(it)}
-        val iv=ByteArray(12).also{SecureRandom().nextBytes(it)}
-        val cipher=aes(password,salt,Cipher.ENCRYPT_MODE,iv)
-        val output=context.contentResolver.openOutputStream(uri,"w")
-            ?:throw IllegalStateException("Облачный документ недоступен для записи")
-        output.use { stream ->
-            BufferedOutputStream(stream).use { out ->
-                out.write(MAGIC.toByteArray(StandardCharsets.US_ASCII))
-                out.write(salt);out.write(iv)
-                CipherOutputStream(out,cipher).use { encrypted ->
-                    FileInputStream(zip).use { it.copyTo(encrypted,65536) }
-                }
-            }
-        }
-    }
-    /** SAF provider owns the remote upload; this only confirms file writing. */
+    /**
+     * SAF provider performs the actual cloud upload; an app can confirm only
+     * that the selected document stream was written and closed successfully.
+     */
     fun exportTo(context:Context,uri:Uri,password:CharArray):JSONObject {
-        securePassword(password)
-        val (zip,counts)=makeZip(context)
+        val (encrypted,counts)=makeEncrypted(context,password)
         try{
-            encodeFile(zip,context,uri,password)
+            val output=context.contentResolver.openOutputStream(uri,"w")
+                ?:throw IllegalStateException("Облачный документ недоступен для записи")
+            output.use { out ->
+                FileInputStream(encrypted).use { input ->
+                    input.copyTo(out,65536)
+                }
+                out.flush()
+            }
             val p=context.getSharedPreferences("apex_portable_backup_status_v1",
                 Context.MODE_PRIVATE)
             val at=System.currentTimeMillis()
@@ -196,7 +196,7 @@ object ApexPortableBackup {
             return JSONObject().put("saved",true).put("writtenAt",at)
                 .put("counts",counts)
                 .put("note","Проверьте завершение загрузки в выбранном облаке")
-        }finally{zip.delete()}
+        }finally{encrypted.delete()}
     }
     private fun decodeToZip(context:Context,uri:Uri,password:CharArray):File {
         securePassword(password)
@@ -242,9 +242,15 @@ object ApexPortableBackup {
         val e=zip.getEntry(name)?:throw IllegalArgumentException("Нет $name")
         require(e.size in 0..limit.toLong() || e.size==-1L){"Oversized entry"}
         return zip.getInputStream(e).use {input ->
-            val bytes=input.readNBytes(limit+1)
-            require(bytes.size<=limit){"Oversized entry"}
-            String(bytes,StandardCharsets.UTF_8)
+            val out=java.io.ByteArrayOutputStream()
+            val chunk=ByteArray(4096)
+            while(true){
+                val n=input.read(chunk)
+                if(n<0)break
+                require(out.size()+n<=limit){"Oversized entry"}
+                out.write(chunk,0,n)
+            }
+            String(out.toByteArray(),StandardCharsets.UTF_8)
         }
     }
     private fun forEachRow(zip:ZipFile,table:String,
