@@ -74,7 +74,8 @@ function observeText(sourceIds,render){
 }
 function mountAssetDesk(){
  const root=id('view-asset'),hero=root?.querySelector(':scope > .hero');
- if(!root||!hero||id('ci7-asset-desk'))return;
+ const chart=root?.querySelector(':scope > .candle-panel');
+ if(!root||!hero||!chart||id('ci7-asset-desk'))return;
  const desk=make('section','ci7-asset-desk');
  desk.id='ci7-asset-desk';
  desk.setAttribute('aria-label','Паспорт и исследования выбранного актива');
@@ -110,7 +111,9 @@ function mountAssetDesk(){
   links.push({id:item.source,output:live});
  }
  desk.append(top,details,status,grid);
- hero.after(desk);
+ // Keep the actual graph above the research navigation: chart-first UX.
+ desk.dataset.assetPane='chart';
+ chart.after(desk);
  observeText(['updated-at','candle-status',...links.map(x=>x.id)],()=>{
   for(const node of [age,candles]){
    const source=node.dataset.source;
