@@ -5,6 +5,8 @@ import {selectDepthComparison,needsMatchedRest} from './depth-comparison-selecto
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {exportMobileCloudBackup,importMobileCloudBackup,
+ getMobileCloudBackupStatus} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
 import {CandleChart} from './candle-chart.mjs';
 import {analyzeMarketFrame,compareMarketFrames,MARKET_FRAMES} from './market-core.mjs';
@@ -194,6 +196,19 @@ async function refreshMobileStatus(){
   :(data.error?'Нативное хранилище недоступно: '+data.error:
    'Веб-режим: локальная база и фоновые задания доступны только внутри Android APK.'));
  el('native-show-history').disabled=!mobileReady;
+ const backup=await getMobileCloudBackupStatus();
+ const usable=mobileReady&&backup.available===true;
+ el('apex-backup-export').disabled=!usable;
+ el('apex-backup-import').disabled=!usable;
+ if(!usable){
+  text('apex-backup-status','Для облачного архива нужна новая Android APK APEX.');
+ }else{
+  text('apex-backup-status',backup.lastWrittenAt?
+   'Последний архив передан выбранному хранилищу: '+
+    new Date(backup.lastWrittenAt).toLocaleString('ru-RU')+
+    '. Проверьте синхронизацию файла в облаке.':
+   'Архив ещё не создавался на этом телефоне. Пароль не сохраняется.');
+ }
  return data;
 }
 async function showMobileHistory(){
@@ -240,6 +255,88 @@ el('apex-settings-sources').addEventListener('click',()=>{
  else dialog.removeAttribute('open');
  navigate('sources','native-storage-panel');
 });
+// Export or import only through the Android system document picker.
+// Never send the password to an APEX server, persist it in localStorage,
+// log it, or include it unencrypted in the archive.
+let cloudBackupBusy=false;
+async function runCloudBackup(mode){
+ if(cloudBackupBusy)return;
+ const input=el('apex-backup-passphrase');
+ const passphrase=input.value;
+ if(passphrase.length<12||passphrase.length>128){
+  text('apex-backup-status',
+   'Придумайте парольную фразу от 12 до 128 символов.');
+  return;
+ }
+ const restore=mode==='restore';
+ if(restore&&!window.confirm(
+  'Восстановить зашифрованный архив APEX? Сохранённые сценарии и свечи '+
+  'будут ДОБАВЛЕНЫ к существующим, без удаления данных. '+
+  'Фон и уведомления останутся выключены до нового согласия. Продолжить?'
+ ))return;
+ cloudBackupBusy=true;
+ const exportButton=el('apex-backup-export');
+ const importButton=el('apex-backup-import');
+ exportButton.disabled=true;importButton.disabled=true;
+ text('apex-backup-status',restore?
+  'Выберите файл .apexbackup в Google Drive или другом облаке…':
+  'Выберите Google Drive или другое хранилище в окне Android…');
+ try{
+  let result;
+  if(restore)result=await importMobileCloudBackup(passphrase,{confirmed:true});
+  else{
+   let ids=[];
+   try {
+    const raw=JSON.parse(localStorage.getItem(
+     'apex9_selected_research_ids_v1')||'[]');
+    ids=normalizeAlertMarkedIds(raw);
+   }catch{
+    throw Error('Не удалось проверить сохранённые отметки сценариев.');
+   }
+   result=await exportMobileCloudBackup(passphrase,ids);
+  }
+  if(result?.cancelled){
+   text('apex-backup-status','Выбор файла отменён. История не изменена.');
+  }else if(result?.error){
+   text('apex-backup-status',result.error);
+  }else if(restore&&result?.restored===true){
+   const ui=result.uiMarkedIds;
+   if(Array.isArray(ui)){
+    let saved=[];
+    try{
+     saved=JSON.parse(localStorage.getItem(
+      'apex9_selected_research_ids_v1')||'[]');
+    }catch{}
+    const merged=normalizeAlertMarkedIds([
+     ...(Array.isArray(ui)?ui:[]),...(Array.isArray(saved)?saved:[])
+    ]).slice(0,300);
+    try{localStorage.setItem('apex9_selected_research_ids_v1',
+     JSON.stringify(merged));}catch{}
+   }
+   text('apex-backup-status',
+    'История APEX объединена с архивом. Перезапускаем экран для проверки…');
+   window.location.reload();
+  }else if(!restore&&result?.saved===true){
+   text('apex-backup-status',
+    'Зашифрованный архив записан. Проверьте, что файл полностью '+
+    'загрузился в выбранное облако. Пароль нужен на другом телефоне.');
+  }else text('apex-backup-status','Не удалось подтвердить завершение операции.');
+ }catch(error){
+  text('apex-backup-status','Ошибка архива: '+String(
+   error?.message||error).slice(0,180));
+ }finally{
+  input.value='';
+  cloudBackupBusy=false;
+  if(mobileReady){
+   exportButton.disabled=false;
+   importButton.disabled=false;
+  }
+ }
+}
+el('apex-backup-export').addEventListener('click',
+ ()=>void runCloudBackup('export'));
+el('apex-backup-import').addEventListener('click',
+ ()=>void runCloudBackup('restore'));
 el('apex-settings-background').addEventListener('change',event=>{
  const original=el('native-background-sync');
  if(original.disabled){event.target.checked=original.checked;return;}
