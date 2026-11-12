@@ -171,7 +171,7 @@ object ApexPortableBackup {
                     }
                 }
             }
-            require(temp.length() in 40..MAX_ZIP){
+            require(temp.length() in 40L..MAX_ZIP){
                 "Зашифрованный архив слишком большой"
             }
             return temp to counts
@@ -204,6 +204,11 @@ object ApexPortableBackup {
     }
     private fun decodeToZip(context:Context,uri:Uri,password:CharArray):File {
         securePassword(password)
+        // Recovery after a killed import: discard stale private plaintext.
+        context.cacheDir.listFiles()?.filter {
+            it.name.startsWith("apex-import-")&&
+            System.currentTimeMillis()-it.lastModified()>60*60*1000L
+        }?.forEach{it.delete()}
         val temp=File.createTempFile("apex-import-", ".zip",context.cacheDir)
         try {
             val input=context.contentResolver.openInputStream(uri)
@@ -287,7 +292,18 @@ object ApexPortableBackup {
     private fun verify(zip:ZipFile):Pair<JSONObject,JSONObject> {
         val allowed=(tableColumns.keys.map{zipName(it)}+
             listOf("settings.json","manifest.json")).toSet()
-        val present=zip.entries().toList().map{it.name}
+        val entries=zip.entries().toList()
+        val present=entries.map{it.name}
+        var expanded=0L
+        for(entry in entries){
+            require(entry.size>=0&&entry.size<=MAX_UNCOMPRESSED){
+                "Повреждённый или чрезмерно большой файл архива"
+            }
+            expanded+=entry.size
+            require(expanded<=MAX_UNCOMPRESSED){
+                "Распакованный архив превышает допустимый объём"
+            }
+        }
         require(present.size==allowed.size&&present.toSet()==allowed){
             "Архив содержит неизвестные файлы или неполную структуру"
         }
@@ -344,14 +360,20 @@ object ApexPortableBackup {
                 // All authenticated bytes and row counts verified. DB applies
                 // transactionally. Old immutable forecast IDs remain protected.
                 val scanned=merge(zip,context)
-                kotlinx.coroutines.runBlocking {
-                    ApexPreferences.restoreFromBackup(context.applicationContext,settings)
-                }
+                val settingsRestored=try{
+                    kotlinx.coroutines.runBlocking {
+                        ApexPreferences.restoreFromBackup(context.applicationContext,settings)
+                    }
+                    true
+                }catch(_:Exception){false}
                 return JSONObject().put("restored",true)
+                    .put("settingsRestored",settingsRestored)
                     .put("uiMarkedIds",settings.optJSONArray("uiMarkedIds")?:JSONArray())
                     .put("exportedAt",manifest.getLong("exportedAt"))
-                    .put("mergedRows",scanned)
-                    .put("note","Объединено с существующей базой. Перезапустите APEX.")
+                    .put("scannedRows",scanned)
+                    .put("note",if(settingsRestored)
+                        "Исследования объединены, настройки перенесены. Перезапустите APEX."
+                        else "История Room объединена, но настройки не перенесены; попробуйте восстановление ещё раз.")
             }
         }finally{zipFile.delete()}
     }
