@@ -18,20 +18,34 @@ const actual=value=>{
  return s&&s!=='—'&&s!=='-'&&!/^ожида|^проверя|^нет |^недоступ/i.test(s)?s:'—';
 };
 export function marketOverviewSnapshot({
- change='',dominance='',mood='',value='',state=''
+ change='',dominance='',mood='',value='',state='',sentimentSource=''
 }={}){
- const available=state==='OK'||state==='STALE';
+ const marketState=state==='OK'?'OBSERVED':state==='STALE'?'STALE':'UNKNOWN';
+ const available=marketState!=='UNKNOWN';
  const c=available?actual(change):'—';
  const d=available?actual(dominance):'—';
  const m=actual(mood),v=actual(value);
  const sentiment=m==='—'?'—':m+(v==='—'?'':' · '+v);
+ const source=String(sentimentSource||'');
+ const fearState=sentiment==='—'?'UNKNOWN':
+  source.includes('Сохранённый индекс')||source.includes('Исторический')?
+   'STALE':source.includes('Свежий ответ')?'OBSERVED':'UNKNOWN';
+ const marketLabel=marketState==='STALE'?' · архив':
+  marketState==='UNKNOWN'?' · нет данных':'';
+ const fearLabel=fearState==='STALE'?' · архив':
+  fearState==='UNKNOWN'?' · не проверено':'';
+ const coin=marketState==='OBSERVED'?'CoinGecko: ответ API':
+  marketState==='STALE'?'CoinGecko: сохранённая сводка, данные устарели':
+  'CoinGecko: нет подтверждённого ответа';
+ const fear=fearState==='OBSERVED'?'Alternative.me: ответ API':
+  fearState==='STALE'?'Alternative.me: сохранённый индекс':
+  'Alternative.me: свежесть не подтверждена';
  return {
-  change:c,dominance:d,sentiment,
-  trend:c==='—'||state==='STALE'?'unknown':c.trim().startsWith('-')||c.trim().startsWith('−')?
-   'negative':'positive',
-  note:state==='OK'?'CoinGecko · Alternative.me · независимые источники':
-   state==='STALE'?'CoinGecko: сохранённая сводка, данные устарели · Alternative.me отдельно':
-   'Капитализация: данные ещё не проверены · настроение отдельного источника'
+  change:c,dominance:d,sentiment,marketState,fearState,
+  marketLabel,fearLabel,
+  trend:c==='—'||marketState==='STALE'?'unknown':
+   c.trim().startsWith('-')||c.trim().startsWith('−')?'negative':'positive',
+  note:coin+' · '+fear
  };
 }
 function mountOverview(){
@@ -54,16 +68,25 @@ function mountOverview(){
    dominance:byId('overview-global-btc')?.textContent,
    mood:byId('free-fear-label')?.textContent,
    value:byId('free-fear-value')?.textContent,
+   sentimentSource:byId('free-fear-status')?.textContent,
    state
   });
   const change=byId('ci-cap-change');
   const btc=byId('ci-btc-dominance');
   const mood=byId('ci-fear-mood');
-  if(change){change.textContent=snapshot.change;change.dataset.trend=snapshot.trend;}
+  if(change){change.textContent=snapshot.change;
+   change.dataset.trend=snapshot.trend;change.dataset.freshness=snapshot.marketState;}
   if(btc){btc.textContent=snapshot.dominance;
-   btc.dataset.trend=snapshot.dominance==='—'?'unknown':'neutral';}
+   btc.dataset.trend=snapshot.dominance==='—'?'unknown':'neutral';
+   btc.dataset.freshness=snapshot.marketState;}
   if(mood){mood.textContent=snapshot.sentiment;
-   mood.dataset.trend=snapshot.sentiment==='—'?'unknown':'neutral';}
+   mood.dataset.trend=snapshot.sentiment==='—'?'unknown':'neutral';
+   mood.dataset.freshness=snapshot.fearState;}
+  const cap=byId('ci-cap-caption'),btclabel=byId('ci-btc-caption');
+  const fearLabel=byId('ci-fear-caption');
+  if(cap)cap.textContent='Капитализация · 24 ч'+snapshot.marketLabel;
+  if(btclabel)btclabel.textContent='Доля BTC'+snapshot.marketLabel;
+  if(fearLabel)fearLabel.textContent='Настроение'+snapshot.fearLabel;
   const provenance=byId('ci-market-provenance');
   if(provenance)provenance.textContent=snapshot.note;
  };
@@ -75,7 +98,8 @@ function mountOverview(){
  const observer=new MutationObserver(schedule);
  for(const target of [
   byId('overview-global-change'),byId('overview-global-btc'),
-  byId('overview-global-state'),byId('free-fear-label'),byId('free-fear-value')]){
+  byId('overview-global-state'),byId('free-fear-label'),
+  byId('free-fear-value'),byId('free-fear-status')]){
   if(target)observer.observe(target,{childList:true,characterData:true,
    attributes:true,subtree:true});
  }
