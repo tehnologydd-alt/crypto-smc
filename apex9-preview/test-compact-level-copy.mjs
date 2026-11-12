@@ -72,14 +72,18 @@ test('clipboard is wired for both one-frame and multiframe active card renderers
  assert.match(single,/events:timeline.state==='VERIFIED'\?row.stageEvents:\[\]/);
  assert.match(single,/tracked,onToggle,onOpen,copyText/);
  assert.match(multi,/events:row.stageEvents,tracked,onToggle,onOpen,copyText/);
- assert.match(dispatcher,/multiFrameForecastCard\(row,\{tracked,onToggle,onOpen,copyText:copyResearchText\}\)/);
+ assert.match(dispatcher,/compactifyCompletedCard\(row,multiFrameForecastCard\(row,\{/);
  assert.match(dispatcher,/sourceM1:sourceM5,copyText:copyResearchText/);
 });
-test('completed cards are not rerouted into compact design',()=>{
+test('completed cards share compact outer layout but preserve verified result details',()=>{
  const single=read('./forecast-directional-card.mjs');
  const multi=read('./forecast-multiframe.mjs');
  assert.match(single,/if\(!finishedRoom&&visibleStage!=='COMPLETED'\)/);
  assert.match(multi,/if\(!complete\)\{/);
  assert.match(single,/renderCompletedResearchPanel/);
  assert.match(multi,/renderCompletedResearchPanel/);
+ const dispatcher=read('./favorite-dashboard.mjs');
+ assert.match(dispatcher,/function compactifyCompletedCard\(row,card\)/);
+ assert.match(dispatcher,/card.append\(details,\.\.\.buttons\)/);
+ assert.match(dispatcher,/card.classList.add\('forecast-compact-card','forecast-unified-completed'\)/);
 });
