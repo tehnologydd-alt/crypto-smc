@@ -78,7 +78,7 @@ test('major redesign reorganizes existing stage and radar controls, no duplicate
  assert.ok(html.includes('data-radar-frame="1h"'));
  assert.match(source,/document.querySelectorAll\('\[data-radar-frame\]'\)/);
  assert.match(source,/document.querySelectorAll\('\[data-radar-filter\]'\)/);
- assert.ok(!major.includes('addEventListener(\\'change\\''));
+ assert.ok(!major.includes("addEventListener('change'"));
 });
 
 test('Android includes every major design asset in the verified module graph',()=>{
