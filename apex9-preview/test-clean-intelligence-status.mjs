@@ -77,7 +77,8 @@ test('new UI freshness states are live DOM projections, no extra source calls',(
   assert.ok(index.includes('id="'+id+'"'),'Market source caption: '+id);
  }
  assert.match(layout,/sentimentSource:byId\('free-fear-status'\)\?\.textContent/);
- assert.match(layout,/byId\('free-fear-status'\)\]\)/);
+ assert.match(layout,/byId\('free-fear-status'\)/);
+ assert.match(layout,/observeSourceUpdates\(\[/);
  assert.match(layout,/refreshRadarAge\(card\)/);
  assert.match(layout,/document\.addEventListener\('visibilitychange'/);
  assert.match(layout,/const ageClock=setInterval/);
