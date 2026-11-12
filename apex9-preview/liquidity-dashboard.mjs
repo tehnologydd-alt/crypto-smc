@@ -21,9 +21,8 @@ const timestamp=n=>Number.isSafeInteger(n)?
  new Date(n).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
 const VENUES={binance:'Binance Spot',okx:'OKX Spot'}; // current UI only; historical Bybit remains in Room
 const statusLabels={
- OBSERVED:'Последние наблюдения',
+ OBSERVED:'Недавний снимок',
  HISTORICAL:'Только история',
- LOW_COVERAGE:'Мало наблюдений',
  NO_SAMPLES:'Пока нет снимков'
 };
 function describeVenue(v,source){
@@ -73,13 +72,20 @@ function describeVenue(v,source){
   details.append(line);
  }
  card.append(details);
- if(v.status!=='OBSERVED'){
+ if(v.status==='HISTORICAL'){
   card.append(create('p','liquidity-coverage-note',
-   v.status==='HISTORICAL'
-    ?'Неактуальная запись: снимок не отражает текущий стакан.'
-    :'Пока недостаточно последовательной истории: '+v.continuousSamples+
-     ' снимков в текущем участке за '+fmt(v.spanMs/60000,1)+
-     ' мин. Нужно минимум три за две минуты без разрывов более часа.'));
+   'Последний сохранённый снимок устарел: не отражает текущий стакан.'));
+ }else{
+  // One recent source sample is enough to describe its own visible depth.
+  card.append(create('p','liquidity-coverage-note',
+   'Недавний сохранённый срез (до 3 минут), не непрерывная биржевая котировка.'));
+ }
+ if(v.trendState==='COLLECTING'){
+  card.append(create('p','liquidity-coverage-note',
+   'Динамика пока не подтверждена: '+v.continuousSamples+
+   ' снимков в текущем участке за '+fmt(v.spanMs/60000,1)+
+   ' мин. Для изменения дисбаланса требуется не менее трёх за две минуты; '+
+   'для оценки отдельного свежего снимка это условие не требуется.'));
  }
  if(available.state!=='OBSERVED')
   card.append(create('p','liquidity-coverage-note',

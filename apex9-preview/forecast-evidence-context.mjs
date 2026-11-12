@@ -42,7 +42,8 @@ function inspectFeed(name,item,at){
    Math.abs(item.features.changePercent24h)<=1000&&
    item.features.scope==='SPOT_24H_TICKER';
  if(name==='liquidity')
-  return ['binance:spot:depth','bybit:spot:depth'].includes(item.source)&&
+  return ['binance:spot:depth','okx:spot:depth',
+   'bybit:spot:depth'].includes(item.source)&&
    finite(item.features.spreadBps)&&item.features.spreadBps>0&&
    item.features.spreadBps<=2000&&
    finite(item.features.visibleDepthImbalance)&&

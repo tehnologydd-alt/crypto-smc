@@ -107,3 +107,18 @@ test('native collection is timestamp gated and never fuses into direction',()=>{
  assert.ok(web.includes("'forecast-evidence-context.mjs'"));
  assert.ok(!ctx.includes('calibratedProbability'));
 });
+
+test('OKX Spot liquidity is validated and kept as immutable publication-time context',()=>{
+ const r=row();
+ r.hypothesis.evidenceAsPublished.feeds.liquidity={
+  state:'OBSERVED',source:'okx:spot:depth',
+  observedAt:publishedAt-1000,collectedAt:publishedAt-1000,ageMs:1000,
+  features:{scope:'LIMITED_PUBLIC_ORDERBOOK_NOT_HIDDEN_LIQUIDITY',
+   spreadBps:3,visibleDepthImbalance:-.2}
+ };
+ assert.equal(inspectEvidenceContext(r).state,'VERIFIED');
+ const native=readFileSync(new URL('../apex9-android/native/src/main/java/com/apexintelligence/research/ApexEvidenceContext.kt',import.meta.url),'utf8');
+ assert.match(native,/row.source!="okx:spot:depth"/);
+ r.hypothesis.evidenceAsPublished.feeds.liquidity.features.visibleDepthImbalance=1.2;
+ assert.equal(inspectEvidenceContext(r).state,'INVALID');
+});

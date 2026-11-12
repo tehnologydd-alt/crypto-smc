@@ -68,6 +68,7 @@ object ApexEvidenceContext {
             }
             "liquidity" -> {
                 if(row.source!="binance:spot:depth"&&
+                   row.source!="okx:spot:depth"&&
                    row.source!="bybit:spot:depth")return null
                 val bid=number(json,"bestBid")
                 val ask=number(json,"bestAsk")
