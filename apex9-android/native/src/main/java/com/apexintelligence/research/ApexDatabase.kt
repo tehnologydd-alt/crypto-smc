@@ -157,6 +157,9 @@ interface ResearchDao {
     /** Genuine Binance Spot aggTrade is a market execution, NOT on-chain whale flow. */
     @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='market' AND source='binance:spot:aggtrade' ORDER BY observedAt DESC LIMIT :limit")
     suspend fun largeTradeHistory(asset: String, limit: Int): List<ResearchObservation>
+    /** Five independent public exchange fill archives; no wallet attribution. */
+    @Query("SELECT * FROM research_observations WHERE asset=:asset AND kind='market' AND source IN ('bybit:spot:trades','okx:spot:trades','kraken:spot:trades','bingx:spot:trades','coinbase:spot:trades') ORDER BY observedAt DESC LIMIT :limit")
+    suspend fun multivenueTradeHistory(asset: String, limit: Int): List<ResearchObservation>
 
     @Query("SELECT COUNT(*) FROM research_observations")
     suspend fun observationCount(): Int
