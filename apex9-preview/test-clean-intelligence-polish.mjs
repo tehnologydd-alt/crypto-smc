@@ -32,7 +32,9 @@ test('radar density keeps real candle time, source and unchanged details',()=>{
  assert.match(source,/card\.dataset\.changeState=String\(row\.change\?\.state\|\|'UNKNOWN'\)/);
  assert.match(view,/attachAssetLogo\(coin,symbol,base\.slice\(0,1\)\)/);
  assert.match(view,/card\.dataset\.changeState==='CHANGED'/);
- assert.match(view,/Date\.now\(\)-time>2\*ms\+60000/);
+ assert.match(view,/now-closedAt>2\*step\+60000/);
+ assert.match(view,/refreshRadarAge\(card\)/);
+ assert.match(view,/document\.addEventListener\('visibilitychange'/);
  assert.match(view,/details\.append\(node\)/);
  assert.match(view,/card\.insertBefore\(details,open\)/);
  assert.match(view,/После|Свеча|Архив/);
