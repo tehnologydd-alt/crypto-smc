@@ -1182,6 +1182,10 @@ export function initFavoriteResearch({
     verifiedDirectionalEvidence(row,{now:Date.now()}):
     multiFrameEvidence(row,{now:Date.now()})
   });
+  const wSummary=id('forecast-whale-summary');
+  if(wSummary)wSummary.textContent='W · проверка китов · '+
+   (w.observed+w.noObservations)+'/'+w.published+
+   ' проверено · наблюдения '+w.observed;
   const label=id('forecast-whale-coverage');
   if(label)label.textContent='W · проверка китов при публикации: '+
    (w.observed+w.noObservations)+' из '+w.published+
