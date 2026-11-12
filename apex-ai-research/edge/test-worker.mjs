@@ -90,3 +90,71 @@ test('Android standalone APK must not embed server pilot secret or AI routes',()
  assert.ok(!staged.includes('APEX_EDGE_TOKEN'));
  assert.ok(!staged.includes('APEX_COMPUTE_TOKEN'));
 });
+
+test('all four agents share one authenticated edge; booster proxy requires Oracle',async()=>{
+ const header={Authorization:'Bearer '+secret,'Content-Type':'application/json'};
+ const features=Object.fromEntries([
+  'return_1m','return_5m','volatility_15m','volume_z_15m',
+  'spread_bps','book_imbalance','large_trade_pressure',
+  'whale_flow_score','relative_volume','cross_venue_disagreement'
+ ].map(key=>[key,0]));
+ const observation={observation:{
+  asset:'BTCUSDT',source_ids:['unit-test-only'],features
+ }};
+ const endpoint=origin+'/v1/boosters/predict';
+ const make=body=>new Request(endpoint,{method:'POST',headers:header,body:JSON.stringify(body)});
+ assert.equal((await worker.fetch(make(observation),{APEX_EDGE_TOKEN:secret})).status,503);
+ assert.equal((await worker.fetch(make({observation:{...observation.observation,features:{fake:1}}}),{
+  APEX_EDGE_TOKEN:secret,COMPUTE_ORIGIN:'https://compute.example',
+  APEX_COMPUTE_TOKEN:'secret-not-real'
+ })).status,422);
+ let called=0;
+ const previous=globalThis.fetch;
+ globalThis.fetch=async(_,options)=>{
+  called++;
+  assert.equal(options.method,'POST');
+  assert.ok(options.headers.Authorization.startsWith('Bearer '));
+  assert.equal(JSON.parse(options.body).observation.asset,'BTCUSDT');
+  return new Response(JSON.stringify({
+   state:'MODEL_ESTIMATE',model_version:'ciVersion',
+   xgboost_p:0.4,lightgbm_p:0.6,disagreement:0.2,
+   source_ids:['unit-test-only'],notice:'Unit test only'
+  }),{headers:{'Content-Type':'application/json'}});
+ };
+ try{
+  const env={APEX_EDGE_TOKEN:secret,COMPUTE_ORIGIN:'https://compute.example',
+   APEX_COMPUTE_TOKEN:'unit-test-token-for-cross-server-check'};
+  const good=await worker.fetch(make(observation),env);
+  assert.equal(good.status,200);
+  assert.equal((await good.json()).state,'MODEL_ESTIMATE');
+  assert.equal(called,1);
+  const unauthorized=await worker.fetch(new Request(endpoint,{method:'POST',
+   body:JSON.stringify(observation)}),env);
+  assert.equal(unauthorized.status,401);
+  assert.equal(called,1);
+ }finally{globalThis.fetch=previous;}
+});
+test('Worker validates Oracle response and refuses forged source lineage',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json({state:'MODEL_ESTIMATE',
+  model_version:'ciVersion',xgboost_p:0.6,lightgbm_p:0.3,
+  disagreement:0.3,source_ids:['wrong-source']});
+ try{
+  const features=Object.fromEntries([
+   'return_1m','return_5m','volatility_15m','volume_z_15m',
+   'spread_bps','book_imbalance','large_trade_pressure',
+   'whale_flow_score','relative_volume','cross_venue_disagreement'
+  ].map(x=>[x,0]));
+  const request=new Request(origin+'/v1/boosters/predict',{
+   method:'POST',headers:{Authorization:'Bearer '+secret},
+   body:JSON.stringify({observation:{asset:'BTCUSDT',features,
+    source_ids:['unit-test-only']}})
+  });
+  const result=await worker.fetch(request,{
+   APEX_EDGE_TOKEN:secret,COMPUTE_ORIGIN:'https://compute.example',
+   APEX_COMPUTE_TOKEN:'unit-test-only'
+  });
+  assert.equal(result.status,503);
+  assert.equal((await result.json()).state,'INVALID_COMPUTE_RESPONSE');
+ }finally{globalThis.fetch=original;}
+});
