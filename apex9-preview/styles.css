@@ -3790,3 +3790,27 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
 .forecast-hidden-row button,.forecast-hidden-restore-all{
  min-height:36px;border-radius:9px;font-size:12px}
 .forecast-hidden-restore-all{margin:9px 0}
+
+
+/* Completed keeps its original tone-stop/tone-tp3 colors, but its
+ * default layout now matches the compact Limit/Active price-row card. */
+#view-forecasts .forecast-unified-completed{
+ display:grid;gap:11px;padding:15px;border-radius:18px}
+#view-forecasts .forecast-unified-completed>.forecast-compact-price-row{
+ margin:0}
+#view-forecasts .forecast-unified-completed>.forecast-compact-details{
+ margin:0;min-width:0}
+#view-forecasts .forecast-unified-completed>.forecast-completed-panel{
+ margin:1px 0 3px}
+#view-forecasts .forecast-unified-completed>.forecast-visual-actions,
+#view-forecasts .forecast-unified-completed>.forecast-card-actions{
+ margin:0;display:flex;gap:7px;flex-wrap:wrap}
+#view-forecasts .forecast-unified-completed .forecast-compact-price{
+ background:#10242f;border-color:#3c5c67}
+#view-forecasts .forecast-unified-completed .forecast-compact-price.tp1{
+ border-color:#347766}
+#view-forecasts .forecast-unified-completed .forecast-compact-price.sl{
+ border-color:#95536b}
+@media(max-width:390px){
+ #view-forecasts .forecast-unified-completed{padding:12px}
+}
