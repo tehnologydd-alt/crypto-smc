@@ -95,6 +95,19 @@ test('all category layouts use the shared heading; terminal tone styles remain',
  assert.ok(dashboard.includes('Просроченные · без подтверждённого исхода'));
  assert.ok(dashboard.includes("'Убрать из журнала'"));
  assert.ok(dashboard.includes("'Вернуть все'"));
+ assert.ok(dashboard.includes('function compactifyCompletedCard(row,card)'));
+ assert.ok(dashboard.includes("card.classList.add('forecast-compact-card','forecast-unified-completed')"));
+ assert.ok(dashboard.includes('card.append(levelRow,feedback)'));
+ assert.ok(dashboard.includes('card.append(details,...buttons)'));
+ assert.ok(css.includes('.forecast-unified-completed>.forecast-compact-price-row'));
+ // The visual wrapper must not discard source levels/events: its original
+ // full card nodes are attached to the single folded source-data section.
+ assert.ok(dashboard.includes('else details.append(item)'));
+ assert.ok(source('./app.mjs').includes("'apex9_hidden_research_ids_v1'"));
+ assert.ok(source('../apex9-android/native/src/main/java/com/apexintelligence/research/ApexPortableBackup.kt')
+  .includes('uiHiddenIds'));
+ assert.ok(source('../apex9-android/native/src/main/java/com/apexintelligence/research/ApexNativePlugin.kt')
+  .includes('uiHiddenIds'));
  for(const file of ['forecast-card-identity.mjs','forecast-stale-archive.mjs'])
   assert.ok(pack.includes("'"+file+"'"));
 });
