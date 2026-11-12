@@ -100,8 +100,9 @@ export function directionalForecastCard(row,{
   unverified:verified.state!=='READY'
  });
  const state=create('span','forecast-visual-state '+(finishedRoom?
-  'finished tone-'+completion.tone:'active'),
+  'finished tone-'+completion.tone:verified.state!=='READY'?'warning':'active'),
   finishedRoom?completion.symbol+' '+completion.label:
+   verified.state!=='READY'?'Проверка данных':
    visibleStage==='ACTIVE'?'Активный':
    visibleStage==='CONFIRMED'?'Лимитный':'Ожидает');
  top.append(names,state);card.append(top);
