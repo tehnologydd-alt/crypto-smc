@@ -161,6 +161,15 @@ try{
    getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
   requireCondition(categoryColumns===(width<=380?2:4),
    width+'px: settings category buttons are too cramped for the viewport');
+  await page.locator('#ci11-upgrade-desk summary').click();
+  await page.locator('#ci11-upgrade-check').click();
+  await page.waitForFunction(()=>{
+   const status=document.querySelector('#ci11-upgrade-status');
+   return Boolean(status&&status.textContent.includes('Нативная база Room не подтверждена'));
+  },null,{timeout:6000});
+  requireCondition(
+   await page.locator('#ci11-upgrade-desk').getAttribute('data-readiness')==='NO_ROOM',
+   width+'px: browser mode must not claim Room or backup continuity');
   await page.locator('#ci9-interface-audit summary').click();
   // HTML <details> toggle is queued asynchronously. Wait for its actual
   // event-driven DOM report rather than asserting in the click's same turn.
