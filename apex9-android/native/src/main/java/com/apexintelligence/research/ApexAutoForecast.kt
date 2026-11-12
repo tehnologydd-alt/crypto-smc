@@ -186,8 +186,11 @@ object ApexAutoForecast {
         }
         // A new candidate is created only on a newly observed, CURRENT closed H1 bar.
         val last = recent.last()
-        if (last.closeTime >= now || now - last.closeTime > STEP + 90_000)
-            return Report(asset, "STALE", "UNKNOWN", "Последняя закрытая свеча устарела")
+        // Do not create a new H1 limit scenario from a candle closed
+        // tens of minutes ago: the reference price may already be gone.
+        if (!ApexPublicationGate.isFresh("1h",last.closeTime,now))
+            return Report(asset, "STALE", "UNKNOWN",
+                "Закрытая H1 уже не свежая для публикации: ждём следующего закрытия")
         if (latest != null) {
             val previous = try { JSONObject(latest.hypothesisJson).optLong("anchorCloseAt", 0L) }
                            catch (_: Exception) { 0L }
