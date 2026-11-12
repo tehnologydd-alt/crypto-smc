@@ -17,7 +17,7 @@ export function venueTradeConfig(venue,asset){
  const dashed=base(asset)+'-USDT';
  if(venue==='bybit')return {url:'wss://stream.bybit.com/v5/public/spot',
   symbol:asset,quote:'USDT',subscribe:{op:'subscribe',args:['publicTrade.'+asset]}};
- if(venue==='okx')return {url:'wss://ws.okx.com:8443/ws/v5/public',
+ if(venue==='okx')return {url:'wss://ws.okx.com/ws/v5/public',
   symbol:dashed,quote:'USDT',subscribe:{op:'subscribe',
    args:[{channel:'trades',instId:dashed}]}};
  if(venue==='kraken')return {url:'wss://ws.kraken.com/v2',
