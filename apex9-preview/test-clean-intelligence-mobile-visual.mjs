@@ -88,7 +88,11 @@ try{
    requireCondition(geometry.scrollWidth<=geometry.vw+3,
     width+'px '+name+': document overflow '+JSON.stringify(geometry));
    const target=artifact+'/'+width+'-'+name+'.png';
-   await page.screenshot({path:target,fullPage:true,
+   if(name==='settings')
+    await page.locator('#apex-settings-dialog').screenshot({
+     path:target,animations:'disabled'
+    });
+   else await page.screenshot({path:target,fullPage:true,
     animations:'disabled'});
    shots.push(width+'-'+name+'.png');
   };
@@ -115,6 +119,21 @@ try{
   await preview('research','#ci-research-landing');
   await page.locator('#view-quality .quality-sources-link').click();
   await preview('sources','#ci7-sources-desk');
+  requireCondition(await page.locator('#view-sources > details.ci10-source-fold').count()===6,
+   width+'px: original seven source articles were not grouped into six sections');
+  requireCondition(await page.locator('#view-sources > details.ci10-source-fold[open]').count()===0,
+   width+'px: technical sections did not start compact');
+  // A single hub button must open the folded group and navigate to the
+  // exact original article, without copying API controls or old listeners.
+  await page.locator('#view-sources .ci7-source-nav-button').first().click();
+  requireCondition(await page.locator('#ci10-source-availability').evaluate(node=>node.open),
+   width+'px: market-source quick link did not open its group');
+  requireCondition(await page.locator('#view-sources #source-list').count()===1,
+   width+'px: original source status collection was duplicated');
+  await page.locator('#view-sources .ci10-source-expand').click();
+  requireCondition(await page.locator('#view-sources > details.ci10-source-fold[open]').count()===6,
+   width+'px: expand-all did not expose original panels');
+  await page.locator('#view-sources .ci10-source-expand').click();
   await page.locator('[data-tab="overview"]').click();
   await page.locator('#view-overview [data-go="news"]').first().click();
   await preview('news','#ci8-news-hero');
