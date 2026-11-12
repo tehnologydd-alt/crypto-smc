@@ -357,10 +357,9 @@ jobs:
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: |
-            APK="$(find apex9-android/output -maxdepth 1 -name '*.apk' -print -quit)"
-            test -n "$APK"
-            bash apex9-android/scripts/emulator-upgrade-smoke.sh "$APK" apex9-emulator-report
+          # The emulator action executes each script line in its own shell.
+          # Keep discovery and invocation in ONE command so the APK path survives.
+          script: bash apex9-android/scripts/emulator-upgrade-smoke.sh "$(find apex9-android/output -maxdepth 1 -name '*.apk' -print -quit)" apex9-emulator-report
       - uses: actions/upload-artifact@v4
         if: always()
         with:
