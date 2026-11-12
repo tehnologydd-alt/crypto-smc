@@ -167,6 +167,8 @@ object ApexMultiFrameForecast {
             .put("contextAsPublished",contextAtPublication(context,asset,now))
             .put("evidenceAsPublished",
                 ApexEvidenceContext.capture(context,dao,asset,now))
+            .put("whaleCheckAsPublished",
+                ApexWhalePrepublication.capture(dao,asset,now))
             .put("source","Binance Spot closed "+frame+" candles")
         val inserted=dao.publishResearchForecast(ResearchForecast(
             id,asset,frame,"PUBLISHED",now,now,published.toString()))
