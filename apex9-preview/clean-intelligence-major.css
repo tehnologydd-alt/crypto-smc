@@ -1,0 +1,433 @@
+/*
+ * APEX Clean Intelligence / Major Stage 6
+ * Full-screen hierarchy for the command overview, scenario workspace, radar.
+ * All values are provided by existing native Android/Room/public API modules.
+ * No simulated prices, order signals, performance, or connection status.
+ */
+body[data-apex-layout="command"]{
+ --ci6-surface:#0a2531;
+ --ci6-raised:#11313e;
+ --ci6-mint:#64edd4;
+ --ci6-muted:#94b9c6;
+ --ci6-line:#315e69;
+ background:
+ radial-gradient(ellipse 80% 28% at 58% 0,#08787c36,transparent 81%),
+ radial-gradient(ellipse 86% 46% at 100% 45%,#094e6230,transparent 85%),
+ linear-gradient(180deg,#061924,#03111c 65%,#031018);
+}
+body[data-apex-layout="command"] .content{
+ max-width:950px;padding-top:4px;
+}
+body[data-apex-layout="command"] .ci6-heading-superseded{display:none!important}
+/* A real, immediately useful command center rather than more information
+   repeated under the selected asset. */
+body[data-apex-layout="command"] #view-overview>.ci6-welcome{
+ order:-2;display:grid;position:relative;isolation:isolate;
+ overflow:hidden;gap:12px;padding:22px 18px 18px;
+ border:1px solid #31888c;border-radius:23px;
+ background:
+ radial-gradient(ellipse 76% 85% at 90% 25%,#2bbcb53b,transparent 80%),
+ radial-gradient(ellipse 66% 63% at 28% 92%,#045b6c42,transparent 85%),
+ linear-gradient(140deg,#0c3540 0%,#071d2c 88%);
+ box-shadow:inset 0 1px 0 #ddffff1a,0 14px 37px #03121a83;
+ margin:4px 0 6px;
+}
+#view-overview .ci6-welcome::before{
+ content:"";position:absolute;z-index:-1;pointer-events:none;
+ right:-95px;top:-107px;height:260px;width:260px;
+ border:1px solid #6ce9d53b;border-radius:50%;
+ box-shadow:0 0 0 31px #62e9da0b,0 0 0 64px #62e9da08;
+}
+#view-overview .ci6-welcome::after{
+ content:"";position:absolute;z-index:-1;pointer-events:none;
+ right:23px;top:35px;width:105px;height:31px;
+ border-top:2px solid #8bffe2a1;border-radius:90% 40% 0 0;
+ transform:rotate(-13deg);
+}
+#view-overview .ci6-kicker,#view-radar .ci6-kicker{
+ margin:0;font-size:9px;line-height:1.5;font-weight:820;
+ color:#77e5d7;letter-spacing:.19em;text-transform:uppercase;
+}
+#view-overview .ci6-welcome h2{
+ font-size:clamp(27px,7vw,37px);font-weight:870;line-height:1.04;
+ letter-spacing:-.04em;margin:0;color:#f2fffc;
+}
+#view-overview .ci6-welcome-lead{
+ color:#a9d1d6;line-height:1.6;font-size:11px;
+ margin:-5px 0 0;max-width:290px;
+}
+#view-overview .ci6-source-state{
+ display:flex;align-items:center;gap:7px;
+ min-height:25px;max-width:100%;width:fit-content;
+ color:#bbdbdb;font-size:10px;line-height:1.4;
+ background:#061f29a6;border:1px solid #3a6a72;
+ padding:6px 9px;border-radius:10px;margin:0;
+ overflow-wrap:anywhere;
+}
+#view-overview .ci6-source-state::before{
+ content:"";width:7px;height:7px;flex:0 0 7px;
+ border-radius:50%;background:#72d3bb;
+ box-shadow:0 0 0 3px #54ad9c26;
+}
+#view-overview .ci6-pulse-grid{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;margin:3px 0 0;
+}
+#view-overview .ci6-pulse-stat{
+ display:grid;gap:9px;align-content:start;justify-items:start;
+ text-align:left;min-width:0;min-height:80px;padding:11px 10px;
+ border:1px solid #4b899036;border-radius:12px;
+ background:linear-gradient(170deg,#123f49a6,#0a2c38d9);
+ color:#eafff9;cursor:pointer;
+}
+#view-overview .ci6-pulse-stat:first-child{
+ background:linear-gradient(155deg,#0f574e,#0c303d);
+ border-color:#3b9b87;
+}
+#view-overview .ci6-pulse-stat span{
+ color:#a7ced0;font-size:10px;font-weight:680;
+}
+#view-overview .ci6-pulse-stat strong{
+ color:#e1fff6;font-size:clamp(20px,6vw,27px);
+ line-height:1;letter-spacing:-.04em;
+ font-variant-numeric:tabular-nums;
+}
+#view-overview .ci6-command-actions{
+ display:grid;grid-template-columns:1fr 1fr;gap:8px;
+ margin-top:1px;
+}
+#view-overview .ci6-command-actions button{
+ cursor:pointer;font-size:11px;font-weight:780;
+ border-radius:11px;padding:9px 10px;min-height:45px;
+ border:1px solid #3b8b8e;
+}
+#view-overview .ci6-cta-primary{
+ grid-column:span 2;background:#5ae5cf;color:#04282d;
+ border-color:#7cf0d8!important;
+ box-shadow:0 6px 20px #40d9c52b;
+}
+#view-overview .ci6-cta-outline{
+ background:#123640;color:#c9ffef;
+}
+#view-overview .ci6-cta-outline:last-child{
+ border-color:#406877;background:#0b2939;
+}
+#view-overview .ci6-cta-primary:focus-visible,
+#view-overview .ci6-pulse-stat:focus-visible{
+ outline:2px solid #c4fff2;outline-offset:2px;
+}
+/* Header + favorites + big command center operate as a single workspace.
+   Favorites keep the approved swipe carousel; no duplicate data cards. */
+body[data-apex-layout="command"] #overview-favorites-anchor{
+ position:relative;margin:13px 0 5px;
+ padding:12px 0 1px;max-width:950px;
+}
+body[data-apex-layout="command"] #overview-favorites-anchor>.section-title{
+ padding:0 4px 2px;
+}
+body[data-apex-layout="command"] #overview-favorites-anchor .section-title h2{
+ font-size:19px;letter-spacing:-.025em;
+}
+body[data-apex-layout="command"] .asset-rail{
+ padding:4px 2px 10px;gap:10px;
+}
+body[data-apex-layout="command"] #overview-favorites-anchor .favorite-card.asset-chip{
+ border-radius:17px;box-shadow:0 7px 22px #020e1c5c;
+}
+body[data-apex-layout="command"] #view-overview>.ci-market{order:-1}
+body[data-apex-layout="command"] .ci-market-grid{gap:10px}
+body[data-apex-layout="command"] .ci-market-tile{
+ border-radius:13px;min-height:90px;padding:12px 9px;
+}
+body[data-apex-layout="command"] .overview-experience-panel{
+ border-radius:18px!important;
+ border-color:#326f70!important;
+ background:linear-gradient(155deg,#0e333a,#09212e)!important;
+ padding:15px 12px!important;
+}
+body[data-apex-layout="command"] .overview-experience-top h3{
+ font-size:17px!important;letter-spacing:-.02em;
+}
+body[data-apex-layout="command"] .overview-experience-top small{
+ color:#9ec8c4;
+}
+body[data-apex-layout="command"] #view-overview .home-actions{order:2}
+body[data-apex-layout="command"] .overview-events-panel{
+ border-radius:16px!important;
+ background:linear-gradient(150deg,#0b2b38,#071f2b)!important;
+}
+body[data-apex-layout="command"] #view-overview .ci-market .ci-section-heading h2{
+ font-size:17px;
+}
+/* Completely restructured scenarios: live statistics, 4 touchable stage
+   tiles, immediate journal, and methods tucked into one optional drawer. */
+body[data-apex-layout="command"] #view-forecasts{
+ display:flex;flex-direction:column;gap:10px;padding-bottom:18px;
+}
+body[data-apex-layout="command"] #view-forecasts>.section-title{
+ display:flex;align-items:end;gap:8px;
+ margin:4px 3px 3px;
+}
+body[data-apex-layout="command"] #view-forecasts>.section-title h2{
+ font-size:29px;letter-spacing:-.04em;
+}
+body[data-apex-layout="command"] #view-forecasts>.section-title span{
+ color:#a5c0cb;
+}
+body[data-apex-layout="command"] #view-forecasts .forecast-intro.ci6-scenarios-glance{
+ margin:0!important;padding:14px 12px 12px!important;
+ border:1px solid #316c72!important;
+ border-radius:16px!important;
+ background:linear-gradient(150deg,#0d323f,#08212e)!important;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-glance .section-title{
+ margin:0 0 8px!important;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-glance .section-title h3{
+ color:#ccf5ed;font-size:12px!important;font-weight:760;
+}
+body[data-apex-layout="command"] #view-forecasts .forecast-stats{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px!important;margin:0!important;
+}
+body[data-apex-layout="command"] #view-forecasts .forecast-stats>div{
+ display:grid;gap:9px;
+ min-width:0;min-height:69px;text-align:left;
+ padding:10px 8px;border-radius:11px;
+ border:1px solid #2d5e6c;
+ background:#0b2936;
+}
+body[data-apex-layout="command"] #view-forecasts .forecast-stats>div:nth-child(2){
+ background:#0c4c44;border-color:#2a8875;
+}
+body[data-apex-layout="command"] #view-forecasts .forecast-stats span{
+ font-size:9px;line-height:1.35;color:#a9cbd0;
+}
+body[data-apex-layout="command"] #view-forecasts .forecast-stats strong{
+ font-size:clamp(18px,5.8vw,24px);
+ line-height:1;letter-spacing:-.035em;
+ color:#f2fbfb;font-variant-numeric:tabular-nums;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-stage-board{
+ display:grid;gap:9px;padding:13px 11px;
+ margin:0;border-radius:17px;
+ border:1px solid #2f606a;
+ background:linear-gradient(160deg,#0b2d39,#091e29);
+}
+body[data-apex-layout="command"] .ci6-section-heading{
+ display:flex;justify-content:space-between;align-items:baseline;
+ gap:9px;padding:0 2px;
+}
+body[data-apex-layout="command"] .ci6-section-heading h3{
+ font-size:15px;font-weight:800;letter-spacing:-.02em;
+ margin:0;color:#e1f8f5;
+}
+body[data-apex-layout="command"] .ci6-section-heading small{
+ font-size:9px;color:#91b6be;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-stage-board .forecast-compact-stages{
+ display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px!important;overflow:visible!important;
+ padding:0!important;margin:0!important;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-stage-board .forecast-compact-stage{
+ width:100%;min-width:0;min-height:60px;padding:9px 10px!important;
+ display:flex;align-items:center;justify-content:space-between;
+ text-align:left;gap:4px;flex:none!important;
+ border:1px solid #31616d;border-radius:12px;
+ background:#12313d;color:#bcdadf;font-size:11px;font-weight:800;
+ box-shadow:inset 0 1px 0 #c0ffff0a;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-stage-board .forecast-compact-stage.active{
+ border-color:#55d8bf;color:#ebfff9;
+ background:linear-gradient(142deg,#106259,#0c3e48);
+ box-shadow:inset 0 1px 0 #a8ffea1c,0 0 0 1px #37e3c113;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-stage-board .forecast-compact-stage small{
+ min-width:29px;min-height:29px;display:flex;align-items:center;justify-content:center;
+ border-radius:8px;padding:4px 6px;
+ color:#d9faf3;background:#082633;
+ font-size:14px;font-weight:840;line-height:1;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-stage-board .forecast-compact-stage.active small{
+ color:#06372e;background:#a1f3d6;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace{
+ margin:0!important;padding:12px 10px 13px!important;
+ border-radius:17px!important;
+ border:1px solid #2c5966!important;background:linear-gradient(160deg,#0a2936,#071f2d)!important;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace>.section-title{
+ margin:0 0 9px;padding:0 3px;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace>.section-title h3{
+ font-size:17px!important;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace .forecast-mode-tabs{
+ display:grid;grid-template-columns:1fr 1fr;gap:7px;
+ margin:7px 0 10px;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace .forecast-mode{
+ min-height:45px;border-radius:11px;font-size:12px;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace .ci-direction-button{
+ border-radius:10px;min-height:42px;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace .forecast-compact-card{
+ padding:12px 10px!important;
+ border-radius:15px!important;
+ box-shadow:0 7px 20px #02141b80;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace .forecast-compact-actions{
+ grid-template-columns:1fr 1.2fr 1fr;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-scenarios-workspace .forecast-compact-actions button{
+ min-height:44px;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-research-rules{
+ margin:10px 0 0;padding:7px 9px;
+ border:1px solid #2e5764;border-radius:12px;
+ background:#082330;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-research-rules>summary{
+ display:flex;align-items:center;min-height:39px;
+ color:#a8d2d4;font-size:11px;font-weight:740;
+ cursor:pointer;line-height:1.4;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-research-rules details{
+ margin:4px 0;padding:8px;
+}
+body[data-apex-layout="command"] #view-forecasts .ci6-research-rules p{
+ font-size:10px;line-height:1.6;overflow-wrap:anywhere;
+}
+body[data-apex-layout="command"] #view-forecasts .ci-forecast-archives{
+ margin:0!important;padding:2px 11px;
+ background:#092330;border:1px solid #285462;
+}
+/* Radar becomes an operator display instead of a wall of filters. Existing
+   selectors still use native controls with their unchanged event listeners. */
+body[data-apex-layout="command"] #view-radar{
+ display:flex;flex-direction:column;gap:9px;min-width:0;padding-bottom:25px;
+}
+body[data-apex-layout="command"] #view-radar .radar-heading{
+ display:flex;align-items:center;margin:5px 2px 4px;gap:9px;
+}
+body[data-apex-layout="command"] #view-radar .radar-heading h2{
+ font-size:29px;letter-spacing:-.04em;
+}
+body[data-apex-layout="command"] #view-radar .radar-heading p{
+ color:#99bac7;max-width:370px;line-height:1.5;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-dashboard{
+ margin:0;padding:16px 14px 13px;display:grid;gap:11px;
+ border:1px solid #357f81;border-radius:18px;
+ background:
+ radial-gradient(ellipse 75% 84% at 100% 5%,#21aea93b,transparent 85%),
+ linear-gradient(150deg,#0c3741,#0a2533);
+ box-shadow:inset 0 1px 0 #affff511,0 12px 29px #04101c6b;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-dashboard h3{
+ margin:-6px 0 0;color:#ebfffb;
+ font-size:23px;letter-spacing:-.035em;
+}
+body[data-apex-layout="command"] #view-radar .radar-summary{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;margin:0;padding:0;
+}
+body[data-apex-layout="command"] #view-radar .radar-summary span{
+ display:flex;align-items:center;min-height:60px;min-width:0;
+ color:#c7eee7;font-size:12px;font-weight:800;line-height:1.45;
+ padding:10px 9px;border-radius:11px;
+ background:#0a2a34;border:1px solid #3c6972;
+ overflow-wrap:anywhere;
+}
+body[data-apex-layout="command"] #view-radar .radar-summary span:first-child{
+ background:#0d4947;border-color:#388777;
+}
+body[data-apex-layout="command"] #view-radar .radar-summary span:last-child{
+ grid-column:span 2;min-height:32px;padding:5px 8px;
+ font-weight:580;font-size:9px;color:#9bc3cc;
+ background:transparent;border-color:#2c5864;
+}
+body[data-apex-layout="command"] #view-radar #radar-status{
+ margin:0;padding:8px 10px;border-radius:11px;
+ border:1px solid #2d5f69;background:#082630;
+ color:#a8c6cd;font-size:10px;line-height:1.5;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-quick{
+ display:grid;gap:8px;min-width:0;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-quick h3{
+ margin:0 1px;font-size:16px;font-weight:790;color:#dff7f4;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-quick .radar-filter-tabs{
+ display:flex;gap:7px;flex-wrap:wrap;padding:0 0 2px;
+ margin:0!important;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-quick .radar-filter-tabs button{
+ min-height:42px;flex:0 0 auto;padding:9px 11px;border-radius:10px;
+ font-size:11px;white-space:nowrap;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced{
+ border:1px solid #315967;border-radius:12px;
+ background:#0c2734;padding:4px 10px;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced>summary{
+ cursor:pointer;display:flex;align-items:center;
+ min-height:43px;color:#b1d6dd;font-size:11px;font-weight:770;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced .radar-control-heading{
+ margin:10px 0 6px;color:#92c3c9;font-size:11px;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced .radar-frame-tabs{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:6px;margin:7px 0 11px;padding:0;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced .radar-frame-tabs button{
+ min-width:0;min-height:43px;padding:8px 4px;border-radius:10px;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced .radar-sort-line{
+ margin:0 0 10px;padding:0;display:flex;align-items:center;gap:10px;
+}
+body[data-apex-layout="command"] #view-radar .ci6-radar-advanced .radar-sort-line select{
+ flex:1;min-width:0;max-width:100%;min-height:42px;font-size:11px;
+ border-radius:9px;
+}
+body[data-apex-layout="command"] #view-radar .radar-results{
+ margin:2px 0 0;display:grid;gap:11px;
+}
+body[data-apex-layout="command"] #view-radar .radar-record{
+ border-radius:16px;min-height:168px;
+ padding:14px 12px 11px;
+ box-shadow:0 8px 23px #020d1480;
+}
+body[data-apex-layout="command"] #view-radar .radar-history-note{
+ font-size:10px;line-height:1.6;color:#88a9b7;
+}
+/* Protect horizontal layout and tap area down to narrow Android widths. */
+@media(max-width:650px){
+ body[data-apex-layout="command"] .content{padding-inline:13px}
+ body[data-apex-layout="command"] #view-overview>.ci6-welcome{padding:18px 14px}
+ body[data-apex-layout="command"] #view-forecasts .ci6-section-heading small{
+  max-width:136px;text-align:right;
+ }
+}
+@media(max-width:380px){
+ body[data-apex-layout="command"] .content{padding-inline:10px}
+ body[data-apex-layout="command"] #view-overview>.ci6-welcome{padding:16px 11px}
+ body[data-apex-layout="command"] #view-overview .ci6-pulse-stat{padding:10px 6px}
+ body[data-apex-layout="command"] #view-overview .ci6-pulse-stat span{font-size:9px}
+ body[data-apex-layout="command"] #view-overview .ci6-command-actions button{font-size:10px}
+ body[data-apex-layout="command"] #view-forecasts .ci6-stage-board{padding:10px 8px}
+ body[data-apex-layout="command"] #view-forecasts .ci6-stage-board .forecast-compact-stage{
+  font-size:10px;padding:8px 6px!important;
+ }
+ body[data-apex-layout="command"] #view-radar .ci6-radar-dashboard{padding:13px 9px}
+ body[data-apex-layout="command"] #view-radar .radar-summary span{font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){
+ body[data-apex-layout="command"] #view-overview .ci6-pulse-stat,
+ body[data-apex-layout="command"] #view-radar .radar-record{
+  transition:none!important;
+ }
+}
