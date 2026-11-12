@@ -1,0 +1,46 @@
+name: APEX Concept 1 — Android-sized visual and navigation QA
+
+on:
+  push:
+    branches:
+      - apex-clean-intelligence-mobile-qa-stage10-20261112
+    paths:
+      - 'apex9-preview/**'
+      - '.github/workflows/apex-clean-intelligence-mobile-qa.yml'
+  pull_request:
+    branches:
+      - apex-clean-intelligence-integrity-stage9-20261112
+    paths:
+      - 'apex9-preview/**'
+      - '.github/workflows/apex-clean-intelligence-mobile-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-visual-smoke:
+    name: Real Chromium mobile layout and navigation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium test runner (CI only, not shipped in APK)
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Capture Concept 1 mobile screens and test real navigation
+        run: node apex9-preview/test-clean-intelligence-mobile-visual.mjs
+      - name: Upload inspectable screenshots and quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: APEX-Concept1-Mobile-Visual-QA
+          path: apex9-visual-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
