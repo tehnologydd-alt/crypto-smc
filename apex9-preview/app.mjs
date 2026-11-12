@@ -42,6 +42,7 @@ import {globalMarketSnapshot} from './market-overview.mjs';
 import {createOverviewCache} from './overview-cache.mjs';
 import {initRadarDashboard} from './radar-dashboard.mjs';
 import {buildScenarioMap} from './scenario-map.mjs';
+import {publicationCaveat} from './scenario-publication-timing.mjs';
 import {visibleChartScenarios,compactScenarioDetails} from './clean-chart-scenarios.mjs';
 import {buildScenarioReplay} from './scenario-replay.mjs';
 import {directionalOutcomeLabel} from './directional-scenario.mjs';
@@ -796,6 +797,9 @@ function renderCleanChartDetails(scenario){
   create('small','',scenario.sourceInterval.toUpperCase()+
    ' · публикация '+new Date(scenario.publishedAt).toLocaleString('ru-RU')));
  root.append(heading);
+ const lagNotice=publicationCaveat(scenario);
+ if(lagNotice)
+  root.append(create('p','clean-chart-publication-warning',lagNotice));
  const grid=create('div','clean-chart-scenario-grid');
  for(const [name,price] of item.rows){
   const style=name==='E'?' entry':name==='SL'?' stop':
