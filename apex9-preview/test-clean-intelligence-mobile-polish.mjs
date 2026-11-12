@@ -68,5 +68,5 @@ test('phone polish and preview QA do not ship fake data or Playwright into APK',
  assert.ok(css.includes('prefers-reduced-motion'));
  assert.match(visual,/context\.route\('\*\*\/\*'/);
  assert.match(visual,/width of \[360,412\]/);
- assert.match(visual,/source-panel/);
+ assert.match(visual,/#ci10-source-availability/);
 });
