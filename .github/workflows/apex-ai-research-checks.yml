@@ -1,0 +1,80 @@
+name: APEX AI Collective — two-server tests
+
+on:
+  push:
+    branches:
+      - apex-ai-research-server-stage12-20261112
+    paths:
+      - 'apex-ai-research/**'
+      - '.github/workflows/apex-ai-research-checks.yml'
+  pull_request:
+    branches:
+      - apex-clean-intelligence-release-safety-stage11-20261112
+    paths:
+      - 'apex-ai-research/**'
+      - '.github/workflows/apex-ai-research-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server-tests:
+    name: GLM/Qwen Edge + XGBoost/LightGBM CPU verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Cloudflare model gateway and D1 quota without live tokens
+        run: |
+          node --check apex-ai-research/edge/worker.mjs
+          node --test apex-ai-research/edge/test-worker.mjs
+          python3 apex-ai-research/edge/test_sqlite.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: apex-ai-research/compute/requirements.txt
+      - name: Install CPU inference and training dependencies
+        run: |
+          python -m pip install -r apex-ai-research/compute/requirements.txt
+      - name: Test authenticated model pipeline and candidate safety
+        run: |
+          python -m compileall -q apex-ai-research/compute
+          python -m unittest discover -s apex-ai-research/compute -p 'test_*.py' -v
+      - name: Validate CPU-only Docker resource layout
+        env:
+          APEX_COMPUTE_TOKEN: ci-only-unit-test-token-long-enough-to-validate
+        run: |
+          docker compose -f apex-ai-research/compose.yaml config -q
+      - name: Build the standalone CPU server image
+        run: docker build --pull -t apex-cpu-research-ci apex-ai-research/compute
+      - name: Start server with no model and verify honest 409 response
+        run: |
+          docker run --name apex-cpu-research-ci --rm -d \
+            -e APEX_COMPUTE_TOKEN=ci-only-unit-test-token-long-enough-to-validate \
+            -e OMP_NUM_THREADS=2 -e OPENBLAS_NUM_THREADS=2 \
+            -p 127.0.0.1:8789:8080 apex-cpu-research-ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8789/health > /tmp/apex-health.json; then break; fi
+            sleep 1
+          done
+          python - <<'PY'
+          import json
+          with open('/tmp/apex-health.json') as f: h=json.load(f)
+          assert h['status']=='RUNNING'
+          assert h['model_available'] is False
+          PY
+          curl -fsS -H 'Authorization: Bearer ci-only-unit-test-token-long-enough-to-validate' \
+            http://127.0.0.1:8789/v1/models/status >/tmp/apex-models.json
+          python - <<'PY'
+          import json
+          with open('/tmp/apex-models.json') as f: h=json.load(f)
+          assert h['state']=='NOT_TRAINED',h
+          PY
+      - name: Stop test container
+        if: always()
+        run: docker rm -f apex-cpu-research-ci || true
