@@ -9,6 +9,8 @@ export const WORKSPACE=Object.freeze({
 const DEFAULT=Object.freeze({asset:'chart',quality:'summary'});
 const TARGET=Object.freeze({
  'synthesis-panel':'summary',
+ 'forecast-feature-audit':'summary',
+ 'forecast-multiframe-quality':'summary',
  'evidence-lab-panel':'data',
  'validation-run':'tests',
  'validation-panel':'tests',
