@@ -19,16 +19,17 @@ const actual=value=>{
 export function marketOverviewSnapshot({
  change='',dominance='',mood='',value='',state=''
 }={}){
- const fresh=state==='OK';
- const c=fresh?actual(change):'—';
- const d=fresh?actual(dominance):'—';
+ const available=state==='OK'||state==='STALE';
+ const c=available?actual(change):'—';
+ const d=available?actual(dominance):'—';
  const m=actual(mood),v=actual(value);
  const sentiment=m==='—'?'—':m+(v==='—'?'':' · '+v);
  return {
   change:c,dominance:d,sentiment,
-  trend:c==='—'?'unknown':c.trim().startsWith('-')||c.trim().startsWith('−')?
+  trend:c==='—'||state==='STALE'?'unknown':c.trim().startsWith('-')||c.trim().startsWith('−')?
    'negative':'positive',
-  note:fresh?'CoinGecko · Alternative.me · независимые источники':
+  note:state==='OK'?'CoinGecko · Alternative.me · независимые источники':
+   state==='STALE'?'CoinGecko: сохранённая сводка, данные устарели · Alternative.me отдельно':
    'Капитализация: данные ещё не проверены · настроение отдельного источника'
  };
 }
