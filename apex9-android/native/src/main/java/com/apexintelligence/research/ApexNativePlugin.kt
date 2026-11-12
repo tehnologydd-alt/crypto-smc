@@ -66,6 +66,40 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Local market-trade archive, distinct from whale-chain transfer records. */
+    @PluginMethod
+    fun getLargeTradeHistory(call: PluginCall) {
+        val asset = call.getString("asset") ?: ""
+        val limit = call.data.optInt("limit", 60).coerceIn(1, 120)
+        if (!asset.matches(Regex("^[A-Z0-9]{2,16}USDT$"))) {
+            call.reject("Invalid large-trade asset")
+            return
+        }
+        tasks.launch {
+            try {
+                val dao = ApexDatabase.get(context.applicationContext).researchDao()
+                val saved = dao.largeTradeHistory(asset, limit)
+                val rows = JSArray()
+                for (record in saved) {
+                    val item = JSObject()
+                    item.put("asset",record.asset)
+                    item.put("source",record.source)
+                    item.put("observedAt",record.observedAt)
+                    item.put("collectedAt",record.collectedAt)
+                    item.put("payload",record.payloadJson)
+                    rows.put(item)
+                }
+                val result = JSObject()
+                result.put("source","BINANCE_SPOT_AGGTRADE_ROOM_V1")
+                result.put("rows",rows)
+                call.resolve(result)
+            } catch (e: Exception) {
+                call.reject("Large-trade history unavailable: " +
+                    (e.message ?: "unknown"))
+            }
+        }
+    }
+
     /** Read-only operational network ledger; never requests data. */
     @PluginMethod
     fun getApiReliability(call: PluginCall) {
@@ -137,6 +171,42 @@ class ApexNativePlugin : Plugin() {
         }
     }
 
+    /** Binance aggTrade is source-checked market data, never a wallet flow. */
+    private fun validatedLargeTrade(
+        asset: String?, id: String?, payload: String?,
+        observedAt: Long, collectedAt: Long
+    ): Boolean {
+        if (asset == null || !asset.matches(Regex("^[A-Z0-9]{2,16}USDT$")) ||
+            payload == null || id == null || observedAt <= 0L ||
+            collectedAt < observedAt || collectedAt - observedAt > 120_000L)
+            return false
+        return try {
+            val j = JSONObject(payload)
+            val eventId = j.getLong("aggregateId")
+            val p = j.getDouble("price")
+            val q = j.getDouble("quantity")
+            val usd = j.getDouble("quoteNotional")
+            val side = j.getString("takerSide")
+            val maker = j.getBoolean("buyerIsMaker")
+            j.getString("version") == "APEX_PUBLIC_AGGTRADE_V1" &&
+                j.getString("source") == "binance:spot:aggtrade" &&
+                j.getString("eventType") == "aggTrade" &&
+                j.getString("symbol") == asset &&
+                j.getString("market") == "SPOT" &&
+                id == "aggtrade:$asset:$eventId" &&
+                eventId >= 0L &&
+                p.isFinite() && p > 0.0 && q.isFinite() && q > 0.0 &&
+                usd.isFinite() && usd >= 150_000.0 && usd <= 1e12 &&
+                kotlin.math.abs(p * q - usd) / usd < 1e-8 &&
+                side in listOf("BUY_TAKER", "SELL_TAKER") &&
+                maker == (side == "SELL_TAKER") &&
+                j.getLong("tradeAt") == observedAt &&
+                j.getLong("receivedAt") == collectedAt &&
+                j.isNull("walletOwner") && j.isNull("exchangeFlow") &&
+                j.isNull("blockchainTxHash")
+        } catch (_: Exception) { false }
+    }
+
     @PluginMethod
     fun saveObservation(call: PluginCall) {
         val asset = call.getString("asset")
@@ -155,7 +225,10 @@ class ApexNativePlugin : Plugin() {
             observedAt <= 0L || observedAt > now + 60_000L ||
             collectedAt < observedAt || collectedAt > now + 60_000L ||
             (kind == "whale" && !validatedWhalePayload(
-                asset,source,payload,observedAt,collectedAt))) {
+                asset,source,payload,observedAt,collectedAt)) ||
+            (source == "binance:spot:aggtrade" &&
+                (kind != "market" || !validatedLargeTrade(
+                    asset,id,payload,observedAt,collectedAt)))) {
             call.reject("Invalid or oversized source observation")
             return
         }
@@ -169,7 +242,8 @@ class ApexNativePlugin : Plugin() {
                 )
                 // Re-reading a confirmed transaction must not move the
                 // first-seen clock forward or change earlier study provenance.
-                val stored = if (kind == "whale") {
+                val stored = if (kind == "whale" ||
+                    source == "binance:spot:aggtrade") {
                     dao.insertWhaleObservationOnce(record) != -1L
                 } else {
                     dao.saveObservation(record)

@@ -5,6 +5,7 @@
  */
 import {planHistoricalH1Repair,checkHistoricalH1Chunk} from './historical-repair.mjs';
 import {chainForWhaleAsset,validateWhaleEvent,parseWhaleHistory} from './whale-observer.mjs';
+import {validateLargeTrade,LARGE_TRADE_SOURCE} from './large-trade-stream.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
 /** True only when a real Android Room observation writer is available. */
 export const hasMobileObservationStorage=()=>typeof plugin()?.saveObservation==='function';
@@ -111,6 +112,53 @@ export async function saveMobileSnapshot(snapshot) {
   catch(error){errors.push(String(error?.message||error));}
  }
  return {native:true,saved,errors};
+}
+/** Verified large taker executions from Binance Spot, not blockchain whales. */
+export async function saveMobileLargeTrade(trade){
+ const native=plugin(),asset=trade?.symbol,now=Date.now();
+ if(!native?.saveObservation)return {native:false,saved:false};
+ if(!validateLargeTrade(trade,asset,{now,maxAgeMs:120000}))
+  return {native:true,saved:false,error:'Invalid large trade'};
+ const id='aggtrade:'+asset+':'+trade.aggregateId;
+ try{
+  const response=await native.saveObservation({
+   id,asset,source:LARGE_TRADE_SOURCE,kind:'market',
+   observedAt:trade.tradeAt,collectedAt:trade.receivedAt,
+   payload:JSON.stringify(trade)
+  });
+  return {native:true,saved:response?.saved===true};
+ }catch(error){
+  return {native:true,saved:false,error:String(error?.message||error).slice(0,160)};
+ }
+}
+/** Source-scoped Room archive. No market polling and no mock transactions. */
+export async function getMobileLargeTradeHistory(asset,limit=60){
+ const native=plugin();
+ const empty={native:Boolean(native),source:'BINANCE_SPOT_AGGTRADE_ROOM_V1',
+  events:[],complete:false};
+ if(typeof asset!=='string'||!/^[A-Z0-9]{2,16}USDT$/.test(asset)||
+  !Number.isSafeInteger(limit)||limit<1||limit>120)
+  return {...empty,error:'Invalid asset or history limit'};
+ if(!native?.getLargeTradeHistory)
+  return {...empty,error:'Нужна обновлённая Android APK.'};
+ try{
+  const result=await native.getLargeTradeHistory({asset,limit});
+  if(result?.source!==empty.source||!Array.isArray(result.rows)||
+   result.rows.length>limit)throw Error('Incomplete source-scoped Room response');
+  const events=[],ids=new Set();
+  for(const row of result.rows){
+   const trade=JSON.parse(row.payload);
+   if(row.asset!==asset||row.source!==LARGE_TRADE_SOURCE||
+    row.observedAt!==trade.tradeAt||
+    row.collectedAt!==trade.receivedAt||
+    !validateLargeTrade(trade,asset,{now:Date.now()})||
+    ids.has(trade.aggregateId))throw Error('Invalid or duplicate saved trade');
+   ids.add(trade.aggregateId);events.push(trade);
+  }
+  return {...empty,events,complete:true};
+ }catch(error){
+  return {...empty,error:String(error?.message||error).slice(0,160)};
+ }
 }
 export async function getMobileHistory(symbol,limit=15){
  const native=plugin();
