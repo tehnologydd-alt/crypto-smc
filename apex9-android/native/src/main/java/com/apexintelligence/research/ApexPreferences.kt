@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
+import org.json.JSONObject
 
 private val Context.apexStore by preferencesDataStore(name = "apex_mobile_settings")
 
@@ -103,6 +104,73 @@ object ApexPreferences {
                 prefs[alertMarkedKey] = alertMarkedIds.joinToString(",")
             if (alertScope != null) prefs[alertScopeKey] = alertScope
             if (keepScreenOn != null) prefs[keepScreenOnKey] = keepScreenOn
+        }
+        return read(context)
+    }
+
+    /**
+     * Strictly validate untrusted portable backup settings BEFORE any Room
+     * import. Do not restore credentials or enable device permissions.
+     */
+    fun validateRestore(json:JSONObject) {
+        val asset=json.getString("asset")
+        require(assetRegex.matches(asset)){"Invalid saved asset"}
+        val fav=json.getJSONArray("favorites")
+        require(fav.length()<=MAX_FAVORITES){"Too many saved favorites"}
+        val favorites=(0 until fav.length()).map{fav.getString(it)}
+        require(favorites.size==favorites.distinct().size&&
+            favorites.all{assetRegex.matches(it)}){"Invalid saved favorites"}
+        val marks=json.getJSONArray("alertMarkedIds")
+        require(marks.length()<=MAX_ALERT_MARKS){"Too many saved marks"}
+        val ids=(0 until marks.length()).map{marks.getString(it)}
+        require(ids.size==ids.distinct().size&&
+            ids.all{forecastIdRegex.matches(it)}){"Invalid saved marks"}
+        require(json.getString("alertScope") in listOf("all","tracked")){
+            "Invalid alert scope"
+        }
+        for(key in listOf("backgroundSyncEnabled","forecastAlertsEnabled",
+            "alertLimitReady","alertTargets","alertStop","keepScreenOn")){
+            require(json.get(key) is Boolean){"Invalid saved preference: $key"}
+        }
+        require(json.getLong("alertsEnabledAt")>=0L){"Invalid alert time"}
+        if(json.has("uiMarkedIds")){
+            val bookmarks=json.getJSONArray("uiMarkedIds")
+            require(bookmarks.length()<=MAX_ALERT_MARKS){"Too many UI bookmarks"}
+            val keys=(0 until bookmarks.length()).map{bookmarks.getString(it)}
+            require(keys.distinct().size==keys.size&&
+                keys.all{forecastIdRegex.matches(it)}){"Invalid UI bookmarks"}
+        }
+    }
+
+    /**
+     * Merge portable favorites and stars, never clear local research.
+     * Device-only behaviors are intentionally disabled until explicitly
+     * re-enabled (Android permission and background job choice differ).
+     */
+    suspend fun restoreFromBackup(context:Context,json:JSONObject):ResearchSettings {
+        validateRestore(json)
+        val requested=(0 until json.getJSONArray("favorites").length())
+            .map{json.getJSONArray("favorites").getString(it)}
+        val marks=(0 until json.getJSONArray("alertMarkedIds").length())
+            .map{json.getJSONArray("alertMarkedIds").getString(it)}
+        context.applicationContext.apexStore.edit { prefs ->
+            val merged=(requested+parseFavorites(prefs[favoritesKey]))
+                .distinct().take(MAX_FAVORITES)
+            prefs[favoritesKey]=merged.joinToString(",")
+            prefs[trackedAsset]=json.getString("asset")
+            val joined=(marks+parseMarks(prefs[alertMarkedKey]))
+                .distinct().take(MAX_ALERT_MARKS)
+            prefs[alertMarkedKey]=joined.joinToString(",")
+            prefs[alertScopeKey]=json.getString("alertScope")
+            prefs[alertLimitKey]=json.getBoolean("alertLimitReady")
+            prefs[alertTargetsKey]=json.getBoolean("alertTargets")
+            prefs[alertStopKey]=json.getBoolean("alertStop")
+            // Never trigger backfill notifications or background tasks without
+            // a fresh user opt-in on the NEW device.
+            prefs[syncEnabled]=false
+            prefs[alertsEnabledKey]=false
+            prefs[alertsEnabledAtKey]=System.currentTimeMillis()
+            prefs[keepScreenOnKey]=false
         }
         return read(context)
     }
