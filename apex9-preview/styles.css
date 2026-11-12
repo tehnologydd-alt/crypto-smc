@@ -3695,3 +3695,18 @@ body[data-view="asset"] .structure-event .structure-kind{margin-left:auto;
  background:#293b47;color:#a4b6bf}
 .forecast-whale-coverage{font-size:11px;color:#8fadba;
  line-height:1.5;margin:6px 0 12px}
+
+
+/* APEX portable archive: single opt-in secure cloud file, no server tokens. */
+.apex-backup-password-label{display:grid;gap:7px;font-size:12px;
+ font-weight:650;color:#c2dedb;margin:12px 0 9px}
+#apex-backup-passphrase{display:block;width:100%;min-width:0;
+ padding:11px 12px;min-height:43px;border-radius:11px;
+ border:1px solid #396572;background:#10232c;color:#e8f7f6;
+ font-size:14px}
+#apex-backup-passphrase:focus-visible{outline:2px solid #74c9ca;outline-offset:2px}
+.apex-backup-controls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.apex-backup-controls button{font-size:12px;line-height:1.45;
+ min-height:44px;white-space:normal;padding:9px}
+#apex-backup-status{margin-top:10px;line-height:1.5}
+@media(max-width:430px){.apex-backup-controls{grid-template-columns:1fr}}
