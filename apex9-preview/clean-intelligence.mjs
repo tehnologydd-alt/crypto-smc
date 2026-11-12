@@ -287,6 +287,18 @@ function mountFavoritePagination(){
 export function visibleScenarioSide(side,selected){
  return selected==='ALL'||side===selected;
 }
+/** Count only cards in the visible stage. This is a display counter, not
+ * the immutable Room stage total shown in the stage tabs.
+ */
+export function scenarioSideSummary(sides=[],selected='ALL'){
+ const cards=Array.isArray(sides)?sides.filter(x=>typeof x==='string'):[];
+ const total=cards.length;
+ const shown=cards.filter(x=>visibleScenarioSide(x,selected)).length;
+ return {total,shown,
+  label:total?
+   'Показано '+shown+' из '+total+' на выбранном этапе · архивы отдельно':
+   'Направление публикации · архивы отдельно'};
+}
 function mountDirectionFilter(){
  const journal=byId('view-forecasts')?.querySelector('.forecast-workspace');
  const list=byId('research-forecast-list');
@@ -303,14 +315,12 @@ function mountDirectionFilter(){
  let current='ALL';
  const controls=[];
  const apply=()=>{
-  let visible=0;
   const cards=[...list.children].filter(x=>x.dataset?.ciSide);
-  for(const card of cards){
-   const shown=visibleScenarioSide(card.dataset.ciSide,current);
-   card.hidden=!shown;
-   if(shown)visible++;
-  }
-  empty.hidden=current==='ALL'||!cards.length||visible>0;
+  const summary=scenarioSideSummary(cards.map(x=>x.dataset.ciSide),current);
+  for(const card of cards)
+   card.hidden=!visibleScenarioSide(card.dataset.ciSide,current);
+  note.textContent=summary.label;
+  empty.hidden=current==='ALL'||!summary.total||summary.shown>0;
  };
  for(const [key,label] of [['ALL','Все'],['LONG','LONG'],['SHORT','SHORT']]){
   const button=create('button','ci-direction-button',label);
