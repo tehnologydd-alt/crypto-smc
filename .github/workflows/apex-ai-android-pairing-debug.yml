@@ -1,7 +1,7 @@
 name: APEX Android — Cloudflare Pairing Signed Update APK
 on:
   push:
-    branches: [apex-ai-device-pairing-20261113]
+    branches: [apex-ai-device-pairing-20261113, apex-ai-live-audit-20261113]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'
@@ -63,6 +63,7 @@ jobs:
             test -n "${!key}" || { echo "::error::Missing existing stable signing secret $key"; exit 1; }
           done
           npm install --no-audit --no-fund
+          node --test ../apex9-preview/test-cloud-ai-manual-audit.mjs ../apex9-preview/test-cloud-ai-monitor.mjs
           npm run build:web
           npx cap add android
           node scripts/set-android-version.mjs
