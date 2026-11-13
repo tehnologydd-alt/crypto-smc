@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "apex-ai-collective",
+  "name": "apex-ai-collective-device",
   "main": "./worker.mjs",
   "compatibility_date": "2026-11-12",
   "workers_dev": true,
