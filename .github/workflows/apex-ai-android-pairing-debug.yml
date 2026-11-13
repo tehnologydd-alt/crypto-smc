@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           for key in APEX_KEYSTORE_B64 APEX_KEYSTORE_PASSWORD APEX_KEY_ALIAS APEX_KEY_PASSWORD; do
-            test -n "$$$key" || { echo "::error::Missing existing stable signing secret $key"; exit 1; }
+            test -n "${!key}" || { echo "::error::Missing existing stable signing secret $key"; exit 1; }
           done
           npm install --no-audit --no-fund
           npm run build:web
