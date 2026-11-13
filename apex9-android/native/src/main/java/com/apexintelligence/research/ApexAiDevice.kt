@@ -59,7 +59,7 @@ object ApexAiDevice {
     private fun request(path: String, method: String = "GET",
                         body: ByteArray? = null, headers: Map<String, String> = emptyMap()
     ): JSONObject {
-        require(path.startsWith("/v1/") && !path.contains("://"))
+        require((path == "/health" || path.startsWith("/v1/")) && !path.contains("://"))
         val conn = URL(ORIGIN + path).openConnection() as HttpsURLConnection
         try {
             conn.instanceFollowRedirects = false
@@ -156,6 +156,79 @@ object ApexAiDevice {
         return request(path, method, body, headers)
     }
 
+    /** Genuine public availability probe, not a claim that either model ran. */
+    fun health(ctx: Context): JSONObject {
+        val result = request("/health")
+        val now = System.currentTimeMillis()
+        val verified = result.optInt("httpStatus") == 200 &&
+            result.optString("service") == "apex-ai-edge" &&
+            result.optString("state") == "RUNNING"
+        if (verified) {
+            prefs(ctx).edit().putLong("lastHealthyAt", now).apply()
+        }
+        return JSONObject()
+            .put("state", if (verified) "RUNNING" else "UNAVAILABLE")
+            .put("mode", if (verified) result.optString("activity", "UNKNOWN") else "UNKNOWN")
+            .put("checkedAt", now)
+            .put("lastHealthyAt", prefs(ctx).getLong("lastHealthyAt", 0))
+            .put("httpStatus", result.optInt("httpStatus"))
+    }
+
+    private fun rememberAudit(ctx: Context, role: String, response: JSONObject) {
+        val now = System.currentTimeMillis()
+        val ok = response.optInt("httpStatus") == 200 &&
+            response.optString("state") == "OBSERVED_MODEL_OUTPUT" &&
+            response.optString("role") == role
+        val state = if (ok) "MODEL_OUTPUT" else
+            response.optString("error", response.optString("state", "UNKNOWN")).take(48)
+        synchronized(this) {
+            val store = prefs(ctx)
+            val old = try {
+                JSONArray(store.getString("auditEvents", "[]"))
+            } catch (_: Exception) {
+                JSONArray()
+            }
+            val events = JSONArray()
+            events.put(JSONObject().put("at", now).put("role", role)
+                .put("state", state).put("success", ok))
+            for (i in 0 until minOf(old.length(), 7)) {
+                val item = old.optJSONObject(i)
+                if (item != null) events.put(item)
+            }
+            val editor = store.edit()
+                .putLong("lastAuditAt_" + role, now)
+                .putBoolean("lastAuditOk_" + role, ok)
+                .putString("auditEvents", events.toString())
+            if (ok) {
+                editor.putInt("successAudit_" + role,
+                    store.getInt("successAudit_" + role, 0) + 1)
+                    .putLong("lastAuditSuccessAt_" + role, now)
+            }
+            editor.apply()
+        }
+    }
+
+    /** Only confirmed real responses are counted; no text/evidence is retained. */
+    fun activity(ctx: Context): JSONObject {
+        val store = prefs(ctx)
+        fun model(role: String): JSONObject = JSONObject()
+            .put("successCount", store.getInt("successAudit_" + role, 0))
+            .put("lastAt", store.getLong("lastAuditAt_" + role, 0))
+            .put("lastSuccessAt", store.getLong("lastAuditSuccessAt_" + role, 0))
+            .put("lastOk", store.getBoolean("lastAuditOk_" + role, false))
+        val events = try {
+            JSONArray(store.getString("auditEvents", "[]"))
+        } catch (_: Exception) {
+            JSONArray()
+        }
+        return JSONObject()
+            .put("state", "LOCAL_AUDIT")
+            .put("analyst", model("analyst"))
+            .put("critic", model("critic"))
+            .put("events", events)
+            .put("scope", "THIS_ANDROID_INSTALLATION_ONLY")
+    }
+
     /** Authenticated read-only quota status, never invokes a model. */
     fun budget(ctx: Context): JSONObject =
         signed(ctx, "GET", "/v1/budget/status")
@@ -166,6 +239,8 @@ object ApexAiDevice {
         require(evidence.length() in 1..16) { "1..16 sources required" }
         val payload = JSONObject().put("role", role).put("evidence", evidence)
             .toString().toByteArray(Charsets.UTF_8)
-        return signed(ctx, "POST", "/v1/agents/analyze", payload)
+        val result = signed(ctx, "POST", "/v1/agents/analyze", payload)
+        rememberAudit(ctx, role, result)
+        return result
     }
 }
