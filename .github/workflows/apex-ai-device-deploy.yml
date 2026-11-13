@@ -1,0 +1,64 @@
+name: APEX AI Cloudflare — one-time device auth deployment
+on:
+  push:
+    branches: [apex-ai-device-pairing-20261113]
+    paths: ['.github/workflows/apex-ai-device-deploy.yml']
+permissions:
+  contents: read
+concurrency:
+  group: apex-ai-cloudflare-device-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify required GitHub secrets without displaying them
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::CLOUDFLARE_API_TOKEN missing"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::CLOUDFLARE_ACCOUNT_ID missing"; exit 1; }
+      - name: Validate AI auth and budget behavior
+        run: |
+          node --test apex-ai-research/edge/test-worker.mjs apex-ai-research/edge/test-budget-governor.mjs apex-ai-research/edge/test-device-auth.mjs
+      - name: Prepare D1 config
+        working-directory: apex-ai-research/edge
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const input=fs.readFileSync("wrangler.template.jsonc","utf8");
+            fs.writeFileSync("wrangler.jsonc",input.replace(
+              "REPLACE_WITH_YOUR_CLOUDFLARE_D1_DATABASE_UUID",
+              "5fda2733-1bdc-4791-aecd-eca767d22a5d"));
+          '
+      - name: Apply idempotent D1 migration
+        working-directory: apex-ai-research/edge
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 d1 execute apex-ai-research --remote --file=./schema.sql --config=./wrangler.jsonc
+      - name: Deploy AI Worker while retaining its encrypted secrets
+        working-directory: apex-ai-research/edge
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy --config=./wrangler.jsonc
+      - name: Public health and auth smoke tests
+        run: |
+          set -e
+          URL="https://apex-ai-collective.apex9-research-lab.workers.dev"
+          curl -fsS --max-time 15 "$URL/health" >/tmp/apex-health.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const x=JSON.parse(fs.readFileSync("/tmp/apex-health.json","utf8"));
+            if(x.service!=="apex-ai-edge"||x.state!=="RUNNING")throw Error("unhealthy Worker");
+          '
+          CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL/v1/budget/status")"
+          test "$CODE" = 401 || { echo "::error::Unauthorized budget endpoint returned $CODE"; exit 1; }
+          echo "Cloudflare Worker health and unauthorized denial verified"
