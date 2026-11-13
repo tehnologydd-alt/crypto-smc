@@ -132,6 +132,11 @@ export default {
     return json({state:'NOT_CONFIGURED'});
    const origin=String(env.COMPUTE_ORIGIN);
    if(!origin.startsWith('https://'))return json({state:'INVALID_ORIGIN'},503);
+   let statusReservation;
+   try{statusReservation=await reserveBudget(env?.DB,'booster');}
+   catch{return json({state:'BUDGET_STORE_UNAVAILABLE'},503);}
+   if(!env?.DB)return json({state:'BUDGET_STORE_UNAVAILABLE'},503);
+   if(!statusReservation)return json({state:'BUDGET_GUARD_BLOCKED',mode:schedule().mode},429);
    try{
     const r=await fetch(new URL('/v1/models/status',origin),{
      headers:{Authorization:'Bearer '+env.APEX_COMPUTE_TOKEN},
