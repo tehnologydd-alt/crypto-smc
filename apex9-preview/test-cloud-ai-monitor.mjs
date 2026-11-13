@@ -99,3 +99,20 @@ test('next eligible time displays a genuine five-minute future cooldown',()=>{
    monthlyUsed:1,monthlyLimit:280,nightUsed:0,nightLimit:1,nextEligibleAt:until}}}});
  assert.equal(v.quotas.nextEligibleAt,until);
 });
+
+test('timeout on Qwen uses actual failed attempt time, not preceding success time',()=>{
+ const after=Date.now(),before=after-40*60000;
+ const v=deriveCloudAiView({local:{state:'LOCAL_AUDIT',
+  analyst:{successCount:2,lastAt:before,lastSuccessAt:before,lastOk:true,lastState:'MODEL_OUTPUT'},
+  critic:{successCount:1,lastAt:after,lastSuccessAt:before,lastOk:false,
+   lastState:'MODEL_RESPONSE_TIMEOUT'},
+  events:[{at:after,role:'critic',state:'MODEL_RESPONSE_TIMEOUT',success:false}]}});
+ assert.equal(v.critic.count,1);
+ assert.equal(v.critic.lastAt,after);
+ assert.equal(v.critic.lastSuccessAt,before);
+ assert.match(v.critic.title,/истекло время ожидания/);
+ assert.match(v.events[0].title,/истекло время ожидания/);
+ const source=readFileSync(new URL('./cloud-ai-monitor.mjs',import.meta.url),'utf8');
+ assert.match(source,/model\.lastAt\?' · '/);
+ assert.doesNotMatch(source,/model\.lastSuccessAt\?' · '/);
+});

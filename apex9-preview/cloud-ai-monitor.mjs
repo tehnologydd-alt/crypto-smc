@@ -10,6 +10,15 @@ const names = Object.freeze({
  analyst: 'GLM-4.7-Flash', critic: 'Qwen3.8-27B'
 });
 const h = (s) => typeof s === 'string' ? s : '';
+const failureLabels=Object.freeze({
+ MODEL_RESPONSE_TIMEOUT:'истекло время ожидания ответа',
+ MODEL_NETWORK_UNAVAILABLE:'ошибка сети',
+ MODEL_COMPLETION_TOKEN_LIMIT:'лимит токенов ответа',
+ EMPTY_MODEL_OUTPUT:'пустой ответ модели',
+ MODEL_QUOTA_OR_UNAVAILABLE:'модель недоступна',
+ CLOUD_UNAVAILABLE:'нет соединения с облаком'
+});
+const failureTitle=(value)=>failureLabels[value]||'ошибка';
 
 export function renderTime(ms,{allowFuture=false}={}) {
  const t = known(ms);
@@ -30,8 +39,9 @@ function modelState(raw) {
  const lastOk = raw.lastOk === true;
  return {
   title:!lastAt?'Нет подтверждённых ответов':
-   (lastOk?'Последний запрос успешен':'Последний запрос: ошибка'),
-  count,lastSuccessAt,lastAt,lastOk
+   (lastOk?'Последний запрос успешен':
+    'Последний запрос: '+failureTitle(h(raw.lastState))),
+  count,lastSuccessAt,lastAt,lastOk,lastState:h(raw.lastState).slice(0,48)
  };
 }
 
@@ -80,7 +90,7 @@ export function deriveCloudAiView(data = {}) {
      at:x.at, role:x.role, success:x.success === true,
      // Only fixed UI text from a bounded known result code.
      title:names[x.role]+' · '+(x.success === true?
-      'получен ответ':'запрос без ответа')
+      'получен ответ':failureTitle(h(x.state)))
     })) : [];
  return {
   status,statusLabel,server:online?'Доступен':'Нет ответа',
@@ -159,8 +169,9 @@ export function initCloudAiMonitor({
   if(fill)fill.style.width=percent+'%';
   for(const [role,prefix] of [['analyst','glm'],['critic','qwen']]){
    const model=v[role];
+   // Date must belong to the last attempt, not an older successful run.
    text('apex-ai-'+prefix+'-status',model.title+
-    (model.lastSuccessAt?' · '+renderTime(model.lastSuccessAt):''));
+    (model.lastAt?' · '+renderTime(model.lastAt):''));
    text('apex-ai-'+prefix+'-count','Ответов на этом телефоне: '+shown(model.count));
   }
   text('apex-ai-limit-note',v.note);

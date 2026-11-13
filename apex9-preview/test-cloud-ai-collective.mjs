@@ -113,3 +113,34 @@ test('integration includes compact two-step UI and Android staging',()=>{
  assert.match(app,/initCloudAiCollective\(/);
  assert.match(stage,/'cloud-ai-collective\.mjs'/);
 });
+
+test('collective critic timeout produces a clear message, preserves GLM session, no retries',async()=>{
+ const original=globalThis.document,dom=ui(),store=storage();
+ globalThis.document=dom;
+ const sourceTime=at-16000,old={...session,
+  evidence:[source('BTCUSDT',sourceTime)],
+  sourceIds:[source('BTCUSDT',sourceTime).source_id]};
+ store.setItem('apex.collective.research.v1',JSON.stringify(old));
+ let count=0;
+ try{
+  const c=initCloudAiCollective({
+   getFavorites:()=>['BTCUSDT'],
+   getHistory:async()=>({native:true,observations:[]}),
+   fetchTicker:async()=>({state:'OK',data:{symbol:'BTCUSDT',scope:'24H_SPOT_SNAPSHOT',
+    observedAt:at+5*60000-10000,receivedAt:at+5*60000-8000,
+    price:68500,changePercent:-1,quoteVolume:300000}}),
+   getPairing:async()=>({state:'APPROVED'}),
+   getBudget:async()=>({state:'POLICY_ACTIVE',httpStatus:200,
+    clock:{mode:'ACTIVE'},usage:{language:{dailyUsed:2,dailyLimit:12,
+     monthlyUsed:2,monthlyLimit:280,nightUsed:0,nightLimit:1,
+     nextEligibleAt:at}}}),
+   runAudit:async()=>{count++;return {state:'MODEL_RESPONSE_TIMEOUT'};},
+   refreshMonitor:async()=>{},store,now:()=>at+5*60000
+  });
+  dom.element('apex-ai-collective-review').trigger('click');await settle();
+  assert.equal(count,1);
+  assert.equal(c.getSession().stage,'ANALYST_READY');
+  assert.match(dom.element('apex-ai-collective-status').textContent,/телефон не дождался ответа/);
+  assert.equal(dom.element('apex-ai-collective-review').disabled,false);
+ }finally{if(original===undefined)delete globalThis.document;else globalThis.document=original;}
+});

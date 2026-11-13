@@ -3,8 +3,8 @@
  * A single bounded report is cached on this phone for the 5-minute pause.
  * Historical analyst claims are not evidence and are not assigned confidence.
  */
-import {buildCloudAuditEvidence,checkCloudAiLanguageBudget}
- from './cloud-ai-manual-audit.mjs';
+import {buildCloudAuditEvidence,checkCloudAiLanguageBudget,
+ explainCloudAiAuditFailure} from './cloud-ai-manual-audit.mjs';
 const KEY='apex.collective.research.v1';
 const ASSET=/^[A-Z0-9]{5,20}$/;
 const HOUR=60*60000;
@@ -134,8 +134,8 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
    say(role==='analyst'?'GLM анализирует источники…':
     'Qwen независимо проверяет прошлые выводы GLM и новые снимки…');
    const result=await runAudit(role,evidence,options);
-   if(!success(result,role,evidence))throw Error('Ответ ИИ не подтверждён: '+
-    String(result?.error||result?.state||'INVALID_RESPONSE').slice(0,85));
+   if(!success(result,role,evidence))
+    throw Error(explainCloudAiAuditFailure(result,role));
    if(role==='analyst')session={
     version:1,asset,stage:'ANALYST_READY',startedAt:now(),
     evidence:evidence.slice(0,5),sourceIds:sourceIds(evidence.slice(0,5)),

@@ -65,9 +65,11 @@ object ApexAiDevice {
             conn.instanceFollowRedirects = false
             conn.requestMethod = method
             conn.connectTimeout = 6000
-            // Manual Workers AI inference can outlast a normal short health/status call.
-            // Keep every other endpoint on the conservative eight-second timeout.
-            conn.readTimeout = if (path == "/v1/agents/analyze") 60_000 else 8_000
+            // Model inference sometimes needs longer than one minute, especially
+            // independent critic analysis. This is an explicit foreground user call.
+            // Status, enrollment and budget checks retain short network timeouts.
+            // Do not retry after timeout: a server attempt may be consumed already.
+            conn.readTimeout = if (path == "/v1/agents/analyze") 120_000 else 8_000
             conn.setRequestProperty("Accept", "application/json")
             for ((key, value) in headers) conn.setRequestProperty(key, value)
             if (body != null) {
@@ -200,6 +202,9 @@ object ApexAiDevice {
             val editor = store.edit()
                 .putLong("lastAuditAt_" + role, now)
                 .putBoolean("lastAuditOk_" + role, ok)
+                .putString("lastAuditState_" + role, state)
+                .putLong("lastAuditElapsed_" + role,
+                    response.optLong("elapsedMs", 0L).coerceIn(0L, 180_000L))
                 .putString("auditEvents", events.toString())
             if (ok) {
                 editor.putInt("successAudit_" + role,
@@ -218,6 +223,8 @@ object ApexAiDevice {
             .put("lastAt", store.getLong("lastAuditAt_" + role, 0))
             .put("lastSuccessAt", store.getLong("lastAuditSuccessAt_" + role, 0))
             .put("lastOk", store.getBoolean("lastAuditOk_" + role, false))
+            .put("lastState", store.getString("lastAuditState_" + role, "UNKNOWN"))
+            .put("lastWaitMs", store.getLong("lastAuditElapsed_" + role, 0))
         val events = try {
             JSONArray(store.getString("auditEvents", "[]"))
         } catch (_: Exception) {
@@ -258,12 +265,15 @@ object ApexAiDevice {
                 .put("source_ids", ids).put("captured_at", captured))
         }
         val payload = requestBody.toString().toByteArray(Charsets.UTF_8)
+        val sentAt = android.os.SystemClock.elapsedRealtime()
         val result = try {
             signed(ctx, "POST", "/v1/agents/analyze", payload)
         } catch (_: java.net.SocketTimeoutException) {
             JSONObject().put("state", "MODEL_RESPONSE_TIMEOUT")
+                .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - sentAt)
         } catch (_: java.io.IOException) {
             JSONObject().put("state", "MODEL_NETWORK_UNAVAILABLE")
+                .put("elapsedMs", android.os.SystemClock.elapsedRealtime() - sentAt)
         }
         // Failed attempts matter: the server may have already reserved a D1 slot.
         // Never mark a timeout as successful or automatically retry it.

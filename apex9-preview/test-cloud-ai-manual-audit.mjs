@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {buildCloudAuditEvidence,initCloudAiAudit,
- checkCloudAiLanguageBudget} from './cloud-ai-manual-audit.mjs';
+ checkCloudAiLanguageBudget,explainCloudAiAuditFailure} from './cloud-ai-manual-audit.mjs';
 
 const now=1_794_588_000_000;
 const quote={symbol:'ETHUSDT',scope:'24H_SPOT_SNAPSHOT',
@@ -173,9 +173,24 @@ test('native AI read timeout is separate from short status timeout and records f
  const android=readFileSync(new URL(
   '../apex9-android/native/src/main/java/com/apexintelligence/research/ApexAiDevice.kt',
   import.meta.url),'utf8');
- assert.match(android,/conn\.readTimeout = if \(path == "\/v1\/agents\/analyze"\) 60_000 else 8_000/);
+ assert.match(android,/conn\.readTimeout = if \(path == "\/v1\/agents\/analyze"\) 120_000 else 8_000/);
  assert.match(android,/MODEL_RESPONSE_TIMEOUT/);
  assert.match(android,/MODEL_NETWORK_UNAVAILABLE/);
  assert.match(android,/rememberAudit\(ctx, role, result\)/);
  assert.doesNotMatch(android,/retryAiEvidence/);
+});
+
+test('model timeout message never suggests retry and does not fake a quota denial',()=>{
+ const msg=explainCloudAiAuditFailure({state:'MODEL_RESPONSE_TIMEOUT'},'critic');
+ assert.match(msg,/Qwen3.8-27B/);
+ assert.match(msg,/120 секундами/);
+ assert.match(msg,/Автоматического повтора нет/);
+ assert.doesNotMatch(msg,/дневной лимит исчерпан/);
+ const native=readFileSync(new URL(
+  '../apex9-android/native/src/main/java/com/apexintelligence/research/ApexAiDevice.kt',
+  import.meta.url),'utf8');
+ assert.match(native,/android\.os\.SystemClock\.elapsedRealtime\(\) - sentAt/);
+ assert.match(native,/putString\("lastAuditState_" \+ role, state\)/);
+ assert.match(native,/put\("lastState", store\.getString\("lastAuditState_"/);
+ assert.doesNotMatch(native,/retry[A-Za-z]*\(ctx/);
 });

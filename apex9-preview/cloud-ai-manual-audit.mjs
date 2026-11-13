@@ -62,6 +62,18 @@ export function buildCloudAuditEvidence({asset,rows=[],ticker=null,now=Date.now(
  return out.slice(0,5);
 }
 const labels={analyst:'GLM-4.7-Flash',critic:'Qwen3.8-27B'};
+/** A network timeout is not proof the Worker failed and does not undo a D1 reservation. */
+export function explainCloudAiAuditFailure(response,role){
+ const name=labels[role]||'ИИ';
+ const reason=String(response?.error||response?.state||'UNKNOWN');
+ if(reason==='MODEL_RESPONSE_TIMEOUT')
+  return name+': телефон не дождался ответа. Сетевое ожидание ограничено 120 секундами; сервер мог продолжить работу. Попытка могла быть израсходована. Автоматического повтора нет.';
+ if(reason==='MODEL_NETWORK_UNAVAILABLE')
+  return name+': соединение с Cloudflare прервано; исход запроса неизвестен. Проверьте сеть и лимиты перед новой попыткой.';
+ if(reason==='MODEL_COMPLETION_TOKEN_LIMIT')
+  return name+': модель исчерпала токены одного ответа, это не дневной лимит APEX.';
+ return 'Нет подтверждённого ответа '+name+': '+reason.slice(0,80);
+}
 const kyivTime=ms=>new Intl.DateTimeFormat('ru-RU',{
  timeZone:'Europe/Kyiv',hour:'2-digit',minute:'2-digit'
 }).format(new Date(ms));
@@ -166,8 +178,7 @@ export function initCloudAiAudit({getFavorites,getSelectedAsset,getHistory,
    const answer=await runAudit(role,evidence);
    if(answer?.httpStatus!==200||answer?.state!=='OBSERVED_MODEL_OUTPUT'||
       answer?.role!==role||typeof answer?.text!=='string'||!answer.text.trim()){
-    throw Error('Нет подтверждённого ответа модели: '+
-     String(answer?.error||answer?.state||'UNKNOWN').slice(0,80));
+    throw Error(explainCloudAiAuditFailure(answer,role));
    }
    say('Реальный ответ '+labels[role]+' получен · '+asset+
     ' · источников: '+evidence.length+'. Это исследовательский разбор, не прогноз.');
