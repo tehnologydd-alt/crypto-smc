@@ -1,11 +1,11 @@
 /**
  * APEX budget governor. Requests are gated on the server before paid-capable
- * work. Runtime spend/Neurons is NOT observable here; provider limits still
- * apply independently. No background timers run in this Worker.
+ * work. Reserves conservative per-call ESTIMATES of Neurons (not account billing).
+ * Cloudflare's account-wide spending is not exposed in this signed endpoint.
  */
 export const ZONE='Europe/Kyiv';
 export const LIMITS=Object.freeze({
- language:Object.freeze({daily:12,monthly:280,night:1,activeGapMs:5*60000,nightGapMs:60*60000}),
+ language:Object.freeze({daily:36,monthly:720,night:1,activeGapMs:5*60000,nightGapMs:60*60000}),
  booster:Object.freeze({daily:100,monthly:1800,night:4,activeGapMs:2*60000,nightGapMs:30*60000}),
 });
 export const HOURS=Object.freeze({activeFrom:8,activeUntil:23});
@@ -74,7 +74,7 @@ export async function budgetStatus(db,at=Date.now()){
  const clock=schedule(at),usage={};
  for(const [name,limits] of Object.entries(LIMITS)){
   const row=await db.prepare(`SELECT day_key,day_used,month_key,month_used,
-   night_key,night_used,last_at FROM ai_budget WHERE service=?1`)
+   night_key,night_used,last_at,neuron_day_key,neuron_reserved FROM ai_budget WHERE service=?1`)
    .bind(name).first();
   usage[name]={
    dailyUsed:row?.day_key===clock.localDay?row.day_used:0,
@@ -86,9 +86,82 @@ export async function budgetStatus(db,at=Date.now()){
    nightLimit:limits.night,
    nextEligibleAt:row?.last_at?
     row.last_at+(clock.mode==='ECO'?limits.nightGapMs:limits.activeGapMs):0,
+   ...(name==='language'?{
+    neuronEstimateUtcDay:utcNeuronKey(at),
+    neuronEstimateReserved:row?.neuron_day_key===utcNeuronKey(at)?
+     Math.max(0,Number(row?.neuron_reserved)||0):0,
+    neuronEstimateCeiling:FREE_NEURON_BUDGET.apexCeiling,
+    neuronEstimateOnly:true,
+   }:{}),
   };
  }
  return {state:'POLICY_ACTIVE',clock,usage,
   billingObserved:false,neuronUsageObserved:false,
-  warning:'These are internal attempt ceilings, NOT real billing or Workers AI Neuron balances. Configure provider limits and billing alerts separately.'};
+  warning:'Internal attempt and estimated Neuron reservations only; NOT account-wide actual billing or Cloudflare remaining free balance.'};
+}
+
+/** Official 2026-11-13 model rates, Neurons / 1M tokens:
+ * GLM input 5500, output 36400; Qwen input 40909, output 290909.
+ * Input-token upper estimate: UTF-8 prompt bytes. Output: full maximum.
+ * All figures here are conservative local RESERVATIONS, not billing.
+ */
+export const FREE_NEURON_BUDGET=Object.freeze({
+ dailyAllocation:10000,reservedForOtherUsage:2500,apexCeiling:7500,
+ providerReset:'00:00 UTC',estimateVersion:'CF_MODEL_RATES_2026_11_13'
+});
+const PRICING=Object.freeze({
+ analyst:{input:5500,output:36400},
+ critic:{input:40909,output:290909}
+});
+export function estimateInferenceNeurons(role,promptBytes,completionMax=900){
+ const rates=PRICING[role];
+ if(!rates||!Number.isSafeInteger(promptBytes)||promptBytes<1||
+  promptBytes>25000||!Number.isSafeInteger(completionMax)||
+  completionMax<16||completionMax>1700)return null;
+ return Math.ceil(((promptBytes*rates.input+
+  completionMax*rates.output)/1e6)*1.2)+10;
+}
+export function utcNeuronKey(at=Date.now()){
+ if(!Number.isSafeInteger(at)||at<0)throw Error('Invalid time');
+ return new Date(at).toISOString().slice(0,10);
+}
+/** One atomic D1 upsert covers Kyoto attempt counters, cooldown and UTC
+ * Neuron estimates. Requires the two migration columns on ai_budget.
+ */
+export async function reserveAdaptiveLanguage(db,role,promptBytes,
+ completionMax=900,at=Date.now()){
+ const estimate=estimateInferenceNeurons(role,promptBytes,completionMax);
+ if(!db||!estimate||!Number.isSafeInteger(at))return null;
+ const clock=schedule(at),limit=LIMITS.language,utc=utcNeuronKey(at);
+ const gap=clock.mode==='ECO'?limit.nightGapMs:limit.activeGapMs;
+ const night=clock.mode==='ECO'?1:0;
+ const sql=[
+  'INSERT INTO ai_budget',
+  '(service,day_key,day_used,month_key,month_used,night_key,night_used,last_at,neuron_day_key,neuron_reserved)',
+  "VALUES('language',?1,1,?2,1,?3,?4,?5,?6,?7)",
+  'ON CONFLICT(service) DO UPDATE SET',
+  'day_key=excluded.day_key,',
+  'day_used=CASE WHEN ai_budget.day_key=excluded.day_key THEN ai_budget.day_used+1 ELSE 1 END,',
+  'month_key=excluded.month_key,',
+  'month_used=CASE WHEN ai_budget.month_key=excluded.month_key THEN ai_budget.month_used+1 ELSE 1 END,',
+  'night_key=excluded.night_key,',
+  "night_used=CASE WHEN excluded.night_key='' THEN 0 WHEN ai_budget.night_key=excluded.night_key",
+  'THEN ai_budget.night_used+1 ELSE 1 END,',
+  'last_at=excluded.last_at,neuron_day_key=excluded.neuron_day_key,',
+  'neuron_reserved=CASE WHEN ai_budget.neuron_day_key=excluded.neuron_day_key',
+  'THEN ai_budget.neuron_reserved+excluded.neuron_reserved ELSE excluded.neuron_reserved END',
+  'WHERE excluded.last_at>=ai_budget.last_at+?8',
+  'AND (ai_budget.day_key<>excluded.day_key OR ai_budget.day_used<?9)',
+  'AND (ai_budget.month_key<>excluded.month_key OR ai_budget.month_used<?10)',
+  "AND (excluded.night_key='' OR ai_budget.night_key<>excluded.night_key",
+  'OR ai_budget.night_used<?11)',
+  'AND (CASE WHEN ai_budget.neuron_day_key=excluded.neuron_day_key',
+  'THEN ai_budget.neuron_reserved ELSE 0 END)+excluded.neuron_reserved<=?12',
+  'RETURNING day_used,month_used,night_used,neuron_reserved,last_at'
+ ].join(' ');
+ const row=await db.prepare(sql).bind(clock.localDay,clock.localMonth,
+  clock.nightKey,night,at,utc,estimate,gap,limit.daily,limit.monthly,
+  limit.night,FREE_NEURON_BUDGET.apexCeiling).first();
+ return row?{...clock,attempts:row,estimatedNeurons:estimate,
+  neuronDayUtc:utc,neuronReserveAfter:row.neuron_reserved}:null;
 }
