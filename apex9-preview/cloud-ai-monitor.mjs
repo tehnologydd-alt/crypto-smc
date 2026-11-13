@@ -99,7 +99,9 @@ export function deriveCloudAiView(data = {}) {
   quotas:{
    verified:budgetVerified,
    count,cap,monthUsed,monthCap,nightUsed,nightCap,
-   nextEligibleAt
+   nextEligibleAt,
+   estimatedNeurons:budgetVerified?known(quota?.neuronEstimateReserved):null,
+   estimatedCap:budgetVerified?known(quota?.neuronEstimateCeiling):null
   },
   checkedAt:online?known(health.checkedAt):null,
   lastHealthyAt:known(health.lastHealthyAt),
@@ -175,6 +177,11 @@ export function initCloudAiMonitor({
    text('apex-ai-'+prefix+'-count','Ответов на этом телефоне: '+shown(model.count));
   }
   text('apex-ai-limit-note',v.note);
+  text('apex-ai-neurons-estimate',
+   v.quotas.estimatedNeurons!==null&&v.quotas.estimatedCap>0?
+    'APEX · оценочно зарезервировано '+v.quotas.estimatedNeurons+
+    ' / '+v.quotas.estimatedCap+' Neurons за сутки UTC. Не фактический остаток Cloudflare.':
+    'Neurons: оценка пока недоступна. Действуют ограничения попыток.');
   if(statusBox){
    let detail='';
    if(v.pending)detail='Для подтверждения сверим код '+(v.verificationCode||'—')+

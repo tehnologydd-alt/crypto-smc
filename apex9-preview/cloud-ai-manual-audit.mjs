@@ -99,6 +99,12 @@ export function checkCloudAiLanguageBudget(budget,now=Date.now()){
   return {allowed:false,reason:'NIGHT',
    message:'Ночной лимит ИИ исчерпан: '+q.nightUsed+'/'+q.nightLimit+
     '. Дневной режим APEX начинается в 08:00 по Киеву.'};
+ if(Number.isSafeInteger(q.neuronEstimateReserved)&&
+    Number.isSafeInteger(q.neuronEstimateCeiling)&&
+    q.neuronEstimateCeiling>0&&
+    q.neuronEstimateReserved>=q.neuronEstimateCeiling)
+  return {allowed:false,reason:'ESTIMATED_NEURONS',
+   message:'Оценочный резерв Neurons APEX исчерпан. Дождитесь UTC-сброса; повторов нет.'};
  if(Number.isSafeInteger(q.nextEligibleAt)&&q.nextEligibleAt>now){
   const gap=budget.clock?.mode==='ECO'?'60 минут':'5 минут';
   return {allowed:false,reason:'COOLDOWN',nextEligibleAt:q.nextEligibleAt,

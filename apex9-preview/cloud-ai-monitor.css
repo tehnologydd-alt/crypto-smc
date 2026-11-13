@@ -119,3 +119,22 @@
 .apex-ai-director-body li strong{font-size:11px;color:#d5f5f0}
 .apex-ai-director-body li small,.apex-ai-director-body li span{font-size:10px;
  line-height:1.5;color:#a4c3cf}
+
+.apex-ai-batch{margin:10px 0;border:1px solid #36596a;border-radius:12px;
+ background:linear-gradient(130deg,#103443,#13293b);color:#ddf5f3}
+.apex-ai-batch summary{padding:13px 12px;font-size:12px;font-weight:750;cursor:pointer}
+.apex-ai-batch summary small{font-size:10px;font-weight:500;color:#9dc9d0}
+.apex-ai-batch-body{display:grid;gap:10px;padding:0 12px 13px}
+.apex-ai-batch-body p,.apex-ai-batch-body small{font-size:11px;line-height:1.55;color:#adcbd5;margin:0}
+.apex-ai-batch-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.apex-ai-batch-options label{display:flex;align-items:center;gap:7px;padding:9px;
+ border:1px solid #365e71;border-radius:10px;font-size:11px}
+.apex-ai-batch-options input{width:16px;height:16px;accent-color:#64c8bb}
+.apex-ai-batch-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.apex-ai-batch-actions button{min-height:44px;font-size:11px;
+ border:1px solid #49818d;border-radius:10px;padding:9px}
+.apex-ai-batch-actions button:disabled{opacity:.55}
+#apex-batch-output{font-size:11px;line-height:1.55;white-space:pre-wrap;
+ overflow-wrap:anywhere;max-height:320px;overflow-y:auto;background:#0b2033;
+ border:1px solid #375267;border-radius:11px;padding:11px;margin:0}
+#apex-batch-output[hidden]{display:none}

@@ -116,6 +116,20 @@
           <small>Последняя сессия хранится локально на этом устройстве; перенос её через резервную копию ещё не подтверждён. Результаты — исследовательские гипотезы, а не торговые сигналы.</small>
         </div>
       </details>
+      <details class="apex-ai-batch">
+        <summary>Пакетное исследование · GLM + Qwen <small>2–3 актива за запрос</small></summary>
+        <div class="apex-ai-batch-body">
+          <p>Выберите 2–3 актива из избранного. GLM исследует их одним запросом, Qwen отдельным запросом проверяет каждый вывод после паузы. Запуск только вручную.</p>
+          <div id="apex-batch-options" class="apex-ai-batch-options" role="group" aria-label="Активы для пакетного анализа"></div>
+          <div class="apex-ai-batch-actions">
+            <button type="button" class="ghost" id="apex-batch-start">1. GLM · пакет</button>
+            <button type="button" class="ghost" id="apex-batch-review">2. Qwen · проверка</button>
+          </div>
+          <p id="apex-batch-status" role="status" aria-live="polite">Модели запускаются только нажатием кнопки.</p>
+          <pre id="apex-batch-output" hidden></pre>
+          <small>Один пакет расходует одну разрешённую попытку модели, но вычислительный расход зависит от объёма. Результаты каждого актива проверяются по его источникам.</small>
+        </div>
+      </details>
       <details id="apex-director-panel" class="apex-ai-director">
         <summary>APEX · директор исследований <small>Локальная очередь · 0 запросов ИИ</small></summary>
         <div class="apex-ai-director-body">
@@ -130,6 +144,7 @@
       <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
         <ul id="apex-ai-events"><li>Обращений к моделям ещё не было</li></ul>
       </div>
+      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
       <p class="apex-ai-footnote" id="apex-ai-limit-note">Здесь показаны внутренние лимиты попыток, а не баланс Neurons или стоимость Cloudflare. Состояние модели считается подтверждённым только после настоящего ответа.</p>
     </section>
 

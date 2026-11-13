@@ -9,6 +9,8 @@ import {beginCloudAiPairing,cloudAiPairingStatus,cloudAiBudgetStatus,cloudAiHeal
 import {initCloudAiMonitor} from './cloud-ai-monitor.mjs';
 import {initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
 import {initCloudAiCollective} from './cloud-ai-collective.mjs';
+import {initCloudAiBatch} from './cloud-ai-batch.mjs';
+import {cloudAiBatchAudit} from './mobile-bridge.mjs';
 import {initApexResearchDirector} from './apex-research-director-ui.mjs';
 import {exportMobileCloudBackup,importMobileCloudBackup,
  getMobileCloudBackupStatus} from './mobile-bridge.mjs';
@@ -1297,6 +1299,7 @@ let assetFavoritePicker=null;
 let experienceOverview=null;
 let cloudAiAudit=null;
 let cloudAiCollective=null;
+let cloudAiBatch=null;
 let researchDirector=null;
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
@@ -1317,6 +1320,7 @@ const favoriteManager=initFavoriteResearch({
   experienceOverview?.favoritesChanged();
   cloudAiAudit?.sync();
   cloudAiCollective?.sync();
+  cloudAiBatch?.sync();
   researchDirector?.render();
   if(!document.hidden)void researchDirector?.scan();
  },
@@ -2306,18 +2310,30 @@ cloudAiCollective=initCloudAiCollective({
  refreshMonitor:()=>cloudAiMonitor.refresh(),
  onSession:session=>researchDirector.onCollectiveSession(session)
 });
+cloudAiBatch=initCloudAiBatch({
+ getFavorites:()=>favoriteManager.getFavorites(),
+ getPriorityAssets:()=>researchDirector.getTasks()
+  .filter(t=>t.stage==='QUEUED').map(t=>t.asset),
+ getHistory:getMobileHistory,
+ fetchTicker:fetchSpotTicker,
+ getPairing:cloudAiPairingStatus,
+ getBudget:cloudAiBudgetStatus,
+ runBatch:cloudAiBatchAudit,
+ onSession:session=>researchDirector.onCollectiveSession(session),
+ refreshMonitor:()=>cloudAiMonitor.refresh()
+});
 // Restore the last genuinely completed two-model study to the Director journal
 // without sending either model a new request.
 researchDirector.onCollectiveSession(cloudAiCollective.getSession());
 // Native DataStore favorites may hydrate after first Settings rendering.
 void favoritesReady.then(()=>{
- cloudAiAudit.sync();cloudAiCollective.sync();
+ cloudAiAudit.sync();cloudAiCollective.sync();cloudAiBatch.sync();
  researchDirector.render();void researchDirector.scan();
 },()=>{
- cloudAiAudit.sync();cloudAiCollective.sync();researchDirector.render();
+ cloudAiAudit.sync();cloudAiCollective.sync();cloudAiBatch.sync();researchDirector.render();
 });
 el('apex-settings-open').addEventListener('click',()=>{
- cloudAiAudit.sync();cloudAiCollective.sync();researchDirector.render();
+ cloudAiAudit.sync();cloudAiCollective.sync();cloudAiBatch.sync();researchDirector.render();
 });
 // Read only local Room/Radar snapshots in foreground, never Workers AI.
 setInterval(()=>{if(!document.hidden)void researchDirector.scan();},5*60000);
