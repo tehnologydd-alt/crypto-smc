@@ -31,7 +31,7 @@ jobs:
       - name: Verify Cloudflare model gateway and D1 quota without live tokens
         run: |
           node --check apex-ai-research/edge/worker.mjs
-          node --test apex-ai-research/edge/test-worker.mjs
+          node --test apex-ai-research/edge/test-worker.mjs apex-ai-research/edge/test-budget-governor.mjs
           python3 apex-ai-research/edge/test_sqlite.py
       - uses: actions/setup-python@v5
         with:
