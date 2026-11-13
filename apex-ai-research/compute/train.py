@@ -18,6 +18,7 @@ import lightgbm as lgb
 from sklearn.metrics import brier_score_loss, log_loss
 
 from server import FEATURES
+from training_window import training_permitted,research_mode
 
 def load_rows(path: Path):
     records = []
@@ -134,6 +135,10 @@ if __name__=="__main__":
     parser.add_argument("--observations",type=Path,required=True)
     parser.add_argument("--models",type=Path,default=Path("/srv/apex/models"))
     parser.add_argument("--version",required=True)
+    parser.add_argument("--allow-night-training",action="store_true",
+        help="Explicit operator override; night training normally denied")
     args=parser.parse_args()
+    if not args.allow_night_training and not training_permitted():
+        parser.error("Heavy training blocked during ECO (23:00-08:00 Europe/Kyiv)")
     print(json.dumps(train(args.observations,args.models,args.version),
                      ensure_ascii=False,indent=2))
