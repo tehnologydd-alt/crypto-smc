@@ -30,7 +30,7 @@ if(!root.includes('GoogleCentralKotlinMirror')){
         maven {
             name = 'GoogleCentralKotlinMirror'
             url 'https://maven-central.storage-download.googleapis.com/maven2/'
-            content { includeGroup 'org.jetbrains.kotlin' }
+            content { includeGroup 'org.jetbrains.kotlin'; includeGroup 'org.jetbrains.kotlinx' }
         }`);
  writeFileSync(rootGradle,root);
 }
