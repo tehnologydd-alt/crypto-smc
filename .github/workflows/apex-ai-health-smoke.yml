@@ -1,27 +1,44 @@
-name: APEX Cloudflare — deployed health verification
+name: APEX Cloudflare — both live Workers smoke tests
 on:
   push:
     branches: [apex-ai-device-pairing-20261113]
     paths: ['.github/workflows/apex-ai-health-smoke.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   verify-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
-      - name: Check existing Worker from outside Cloudflare
+      - name: Check legacy and dedicated device Cloudflare Workers
         run: |
           set -eu
-          URL="https://apex-ai-collective.apex9-research-lab.workers.dev"
-          HTTP="$(curl --retry 2 --max-time 12 -sS -o /tmp/apex-health.json -w '%{http_code}' "$URL/health")"
-          test "$HTTP" = "200" || { echo "::error::Health endpoint HTTP $HTTP"; exit 1; }
-          node --input-type=module -e '
-            import fs from "node:fs";
-            const data=JSON.parse(fs.readFileSync("/tmp/apex-health.json","utf8"));
-            if(data.state!=="RUNNING"||data.service!=="apex-ai-edge")throw Error("Wrong Worker response");
-            console.log("Deployed Worker health verified, but model inference NOT tested");
-          '
-          DENIED="$(curl --max-time 12 -sS -o /dev/null -w '%{http_code}' "$URL/v1/budget/status")"
-          test "$DENIED" = 401 || { echo "::error::Unauthenticated protected endpoint returned $DENIED"; exit 1; }
-          echo "Protected API correctly rejects missing credentials"
+          BASE="apex9-research-lab.workers.dev"
+          for WORKER in apex-ai-collective apex-ai-collective-device; do
+            URL="https://$WORKER.$BASE"
+            STATUS="$(curl --retry 2 --max-time 15 -sS -o /tmp/apex-health.json -w '%{http_code}' "$URL/health")"
+            test "$STATUS" = 200 || { echo "::error::$WORKER health HTTP $STATUS"; exit 1; }
+            node --input-type=module -e '
+              import fs from "node:fs";
+              const data=JSON.parse(fs.readFileSync("/tmp/apex-health.json","utf8"));
+              if(data.service!=="apex-ai-edge"||data.state!=="RUNNING")
+                throw Error("Wrong health payload");
+              console.log("Worker health OK (does not prove model execution)");
+            '
+            NOAUTH="$(curl --max-time 15 -sS -o /dev/null -w '%{http_code}' "$URL/v1/budget/status")"
+            test "$NOAUTH" = 401 || { echo "::error::$WORKER private endpoint exposed: HTTP $NOAUTH"; exit 1; }
+            echo "$WORKER health and private route access OK"
+          done
+      - name: Verify device enrollment route without consuming enrollment quota
+        run: |
+          set -eu
+          URL="https://apex-ai-collective-device.apex9-research-lab.workers.dev"
+          BAD="$(curl --max-time 15 -sS -o /tmp/apex-bad-enroll.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' --data '{"publicKey":"invalid"}' \
+            "$URL/v1/device/enroll")"
+          test "$BAD" = 422 || { echo "::error::Invalid public key must return HTTP 422, got $BAD"; exit 1; }
+          NOTFOUND="$(curl --max-time 15 -sS -o /dev/null -w '%{http_code}' \
+            "$URL/v1/device/status?device=invalid")"
+          test "$NOTFOUND" = 400 || { echo "::error::Bad device ID must return 400, got $NOTFOUND"; exit 1; }
+          echo "Device enrollment validation and malformed device handling verified"
