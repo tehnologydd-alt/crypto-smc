@@ -6,6 +6,7 @@
  * own Free quota remains the final authority and stops excess use.
  * Bearer secret is for the server pilot; NEVER embed it in an Android APK.
  */
+import {budgetStatus,reserveBudget,schedule} from './budget-governor.mjs';
 export const MODELS=Object.freeze({
  analyst:'@cf/zai-org/glm-4.7-flash',
  critic:'@cf/qwen/qwen3.8-27b',
@@ -118,9 +119,14 @@ export default {
   const path=new URL(request.url).pathname;
   if(path==='/health'&&request.method==='GET')
    return json({service:'apex-ai-edge',state:'RUNNING',
+    activity:schedule().mode,
     models:{analyst:MODELS.analyst,critic:MODELS.critic},
     note:'Availability and remaining free quota are not guaranteed by this health endpoint'});
   if(!await authorized(request,env))return json({error:'UNAUTHORIZED'},401);
+  if(path==='/v1/budget/status'&&request.method==='GET'){
+   try{return json(await budgetStatus(env?.DB));}
+   catch{return json({state:'BUDGET_STORE_UNAVAILABLE'},503);}
+  }
   if(path==='/v1/boosters/status'&&request.method==='GET'){
    if(!env?.COMPUTE_ORIGIN||!env?.APEX_COMPUTE_TOKEN)
     return json({state:'NOT_CONFIGURED'});
@@ -144,6 +150,11 @@ export default {
    if(!data)return json({error:'INVALID_JSON_OR_TOO_LARGE'},400);
    const observation=validateBoosterPayload(data);
    if(!observation)return json({error:'INVALID_OBSERVATION'},422);
+   let reservation;
+   try{reservation=await reserveBudget(env?.DB,'booster');}
+   catch{return json({state:'BUDGET_STORE_UNAVAILABLE'},503);}
+   if(!env?.DB)return json({state:'BUDGET_STORE_UNAVAILABLE'},503);
+   if(!reservation)return json({state:'BUDGET_GUARD_BLOCKED',mode:schedule().mode},429);
    try{
     const result=await fetch(new URL('/v1/predict',origin),{
      method:'POST',headers:{
@@ -178,10 +189,11 @@ export default {
   if(!input)return json({error:'INVALID_JSON_OR_TOO_LARGE'},400);
   const verified=validateAgentInput(input);
   if(!verified)return json({error:'INVALID_EVIDENCE'},422);
-  let allowed=false;
-  try{allowed=await reserveRequest(env.DB);}
+  let reservation=null;
+  try{reservation=await reserveBudget(env.DB,'language');}
   catch{return json({error:'QUOTA_STORE_UNAVAILABLE'},503);}
-  if(!allowed)return json({error:'APEX_DAILY_ATTEMPT_CAP'},429);
+  if(!reservation)return json({error:'APEX_DAILY_ATTEMPT_CAP',
+   mode:schedule().mode},429);
   try{
    const answer=await env.AI.run(MODELS[verified.role],{
     messages:[
