@@ -103,7 +103,7 @@ export function extractModelResult(result){
   hasReasoning?'MODEL_REASONING_WITHOUT_FINAL':'EMPTY_MODEL_OUTPUT'};
 }
 const instructions={
- analyst:'You are an evidence auditor. Identify themes in verified observations. Cite only source_id values that are actually provided. State uncertainty, stale data, and disagreement. Do not create prices or trading instructions.',
+ analyst:'You are an evidence auditor. Identify themes in verified observations. Cite only source_id values that are actually provided. State uncertainty, stale data, and disagreement. Give a concise final response in under 180 words. Do not create prices or trading instructions.',
  critic:'You are an independent scientific critic. Challenge causal assumptions, detect confounding and leakage, and identify missing evidence. Cite only given source_id values. Do not suggest trades or invent data.'
 };
 /** Read at most 25 KB of evidence to protect 128 MB Workers Free memory. */
@@ -220,12 +220,16 @@ export default {
      {role:'system',content:instructions[verified.role]},
      {role:'user',content:JSON.stringify({evidence:verified.evidence})}
     ],
-    max_completion_tokens:verified.role==='critic'?900:650,
+    // This is an evidence audit, not a long chain-of-thought task.
+    max_completion_tokens:900,
     temperature:0.2,
    };
-   // Qwen defaults to high reasoning; that can use up the entire
-   // completion budget before any final user-visible text appears.
-   // Limit reasoning effort for this concise evidence audit.
+   // GLM defaults to thinking=true (per the Cloudflare model input schema).
+   // In short audits its reasoning can consume the entire output budget.
+   // Turn reasoning off only for GLM; never return reasoning as a final answer.
+   if(verified.role==='analyst')
+    requestOptions.chat_template_kwargs={enable_thinking:false};
+   // Qwen uses a distinct, supported low-effort setting.
    if(verified.role==='critic')requestOptions.reasoning_effort='low';
    const answer=await env.AI.run(MODELS[verified.role],requestOptions);
    const response=extractModelResult(answer);

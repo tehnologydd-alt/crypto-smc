@@ -217,3 +217,46 @@ test('no final Qwen text exposes classified failure not fake success',async()=>{
  assert.equal(calls,1);
  assert.ok(!JSON.stringify(body).includes('HIDDEN_PRIVATE'));
 });
+
+test('GLM short audit disables default thinking without changing the quota',async()=>{
+ let invoked=0;
+ const env={APEX_EDGE_TOKEN:secret,
+  DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})},
+  AI:{run:async(model,args)=>{
+   invoked++;
+   assert.equal(model,MODELS.analyst);
+   assert.deepEqual(args.chat_template_kwargs,{enable_thinking:false});
+   assert.equal(args.max_completion_tokens,900);
+   assert.equal(args.reasoning_effort,undefined);
+   return {choices:[{finish_reason:'stop',message:{
+    content:'Concise cited observations; no inference of intent.'}}]};
+  }}
+ };
+ const req=new Request(origin+'/v1/agents/analyze',{method:'POST',
+  headers:{Authorization:'Bearer '+secret},
+  body:JSON.stringify({role:'analyst',evidence:[item]})});
+ const r=await worker.fetch(req,env);
+ assert.equal(r.status,200);
+ const data=await r.json();
+ assert.equal(data.role,'analyst');
+ assert.equal(data.text,'Concise cited observations; no inference of intent.');
+ assert.equal(invoked,1,'no hidden extra attempts or retries');
+});
+
+test('GLM length-only failure remains an explicit failed attempt, never a fake answer',async()=>{
+ let invoked=0;
+ const env={APEX_EDGE_TOKEN:secret,
+  DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})},
+  AI:{run:async()=>{invoked++;return {choices:[{finish_reason:'length',
+    message:{content:null,reasoning_content:'not for display'}}]};}}
+ };
+ const req=new Request(origin+'/v1/agents/analyze',{method:'POST',
+  headers:{Authorization:'Bearer '+secret},
+  body:JSON.stringify({role:'analyst',evidence:[item]})});
+ const r=await worker.fetch(req,env);
+ assert.equal(r.status,503);
+ const value=await r.json();
+ assert.equal(value.error,'MODEL_COMPLETION_TOKEN_LIMIT');
+ assert.equal(invoked,1);
+ assert.ok(!JSON.stringify(value).includes('not for display'));
+});
