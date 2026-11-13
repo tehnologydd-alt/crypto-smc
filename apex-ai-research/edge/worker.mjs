@@ -85,11 +85,22 @@ export async function reserveRequest(db,at=Date.now()){
  RETURNING attempts`).bind(key).first();
  return Boolean(row);
 }
-function extractText(result){
- if(typeof result?.response==='string')return result.response;
- const choice=result?.choices?.[0]?.message?.content;
- if(typeof choice==='string')return choice;
- return null;
+/** Parse only final answer text, never raw reasoning or tool-call payloads. */
+export function extractModelResult(result){
+ const choice=result?.choices?.[0];
+ const content=choice?.message?.content;
+ const candidates=[content,result?.response];
+ for(const value of candidates){
+  const text=typeof value==='string'?value.trim():Array.isArray(value)?
+   value.filter(x=>x?.type==='text'&&typeof x.text==='string')
+    .map(x=>x.text).join('\\n').trim():'';
+  if(text)return {text:text.slice(0,5000),error:null};
+ }
+ const finish=choice?.finish_reason;
+ const hasReasoning=typeof choice?.message?.reasoning_content==='string'&&
+  choice.message.reasoning_content.trim().length>0;
+ return {text:null,error:finish==='length'?'MODEL_COMPLETION_TOKEN_LIMIT':
+  hasReasoning?'MODEL_REASONING_WITHOUT_FINAL':'EMPTY_MODEL_OUTPUT'};
 }
 const instructions={
  analyst:'You are an evidence auditor. Identify themes in verified observations. Cite only source_id values that are actually provided. State uncertainty, stale data, and disagreement. Do not create prices or trading instructions.',
@@ -204,17 +215,23 @@ export default {
   if(!reservation)return json({error:'APEX_DAILY_ATTEMPT_CAP',
    mode:schedule().mode},429);
   try{
-   const answer=await env.AI.run(MODELS[verified.role],{
+   const requestOptions={
     messages:[
      {role:'system',content:instructions[verified.role]},
      {role:'user',content:JSON.stringify({evidence:verified.evidence})}
     ],
-    max_completion_tokens:650,temperature:0.2,
-   });
-   const response=extractText(answer);
-   if(!response)return json({error:'EMPTY_MODEL_OUTPUT'},503);
+    max_completion_tokens:verified.role==='critic'?900:650,
+    temperature:0.2,
+   };
+   // Qwen defaults to high reasoning; that can use up the entire
+   // completion budget before any final user-visible text appears.
+   // Limit reasoning effort for this concise evidence audit.
+   if(verified.role==='critic')requestOptions.reasoning_effort='low';
+   const answer=await env.AI.run(MODELS[verified.role],requestOptions);
+   const response=extractModelResult(answer);
+   if(!response.text)return json({error:response.error},503);
    return json({state:'OBSERVED_MODEL_OUTPUT',role:verified.role,
-    model:MODELS[verified.role],text:response,
+    model:MODELS[verified.role],text:response.text,
     source_ids:verified.evidence.map(e=>e.source_id),
     notice:'Independent research commentary, not a verified forecast'});
   }catch{return json({error:'MODEL_QUOTA_OR_UNAVAILABLE'},503);}

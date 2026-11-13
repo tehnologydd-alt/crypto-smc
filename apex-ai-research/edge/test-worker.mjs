@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import worker,{MODELS,authorized,validateAgentInput,reserveRequest}
+import worker,{MODELS,authorized,validateAgentInput,reserveRequest,extractModelResult}
  from './worker.mjs';
 
 const origin='https://apex-ai.example.test';
@@ -159,4 +159,61 @@ test('Worker validates Oracle response and refuses forged source lineage',async(
   assert.equal(result.status,503);
   assert.equal((await result.json()).state,'INVALID_COMPUTE_RESPONSE');
  }finally{globalThis.fetch=original;}
+});
+
+
+test('Qwen reasoning-only payload cannot be misreported as a successful model answer',()=>{
+ const thinking={choices:[{finish_reason:'length',message:{
+  content:null,reasoning_content:'PRIVATE_REASONING_MUST_NOT_BE_OUTPUT'}}]};
+ assert.deepEqual(extractModelResult(thinking),
+  {text:null,error:'MODEL_COMPLETION_TOKEN_LIMIT'});
+ const ended={choices:[{finish_reason:'stop',message:{
+  content:'',reasoning_content:'PRIVATE_REASONING_MUST_NOT_BE_OUTPUT'}}]};
+ assert.deepEqual(extractModelResult(ended),
+  {text:null,error:'MODEL_REASONING_WITHOUT_FINAL'});
+ assert.deepEqual(extractModelResult({choices:[{finish_reason:'stop',message:{
+  content:'  Verified public evidence is insufficient.  '}}]}),{
+  text:'Verified public evidence is insufficient.',error:null
+ });
+ assert.deepEqual(extractModelResult({response:' Response string format. '}),{
+  text:'Response string format.',error:null
+ });
+});
+
+test('Qwen receives low reasoning effort and compact budget without extra retries',async()=>{
+ let calls=0;
+ const env={APEX_EDGE_TOKEN:secret,
+  DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})},
+  AI:{run:async(model,args)=>{
+   calls++;
+   assert.equal(model,MODELS.critic);
+   assert.equal(args.reasoning_effort,'low');
+   assert.equal(args.max_completion_tokens,900);
+   assert.equal(args.stream,undefined);
+   return {choices:[{finish_reason:'stop',message:{content:'Evidence checked.'}}]};
+  }}
+ };
+ const req=()=>new Request(origin+'/v1/agents/analyze',{method:'POST',
+  headers:{Authorization:'Bearer '+secret},
+  body:JSON.stringify({role:'critic',evidence:[item]})});
+ const ok=await worker.fetch(req(),env);
+ assert.equal(ok.status,200);
+ assert.equal((await ok.json()).text,'Evidence checked.');
+ assert.equal(calls,1,'one tap causes exactly one model invocation');
+});
+test('no final Qwen text exposes classified failure not fake success',async()=>{
+ let calls=0;
+ const env={APEX_EDGE_TOKEN:secret,
+  DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})},
+  AI:{run:async()=>{calls++;return {choices:[{finish_reason:'length',
+   message:{content:null,reasoning_content:'HIDDEN_PRIVATE'}}]};}}
+ };
+ const req=new Request(origin+'/v1/agents/analyze',{method:'POST',
+  headers:{Authorization:'Bearer '+secret},
+  body:JSON.stringify({role:'critic',evidence:[item]})});
+ const output=await worker.fetch(req,env),body=await output.json();
+ assert.equal(output.status,503);
+ assert.equal(body.error,'MODEL_COMPLETION_TOKEN_LIMIT');
+ assert.equal(calls,1);
+ assert.ok(!JSON.stringify(body).includes('HIDDEN_PRIVATE'));
 });

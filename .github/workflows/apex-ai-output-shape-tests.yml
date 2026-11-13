@@ -1,0 +1,23 @@
+name: APEX AI - GLM Qwen final output diagnostics
+on:
+  push:
+    branches: [apex-ai-live-audit-20261113]
+    paths:
+      - 'apex-ai-research/edge/**'
+      - '.github/workflows/apex-ai-output-shape-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  parse-model-output:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and safe unit tests (no model calls, no D1 writes)
+        run: |
+          node --check apex-ai-research/edge/worker.mjs
+          node --test apex-ai-research/edge/test-worker.mjs apex-ai-research/edge/test-budget-governor.mjs apex-ai-research/edge/test-device-auth.mjs
