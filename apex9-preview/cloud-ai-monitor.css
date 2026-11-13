@@ -1,0 +1,65 @@
+/* APEX AI device-gateway observability — compact, live-data-only UI.
+ * Explicitly distinguish reachability, device approval, policy attempts and model responses.
+ */
+.apex-ai-overview{
+  margin:12px 0 16px;padding:14px 15px;border:1px solid #315873;
+  border-radius:17px;background:
+  radial-gradient(ellipse 90% 80% at 0% -35%,rgba(57,187,212,.17),transparent 65%),
+  linear-gradient(125deg,#112838 0%,#12213a 65%,#1b223c 100%);
+  box-shadow:0 9px 30px rgba(0,0,0,.11);
+  min-width:0
+}
+.apex-ai-overview-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.apex-ai-overview-title{display:flex;align-items:center;gap:10px;min-width:0}
+.apex-ai-overview-title>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.apex-ai-overview-title strong{font-size:14px;letter-spacing:.2px;color:#e5f7fa}
+.apex-ai-overview-title small{font-size:11px;color:#9db7ca}
+.apex-ai-pulse{flex:0 0 auto;width:10px;height:10px;border-radius:50%;background:#718698;box-shadow:0 0 0 4px #71869822}
+.apex-ai-pulse[data-status="ok"]{background:#3ee2be;box-shadow:0 0 0 4px #3ee2be1d,0 0 13px #36c9b95c}
+.apex-ai-pulse[data-status="pending"]{background:#f5c17c;box-shadow:0 0 0 4px #f5c17c24}
+.apex-ai-pulse[data-status="offline"]{background:#f58e96;box-shadow:0 0 0 4px #f58e9624}
+.apex-ai-state{font-size:11px;max-width:48%;border:1px solid #456174;border-radius:999px;padding:6px 9px;text-align:right;color:#b7cfde;line-height:1.2}
+.apex-ai-state[data-status="ok"]{border-color:#28685e;color:#8bf0d6;background:#0b3534}
+.apex-ai-state[data-status="pending"]{border-color:#7b633f;color:#f5d19b;background:#3b3023}
+.apex-ai-state[data-status="offline"]{border-color:#894852;color:#ffadb1;background:#3e2330}
+.apex-ai-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:14px}
+.apex-ai-metrics>div{display:flex;flex-direction:column;gap:5px;padding:10px 9px;background:#0d2032bb;border:1px solid #2b4961;border-radius:10px;min-width:0}
+.apex-ai-metrics>div span{font-size:10px;color:#95afc4}
+.apex-ai-metrics>div strong{font-size:12px;line-height:1.3;color:#eff8ff;overflow-wrap:anywhere}
+.apex-ai-overview-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:12px}
+.apex-ai-overview-actions small{font-size:10px;color:#aac3d0}
+.apex-ai-overview-actions>div{display:flex;gap:7px;align-items:center}
+.apex-ai-overview-actions button{font-size:11px;min-height:34px;padding:6px 10px;border:1px solid #416d7a;border-radius:10px}
+.apex-ai-overview-actions button:last-child{background:#164454;color:#e5f7f8}
+.apex-ai-details{display:grid;gap:9px;padding:12px 11px;margin-top:11px;border:1px solid #314e62;border-radius:13px;background:#0e2031}
+.apex-ai-details-line{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
+.apex-ai-details-line>span{font-size:11px;color:#a9c0cd;line-height:1.4}
+.apex-ai-details-line>strong{font-size:12px;line-height:1.4;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.apex-ai-meter{width:100%;height:7px;border-radius:8px;border:1px solid #315267;background:#192d3b;overflow:hidden}
+.apex-ai-meter>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#44d3bb,#67baf5);transition:width .2s ease}
+.apex-ai-agent-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:5px}
+.apex-ai-agent-grid>div{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px;border:1px solid #31506a;border-radius:11px;background:#132c41}
+.apex-ai-agent-grid>div:first-child{border-color:#286d65;background:#113337}
+.apex-ai-agent-grid span{font-size:12px;font-weight:750;color:#d8f3f0}
+.apex-ai-agent-grid strong{font-size:11px;line-height:1.45;font-weight:700;color:#cbdce6;overflow-wrap:anywhere}
+.apex-ai-agent-grid small{font-size:10px;color:#a4bfd1;line-height:1.4}
+.apex-ai-history{border-top:1px solid #2c4b5f;padding-top:11px}
+.apex-ai-history>strong{font-size:12px;color:#e2ebf0}
+.apex-ai-history ul{padding:0;margin:8px 0 0;list-style:none;display:grid;gap:7px}
+.apex-ai-history li{font-size:11px;line-height:1.45;color:#b4cad6;display:flex;justify-content:space-between;gap:9px;border-bottom:1px solid #274050;padding-bottom:6px}
+.apex-ai-history time{white-space:nowrap;font-size:10px;color:#90aabb}
+.apex-ai-footnote{font-size:10px;line-height:1.55;color:#a1b8c6;margin:3px 0 0}
+@media(max-width:460px){
+  .apex-ai-overview{padding:12px}
+  .apex-ai-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .apex-ai-overview-title strong{font-size:13px}
+  .apex-ai-state{font-size:10px}
+}
+@media(max-width:350px){
+  .apex-ai-overview-head{align-items:flex-start}
+  .apex-ai-overview-actions button{padding:6px 8px}
+  .apex-ai-agent-grid{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  .apex-ai-meter>span{transition:none}
+}
