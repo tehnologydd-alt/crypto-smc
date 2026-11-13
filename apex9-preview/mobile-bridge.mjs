@@ -72,6 +72,27 @@ export async function cloudAiEvidenceAudit(role,evidence,options={}) {
  catch {return {state:'CLOUD_UNAVAILABLE'};}
 }
 
+/** Two to three explicitly chosen favorite assets; no background model traffic. */
+export async function cloudAiBatchAudit(role,items){
+ const native=plugin();
+ if(typeof native?.auditAiBatch!=='function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ if(!['analyst','critic'].includes(role)||!Array.isArray(items)||
+   items.length<2||items.length>3)return {state:'INVALID_BATCH'};
+ const assets=new Set();
+ for(const item of items){
+  if(!/^[A-Z0-9]{2,16}USDT$/.test(item?.asset||'')||
+     assets.has(item.asset)||!Array.isArray(item.evidence)||
+     item.evidence.length<1||item.evidence.length>4||
+     (role==='critic'&&!item.analyst)||
+     (role==='analyst'&&item.analyst!==undefined))
+   return {state:'INVALID_BATCH'};
+  assets.add(item.asset);
+ }
+ try{return await native.auditAiBatch({role,items});}
+ catch{return {state:'CLOUD_UNAVAILABLE'};}
+}
+
 /** Consume an Android notification's exact scenario reference once.
  * Reject anything not signed by our own source-scoped native Intent parser. */
 export async function consumeMobileNotificationTarget(){

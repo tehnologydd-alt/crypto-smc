@@ -96,6 +96,26 @@ class ApexNativePlugin : Plugin() {
     }
 
     @PluginMethod
+    fun auditAiBatch(call: PluginCall) {
+        val role = call.getString("role") ?: ""
+        val items = call.data.optJSONArray("items")
+        if (role !in setOf("analyst","critic") ||
+            items == null || items.length() !in 2..3) {
+            call.reject("Invalid batch selection")
+            return
+        }
+        tasks.launch {
+            try {
+                val result=ApexAiDevice.auditBatch(context.applicationContext,
+                    role,items)
+                call.resolve(JSObject(result.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state","CLOUD_UNAVAILABLE"))
+            }
+        }
+    }
+
+    @PluginMethod
     fun auditAiEvidence(call: PluginCall) {
         val role = call.getString("role") ?: ""
         val evidence = call.data.optJSONArray("evidence")

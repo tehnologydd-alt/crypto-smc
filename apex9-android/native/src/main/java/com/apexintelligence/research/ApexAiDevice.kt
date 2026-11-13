@@ -69,7 +69,8 @@ object ApexAiDevice {
             // independent critic analysis. This is an explicit foreground user call.
             // Status, enrollment and budget checks retain short network timeouts.
             // Do not retry after timeout: a server attempt may be consumed already.
-            conn.readTimeout = if (path == "/v1/agents/analyze") 120_000 else 8_000
+            conn.readTimeout = if (path == "/v1/agents/analyze" ||
+                path == "/v1/agents/batch") 120_000 else 8_000
             conn.setRequestProperty("Accept", "application/json")
             for ((key, value) in headers) conn.setRequestProperty(key, value)
             if (body != null) {
@@ -181,7 +182,7 @@ object ApexAiDevice {
     private fun rememberAudit(ctx: Context, role: String, response: JSONObject) {
         val now = System.currentTimeMillis()
         val ok = response.optInt("httpStatus") == 200 &&
-            response.optString("state") == "OBSERVED_MODEL_OUTPUT" &&
+            response.optString("state") in setOf("OBSERVED_MODEL_OUTPUT", "OBSERVED_MODEL_BATCH") &&
             response.optString("role") == role
         val state = if (ok) "MODEL_OUTPUT" else
             response.optString("error", response.optString("state", "UNKNOWN")).take(48)
@@ -243,6 +244,46 @@ object ApexAiDevice {
         signed(ctx, "GET", "/v1/budget/status")
 
     /** Only sends explicitly selected real evidence; never opens trading orders. */
+    /** One explicit user tap, one Cloudflare request for 2–3 assets. */
+    fun auditBatch(ctx: Context, role: String, items: JSONArray): JSONObject {
+        require(role == "analyst" || role == "critic") { "Unknown model" }
+        require(items.length() in 2..3) { "Batch requires two or three assets" }
+        val seen = mutableSetOf<String>()
+        val assetRule = Regex("^[A-Z0-9]{2,16}USDT$")
+        for (i in 0 until items.length()) {
+            val item=items.optJSONObject(i)
+                ?: throw IllegalArgumentException("Invalid batch item")
+            val asset=item.optString("asset","")
+            val evidence=item.optJSONArray("evidence")
+            require(assetRule.matches(asset) && seen.add(asset) &&
+                evidence != null && evidence.length() in 1..4) {
+                "Invalid batch evidence"
+            }
+            if(role=="critic") {
+                require(item.optJSONObject("analyst")!=null) {
+                    "Critic requires a previous analyst result"
+                }
+            } else require(!item.has("analyst")) {
+                "Analyst must not receive unverified prior claims"
+            }
+        }
+        val bytes=JSONObject().put("role",role).put("items",items)
+            .toString().toByteArray(Charsets.UTF_8)
+        require(bytes.size<=24_000) { "Batch exceeds safe input" }
+        val sentAt=android.os.SystemClock.elapsedRealtime()
+        val result=try {
+            signed(ctx,"POST","/v1/agents/batch",bytes)
+        }catch (_: java.net.SocketTimeoutException) {
+            JSONObject().put("state","MODEL_RESPONSE_TIMEOUT")
+                .put("elapsedMs",android.os.SystemClock.elapsedRealtime()-sentAt)
+        }catch (_: java.io.IOException) {
+            JSONObject().put("state","MODEL_NETWORK_UNAVAILABLE")
+                .put("elapsedMs",android.os.SystemClock.elapsedRealtime()-sentAt)
+        }
+        rememberAudit(ctx,role,result)
+        return result
+    }
+
     fun audit(ctx: Context, role: String, evidence: JSONArray,
               analyst: JSONObject? = null): JSONObject {
         require(role == "analyst" || role == "critic") { "Unknown research role" }
