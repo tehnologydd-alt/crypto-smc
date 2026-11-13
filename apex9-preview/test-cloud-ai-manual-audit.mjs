@@ -134,7 +134,7 @@ test('AI picker updates after delayed favorites hydration and subsequent changes
 test('Android favorites refresh is wired both to native hydration and edits',()=>{
  const app=readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
  assert.match(app,/onFavoritesChanged:.*?cloudAiAudit\?\.sync\(\)/s);
- assert.match(app,/favoritesReady\.then\(\(\)=>cloudAiAudit\.sync\(\)/);
+ assert.match(app,/favoritesReady\.then\(\(\)=>\{\s*cloudAiAudit\.sync\(\);cloudAiCollective\.sync\(\)/);
  assert.match(app,/getFavorites:\(\)=>favoriteManager\.getFavorites\(\)/);
 });
 

@@ -116,6 +116,7 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
    say('Нет актуального ответа GLM для проверки.');return;
   }
   busy=true;sync();say('Проверяем одобрение телефона и общий бюджет GLM/Qwen…');
+  let succeeded=false,failure='';
   try{
    const pair=await getPairing();
    if(pair?.state!=='APPROVED')throw Error('Устройство не одобрено в Cloudflare.');
@@ -143,18 +144,17 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
    else session={...session,stage:'COMPLETE',
     criticAt:now(),criticText:result.text.slice(0,2400),
     criticEvidence:recent.slice(0,5)};
-   save();
-  }catch(error){say(String(error?.message||error).slice(0,230));}
+   save();succeeded=true;
+  }catch(error){failure=String(error?.message||error).slice(0,230);}
   finally{
    busy=false;
-   // On failure keep the error visible; on success show the current session.
-   const wasValid=session&&session.asset===asset;
-   const done=wasValid&&(role==='analyst'?session.stage==='ANALYST_READY':
-    session.stage==='COMPLETE');
+   // Preserve the exact budget or network error; previous successful sessions
+   // must not turn a failed attempt into a success label.
    sync();
-   if(done)say(role==='analyst'?
+   if(succeeded)say(role==='analyst'?
     'GLM готов. Qwen можно запускать вручную после общей паузы в 5 минут.':
     'Qwen проверил GLM. Оба текста сохранены локально; точность не подтверждена.');
+   else if(failure)say(failure);
    try{await refreshMonitor();}catch{}
   }
  };
