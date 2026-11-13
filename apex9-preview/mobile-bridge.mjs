@@ -32,6 +32,22 @@ export async function cloudAiBudgetStatus() {
  try {return await native.getAiBudgetStatus();}
  catch {return {state:'CLOUD_UNAVAILABLE'};}
 }
+/** Public reachability check by the native Android HTTPS client; no AI request. */
+export async function cloudAiHealthStatus() {
+ const native=plugin();
+ if(typeof native?.getAiHealthStatus!=='function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ try{return await native.getAiHealthStatus();}
+ catch{return {state:'CLOUD_UNAVAILABLE'};}
+}
+/** Local audit counters: only actually returned AI results, never simulated. */
+export async function cloudAiActivityStatus() {
+ const native=plugin();
+ if(typeof native?.getAiActivityStatus!=='function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ try{return await native.getAiActivityStatus();}
+ catch{return {state:'LOCAL_UNAVAILABLE'};}
+}
 export async function cloudAiEvidenceAudit(role,evidence) {
  const native = plugin();
  if(typeof native?.auditAiEvidence !== 'function')
