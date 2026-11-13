@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateBatchAudit,makeBatchPrompt,parseBatchOutput}
+import {validateBatchAudit,makeBatchPrompt,parseBatchOutput,inspectBatchOutput}
  from './batch-audit.mjs';
 import worker from './worker.mjs';
 const at=Date.parse('2026-11-13T20:40:00Z');
@@ -91,4 +91,104 @@ test('server charges a single reservation and one model run for a multi-asset an
  assert.equal(body.results.length,2);
  assert.equal(reservations,1);
  assert.equal(inferences,1);
+});
+
+
+test('batch JSON mode accepts a single fenced JSON object and reordered assets',()=>{
+ const valid=validateBatchAudit({role:'analyst',items},at);
+ const data={results:[
+  {asset:'GRAMUSDT',summary:'A timestamped public quote does not establish a future direction.',source_ids:[src('GRAMUSDT').source_id]},
+  {asset:'BTCUSDT',summary:'A verified snapshot needs independent corroboration.',source_ids:[src('BTCUSDT').source_id]}
+ ]};
+ const ticks=String.fromCharCode(96).repeat(3);
+ const text='Here is the JSON:\n'+ticks+'json\n'+JSON.stringify(data)+'\n'+ticks;
+ const fromFence=inspectBatchOutput({response:text},valid);
+ assert.equal(fromFence.error,null);
+ assert.deepEqual(fromFence.rows.map(x=>x.asset),['BTCUSDT','GRAMUSDT']);
+ assert.equal(inspectBatchOutput({response:data},valid).rows.length,2);
+ assert.equal(inspectBatchOutput({choices:[{message:{
+  content:[{type:'text',text:JSON.stringify(data)}]}}]},valid).rows.length,2);
+});
+
+test('batch rejects invented citations, duplicated or absent assets, and truncated output',()=>{
+ const valid=validateBatchAudit({role:'analyst',items},at);
+ const original={results:items.map(x=>({asset:x.asset,
+  summary:'The public snapshot is not sufficient to determine a future price direction.',
+  source_ids:[x.evidence[0].source_id]}))};
+ const changed=JSON.parse(JSON.stringify(original));
+ changed.results[0].source_ids=[items[1].evidence[0].source_id];
+ assert.equal(inspectBatchOutput({response:JSON.stringify(changed)},valid).error,
+  'BATCH_SOURCE_MISMATCH');
+ assert.equal(inspectBatchOutput({response:JSON.stringify({
+  results:original.results.slice(0,1)})},valid).error,
+  'BATCH_MISSING_ASSET_RESULTS');
+ assert.equal(inspectBatchOutput({response:JSON.stringify({
+  results:[original.results[0],original.results[0]]})},valid).error,
+  'BATCH_ASSET_MISMATCH');
+ assert.equal(inspectBatchOutput({response:'Normal prose.'},valid).error,
+  'BATCH_JSON_NOT_PARSEABLE');
+ assert.equal(inspectBatchOutput({choices:[{finish_reason:'length',
+  message:{content:'{"results":['}}]},valid).error,'BATCH_COMPLETION_TRUNCATED');
+ assert.equal(inspectBatchOutput({choices:[{finish_reason:'stop',
+  message:{content:null,reasoning_content:'PRIVATE_DO_NOT_SHARE'}}]},valid).error,
+  'BATCH_REASONING_WITHOUT_FINAL');
+});
+
+test('one live-format batch requests JSON mode and uses exactly one model invocation',async()=>{
+ let calls=0;
+ const now=Date.now();
+ const fresh=items.map(x=>({asset:x.asset,evidence:[{
+  ...x.evidence[0],observed_at:now,
+  source_id:x.evidence[0].source_id.replace(String(at),String(now))
+ }]}));
+ const env={APEX_EDGE_TOKEN:'unit-test-key-not-deployed',
+  DB:{prepare:()=>({bind:()=>({first:async()=>({neuron_reserved:500})})})},
+  AI:{run:async(_name,options)=>{
+   calls++;
+   assert.equal(options.response_format?.type,'json_object');
+   assert.equal(options.chat_template_kwargs.enable_thinking,false);
+   const input=JSON.parse(options.messages[1].content);
+   assert.equal(input.items.length,2);
+   const results=[...input.items].reverse().map(item=>({
+    asset:item.asset,
+    summary:'An observed market snapshot alone cannot establish what happens next.',
+    source_ids:item.evidence.map(x=>x.source_id)
+   }));
+   return {choices:[{finish_reason:'stop',message:{
+    content:JSON.stringify({results})}}]};
+  }}
+ };
+ const result=await worker.fetch(new Request(
+  'https://apex.example.test/v1/agents/batch',{
+  method:'POST',headers:{Authorization:'Bearer unit-test-key-not-deployed'},
+  body:JSON.stringify({role:'analyst',items:fresh})
+ }),env);
+ assert.equal(result.status,200);
+ const output=await result.json();
+ assert.equal(output.state,'OBSERVED_MODEL_BATCH');
+ assert.deepEqual(output.results.map(x=>x.asset),asset);
+ assert.equal(calls,1);
+});
+
+test('invalid batch output exposes a safe diagnostic without leaking model content',async()=>{
+ const now=Date.now();let calls=0;
+ const fresh=items.map(x=>({asset:x.asset,evidence:[{
+  ...x.evidence[0],observed_at:now,
+  source_id:x.evidence[0].source_id.replace(String(at),String(now))
+ }]}));
+ const env={APEX_EDGE_TOKEN:'unit-test-key-not-deployed',
+  DB:{prepare:()=>({bind:()=>({first:async()=>({neuron_reserved:500})})})},
+  AI:{run:async()=>{calls++;return {response:'DO_NOT_LEAK_MODEL_OUTPUT_PLAIN_TEXT'};}}
+ };
+ const result=await worker.fetch(new Request(
+  'https://apex.example.test/v1/agents/batch',{
+  method:'POST',headers:{Authorization:'Bearer unit-test-key-not-deployed'},
+  body:JSON.stringify({role:'analyst',items:fresh})
+ }),env);
+ assert.equal(result.status,503);
+ const output=await result.json();
+ assert.equal(output.error,'INVALID_BATCH_MODEL_OUTPUT');
+ assert.equal(output.diagnostic,'BATCH_JSON_NOT_PARSEABLE');
+ assert.equal(calls,1);
+ assert.equal(JSON.stringify(output).includes('DO_NOT_LEAK'),false);
 });
