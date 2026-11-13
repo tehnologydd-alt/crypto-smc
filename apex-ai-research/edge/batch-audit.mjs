@@ -62,26 +62,77 @@ export function makeBatchPrompt(valid,now=Date.now()){
   }))
  };
 }
-export function parseBatchOutput(result,valid){
- const raw=result?.choices?.[0]?.message?.content??result?.response;
- if(typeof raw!=='string'||raw.length>7000)return null;
- let parsed;
- try{parsed=JSON.parse(raw.trim());}catch{return null;}
- if(!parsed||!Array.isArray(parsed.results)||
-  parsed.results.length!==valid.items.length)return null;
- const out=[];
- for(let i=0;i<valid.items.length;i++){
-  const given=valid.items[i],item=parsed.results[i];
-  if(item?.asset!==given.asset||
-   typeof item.summary!=='string'||item.summary.trim().length<15||
-   item.summary.length>800||
-   !Array.isArray(item.source_ids)||item.source_ids.length<1||
-   item.source_ids.length>4)return null;
-  const ids=new Set(given.evidence.map(e=>e.source_id));
-  if(item.source_ids.some(id=>!ids.has(id))||
-    new Set(item.source_ids).size!==item.source_ids.length)return null;
-  out.push({asset:given.asset,text:item.summary.trim(),
+/**
+ * Parse final content only. Accept bounded JSON text, optional code fences,
+ * Cloudflare structured JSON objects and multi-part final text. Never read
+ * reasoning_content, infer citations, invent missing assets, or retry models.
+ */
+function finalContent(result){
+ const primary=result?.choices?.[0]?.message?.content;
+ const chosen=primary??result?.response;
+ if(typeof chosen==='string')return chosen.trim();
+ if(Array.isArray(chosen)){
+  const parts=chosen.filter(x=>x?.type==='text'&&typeof x.text==='string')
+   .map(x=>x.text);
+  return parts.length?parts.join('\n').trim():null;
+ }
+ if(chosen&&typeof chosen==='object'&&!Array.isArray(chosen))return chosen;
+ return null;
+}
+function decodeBatchJson(text){
+ if(text&&typeof text==='object'&&!Array.isArray(text))return text;
+ if(typeof text!=='string'||!text||text.length>7000)return null;
+ let candidate=text.replace(/^\uFEFF/,'').trim();
+ const fences=[...candidate.matchAll(/\x60{3}(?:json)?\s*([\s\S]*?)\s*\x60{3}/gi)];
+ if(fences.length===1&&fences[0][1].length<=7000){
+  const outside=candidate.replace(fences[0][0],'').trim();
+  if(outside.length<=120)candidate=fences[0][1].trim();
+ }
+ try{return JSON.parse(candidate);}catch{}
+ const start=candidate.indexOf('{'),end=candidate.lastIndexOf('}');
+ if(start<0||end<=start||end-start>6900||
+  start>120||candidate.length-end-1>120)return null;
+ try{
+  const value=JSON.parse(candidate.slice(start,end+1));
+  return value&&typeof value==='object'&&!Array.isArray(value)?value:null;
+ }catch{return null;}
+}
+export function inspectBatchOutput(result,valid){
+ const fail=error=>({rows:null,error});
+ if(!valid||!Array.isArray(valid.items)||valid.items.length<2||
+  valid.items.length>3)return fail('INVALID_BATCH_REQUEST');
+ const raw=finalContent(result);
+ if(!raw)return fail(result?.choices?.[0]?.finish_reason==='length'?
+  'BATCH_COMPLETION_TRUNCATED':
+  typeof result?.choices?.[0]?.message?.reasoning_content==='string'?
+   'BATCH_REASONING_WITHOUT_FINAL':'BATCH_EMPTY_MODEL_OUTPUT');
+ const parsed=decodeBatchJson(raw);
+ if(!parsed)return fail(result?.choices?.[0]?.finish_reason==='length'?
+  'BATCH_COMPLETION_TRUNCATED':'BATCH_JSON_NOT_PARSEABLE');
+ const data=parsed?.results?parsed:parsed?.response?.results?parsed.response:parsed;
+ if(!Array.isArray(data?.results)||data.results.length!==valid.items.length)
+  return fail('BATCH_MISSING_ASSET_RESULTS');
+ const expected=new Map(valid.items.map(item=>[item.asset,item]));
+ const seen=new Map();
+ for(const item of data.results){
+  if(typeof item?.asset!=='string'||!expected.has(item.asset)||
+    seen.has(item.asset))return fail('BATCH_ASSET_MISMATCH');
+  const txt=item.summary??item.text;
+  if(typeof txt!=='string'||txt.trim().length<15||txt.length>800)
+   return fail('BATCH_INVALID_SUMMARY');
+  if(!Array.isArray(item.source_ids)||item.source_ids.length<1||
+    item.source_ids.length>4||
+    new Set(item.source_ids).size!==item.source_ids.length)
+   return fail('BATCH_MISSING_SOURCE_IDS');
+  const allowed=new Set(expected.get(item.asset).evidence.map(e=>e.source_id));
+  if(item.source_ids.some(id=>typeof id!=='string'||!allowed.has(id)))
+   return fail('BATCH_SOURCE_MISMATCH');
+  seen.set(item.asset,{asset:item.asset,text:txt.trim(),
    source_ids:[...item.source_ids]});
  }
- return out;
+ if(seen.size!==expected.size)return fail('BATCH_MISSING_ASSET_RESULTS');
+ return {rows:valid.items.map(x=>seen.get(x.asset)),error:null};
+}
+export function parseBatchOutput(result,valid){
+ return inspectBatchOutput(result,valid).rows;
 }
