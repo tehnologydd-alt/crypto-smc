@@ -5,6 +5,7 @@ import {selectDepthComparison,needsMatchedRest} from './depth-comparison-selecto
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
+import {beginCloudAiPairing,cloudAiPairingStatus,cloudAiBudgetStatus} from './mobile-bridge.mjs';
 import {exportMobileCloudBackup,importMobileCloudBackup,
  getMobileCloudBackupStatus} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
@@ -249,9 +250,62 @@ el('native-show-history').addEventListener('click',()=>void showMobileHistory())
 el('apex-settings-open').addEventListener('click',()=>{
  const dialog=el('apex-settings-dialog');
  void refreshMobileStatus();
+ void updateCloudAiStatus();
  if(typeof dialog.showModal==='function')dialog.showModal();
  else dialog.setAttribute('open','');
 });
+
+/** Owner-approved phone identity only; no shared token in WebView or APK. */
+let cloudAiBusy = false;
+async function updateCloudAiStatus(enroll=false) {
+ if(cloudAiBusy)return;
+ cloudAiBusy=true;
+ const enrollButton=el('apex-ai-enroll'),checkButton=el('apex-ai-check');
+ enrollButton.disabled=true;
+ checkButton.disabled=true;
+ text('apex-ai-pair-status','Связываемся с Cloudflare…');
+ try {
+  const pair=enroll?await beginCloudAiPairing():await cloudAiPairingStatus();
+  if(pair.state==='PENDING_APPROVAL'){
+   text('apex-ai-pair-status',
+    'Ожидается одобрение владельцем Cloudflare. Код: '+
+    String(pair.verificationCode||'—')+
+    ' · Отпечаток ключа: '+String(pair.fingerprint||'—')+
+    '. Сообщите только код привязки для подтверждения.');
+  }else if(pair.state==='APPROVED'){
+   const budget=await cloudAiBudgetStatus();
+   if(budget.state==='POLICY_ACTIVE'){
+    const mode=budget.clock?.mode||'UNKNOWN';
+    const used=budget.usage?.language?.dailyUsed??0;
+    const cap=budget.usage?.language?.dailyLimit??0;
+    text('apex-ai-pair-status',
+     'Cloudflare подключён. Режим: '+mode+
+     ' · Исследовательские запросы: '+used+'/'+cap+
+     ' сегодня. Фактические Neurons отдельно учитываются Cloudflare.');
+   }else{
+    text('apex-ai-pair-status',
+     'Устройство одобрено; проверка лимитов: '+String(budget.state||'UNAVAILABLE')+
+     '. Проверьте время телефона и соединение.');
+   }
+  }else if(pair.state==='NOT_PAIRED'){
+   text('apex-ai-pair-status',
+    'Нет привязки. Нажмите «Привязать это устройство».');
+  }else{
+   text('apex-ai-pair-status',
+    'Cloudflare: '+String(pair.state||'UNAVAILABLE')+
+    '. Проверьте сеть и версию Android APEX.');
+  }
+ }catch{
+  text('apex-ai-pair-status','Не удалось проверить сервер. Попробуйте позже.');
+ }finally{
+  cloudAiBusy=false;
+  enrollButton.disabled=false;
+  checkButton.disabled=false;
+ }
+}
+el('apex-ai-enroll').addEventListener('click',()=>void updateCloudAiStatus(true));
+el('apex-ai-check').addEventListener('click',()=>void updateCloudAiStatus());
+
 el('apex-settings-close').addEventListener('click',()=>{
  const dialog=el('apex-settings-dialog');
  if(typeof dialog.close==='function')dialog.close();
