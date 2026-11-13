@@ -22,7 +22,7 @@ import javax.net.ssl.HttpsURLConnection
  * No shared service token and no vendor API credential are shipped in the APK.
  */
 object ApexAiDevice {
-    private const val ORIGIN = "https://apex-ai-collective.apex9-research-lab.workers.dev"
+    private const val ORIGIN = "https://apex-ai-collective-device.apex9-research-lab.workers.dev"
     private const val ALIAS = "apex_ai_pair_rsa_pss_v1"
     private const val STORE = "apex_ai_pairing_v1"
     private val idPattern = Regex("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
