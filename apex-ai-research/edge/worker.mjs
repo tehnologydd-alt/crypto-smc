@@ -7,6 +7,7 @@
  * Bearer secret is for the server pilot; NEVER embed it in an Android APK.
  */
 import {budgetStatus,reserveBudget,schedule} from './budget-governor.mjs';
+import {deviceRoute,authorizedDevice} from './device-auth.mjs';
 export const MODELS=Object.freeze({
  analyst:'@cf/zai-org/glm-4.7-flash',
  critic:'@cf/qwen/qwen3.8-27b',
@@ -122,7 +123,10 @@ export default {
     activity:schedule().mode,
     models:{analyst:MODELS.analyst,critic:MODELS.critic},
     note:'Availability and remaining free quota are not guaranteed by this health endpoint'});
-  if(!await authorized(request,env))return json({error:'UNAUTHORIZED'},401);
+  const pairing=await deviceRoute(request,env);
+  if(pairing)return pairing;
+  if(!await authorized(request,env)&&!await authorizedDevice(request,env))
+   return json({error:'UNAUTHORIZED'},401);
   if(path==='/v1/budget/status'&&request.method==='GET'){
    try{return json(await budgetStatus(env?.DB));}
    catch{return json({state:'BUDGET_STORE_UNAVAILABLE'},503);}
