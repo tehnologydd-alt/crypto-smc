@@ -22,6 +22,53 @@ stage, not quietly enabled here.
 This is separate from the already existing `apex9-cloudflare` news pilot
 and does not replace, redeploy or modify that worker.
 
+## APEX automatic cost guard — Kyiv day / overnight ECO
+
+The shared request governor in `edge/budget-governor.mjs` determines
+Europe/Kyiv local time **including DST**, and applies the following
+internal *attempt* ceilings before contacting any chargeable AI/CPU
+provider. Every failed attempt is counted. D1 counter queries are
+atomic; if D1 is missing, an upstream call is blocked.
+
+| Research mode | Local time | GLM + Qwen shared | Cloud Run CPU gateway |
+| --- | --- | --- | --- |
+| ACTIVE | 08:00–23:00 | Up to **12/day**, 5-min minimum gap | Up to **100/day**, 2-min minimum gap |
+| ECO | 23:00–08:00 | Maximum **1/whole night**, 60-min minimum gap | Maximum **4/whole night**, 30-min minimum gap |
+| Monthly guard | Calendar month, Kyiv time | **280/month** | **1,800/month** |
+
+The night uses a single bucket across midnight, so 23:00–00:00 cannot
+reset and start another set of night requests at 00:00. The separate
+calendar-day and month caps apply simultaneously. These conservative
+ceilings intentionally reserve spare capacity; they can be revised after
+measuring real provider consumption.
+
+Protected `GET /v1/budget/status` displays current scheduling state,
+remaining internal counts, cooldowns and a clear
+`billingObserved:false` / `neuronUsageObserved:false` flag. Both
+the CPU model-status check and CPU prediction use the same CPU quota.
+Auth and validation run before a quota reservation.
+
+**CRITICAL:** The governor does *not* know real Workers AI Neurons
+usage, Google Cloud vCPU-seconds, memory-seconds, billing or other workloads
+in either account. It cannot guarantee a zero bill. Google Cloud budget
+alerts are **not a hard spend cutoff**; separately enforce conservative
+Cloud Run `min-instances=0`, `max-instances=1`, `concurrency=1`,
+no GPU, short request timeout, and configure cloud billing alerts.
+Keep **CPU training as a separately bounded scheduled job**, not in the
+HTTP inference handler. Avoid treating a cron task as free indefinitely.
+
+The CPU `train.py` command also refuses to launch heavy learning in
+Kyiv `ECO` hours, unless the operator explicitly passes
+`--allow-night-training`. The model API does not activate an unevaluated
+candidate and does not produce synthetic outcomes.
+
+**No automatic background scheduler is installed in this stage.**
+The day/overnight policy governs incoming work and training launches,
+not a promise of 24-hour data polling or a paid always-on VM. A later
+version can introduce a consented, quota-aware Cloudflare Cron/Queue
+that triggers active daytime research. Do not connect unrestricted
+market-provider polling to this Worker before reviewing source limits.
+
 ## Server 1: Cloudflare, no mandatory paid plan
 
 1. In your own Cloudflare Free account, create a D1 database called
