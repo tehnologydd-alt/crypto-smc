@@ -20,5 +20,7 @@ jobs:
       - name: Syntax and safe unit tests (no model calls, no D1 writes)
         run: |
           node --check apex-ai-research/edge/worker.mjs
+          node --check apex9-preview/cloud-ai-collective.mjs
+          node --check apex9-preview/app.mjs
           node --test apex-ai-research/edge/test-worker.mjs apex-ai-research/edge/test-budget-governor.mjs apex-ai-research/edge/test-device-auth.mjs
           node --test apex9-preview/test-cloud-ai-collective.mjs apex9-preview/test-cloud-ai-manual-audit.mjs
