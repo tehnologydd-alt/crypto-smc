@@ -5,8 +5,9 @@ import {selectDepthComparison,needsMatchedRest} from './depth-comparison-selecto
 import {collectContext,createBitcoinBackgroundGate} from './context-sources.mjs';
 import {RELEASE_API,latestSignedRelease,updateStatus} from './update-check.mjs';
 import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservationStorage,setMobileSettings,normalizeAlertMarkedIds,getMobileCandles,saveMobileCandles,getMobileWhaleHistory,getMobileResearchForecasts,getMobileAssetResearchForecasts,getMobileRadarHistory,requestMobileForecastNotificationPermission} from './mobile-bridge.mjs';
-import {beginCloudAiPairing,cloudAiPairingStatus,cloudAiBudgetStatus,cloudAiHealthStatus,cloudAiActivityStatus} from './mobile-bridge.mjs';
+import {beginCloudAiPairing,cloudAiPairingStatus,cloudAiBudgetStatus,cloudAiHealthStatus,cloudAiActivityStatus,cloudAiEvidenceAudit} from './mobile-bridge.mjs';
 import {initCloudAiMonitor} from './cloud-ai-monitor.mjs';
+import {initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
 import {exportMobileCloudBackup,importMobileCloudBackup,
  getMobileCloudBackupStatus} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
@@ -2256,6 +2257,18 @@ document.addEventListener('visibilitychange',()=>{
  }
  favoriteManager.resume();
 });
+// One explicit user tap sends one research request from the approved Android.
+const cloudAiAudit=initCloudAiAudit({
+ getFavorites:()=>favoriteManager.getFavorites(),
+ getSelectedAsset:()=>chosen,
+ getHistory:getMobileHistory,
+ fetchTicker:fetchSpotTicker,
+ getPairing:cloudAiPairingStatus,
+ getBudget:cloudAiBudgetStatus,
+ runAudit:cloudAiEvidenceAudit,
+ refreshMonitor:()=>cloudAiMonitor.refresh()
+});
+el('apex-settings-open').addEventListener('click',()=>cloudAiAudit.sync());
 // Catalogue requires explicit user navigation; never scan all pairs on startup.
 renderGlobalOverview(null);
 setInterval(()=>{if(!document.hidden)favoriteManager.resume();},60000);
