@@ -71,7 +71,7 @@ test('budget status includes actual D1 attempt counters but never claims billing
  assert.equal(response.usage.booster.monthlyUsed,75);
  assert.equal(response.billingObserved,false);
  assert.equal(response.neuronUsageObserved,false);
- assert.match(response.warning,/NOT real billing/);
+ assert.match(response.warning,/NOT account-wide actual billing/);
 });
 
 test('worker exposes status only with auth and refuses quota-store outage',async()=>{

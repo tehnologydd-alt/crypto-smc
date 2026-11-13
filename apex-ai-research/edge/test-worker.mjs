@@ -59,7 +59,7 @@ test('quota reservation is made before each Workers AI invocation',async()=>{
  }}}};
  assert.equal(await reserveRequest(db,1794500000000),true);
  assert.match(calls[0],/ON CONFLICT\(day_key\)/);
- assert.match(calls[0],/attempts<12/);
+ assert.match(calls[0],/attempts<36/);
  let modelInvocations=0;
  const env={APEX_EDGE_TOKEN:secret,DB:db,AI:{run:async(model,args)=>{
   modelInvocations++;
