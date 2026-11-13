@@ -91,7 +91,7 @@ test('two manual clicks share budget, preserve analyst provenance, and persist c
   assert.equal(dom.element('apex-ai-collective-review').disabled,false);
   dom.element('apex-ai-collective-review').trigger('click');await settle();
   assert.equal(count,1,'cooldown cannot spend attempts');
-  assert.match(dom.element('apex-ai-collective-status').textContent,/пауза/);
+  assert.match(dom.element('apex-ai-collective-status').textContent,/пауз/);
   t+=6*60000;dom.element('apex-ai-collective-review').trigger('click');await settle();
   assert.equal(count,2);
   assert.equal(flow.getSession().stage,'COMPLETE');
