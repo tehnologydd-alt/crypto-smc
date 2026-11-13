@@ -5,6 +5,9 @@ on:
     paths:
       - 'apex-ai-research/edge/**'
       - 'apex9-preview/app.mjs'
+      - 'apex9-preview/cloud-ai-monitor.*'
+      - 'apex9-preview/test-cloud-ai-monitor.mjs'
+      - 'apex9-android/native/src/main/java/com/apexintelligence/research/ApexNativePlugin.kt'
       - 'apex9-preview/index.html'
       - 'apex9-preview/mobile-bridge.mjs'
       - 'apex9-android/native/src/main/java/com/apexintelligence/research/ApexAiDevice.kt'
@@ -26,6 +29,8 @@ jobs:
           node --check apex-ai-research/edge/worker.mjs
           node --check apex-ai-research/edge/device-auth.mjs
           node --check apex9-preview/app.mjs
+          node --check apex9-preview/cloud-ai-monitor.mjs
+          node --test apex9-preview/test-cloud-ai-monitor.mjs
           node --check apex9-preview/mobile-bridge.mjs
       - name: Cloudflare auth, budget and safe pairing tests
         run: |
