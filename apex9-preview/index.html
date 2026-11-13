@@ -85,6 +85,18 @@
         <div><span>GLM-4.7-Flash</span><strong id="apex-ai-glm-status">Нет подтверждённых ответов</strong><small id="apex-ai-glm-count">Успешных вызовов с телефона: 0</small></div>
         <div><span>Qwen3.8-27B</span><strong id="apex-ai-qwen-status">Нет подтверждённых ответов</strong><small id="apex-ai-qwen-count">Успешных вызовов с телефона: 0</small></div>
       </div>
+      <section class="apex-ai-model-probe" aria-label="Ручная проверка GLM и Qwen">
+        <strong>Проверка моделей · только по запросу</strong>
+        <p>Выберите избранный актив. APEX передаст только свежие проверенные публичные снимки рынка и покажет настоящий ответ модели. Один запуск расходует до одной попытки внутреннего лимита.</p>
+        <label for="apex-ai-test-asset">Избранный актив</label>
+        <select id="apex-ai-test-asset" aria-label="Актив для проверки исследовательского ИИ"></select>
+        <div class="apex-ai-probe-actions">
+          <button type="button" class="ghost" id="apex-ai-test-analyst">Проверить GLM</button>
+          <button type="button" class="ghost" id="apex-ai-test-critic">Проверить Qwen</button>
+        </div>
+        <p class="muted" id="apex-ai-test-status" role="status" aria-live="polite">Никаких запросов к моделям без нажатия кнопки.</p>
+        <pre id="apex-ai-test-output" hidden aria-label="Реальный ответ исследовательской модели"></pre>
+      </section>
       <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
         <ul id="apex-ai-events"><li>Обращений к моделям ещё не было</li></ul>
       </div>
