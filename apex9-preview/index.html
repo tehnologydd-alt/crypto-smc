@@ -66,6 +66,14 @@
     <label class="apex-setting-toggle"><input id="apex-settings-screen" type="checkbox" disabled><span>Не выключать экран<small>Только пока APEX открыт на экране телефона. Увеличивает расход батареи.</small></span></label>
     <p id="apex-settings-screen-status" class="muted" role="status">По умолчанию экран гаснет по настройкам телефона.</p>
     <div class="apex-settings-divider"></div>
+    <h3 class="apex-settings-subtitle">Облачный исследовательский ИИ</h3>
+    <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
+    <div class="apex-backup-controls">
+      <button type="button" class="ghost" id="apex-ai-enroll">Привязать это устройство</button>
+      <button type="button" class="ghost" id="apex-ai-check">Проверить подключение и лимиты</button>
+    </div>
+    <p id="apex-ai-pair-status" class="muted" role="status" aria-live="polite">Облачный ИИ отключён до одобрения устройства.</p>
+    <div class="apex-settings-divider"></div>
     <h3 class="apex-settings-subtitle">Резервное копирование в облако</h3>
     <p class="muted">Полный перенос истории исследований, свечей, прогнозов, TP/SL, избранного и настроек. В системном окне можно выбрать Google Drive или другое подключённое облако.</p>
     <label class="apex-backup-password-label">Парольная фраза для архива (не менее 12 символов)
