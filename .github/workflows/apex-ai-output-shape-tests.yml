@@ -4,6 +4,9 @@ on:
     branches: [apex-ai-live-audit-20261113]
     paths:
       - 'apex-ai-research/edge/**'
+      - 'apex9-preview/cloud-ai-*'
+      - 'apex9-preview/test-cloud-ai-*'
+      - 'apex9-preview/app.mjs'
       - '.github/workflows/apex-ai-output-shape-tests.yml'
   workflow_dispatch:
 permissions:
@@ -21,6 +24,8 @@ jobs:
         run: |
           node --check apex-ai-research/edge/worker.mjs
           node --check apex9-preview/cloud-ai-collective.mjs
+          node --check apex9-preview/cloud-ai-batch.mjs
+          node --check apex-ai-research/edge/batch-audit.mjs
           node --check apex9-preview/apex-research-director-core.mjs
           node --check apex9-preview/apex-research-director-ui.mjs
           node --check apex9-preview/app.mjs
