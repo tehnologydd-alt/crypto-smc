@@ -1,0 +1,27 @@
+name: APEX Cloudflare — deployed health verification
+on:
+  push:
+    branches: [apex-ai-device-pairing-20261113]
+    paths: ['.github/workflows/apex-ai-health-smoke.yml']
+permissions:
+  contents: read
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check existing Worker from outside Cloudflare
+        run: |
+          set -eu
+          URL="https://apex-ai-collective.apex9-research-lab.workers.dev"
+          HTTP="$(curl --retry 2 --max-time 12 -sS -o /tmp/apex-health.json -w '%{http_code}' "$URL/health")"
+          test "$HTTP" = "200" || { echo "::error::Health endpoint HTTP $HTTP"; exit 1; }
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const data=JSON.parse(fs.readFileSync("/tmp/apex-health.json","utf8"));
+            if(data.state!=="RUNNING"||data.service!=="apex-ai-edge")throw Error("Wrong Worker response");
+            console.log("Deployed Worker health verified, but model inference NOT tested");
+          '
+          DENIED="$(curl --max-time 12 -sS -o /dev/null -w '%{http_code}' "$URL/v1/budget/status")"
+          test "$DENIED" = 401 || { echo "::error::Unauthenticated protected endpoint returned $DENIED"; exit 1; }
+          echo "Protected API correctly rejects missing credentials"
