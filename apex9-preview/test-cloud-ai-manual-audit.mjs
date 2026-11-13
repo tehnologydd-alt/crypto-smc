@@ -173,7 +173,7 @@ test('native AI read timeout is separate from short status timeout and records f
  const android=readFileSync(new URL(
   '../apex9-android/native/src/main/java/com/apexintelligence/research/ApexAiDevice.kt',
   import.meta.url),'utf8');
- assert.match(android,/conn\.readTimeout = if \(path == "\/v1\/agents\/analyze"\) 120_000 else 8_000/);
+ assert.match(android,/conn\.readTimeout = if \(path == "\/v1\/agents\/analyze" \|\|\s*path == "\/v1\/agents\/batch"\) 120_000 else 8_000/);
  assert.match(android,/MODEL_RESPONSE_TIMEOUT/);
  assert.match(android,/MODEL_NETWORK_UNAVAILABLE/);
  assert.match(android,/rememberAudit\(ctx, role, result\)/);
