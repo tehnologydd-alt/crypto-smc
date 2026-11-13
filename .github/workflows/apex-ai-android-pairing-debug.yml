@@ -1,0 +1,53 @@
+name: APEX Android — Cloudflare Pairing Debug APK
+on:
+  push:
+    branches: [apex-ai-device-pairing-20261113]
+    paths:
+      - 'apex9-android/**'
+      - 'apex9-preview/**'
+      - '.github/workflows/apex-ai-android-pairing-debug.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Ensure Android SDK 35
+        run: |
+          test -n "$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" >/dev/null
+      - name: Build Android WebView and native module
+        working-directory: apex9-android
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:web
+          npx cap add android
+          node scripts/set-android-version.mjs
+          npx cap sync android
+          npm run icons
+          node scripts/install-native.mjs
+          test -s android/app/src/main/java/com/apexintelligence/research/ApexAiDevice.kt
+      - name: Compile and package APK
+        working-directory: apex9-android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Publish build artifact for manual device testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: APEX9-AI-Device-Pairing-Debug-APK
+          path: apex9-android/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
