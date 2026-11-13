@@ -34,6 +34,62 @@ class ApexNativePlugin : Plugin() {
     private val sourceRegex = Regex("^[a-zA-Z0-9:._-]{2,80}$")
     private val kindSet = setOf("market", "liquidity", "onchain", "whale", "news", "macro", "social", "context")
 
+    /** Cloudflare research is opt-in. Never return Android Keystore private keys. */
+    @PluginMethod
+    fun beginAiEnrollment(call: PluginCall) {
+        tasks.launch {
+            try {
+                val data = ApexAiDevice.enroll(context.applicationContext)
+                call.resolve(JSObject(data.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "CLOUD_UNAVAILABLE"))
+            }
+        }
+    }
+
+    @PluginMethod
+    fun getAiPairingStatus(call: PluginCall) {
+        tasks.launch {
+            try {
+                val data = ApexAiDevice.status(context.applicationContext)
+                call.resolve(JSObject(data.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "CLOUD_UNAVAILABLE"))
+            }
+        }
+    }
+
+    @PluginMethod
+    fun getAiBudgetStatus(call: PluginCall) {
+        tasks.launch {
+            try {
+                val data = ApexAiDevice.budget(context.applicationContext)
+                call.resolve(JSObject(data.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "CLOUD_UNAVAILABLE"))
+            }
+        }
+    }
+
+    @PluginMethod
+    fun auditAiEvidence(call: PluginCall) {
+        val role = call.getString("role") ?: ""
+        val evidence = call.data.optJSONArray("evidence")
+        if (role !in setOf("analyst", "critic") || evidence == null ||
+            evidence.length() !in 1..16) {
+            call.reject("Invalid evidence selection")
+            return
+        }
+        tasks.launch {
+            try {
+                val data = ApexAiDevice.audit(context.applicationContext, role, evidence)
+                call.resolve(JSObject(data.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "CLOUD_UNAVAILABLE"))
+            }
+        }
+    }
+
     /**
      * Android may deliver this Intent before WebView JavaScript is ready.
      * Keep it in MainActivity and consume it exactly once after hydration.
