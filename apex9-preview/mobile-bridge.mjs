@@ -9,6 +9,40 @@ import {validateLargeTrade,LARGE_TRADE_SOURCE} from './large-trade-stream.mjs';
 import {validateVenueTrade} from './multivenue-trades.mjs';
 import {normalizeForecastNotificationTarget} from './forecast-notification-route.mjs';
 const plugin = () => globalThis.window?.Capacitor?.Plugins?.ApexNative ?? null;
+
+/** Pairing requires explicit user action and Cloudflare D1 owner approval. */
+export async function beginCloudAiPairing() {
+ const native = plugin();
+ if(typeof native?.beginAiEnrollment !== 'function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ try {return await native.beginAiEnrollment();}
+ catch {return {state:'CLOUD_UNAVAILABLE'};}
+}
+export async function cloudAiPairingStatus() {
+ const native = plugin();
+ if(typeof native?.getAiPairingStatus !== 'function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ try {return await native.getAiPairingStatus();}
+ catch {return {state:'CLOUD_UNAVAILABLE'};}
+}
+export async function cloudAiBudgetStatus() {
+ const native = plugin();
+ if(typeof native?.getAiBudgetStatus !== 'function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ try {return await native.getAiBudgetStatus();}
+ catch {return {state:'CLOUD_UNAVAILABLE'};}
+}
+export async function cloudAiEvidenceAudit(role,evidence) {
+ const native = plugin();
+ if(typeof native?.auditAiEvidence !== 'function')
+  return {state:'ANDROID_UPDATE_REQUIRED'};
+ if(!['analyst','critic'].includes(role)||!Array.isArray(evidence)||
+  evidence.length<1||evidence.length>16)
+  return {state:'INVALID_EVIDENCE'};
+ try {return await native.auditAiEvidence({role,evidence});}
+ catch {return {state:'CLOUD_UNAVAILABLE'};}
+}
+
 /** Consume an Android notification's exact scenario reference once.
  * Reject anything not signed by our own source-scoped native Intent parser. */
 export async function consumeMobileNotificationTarget(){
