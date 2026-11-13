@@ -59,7 +59,8 @@ const getStore=()=>{
  try{return globalThis.localStorage||null;}catch{return null;}
 };
 export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
- getPairing,getBudget,runAudit,refreshMonitor,store=getStore(),now=()=>Date.now()}){
+ getPairing,getBudget,runAudit,refreshMonitor,onSession=()=>{},
+ store=getStore(),now=()=>Date.now()}){
  const node=id=>document.getElementById(id);
  const assetPicker=node('apex-ai-test-asset');
  const begin=node('apex-ai-collective-start'),review=node('apex-ai-collective-review');
@@ -145,6 +146,7 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
     criticAt:now(),criticText:result.text.slice(0,2400),
     criticEvidence:recent.slice(0,5)};
    save();succeeded=true;
+   try{onSession(session);}catch{/* Journal failure never changes the real AI outcome. */}
   }catch(error){failure=String(error?.message||error).slice(0,230);}
   finally{
    busy=false;

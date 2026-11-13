@@ -21,6 +21,8 @@ jobs:
         run: |
           node --check apex-ai-research/edge/worker.mjs
           node --check apex9-preview/cloud-ai-collective.mjs
+          node --check apex9-preview/apex-research-director-core.mjs
+          node --check apex9-preview/apex-research-director-ui.mjs
           node --check apex9-preview/app.mjs
           # Validate real two-step policy with no calls to the deployed AI
           node --test apex-ai-research/edge/test-worker.mjs apex-ai-research/edge/test-budget-governor.mjs apex-ai-research/edge/test-device-auth.mjs

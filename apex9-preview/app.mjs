@@ -9,6 +9,7 @@ import {beginCloudAiPairing,cloudAiPairingStatus,cloudAiBudgetStatus,cloudAiHeal
 import {initCloudAiMonitor} from './cloud-ai-monitor.mjs';
 import {initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
 import {initCloudAiCollective} from './cloud-ai-collective.mjs';
+import {initApexResearchDirector} from './apex-research-director-ui.mjs';
 import {exportMobileCloudBackup,importMobileCloudBackup,
  getMobileCloudBackupStatus} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
@@ -1296,6 +1297,7 @@ let assetFavoritePicker=null;
 let experienceOverview=null;
 let cloudAiAudit=null;
 let cloudAiCollective=null;
+let researchDirector=null;
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
  onSelectSymbol:(symbol,researchId=null)=>{
@@ -1315,8 +1317,13 @@ const favoriteManager=initFavoriteResearch({
   experienceOverview?.favoritesChanged();
   cloudAiAudit?.sync();
   cloudAiCollective?.sync();
+  researchDirector?.render();
+  if(!document.hidden)void researchDirector?.scan();
  },
- onResearchSynced:()=>experienceOverview?.researchUpdated()
+ onResearchSynced:()=>{
+  experienceOverview?.researchUpdated();
+  if(!document.hidden)void researchDirector?.scan();
+ }
 });
 experienceOverview=initOverviewResearchProgress({
  getFavorites:()=>favoriteManager.getFavorites()
@@ -2273,6 +2280,20 @@ cloudAiAudit=initCloudAiAudit({
  runAudit:cloudAiEvidenceAudit,
  refreshMonitor:()=>cloudAiMonitor.refresh()
 });
+// Research Director reads the existing native Room + Radar cache only.
+// It queues evidence candidates, never calls Workers AI itself.
+researchDirector=initApexResearchDirector({
+ getFavorites:()=>favoriteManager.getFavorites(),
+ getRadar:getMobileRadarHistory,
+ getCandles:getMobileCandles,
+ onChoose:asset=>{
+  const select=el('apex-ai-test-asset');
+  select.value=asset;
+  cloudAiAudit?.sync();cloudAiCollective?.sync();
+  const section=document.querySelector('.apex-ai-collective');
+  if(section)section.open=true;
+ }
+});
 // Two explicit calls, not an autonomous background loop: the second call
 // carries bounded historical GLM hypotheses as untrusted claims to Qwen.
 cloudAiCollective=initCloudAiCollective({
@@ -2282,17 +2303,24 @@ cloudAiCollective=initCloudAiCollective({
  getPairing:cloudAiPairingStatus,
  getBudget:cloudAiBudgetStatus,
  runAudit:cloudAiEvidenceAudit,
- refreshMonitor:()=>cloudAiMonitor.refresh()
+ refreshMonitor:()=>cloudAiMonitor.refresh(),
+ onSession:session=>researchDirector.onCollectiveSession(session)
 });
+// Restore the last genuinely completed two-model study to the Director journal
+// without sending either model a new request.
+researchDirector.onCollectiveSession(cloudAiCollective.getSession());
 // Native DataStore favorites may hydrate after first Settings rendering.
 void favoritesReady.then(()=>{
  cloudAiAudit.sync();cloudAiCollective.sync();
+ researchDirector.render();void researchDirector.scan();
 },()=>{
- cloudAiAudit.sync();cloudAiCollective.sync();
+ cloudAiAudit.sync();cloudAiCollective.sync();researchDirector.render();
 });
 el('apex-settings-open').addEventListener('click',()=>{
- cloudAiAudit.sync();cloudAiCollective.sync();
+ cloudAiAudit.sync();cloudAiCollective.sync();researchDirector.render();
 });
+// Read only local Room/Radar snapshots in foreground, never Workers AI.
+setInterval(()=>{if(!document.hidden)void researchDirector.scan();},5*60000);
 // Catalogue requires explicit user navigation; never scan all pairs on startup.
 renderGlobalOverview(null);
 setInterval(()=>{if(!document.hidden)favoriteManager.resume();},60000);

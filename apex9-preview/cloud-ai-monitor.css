@@ -100,3 +100,22 @@
  max-height:220px;overflow-y:auto;padding:10px;margin:0}
 .apex-ai-collective-report pre[hidden]{display:none}
 .apex-ai-collective-body>small{font-size:10px;line-height:1.45;color:#94b8c7}
+
+/* Offline research director; one compact fold, no duplicated navigation. */
+.apex-ai-director{margin:10px 0;border:1px solid #38586c;border-radius:13px;
+ background:linear-gradient(130deg,#102a3b,#132b39);overflow:hidden;color:#e1f1f4}
+.apex-ai-director>summary{cursor:pointer;padding:12px 13px;
+ font-size:12px;font-weight:750;line-height:1.5}
+.apex-ai-director summary small{font-size:10px;font-weight:500;color:#acc9d6}
+.apex-ai-director-body{display:grid;gap:10px;padding:0 12px 13px}
+.apex-ai-director-body p{font-size:11px;line-height:1.55;color:#b6ced8;margin:0}
+.apex-ai-director-body button{min-height:39px;border:1px solid #426778;
+ border-radius:10px;padding:7px 10px;font-size:11px}
+.apex-ai-director-body>small{font-size:10px;line-height:1.5;color:#a0bdca}
+.apex-ai-director-body ul{padding:0;margin:0;list-style:none;display:grid;gap:8px}
+.apex-ai-director-body li{border:1px solid #355264;padding:10px;border-radius:10px;
+ background:#0e2434;display:grid;gap:8px}
+.apex-ai-director-body li>div{display:grid;gap:4px}
+.apex-ai-director-body li strong{font-size:11px;color:#d5f5f0}
+.apex-ai-director-body li small,.apex-ai-director-body li span{font-size:10px;
+ line-height:1.5;color:#a4c3cf}
