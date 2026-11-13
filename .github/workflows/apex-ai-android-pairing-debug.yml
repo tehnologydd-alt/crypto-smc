@@ -1,4 +1,4 @@
-name: APEX Android — Cloudflare Pairing Debug APK
+name: APEX Android — Cloudflare Pairing Signed Update APK
 on:
   push:
     branches: [apex-ai-device-pairing-20261113]
@@ -9,10 +9,11 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,31 +24,90 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Ensure Android SDK 35
+
+      - name: Restore verified prior APEX signed release and derive monotonic version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p apex9-android/previous-signed
+          gh api repos/tehnologydd-alt/crypto-smc/actions/artifacts/13981653706/zip > /tmp/apex-prior.zip
+          unzip -tq /tmp/apex-prior.zip >/dev/null
+          unzip -oq /tmp/apex-prior.zip -d apex9-android/previous-signed
+          PRIOR_APK="$(find apex9-android/previous-signed -type f -name 'APEX9-Research-Preview-signed.apk' -print -quit)"
+          PRIOR_INFO="$(find apex9-android/previous-signed -type f -name 'apex-build-info.json' -print -quit)"
+          test -s "$PRIOR_APK" && test -s "$PRIOR_INFO" || { echo "::error::Verified signed APEX 9 reference missing"; exit 1; }
+          PRIOR_RUN="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).buildRun' "$PRIOR_INFO")"
+          test "$PRIOR_RUN" -ge 971 || { echo "::error::Unexpected prior version"; exit 1; }
+          NEXT_RUN="$((PRIOR_RUN + GITHUB_RUN_NUMBER))"
+          test "$NEXT_RUN" -gt "$PRIOR_RUN" && test "$NEXT_RUN" -le 999999
+          echo "APEX_BUILD_NUMBER=$NEXT_RUN" >> "$GITHUB_ENV"
+          echo "Comparison reference: signed previous APEX; new build number $NEXT_RUN"
+
+      - name: Ensure Android SDK platform 35
         run: |
           test -n "$ANDROID_HOME"
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" >/dev/null
-      - name: Build Android WebView and native module
+
+      - name: Validate source and stage native Android code with existing release signer
         working-directory: apex9-android
+        env:
+          APEX_KEYSTORE_B64: ${{ secrets.APEX_KEYSTORE_B64 }}
+          APEX_KEYSTORE_PASSWORD: ${{ secrets.APEX_KEYSTORE_PASSWORD }}
+          APEX_KEY_ALIAS: ${{ secrets.APEX_KEY_ALIAS }}
+          APEX_KEY_PASSWORD: ${{ secrets.APEX_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          for key in APEX_KEYSTORE_B64 APEX_KEYSTORE_PASSWORD APEX_KEY_ALIAS APEX_KEY_PASSWORD; do
+            test -n "$$$key" || { echo "::error::Missing existing stable signing secret $key"; exit 1; }
+          done
           npm install --no-audit --no-fund
           npm run build:web
           npx cap add android
           node scripts/set-android-version.mjs
+          test -f .apex-signed-release || { echo "::error::Release signing was not enabled"; exit 1; }
           npx cap sync android
           npm run icons
           node scripts/install-native.mjs
           test -s android/app/src/main/java/com/apexintelligence/research/ApexAiDevice.kt
-      - name: Compile and package APK
+
+      - name: Compile stable signed RELEASE APK, not debug
         working-directory: apex9-android/android
+        env:
+          APEX_KEYSTORE_PASSWORD: ${{ secrets.APEX_KEYSTORE_PASSWORD }}
+          APEX_KEY_ALIAS: ${{ secrets.APEX_KEY_ALIAS }}
+          APEX_KEY_PASSWORD: ${{ secrets.APEX_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-      - name: Publish build artifact for manual device testing
-        uses: actions/upload-artifact@v4
+          ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Fail unless APK release signer matches prior APEX certificate
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
+          mkdir -p apex9-android/output
+          CURRENT=apex9-android/android/app/build/outputs/apk/release/app-release.apk
+          MANIFEST=apex9-android/dist/apex-build-info.json
+          PRIOR_APK="$(find apex9-android/previous-signed -type f -name 'APEX9-Research-Preview-signed.apk' -print -quit)"
+          PRIOR_INFO="$(find apex9-android/previous-signed -type f -name 'apex-build-info.json' -print -quit)"
+          test -s "$CURRENT" && test -s "$MANIFEST" && test -s "$PRIOR_APK" && test -s "$PRIOR_INFO"
+          node apex9-android/scripts/audit-apk.mjs "$CURRENT" "$MANIFEST" apex9-android/output "$PRIOR_APK" "$PRIOR_INFO"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const r=JSON.parse(fs.readFileSync("apex9-android/output/APEX-install-readiness.json"));
+            if(r.comparison.state!=="UPDATE_COMPATIBLE")
+              throw Error("APK cannot update prior signed APEX; prevent distribution");
+            console.log("MATCHING ORIGINAL RELEASE SIGNER; MONOTONIC VERSION; UPDATE COMPATIBLE");
+          '
+          cp "$CURRENT" apex9-android/output/APEX9-AI-Cloudflare-Pairing-signed.apk
+          cp "$MANIFEST" apex9-android/output/apex-build-info.json
+          (cd apex9-android/output && sha256sum APEX9-AI-Cloudflare-Pairing-signed.apk > SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: APEX9-AI-Device-Pairing-Debug-APK
-          path: apex9-android/android/app/build/outputs/apk/debug/app-debug.apk
+          name: APEX9-AI-Cloudflare-Pairing-Signed-Update
+          path: apex9-android/output/*
           if-no-files-found: error
           retention-days: 14
