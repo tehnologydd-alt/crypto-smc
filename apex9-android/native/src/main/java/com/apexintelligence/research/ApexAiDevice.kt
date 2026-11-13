@@ -236,11 +236,28 @@ object ApexAiDevice {
         signed(ctx, "GET", "/v1/budget/status")
 
     /** Only sends explicitly selected real evidence; never opens trading orders. */
-    fun audit(ctx: Context, role: String, evidence: JSONArray): JSONObject {
+    fun audit(ctx: Context, role: String, evidence: JSONArray,
+              analyst: JSONObject? = null): JSONObject {
         require(role == "analyst" || role == "critic") { "Unknown research role" }
         require(evidence.length() in 1..16) { "1..16 sources required" }
-        val payload = JSONObject().put("role", role).put("evidence", evidence)
-            .toString().toByteArray(Charsets.UTF_8)
+        val requestBody = JSONObject().put("role", role).put("evidence", evidence)
+        if (analyst != null) {
+            require(role == "critic") { "Only the critic can receive analyst claims" }
+            val text = analyst.optString("text", "")
+            val ids = analyst.optJSONArray("source_ids")
+            val captured = analyst.optLong("captured_at", 0)
+            require(text.length in 15..2400 && ids != null &&
+                ids.length() in 1..5 && captured > 0) { "Invalid analyst claims" }
+            val evidenceIds = (0 until evidence.length()).mapNotNull {
+                evidence.optJSONObject(it)?.optString("source_id")
+            }.toSet()
+            val analystIds = (0 until ids.length()).map { ids.optString(it) }
+            require(analystIds.all { it in evidenceIds } &&
+                analystIds.toSet().size == analystIds.size) { "Unmatched sources" }
+            requestBody.put("analyst", JSONObject().put("text", text)
+                .put("source_ids", ids).put("captured_at", captured))
+        }
+        val payload = requestBody.toString().toByteArray(Charsets.UTF_8)
         val result = try {
             signed(ctx, "POST", "/v1/agents/analyze", payload)
         } catch (_: java.net.SocketTimeoutException) {

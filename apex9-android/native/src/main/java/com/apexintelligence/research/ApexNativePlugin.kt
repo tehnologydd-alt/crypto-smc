@@ -99,14 +99,17 @@ class ApexNativePlugin : Plugin() {
     fun auditAiEvidence(call: PluginCall) {
         val role = call.getString("role") ?: ""
         val evidence = call.data.optJSONArray("evidence")
+        val analyst = if (call.data.has("analyst"))
+            call.data.optJSONObject("analyst") else null
         if (role !in setOf("analyst", "critic") || evidence == null ||
-            evidence.length() !in 1..16) {
+            evidence.length() !in 1..16 ||
+            (call.data.has("analyst") && (role != "critic" || analyst == null))) {
             call.reject("Invalid evidence selection")
             return
         }
         tasks.launch {
             try {
-                val data = ApexAiDevice.audit(context.applicationContext, role, evidence)
+                val data = ApexAiDevice.audit(context.applicationContext, role, evidence, analyst)
                 call.resolve(JSObject(data.toString()))
             } catch (_: Exception) {
                 call.resolve(JSObject().put("state", "CLOUD_UNAVAILABLE"))

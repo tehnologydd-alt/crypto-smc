@@ -260,3 +260,49 @@ test('GLM length-only failure remains an explicit failed attempt, never a fake a
  assert.equal(invoked,1);
  assert.ok(!JSON.stringify(value).includes('not for display'));
 });
+
+test('second-stage critic accepts only bounded source-matched GLM claims, not market evidence',()=>{
+ const now=Date.now(),report={
+  text:'GLM observed short-lived price changes, but cannot establish causality.',
+  source_ids:[item.source_id],captured_at:now-7*60000
+ };
+ const ok=validateAgentInput({role:'critic',evidence:[item],analyst:report},now);
+ assert.equal(ok.analyst.text,report.text);
+ assert.equal(validateAgentInput({role:'analyst',evidence:[item],analyst:report},now),null);
+ assert.equal(validateAgentInput({role:'critic',evidence:[item],analyst:{
+  ...report,source_ids:['not-in-evidence']}},now),null);
+ assert.equal(validateAgentInput({role:'critic',evidence:[item],analyst:{
+  ...report,captured_at:now-61*60000}},now),null);
+ assert.equal(validateAgentInput({role:'critic',evidence:[item],analyst:{
+  ...report,text:'x'.repeat(2401)}},now),null);
+ assert.equal(validateAgentInput({role:'critic',evidence:[item],analyst:{
+  ...report,source_ids:[item.source_id,item.source_id]}},now),null);
+});
+test('Qwen independently receives clock, old hypotheses, current observations once',async()=>{
+ let count=0;const at=Date.now();
+ const report={text:'GLM observed trend; source uncertainty remains.',
+  source_ids:[item.source_id],captured_at:at-6*60000};
+ const env={APEX_EDGE_TOKEN:secret,
+  DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})},
+  AI:{run:async(model,args)=>{
+   count++;
+   assert.equal(model,MODELS.critic);
+   assert.equal(args.reasoning_effort,'low');
+   const user=JSON.parse(args.messages[1].content);
+   assert.ok(user.server_clock.utc.includes('T'));
+   assert.ok(user.server_clock.kyiv_date.startsWith('20'));
+   assert.equal(user.evidence.length,1);
+   assert.equal(user.analyst_claims.untrusted_model_output,report.text);
+   assert.equal(user.analyst_claims.status,'UNVERIFIED_HYPOTHESES_NOT_MARKET_EVIDENCE');
+   assert.match(args.messages[0].content,/UNTRUSTED/);
+   return {response:'Prior analyst claims are not proven by one observation.'};
+  }}
+ };
+ const req=new Request(origin+'/v1/agents/analyze',{method:'POST',
+  headers:{Authorization:'Bearer '+secret},
+  body:JSON.stringify({role:'critic',evidence:[item],analyst:report})});
+ const result=await worker.fetch(req,env);
+ assert.equal(result.status,200);
+ assert.equal((await result.json()).state,'OBSERVED_MODEL_OUTPUT');
+ assert.equal(count,1);
+});

@@ -48,14 +48,27 @@ export async function cloudAiActivityStatus() {
  try{return await native.getAiActivityStatus();}
  catch{return {state:'LOCAL_UNAVAILABLE'};}
 }
-export async function cloudAiEvidenceAudit(role,evidence) {
+export async function cloudAiEvidenceAudit(role,evidence,options={}) {
  const native = plugin();
  if(typeof native?.auditAiEvidence !== 'function')
   return {state:'ANDROID_UPDATE_REQUIRED'};
  if(!['analyst','critic'].includes(role)||!Array.isArray(evidence)||
   evidence.length<1||evidence.length>16)
   return {state:'INVALID_EVIDENCE'};
- try {return await native.auditAiEvidence({role,evidence});}
+ const request={role,evidence};
+ if(options?.analyst!==undefined){
+  const a=options.analyst;
+  const ids=new Set(evidence.map(e=>e?.source_id));
+  if(role!=='critic'||typeof a?.text!=='string'||a.text.trim().length<15||
+     a.text.length>2400||!Array.isArray(a.source_ids)||
+     a.source_ids.length<1||a.source_ids.length>5||
+     a.source_ids.some(s=>typeof s!=='string'||!ids.has(s))||
+     new Set(a.source_ids).size!==a.source_ids.length||
+     !Number.isSafeInteger(a.captured_at))
+   return {state:'INVALID_ANALYST_REPORT'};
+  request.analyst={text:a.text,source_ids:a.source_ids,captured_at:a.captured_at};
+ }
+ try {return await native.auditAiEvidence(request);}
  catch {return {state:'CLOUD_UNAVAILABLE'};}
 }
 
