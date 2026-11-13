@@ -13,10 +13,22 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 import server
 import train
 import activate
+import training_window
+from datetime import datetime,timezone
 import hashlib
 
 
 class APEXResearchServerTests(unittest.TestCase):
+    def test_training_window_follows_kyiv_winter_and_summer_dst(self):
+        moment=lambda stamp: datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc)
+        self.assertEqual(training_window.research_mode(moment("2026-11-13T20:59:00")), "ACTIVE")
+        self.assertEqual(training_window.research_mode(moment("2026-11-13T21:00:00")), "ECO")
+        self.assertFalse(training_window.training_permitted(moment("2026-11-14T05:59:00")))
+        self.assertTrue(training_window.training_permitted(moment("2026-11-14T06:00:00")))
+        self.assertTrue(training_window.training_permitted(moment("2026-07-13T19:59:00")))
+        self.assertFalse(training_window.training_permitted(moment("2026-07-13T20:00:00")))
+
+
     def test_feature_schema_and_untrained_status(self):
         from fastapi import HTTPException
         with tempfile.TemporaryDirectory() as temporary:
