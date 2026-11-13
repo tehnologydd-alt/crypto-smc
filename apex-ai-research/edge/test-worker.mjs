@@ -54,7 +54,7 @@ test('model calls require D1 and never claim Oracle is present before setup',asy
 test('quota reservation is made before each Workers AI invocation',async()=>{
  const calls=[];
  const db={prepare(sql){calls.push(sql);return {bind(key){
-  assert.match(key,/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);
+  assert.equal(key,'language');
   return {first:async()=>({attempts:1})};
  }}}};
  assert.equal(await reserveRequest(db,1794500000000),true);
@@ -123,7 +123,8 @@ test('all four agents share one authenticated edge; booster proxy requires Oracl
  };
  try{
   const env={APEX_EDGE_TOKEN:secret,COMPUTE_ORIGIN:'https://compute.example',
-   APEX_COMPUTE_TOKEN:'unit-test-token-for-cross-server-check'};
+   APEX_COMPUTE_TOKEN:'unit-test-token-for-cross-server-check',
+   DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})}};
   const good=await worker.fetch(make(observation),env);
   assert.equal(good.status,200);
   assert.equal((await good.json()).state,'MODEL_ESTIMATE');
@@ -152,7 +153,8 @@ test('Worker validates Oracle response and refuses forged source lineage',async(
   });
   const result=await worker.fetch(request,{
    APEX_EDGE_TOKEN:secret,COMPUTE_ORIGIN:'https://compute.example',
-   APEX_COMPUTE_TOKEN:'unit-test-only'
+   APEX_COMPUTE_TOKEN:'unit-test-only',
+   DB:{prepare:()=>({bind:()=>({first:async()=>({attempts:1})})})}
   });
   assert.equal(result.status,503);
   assert.equal((await result.json()).state,'INVALID_COMPUTE_RESPONSE');
