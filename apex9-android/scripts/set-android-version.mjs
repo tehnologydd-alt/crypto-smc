@@ -8,7 +8,7 @@ import {readFileSync,writeFileSync,existsSync,unlinkSync} from 'node:fs';
 const file='android/app/build.gradle';
 if(!existsSync(file))throw Error('Run npx cap add android first');
 let gradle=readFileSync(file,'utf8');
-const run=Number(process.env.GITHUB_RUN_NUMBER||process.env.APEX_BUILD_NUMBER||'1');
+const run=Number(process.env.APEX_BUILD_NUMBER||process.env.GITHUB_RUN_NUMBER||'1');
 if(!Number.isSafeInteger(run)||run<1||run>999999)throw Error('Invalid monotonic build number');
 const versionCode=900000+run;
 const versionName='9.0.'+run;
