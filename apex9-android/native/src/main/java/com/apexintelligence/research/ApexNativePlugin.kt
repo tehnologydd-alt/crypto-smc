@@ -60,6 +60,30 @@ class ApexNativePlugin : Plugin() {
     }
 
     @PluginMethod
+    fun getAiHealthStatus(call: PluginCall) {
+        tasks.launch {
+            try {
+                val result = ApexAiDevice.health(context.applicationContext)
+                call.resolve(JSObject(result.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "CLOUD_UNAVAILABLE"))
+            }
+        }
+    }
+
+    @PluginMethod
+    fun getAiActivityStatus(call: PluginCall) {
+        tasks.launch {
+            try {
+                val result = ApexAiDevice.activity(context.applicationContext)
+                call.resolve(JSObject(result.toString()))
+            } catch (_: Exception) {
+                call.resolve(JSObject().put("state", "LOCAL_UNAVAILABLE"))
+            }
+        }
+    }
+
+    @PluginMethod
     fun getAiBudgetStatus(call: PluginCall) {
         tasks.launch {
             try {
