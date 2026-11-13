@@ -66,13 +66,30 @@
     <label class="apex-setting-toggle"><input id="apex-settings-screen" type="checkbox" disabled><span>Не выключать экран<small>Только пока APEX открыт на экране телефона. Увеличивает расход батареи.</small></span></label>
     <p id="apex-settings-screen-status" class="muted" role="status">По умолчанию экран гаснет по настройкам телефона.</p>
     <div class="apex-settings-divider"></div>
-    <h3 class="apex-settings-subtitle">Облачный исследовательский ИИ</h3>
+    <h3 class="apex-settings-subtitle" id="apex-ai-settings-anchor">Облачный исследовательский ИИ</h3>
     <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
     <div class="apex-backup-controls">
       <button type="button" class="ghost" id="apex-ai-enroll">Привязать это устройство</button>
       <button type="button" class="ghost" id="apex-ai-check">Проверить подключение и лимиты</button>
     </div>
     <p id="apex-ai-pair-status" class="muted" role="status" aria-live="polite">Облачный ИИ отключён до одобрения устройства.</p>
+    <section class="apex-ai-details" aria-label="Состояние APEX AI и история обращений">
+      <div class="apex-ai-details-line"><span>Последняя связь с сервером</span><strong id="apex-ai-health-checked">—</strong></div>
+      <div class="apex-ai-details-line"><span>Лимит запросов ИИ · день</span><strong id="apex-ai-quota-daily">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
+      <div class="apex-ai-details-line"><span>Месячные запросы</span><strong id="apex-ai-quota-monthly">—</strong></div>
+      <div class="apex-ai-details-line"><span>Ночные запросы</span><strong id="apex-ai-quota-night">—</strong></div>
+      <div class="apex-ai-details-line"><span>Следующий разрешённый запрос</span><strong id="apex-ai-next-eligible">—</strong></div>
+      <div class="apex-ai-agent-grid">
+        <div><span>GLM-4.7-Flash</span><strong id="apex-ai-glm-status">Нет подтверждённых ответов</strong><small id="apex-ai-glm-count">Успешных вызовов с телефона: 0</small></div>
+        <div><span>Qwen3.8-27B</span><strong id="apex-ai-qwen-status">Нет подтверждённых ответов</strong><small id="apex-ai-qwen-count">Успешных вызовов с телефона: 0</small></div>
+      </div>
+      <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
+        <ul id="apex-ai-events"><li>Обращений к моделям ещё не было</li></ul>
+      </div>
+      <p class="apex-ai-footnote" id="apex-ai-limit-note">Здесь показаны внутренние лимиты попыток, а не баланс Neurons или стоимость Cloudflare. Состояние модели считается подтверждённым только после настоящего ответа.</p>
+    </section>
+
     <div class="apex-settings-divider"></div>
     <h3 class="apex-settings-subtitle">Резервное копирование в облако</h3>
     <p class="muted">Полный перенос истории исследований, свечей, прогнозов, TP/SL, избранного и настроек. В системном окне можно выбрать Google Drive или другое подключённое облако.</p>
@@ -102,6 +119,26 @@
       </div>
       <p class="favorites-hint">Листайте карточки. Чтобы убрать актив, удерживайте карточку и смахните вверх.</p>
       <p id="favorites-price-status" aria-live="polite">Сохранённые цены избранных.</p>
+    </section>
+
+    <section class="apex-ai-overview overview-only" id="apex-ai-overview" aria-label="Монитор подключения APEX AI">
+      <div class="apex-ai-overview-head">
+        <div class="apex-ai-overview-title"><span class="apex-ai-pulse" id="apex-ai-live-dot" data-status="unknown"></span>
+          <div><strong>APEX AI · Cloudflare</strong><small>Подключение и фактическая активность</small></div>
+        </div>
+        <span id="apex-ai-live-state" class="apex-ai-state" data-status="unknown">Не проверено</span>
+      </div>
+      <div class="apex-ai-metrics">
+        <div><span>Сервер</span><strong id="apex-ai-live-server">—</strong></div>
+        <div><span>Телефон</span><strong id="apex-ai-live-device">—</strong></div>
+        <div><span>Режим</span><strong id="apex-ai-live-mode">—</strong></div>
+        <div><span>Запросы ИИ сегодня</span><strong id="apex-ai-live-usage">—</strong></div>
+      </div>
+      <div class="apex-ai-overview-actions">
+        <small id="apex-ai-live-checked">Проверка ещё не выполнена</small>
+        <div><button id="apex-ai-live-refresh" type="button" class="ghost">Обновить</button>
+          <button id="apex-ai-live-details" type="button" class="ghost">Подробности</button></div>
+      </div>
     </section>
 
     <div id="favorites-toast" class="favorites-toast" hidden role="status" aria-live="polite"><span id="favorites-toast-text">Актив удалён</span><button id="favorites-undo" type="button">Отменить</button></div>
