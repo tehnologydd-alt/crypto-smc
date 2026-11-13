@@ -65,7 +65,9 @@ object ApexAiDevice {
             conn.instanceFollowRedirects = false
             conn.requestMethod = method
             conn.connectTimeout = 6000
-            conn.readTimeout = 8000
+            // Manual Workers AI inference can outlast a normal short health/status call.
+            // Keep every other endpoint on the conservative eight-second timeout.
+            conn.readTimeout = if (path == "/v1/agents/analyze") 60_000 else 8_000
             conn.setRequestProperty("Accept", "application/json")
             for ((key, value) in headers) conn.setRequestProperty(key, value)
             if (body != null) {
@@ -239,7 +241,15 @@ object ApexAiDevice {
         require(evidence.length() in 1..16) { "1..16 sources required" }
         val payload = JSONObject().put("role", role).put("evidence", evidence)
             .toString().toByteArray(Charsets.UTF_8)
-        val result = signed(ctx, "POST", "/v1/agents/analyze", payload)
+        val result = try {
+            signed(ctx, "POST", "/v1/agents/analyze", payload)
+        } catch (_: java.net.SocketTimeoutException) {
+            JSONObject().put("state", "MODEL_RESPONSE_TIMEOUT")
+        } catch (_: java.io.IOException) {
+            JSONObject().put("state", "MODEL_NETWORK_UNAVAILABLE")
+        }
+        // Failed attempts matter: the server may have already reserved a D1 slot.
+        // Never mark a timeout as successful or automatically retry it.
         rememberAudit(ctx, role, result)
         return result
     }
