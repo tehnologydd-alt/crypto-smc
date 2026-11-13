@@ -72,21 +72,37 @@ export function initCloudAiAudit({getFavorites,getSelectedAsset,getHistory,
   analyst:document.getElementById('apex-ai-test-analyst'),
   critic:document.getElementById('apex-ai-test-critic')
  };
- let busy=false;
+ let busy=false,previousFavoriteSignature=null;
  const say=message=>{status.textContent=message;};
  const sync=()=>{
-  const favorites=getFavorites().filter(s=>typeof s==='string'&&ASSET.test(s)).slice(0,10);
+  // Android favorites arrive asynchronously and can change while Settings is open.
+  // Never offer a catalogue-only symbol or issue a model request on refresh.
+  const raw=getFavorites();
+  const favorites=(Array.isArray(raw)?raw:[])
+   .filter(s=>typeof s==='string'&&ASSET.test(s)).slice(0,10);
+  const signature=favorites.join(',');
   const previous=select.value;
+  const active=getSelectedAsset();
   const preferred=favorites.includes(previous)?previous:
-   favorites.includes(getSelectedAsset())?getSelectedAsset():favorites[0]||'';
+   favorites.includes(active)?active:favorites[0]||'';
   select.replaceChildren();
-  for(const symbol of favorites){
+  if(favorites.length===0){
+   const empty=document.createElement('option');
+   empty.value='';empty.textContent='Нет избранных активов';
+   select.append(empty);
+  }else for(const symbol of favorites){
    const option=document.createElement('option');
    option.value=symbol;option.textContent=symbol;select.append(option);
   }
   select.value=preferred;
   for(const button of Object.values(buttons))button.disabled=busy||favorites.length===0;
   select.disabled=busy||favorites.length===0;
+  if(!busy&&signature!==previousFavoriteSignature){
+   if(!favorites.length) say('В избранном нет активов. Добавьте актив через «Каталог» на экране «Обзор».');
+   else if(!previousFavoriteSignature)
+    say('Активы загружены. Выберите актив и нажмите кнопку проверки модели.');
+  }
+  previousFavoriteSignature=signature;
   return favorites;
  };
  const go=async role=>{

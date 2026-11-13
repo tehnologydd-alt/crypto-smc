@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {buildCloudAuditEvidence} from './cloud-ai-manual-audit.mjs';
+import {buildCloudAuditEvidence,initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
 
 const now=1_794_588_000_000;
 const quote={symbol:'ETHUSDT',scope:'24H_SPOT_SNAPSHOT',
@@ -58,4 +58,81 @@ test('UI uses opt-in model buttons and packaged module',()=>{
  assert.match(app,/initCloudAiAudit\(/);
  assert.match(app,/cloudAiEvidenceAudit/);
  assert.match(stage,/'cloud-ai-manual-audit\.mjs'/);
+});
+
+
+function auditPickerDom(){
+ const make=()=>({
+  value:'',textContent:'',disabled:false,hidden:false,children:[],listeners:new Map(),
+  addEventListener(name,handler){this.listeners.set(name,handler);},
+  replaceChildren(){this.children=[];this.value='';},
+  append(child){this.children.push(child);if(this.children.length===1)this.value=child.value;}
+ });
+ const nodes=new Map();
+ for(const id of ['apex-ai-test-asset','apex-ai-test-status','apex-ai-test-output',
+  'apex-ai-test-analyst','apex-ai-test-critic'])nodes.set(id,make());
+ return {nodes,document:{
+  getElementById:id=>nodes.get(id),
+  createElement:()=>make()
+ }};
+}
+
+test('AI picker updates after delayed favorites hydration and subsequent changes',()=>{
+ const oldDocument=globalThis.document;
+ const dom=auditPickerDom();
+ globalThis.document=dom.document;
+ let favorites=[],attempts=0;
+ try{
+  const picker=initCloudAiAudit({
+   getFavorites:()=>favorites,
+   getSelectedAsset:()=> 'BTCUSDT',
+   getHistory:async()=>({native:true,observations:[]}),
+   fetchTicker:async()=>({state:'EMPTY'}),
+   getPairing:async()=>{attempts++;return {state:'NOT_PAIRED'};},
+   getBudget:async()=>({}),runAudit:async()=>{attempts++;return {};},
+   refreshMonitor:async()=>{}
+  });
+  const select=dom.nodes.get('apex-ai-test-asset');
+  const analyst=dom.nodes.get('apex-ai-test-analyst');
+  const critic=dom.nodes.get('apex-ai-test-critic');
+  assert.equal(select.disabled,true);
+  assert.equal(analyst.disabled,true);
+  assert.equal(critic.disabled,true);
+  assert.match(select.children[0].textContent,/Нет избранных/);
+  assert.match(dom.nodes.get('apex-ai-test-status').textContent,/Каталог/);
+  // The user did not reopen Settings; asynchronous onFavoritesChanged calls sync.
+  favorites=['BTCUSDT','ETHUSDT','ETHUSDT','bad-symbol'];
+  picker.sync();
+  assert.deepEqual(select.children.map(c=>c.value),
+   ['BTCUSDT','ETHUSDT','ETHUSDT']);
+  assert.equal(select.value,'BTCUSDT');
+  assert.equal(select.disabled,false);
+  assert.equal(analyst.disabled,false);
+  assert.equal(critic.disabled,false);
+  select.value='ETHUSDT';
+  picker.sync();
+  assert.equal(select.value,'ETHUSDT');
+  favorites=['SOLUSDT','ETHUSDT'];
+  picker.sync();
+  assert.equal(select.value,'ETHUSDT');
+  favorites=['SOLUSDT'];
+  picker.sync();
+  assert.equal(select.value,'SOLUSDT');
+  favorites=[];
+  picker.sync();
+  assert.equal(select.disabled,true);
+  assert.equal(analyst.disabled,true);
+  assert.equal(critic.disabled,true);
+  assert.equal(attempts,0,'changes to favorites cannot send a model request');
+ }finally{
+  if(oldDocument===undefined)delete globalThis.document;
+  else globalThis.document=oldDocument;
+ }
+});
+
+test('Android favorites refresh is wired both to native hydration and edits',()=>{
+ const app=readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
+ assert.match(app,/onFavoritesChanged:.*?cloudAiAudit\?\.sync\(\)/s);
+ assert.match(app,/favoritesReady\.then\(\(\)=>cloudAiAudit\.sync\(\)/);
+ assert.match(app,/getFavorites:\(\)=>favoriteManager\.getFavorites\(\)/);
 });

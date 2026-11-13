@@ -1293,6 +1293,7 @@ el('chart-reset').addEventListener('click',()=>{
 
 let assetFavoritePicker=null;
 let experienceOverview=null;
+let cloudAiAudit=null;
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
  onSelectSymbol:(symbol,researchId=null)=>{
@@ -1310,6 +1311,7 @@ const favoriteManager=initFavoriteResearch({
   radarDashboard.favoritesChanged();
   assetFavoritePicker?.render();
   experienceOverview?.favoritesChanged();
+  cloudAiAudit?.sync();
  },
  onResearchSynced:()=>experienceOverview?.researchUpdated()
 });
@@ -2258,7 +2260,7 @@ document.addEventListener('visibilitychange',()=>{
  favoriteManager.resume();
 });
 // One explicit user tap sends one research request from the approved Android.
-const cloudAiAudit=initCloudAiAudit({
+cloudAiAudit=initCloudAiAudit({
  getFavorites:()=>favoriteManager.getFavorites(),
  getSelectedAsset:()=>chosen,
  getHistory:getMobileHistory,
@@ -2268,6 +2270,9 @@ const cloudAiAudit=initCloudAiAudit({
  runAudit:cloudAiEvidenceAudit,
  refreshMonitor:()=>cloudAiMonitor.refresh()
 });
+// The native DataStore may hydrate after the first Settings render; resync it
+// on completion, as well as on every subsequent add/remove favorite callback.
+void favoritesReady.then(()=>cloudAiAudit.sync(),()=>cloudAiAudit.sync());
 el('apex-settings-open').addEventListener('click',()=>cloudAiAudit.sync());
 // Catalogue requires explicit user navigation; never scan all pairs on startup.
 renderGlobalOverview(null);
