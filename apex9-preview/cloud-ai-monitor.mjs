@@ -90,7 +90,7 @@ export function deriveCloudAiView(data = {}) {
      at:x.at, role:x.role, success:x.success === true,
      // Only fixed UI text from a bounded known result code.
      title:names[x.role]+' · '+(x.success === true?
-      'получен ответ':failureTitle(h(x.state)))
+      'получен ответ':failureTitle(h(x.state))+' · без ответа')
     })) : [];
  return {
   status,statusLabel,server:online?'Доступен':'Нет ответа',
