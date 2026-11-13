@@ -63,3 +63,19 @@
 @media(prefers-reduced-motion:reduce){
   .apex-ai-meter>span{transition:none}
 }
+
+/* Explicit opt-in one-model proof, never a background analysis loop. */
+.apex-ai-model-probe{display:grid;gap:8px;border:1px solid #32556a;border-radius:12px;
+ padding:12px;background:#0e2938}
+.apex-ai-model-probe>strong{font-size:12px;color:#def6f4}
+.apex-ai-model-probe p{font-size:11px;line-height:1.5;margin:0;color:#abc6d0}
+.apex-ai-model-probe label{font-size:11px;color:#c3d9e3}
+.apex-ai-model-probe select{background:#102e3c;border:1px solid #416b7a;
+ border-radius:9px;min-height:38px;color:#e5f8fc;padding:6px}
+.apex-ai-probe-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.apex-ai-probe-actions button{background:#144b48;border:1px solid #3b897e;
+ border-radius:10px;min-height:40px;padding:7px 9px;color:#e5f8f2}
+.apex-ai-model-probe button:disabled{opacity:.5}
+.apex-ai-model-probe pre{white-space:pre-wrap;overflow-wrap:anywhere;
+ font-family:inherit;font-size:11px;line-height:1.5;padding:10px;
+ color:#d6e9f1;border-radius:10px;background:#102638;max-height:260px;overflow:auto}
