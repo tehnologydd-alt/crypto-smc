@@ -8,6 +8,7 @@ import {getMobileStatus,getMobileHistory,saveMobileSnapshot,hasMobileObservation
 import {beginCloudAiPairing,cloudAiPairingStatus,cloudAiBudgetStatus,cloudAiHealthStatus,cloudAiActivityStatus,cloudAiEvidenceAudit} from './mobile-bridge.mjs';
 import {initCloudAiMonitor} from './cloud-ai-monitor.mjs';
 import {initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
+import {initCloudAiCollective} from './cloud-ai-collective.mjs';
 import {exportMobileCloudBackup,importMobileCloudBackup,
  getMobileCloudBackupStatus} from './mobile-bridge.mjs';
 import {fetchCandles,analyzeStructure} from './candles.mjs';
@@ -1294,6 +1295,7 @@ el('chart-reset').addEventListener('click',()=>{
 let assetFavoritePicker=null;
 let experienceOverview=null;
 let cloudAiAudit=null;
+let cloudAiCollective=null;
 const favoriteManager=initFavoriteResearch({
  getSelectedSymbol:()=>chosen,
  onSelectSymbol:(symbol,researchId=null)=>{
@@ -1312,6 +1314,7 @@ const favoriteManager=initFavoriteResearch({
   assetFavoritePicker?.render();
   experienceOverview?.favoritesChanged();
   cloudAiAudit?.sync();
+  cloudAiCollective?.sync();
  },
  onResearchSynced:()=>experienceOverview?.researchUpdated()
 });
@@ -2270,10 +2273,26 @@ cloudAiAudit=initCloudAiAudit({
  runAudit:cloudAiEvidenceAudit,
  refreshMonitor:()=>cloudAiMonitor.refresh()
 });
-// The native DataStore may hydrate after the first Settings render; resync it
-// on completion, as well as on every subsequent add/remove favorite callback.
-void favoritesReady.then(()=>cloudAiAudit.sync(),()=>cloudAiAudit.sync());
-el('apex-settings-open').addEventListener('click',()=>cloudAiAudit.sync());
+// Two explicit calls, not an autonomous background loop: the second call
+// carries bounded historical GLM hypotheses as untrusted claims to Qwen.
+cloudAiCollective=initCloudAiCollective({
+ getFavorites:()=>favoriteManager.getFavorites(),
+ getHistory:getMobileHistory,
+ fetchTicker:fetchSpotTicker,
+ getPairing:cloudAiPairingStatus,
+ getBudget:cloudAiBudgetStatus,
+ runAudit:cloudAiEvidenceAudit,
+ refreshMonitor:()=>cloudAiMonitor.refresh()
+});
+// Native DataStore favorites may hydrate after first Settings rendering.
+void favoritesReady.then(()=>{
+ cloudAiAudit.sync();cloudAiCollective.sync();
+},()=>{
+ cloudAiAudit.sync();cloudAiCollective.sync();
+});
+el('apex-settings-open').addEventListener('click',()=>{
+ cloudAiAudit.sync();cloudAiCollective.sync();
+});
 // Catalogue requires explicit user navigation; never scan all pairs on startup.
 renderGlobalOverview(null);
 setInterval(()=>{if(!document.hidden)favoriteManager.resume();},60000);
