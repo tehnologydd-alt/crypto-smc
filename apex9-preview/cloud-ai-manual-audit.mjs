@@ -62,6 +62,40 @@ export function buildCloudAuditEvidence({asset,rows=[],ticker=null,now=Date.now(
  return out.slice(0,5);
 }
 const labels={analyst:'GLM-4.7-Flash',critic:'Qwen3.8-27B'};
+const kyivTime=ms=>new Intl.DateTimeFormat('ru-RU',{
+ timeZone:'Europe/Kyiv',hour:'2-digit',minute:'2-digit'
+}).format(new Date(ms));
+/** Explain the shared server-side language budget without reserving attempts. */
+export function checkCloudAiLanguageBudget(budget,now=Date.now()){
+ const q=budget?.usage?.language;
+ if(budget?.state!=='POLICY_ACTIVE'||budget?.httpStatus!==200||!q)
+  return {allowed:false,reason:'UNVERIFIED',
+   message:'Защищённая проверка лимитов не прошла. Запрос к модели не отправлен.'};
+ const fields=['dailyUsed','dailyLimit','monthlyUsed','monthlyLimit',
+  'nightUsed','nightLimit'];
+ if(!fields.every(k=>Number.isSafeInteger(q[k])&&q[k]>=0)||
+    q.dailyLimit<1||q.monthlyLimit<1||q.nightLimit<1)
+  return {allowed:false,reason:'INVALID',
+   message:'Получены некорректные данные лимитов. Запрос к модели не отправлен.'};
+ if(q.dailyUsed>=q.dailyLimit)return {allowed:false,reason:'DAILY',
+  message:'Дневной лимит ИИ исчерпан: '+q.dailyUsed+'/'+q.dailyLimit+
+   '. Следующее дневное окно после 00:00 по Киеву.'};
+ if(q.monthlyUsed>=q.monthlyLimit)return {allowed:false,reason:'MONTHLY',
+  message:'Месячный лимит ИИ исчерпан: '+q.monthlyUsed+'/'+q.monthlyLimit+
+   '. Новое окно с начала следующего месяца по Киеву.'};
+ if(budget.clock?.mode==='ECO'&&q.nightUsed>=q.nightLimit)
+  return {allowed:false,reason:'NIGHT',
+   message:'Ночной лимит ИИ исчерпан: '+q.nightUsed+'/'+q.nightLimit+
+    '. Дневной режим APEX начинается в 08:00 по Киеву.'};
+ if(Number.isSafeInteger(q.nextEligibleAt)&&q.nextEligibleAt>now){
+  const gap=budget.clock?.mode==='ECO'?'60 минут':'5 минут';
+  return {allowed:false,reason:'COOLDOWN',nextEligibleAt:q.nextEligibleAt,
+   message:'GLM и Qwen используют общую паузу между запросами ('+gap+
+    '). Следующая попытка не раньше '+kyivTime(q.nextEligibleAt)+
+    ' по Киеву. Ожидание не расходует попытки.'};
+ }
+ return {allowed:true,reason:'READY',message:'Лимиты APEX разрешают попытку.'};
+}
 /** No polling, and no model traffic until the person taps a model button. */
 export function initCloudAiAudit({getFavorites,getSelectedAsset,getHistory,
  fetchTicker,getPairing,getBudget,runAudit,refreshMonitor}){
@@ -114,15 +148,9 @@ export function initCloudAiAudit({getFavorites,getSelectedAsset,getHistory,
    say('Проверяем подтверждение телефона и доступные лимиты…');
    const pair=await getPairing();
    if(pair?.state!=='APPROVED')throw Error('Сначала подтвердите устройство в Cloudflare.');
-   const budget=await getBudget(),q=budget?.usage?.language;
-   if(budget?.state!=='POLICY_ACTIVE'||budget?.httpStatus!==200||!q)
-    throw Error('Защищённая проверка лимитов не прошла.');
-   if(!Number.isSafeInteger(q.dailyUsed)||!Number.isSafeInteger(q.dailyLimit)||
-      !Number.isSafeInteger(q.monthlyUsed)||!Number.isSafeInteger(q.monthlyLimit)||
-      q.dailyUsed>=q.dailyLimit||q.monthlyUsed>=q.monthlyLimit||
-      (budget.clock?.mode==='ECO'&&q.nightUsed>=q.nightLimit)||
-      (Number.isSafeInteger(q.nextEligibleAt)&&q.nextEligibleAt>Date.now()))
-    throw Error('Попытка пока запрещена внутренними лимитами APEX.');
+   const budget=await getBudget();
+   const guard=checkCloudAiLanguageBudget(budget);
+   if(!guard.allowed)throw Error(guard.message);
    say('Собираем только проверенные публичные данные '+asset+'…');
    let rows=[];
    try{const history=await getHistory(asset,30);

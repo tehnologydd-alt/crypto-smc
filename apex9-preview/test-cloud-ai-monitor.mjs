@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {deriveCloudAiView} from './cloud-ai-monitor.mjs';
+import {deriveCloudAiView,renderTime} from './cloud-ai-monitor.mjs';
 
 test('APEX AI monitor cannot invent connectivity or completed analyses',()=>{
  const v=deriveCloudAiView({pair:{state:'NOT_PAIRED'}});
@@ -86,4 +86,16 @@ test('overview, native settings and bundling refer to the same monitor module',(
  assert.match(bridge,/cloudAiActivityStatus/);
  assert.match(stage,/'cloud-ai-monitor\.mjs'/);
  assert.match(stage,/'cloud-ai-monitor\.css'/);
+});
+
+test('next eligible time displays a genuine five-minute future cooldown',()=>{
+ const until=Date.now()+5*60000;
+ assert.equal(renderTime(until),'—','ordinary timestamps still disallow implausible future');
+ assert.notEqual(renderTime(until,{allowFuture:true}),'—');
+ assert.notEqual(renderTime(Date.now()+60*60000,{allowFuture:true}),'—');
+ const v=deriveCloudAiView({health:{state:'RUNNING',httpStatus:200},
+  pair:{state:'APPROVED'},budget:{state:'POLICY_ACTIVE',httpStatus:200,
+   clock:{mode:'ACTIVE'},usage:{language:{dailyUsed:1,dailyLimit:12,
+   monthlyUsed:1,monthlyLimit:280,nightUsed:0,nightLimit:1,nextEligibleAt:until}}}});
+ assert.equal(v.quotas.nextEligibleAt,until);
 });

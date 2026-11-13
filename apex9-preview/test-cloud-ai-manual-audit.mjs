@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {buildCloudAuditEvidence,initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
+import {buildCloudAuditEvidence,initCloudAiAudit,
+ checkCloudAiLanguageBudget} from './cloud-ai-manual-audit.mjs';
 
 const now=1_794_588_000_000;
 const quote={symbol:'ETHUSDT',scope:'24H_SPOT_SNAPSHOT',
@@ -135,4 +136,35 @@ test('Android favorites refresh is wired both to native hydration and edits',()=
  assert.match(app,/onFavoritesChanged:.*?cloudAiAudit\?\.sync\(\)/s);
  assert.match(app,/favoritesReady\.then\(\(\)=>cloudAiAudit\.sync\(\)/);
  assert.match(app,/getFavorites:\(\)=>favoriteManager\.getFavorites\(\)/);
+});
+
+test('shared five-minute cooldown blocks Qwen after GLM without spending another attempt',()=>{
+ const now=Date.parse('2026-11-13T17:47:00Z');
+ const budget={state:'POLICY_ACTIVE',httpStatus:200,clock:{mode:'ACTIVE'},
+  usage:{language:{dailyUsed:1,dailyLimit:12,monthlyUsed:1,monthlyLimit:280,
+   nightUsed:0,nightLimit:1,nextEligibleAt:now+5*60000}}};
+ const blocked=checkCloudAiLanguageBudget(budget,now);
+ assert.equal(blocked.allowed,false);
+ assert.equal(blocked.reason,'COOLDOWN');
+ assert.match(blocked.message,/19:52/);
+ assert.match(blocked.message,/общую паузу/);
+ const ready=checkCloudAiLanguageBudget(budget,now+5*60000);
+ assert.equal(ready.allowed,true);
+ assert.equal(ready.reason,'READY');
+});
+
+test('language quota reports daily, monthly, night and unverified separately',()=>{
+ const at=Date.parse('2026-11-13T22:10:00Z');
+ const b={state:'POLICY_ACTIVE',httpStatus:200,clock:{mode:'ECO'},
+  usage:{language:{dailyUsed:1,dailyLimit:12,monthlyUsed:1,monthlyLimit:280,
+   nightUsed:1,nightLimit:1,nextEligibleAt:at+3600000}}};
+ assert.equal(checkCloudAiLanguageBudget(b,at).reason,'NIGHT');
+ assert.equal(checkCloudAiLanguageBudget({...b,clock:{mode:'ACTIVE'}},at).reason,'COOLDOWN');
+ assert.equal(checkCloudAiLanguageBudget({...b,usage:{language:{...b.usage.language,
+  dailyUsed:12}}},at).reason,'DAILY');
+ assert.equal(checkCloudAiLanguageBudget({...b,usage:{language:{...b.usage.language,
+  monthlyUsed:280}}},at).reason,'MONTHLY');
+ assert.equal(checkCloudAiLanguageBudget({...b,httpStatus:401},at).reason,'UNVERIFIED');
+ assert.equal(checkCloudAiLanguageBudget({...b,usage:{language:{...b.usage.language,
+  dailyUsed:-1}}},at).reason,'INVALID');
 });

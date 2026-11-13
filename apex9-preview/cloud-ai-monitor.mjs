@@ -11,9 +11,10 @@ const names = Object.freeze({
 });
 const h = (s) => typeof s === 'string' ? s : '';
 
-export function renderTime(ms) {
+export function renderTime(ms,{allowFuture=false}={}) {
  const t = known(ms);
- if (!t || t < 1_500_000_000_000 || t > Date.now()+120_000) return '—';
+ if (!t || t < 1_500_000_000_000 ||
+   t > Date.now()+(allowFuture?48*3600_000:120_000)) return '—';
  return new Date(t).toLocaleString('ru-RU', {
   day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
  });
@@ -147,7 +148,9 @@ export function initCloudAiMonitor({
    shown(v.quotas.nightUsed)+' / '+shown(v.quotas.nightCap):'—');
   text('apex-ai-next-eligible',v.quotas.verified?
    (v.quotas.nextEligibleAt &&
-    v.quotas.nextEligibleAt > Date.now()?renderTime(v.quotas.nextEligibleAt):'Сейчас либо после лимита'):'—');
+    v.quotas.nextEligibleAt > Date.now()?
+     renderTime(v.quotas.nextEligibleAt,{allowFuture:true}):
+     'Пауза истекла · проверьте остальные лимиты'):'—');
   const bar=document.getElementById('apex-ai-meter');
   const fill=document.getElementById('apex-ai-meter-fill');
   const percent=v.quotas.verified && v.quotas.cap>0 && v.quotas.count!==null?
