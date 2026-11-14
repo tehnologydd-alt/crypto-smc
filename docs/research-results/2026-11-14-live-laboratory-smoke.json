@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "date": "2026-11-14",
+  "kind": "LIVE_ISOLATED_NONFINANCIAL_SMOKE_TEST",
+  "provider": "Cloudflare Workers AI REST API",
+  "scope": "One fixed fictional laboratory transcription example per model, not a market or trading task",
+  "benchmarkVersion": 1,
+  "partition": "holdout",
+  "case": {
+    "id": "lab-temp-c",
+    "field": "TEMPERATURE_C",
+    "value": 21.125
+  },
+  "requestPolicy": {
+    "max_completion_tokens": 256,
+    "temperature": 0.1,
+    "retries": 0
+  },
+  "results": [
+    {
+      "role": "GLM",
+      "model": "@cf/zai-org/glm-4.7-flash",
+      "final": "APEX_FACT|lab-temp-c|TEMPERATURE_C|21.125",
+      "finish": "stop",
+      "comparison": "EXACT",
+      "usage": {
+        "prompt_tokens": 59,
+        "completion_tokens": 17,
+        "total_tokens": 76,
+        "neurons": 0.9433
+      }
+    },
+    {
+      "role": "Qwen",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "final": "APEX_FACT|lab-temp-c|TEMPERATURE_C|21.125",
+      "finish": "stop",
+      "comparison": "EXACT",
+      "usage": {
+        "prompt_tokens": 97,
+        "completion_tokens": 73,
+        "total_tokens": 170,
+        "neurons": 25.204544067382812
+      }
+    }
+  ],
+  "requests": 2,
+  "archiveWrites": 0,
+  "productionWorkerChanged": false,
+  "automaticScheduleChanged": false,
+  "modelAccuracy": null,
+  "notes": "Direct one-off REST smoke test; not routed through the production APEX budget counters. Provider-returned usage only, not total account consumption. Workers Free plan shown by owner screenshot. No further automatic calls configured. One case per role does not establish model accuracy or improvement."
+}
