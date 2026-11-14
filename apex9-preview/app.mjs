@@ -328,13 +328,24 @@ async function runCloudBackup(mode){
     key=>typeof key==='string'&&
      /^(direction2|direction3|range1):[A-Z0-9]{5,20}:(1h|15m|4h):\d{10,16}$/.test(key)
    ))].slice(-300):[];
-   result=await exportMobileCloudBackup(passphrase,ids,hiddenIds);
+   const archive=researchHistory.exportArchive();
+   result=await exportMobileCloudBackup(passphrase,ids,hiddenIds,archive);
+   if(result?.saved&&result.transcriptCount!==archive.rows.length)
+    throw Error('Запись архива ИИ не подтверждена; требуется совместимая Android-сборка.');
   }
   if(result?.cancelled){
    text('apex-backup-status','Выбор файла отменён. История не изменена.');
   }else if(result?.error){
    text('apex-backup-status',result.error);
   }else if(restore&&result?.restored===true){
+   if(result.aiTranscripts!=null){
+    const merged=researchHistory.importArchive(result.aiTranscripts);
+    if(!merged.ok){
+     text('apex-backup-status','История Room объединена, но архив ИИ не перенесён ('+
+      merged.reason+'). Исходный файл сохраните; локальные записи ИИ не удалены.');
+     return;
+    }
+   }
    if(result.settingsRestored===false){
     text('apex-backup-status',
      'История Room объединена, но настройки не восстановлены. '+
@@ -371,7 +382,7 @@ async function runCloudBackup(mode){
    window.location.reload();
   }else if(!restore&&result?.saved===true){
    text('apex-backup-status',
-    'Зашифрованный архив записан. Проверьте, что файл полностью '+
+    'Зашифрованный архив записан. Записей ИИ: '+result.transcriptCount+'. Проверьте, что файл полностью '+
     'загрузился в выбранное облако. Пароль нужен на другом телефоне.');
   }else text('apex-backup-status','Не удалось подтвердить завершение операции.');
  }catch(error){

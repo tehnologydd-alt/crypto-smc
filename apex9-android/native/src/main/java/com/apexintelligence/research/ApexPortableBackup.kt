@@ -47,6 +47,57 @@ object ApexPortableBackup {
     private const val MAX_UNCOMPRESSED = 768L * 1024L * 1024L
     private const val MAX_LINES = 2_500_000L
     private const val MAX_LINE = 65536
+    private const val TRANSCRIPT_ENTRY = "ai-transcripts.json"
+    private const val MAX_TRANSCRIPT_BYTES = 1800000
+    private const val MAX_TRANSCRIPTS = 200
+    /** Only public evidence transcripts, not live sessions, credentials or quotas. */
+    fun checkedTranscripts(raw:JSONObject):JSONObject {
+        require(raw.optInt("version")==1) {"Unsupported transcript archive"}
+        require(raw.toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_TRANSCRIPT_BYTES)
+        val rows=raw.optJSONArray("rows") ?: throw IllegalArgumentException("Missing transcript rows")
+        require(rows.length()<=MAX_TRANSCRIPTS)
+        val ids=mutableSetOf<String>()
+        val now=System.currentTimeMillis()
+        for(i in 0 until rows.length()){
+            val row=rows.getJSONObject(i)
+            val asset=row.getString("asset")
+            val at=row.getLong("startedAt")
+            val stage=row.getString("stage")
+            require(asset.matches(Regex("^[A-Z0-9]{2,16}USDT$")) &&
+                row.optInt("version")==1 && at in 1..(now+120000) &&
+                row.getString("id")=="$asset:$at" && ids.add("$asset:$at") &&
+                stage in setOf("ANALYST_READY","COMPLETE"))
+            require(row.getString("analystText").trim().length in 15..2400)
+            val allowed=mutableSetOf("version","id","asset","startedAt","stage","evidence","sourceIds","analystText")
+            val evidence=row.getJSONArray("evidence")
+            val sourceIds=row.getJSONArray("sourceIds")
+            fun validateEvidence(items:JSONArray,cutoff:Long):List<String>{
+                require(items.length() in 1..5)
+                val sources=mutableListOf<String>()
+                for(j in 0 until items.length()){
+                    val e=items.getJSONObject(j)
+                    require(e.keys().asSequence().toSet()==setOf("source_id","observed_at","text"))
+                    val id=e.getString("source_id")
+                    require(id.length in 1..100 && id.contains(":$asset:") &&
+                        !sources.contains(id) && e.getLong("observed_at") in 1..(cutoff+120000) &&
+                        e.getString("text").length in 1..1500)
+                    sources.add(id)
+                }
+                return sources
+            }
+            val expected=validateEvidence(evidence,at)
+            require((0 until sourceIds.length()).map{sourceIds.getString(it)}==expected)
+            if(stage=="COMPLETE"){
+                allowed.addAll(listOf("criticAt","criticText","criticEvidence"))
+                val reviewed=row.getLong("criticAt")
+                require(reviewed in at..(now+120000) && row.getString("criticText").trim().length in 15..2400)
+                validateEvidence(row.getJSONArray("criticEvidence"),reviewed)
+            }
+            require(row.keys().asSequence().toSet()==allowed)
+        }
+        require(raw.keys().asSequence().toSet()==setOf("version","rows"))
+        return raw
+    }
     private val tableColumns = linkedMapOf(
         "research_observations" to listOf("id","asset","source","kind",
             "sourceState","observedAt","collectedAt","payloadJson"),
@@ -146,8 +197,9 @@ object ApexPortableBackup {
      * crash cannot strand a plaintext research export in Android cache.
      */
     private fun makeEncrypted(context:Context,password:CharArray,
-        uiIds:List<String>,hiddenIds:List<String>):Pair<File,JSONObject> {
+        uiIds:List<String>,hiddenIds:List<String>,transcripts:JSONObject?):Pair<File,JSONObject> {
         securePassword(password)
+        val archive=transcripts?.let{checkedTranscripts(it)}
         val app=context.applicationContext
         val settings=kotlinx.coroutines.runBlocking { ApexPreferences.read(app) }
         val db=ApexDatabase.get(app)
@@ -167,9 +219,11 @@ object ApexPortableBackup {
                         for((table,columns) in tableColumns)
                             counts.put(table,rowsToZip(
                                 db.openHelper.writableDatabase,zip,table,columns))
+                        if(archive!=null)zipText(zip,TRANSCRIPT_ENTRY,archive.toString())
                         zipText(zip,"manifest.json",JSONObject()
                             .put("format",FORMAT)
-                            .put("schemaVersion",5)
+                            .put("schemaVersion",if(archive!=null)6 else 5)
+                            .put("transcriptCount",archive?.getJSONArray("rows")?.length()?:0)
                             .put("exportedAt",System.currentTimeMillis())
                             .put("tableCounts",counts).toString())
                     }
@@ -186,8 +240,8 @@ object ApexPortableBackup {
      * that the selected document stream was written and closed successfully.
      */
     fun exportTo(context:Context,uri:Uri,password:CharArray,
-        uiIds:List<String>,hiddenIds:List<String>):JSONObject {
-        val (encrypted,counts)=makeEncrypted(context,password,uiIds,hiddenIds)
+        uiIds:List<String>,hiddenIds:List<String>,transcripts:JSONObject?=null):JSONObject {
+        val (encrypted,counts)=makeEncrypted(context,password,uiIds,hiddenIds,transcripts)
         try{
             val output=context.contentResolver.openOutputStream(uri,"w")
                 ?:throw IllegalStateException("Облачный документ недоступен для записи")
@@ -203,6 +257,7 @@ object ApexPortableBackup {
             p.edit().putLong("lastExportAt",at).apply()
             return JSONObject().put("saved",true).put("writtenAt",at)
                 .put("counts",counts)
+                .put("transcriptCount",transcripts?.getJSONArray("rows")?.length()?:0)
                 .put("note","Проверьте завершение загрузки в выбранном облаке")
         }finally{encrypted.delete()}
     }
@@ -294,8 +349,12 @@ object ApexPortableBackup {
         return count
     }
     private fun verify(zip:ZipFile):Pair<JSONObject,JSONObject> {
+        val manifest=JSONObject(textEntry(zip,"manifest.json"))
+        val schema=manifest.optInt("schemaVersion")
+        require(schema==5||schema==6) {"Несовместимая версия архива"}
         val allowed=(tableColumns.keys.map{zipName(it)}+
-            listOf("settings.json","manifest.json")).toSet()
+            listOf("settings.json","manifest.json")+
+            if(schema==6)listOf(TRANSCRIPT_ENTRY) else emptyList()).toSet()
         val entries=zip.entries().toList()
         val present=entries.map{it.name}
         var expanded=0L
@@ -311,13 +370,16 @@ object ApexPortableBackup {
         require(present.size==allowed.size&&present.toSet()==allowed){
             "Архив содержит неизвестные файлы или неполную структуру"
         }
-        val manifest=JSONObject(textEntry(zip,"manifest.json"))
         require(manifest.optString("format")==FORMAT&&
-            manifest.optInt("schemaVersion")==5&&
+            (schema==5||schema==6)&&
             manifest.optLong("exportedAt")>0){"Несовместимая версия архива"}
         val counts=manifest.optJSONObject("tableCounts")
             ?:throw IllegalArgumentException("Нет контрольных счётчиков")
         val settings=JSONObject(textEntry(zip,"settings.json"))
+        if(schema==6){
+            val history=checkedTranscripts(JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_TRANSCRIPT_BYTES)))
+            require(manifest.optInt("transcriptCount",-1)==history.getJSONArray("rows").length())
+        }
         // Validate settings and table counts BEFORE any Room modification.
         ApexPreferences.validateRestore(settings)
         var total=0L
@@ -376,6 +438,8 @@ object ApexPortableBackup {
                     .put("uiHiddenIds",settings.optJSONArray("uiHiddenIds")?:JSONArray())
                     .put("exportedAt",manifest.getLong("exportedAt"))
                     .put("scannedRows",scanned)
+                    .put("aiTranscripts",if(manifest.optInt("schemaVersion")==6)
+                        JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_TRANSCRIPT_BYTES)) else JSONObject.NULL)
                     .put("note",if(settingsRestored)
                         "Исследования объединены, настройки перенесены. Перезапустите APEX."
                         else "История Room объединена, но настройки не перенесены; попробуйте восстановление ещё раз.")

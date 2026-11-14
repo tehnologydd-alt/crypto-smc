@@ -183,6 +183,13 @@ class ApexNativePlugin : Plugin() {
                 return
             }
         }
+        if(call.data.has("aiTranscripts")){
+            try {
+                ApexPortableBackup.checkedTranscripts(call.data.getJSONObject("aiTranscripts"))
+            }catch(_:Exception){
+                call.reject("Некорректный архив исследований ИИ");return
+            }
+        }
         val intent=Intent(Intent.ACTION_CREATE_DOCUMENT).apply{
             addCategory(Intent.CATEGORY_OPENABLE)
             type=ApexPortableBackup.MIME
@@ -213,7 +220,7 @@ class ApexNativePlugin : Plugin() {
                 val hiddenIds=if(hidden==null)emptyList() else
                     (0 until hidden.length()).map{hidden.getString(it)}
                 val report=ApexPortableBackup.exportTo(
-                    context.applicationContext,uri,password,stars,hiddenIds)
+                    context.applicationContext,uri,password,stars,hiddenIds,call.data.optJSONObject("aiTranscripts"))
                 call.resolve(JSObject(report.toString()))
             }catch(e:Exception){
                 call.reject("Не удалось сохранить архив: "+

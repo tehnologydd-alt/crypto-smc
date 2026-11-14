@@ -86,6 +86,15 @@ export function writeTranscripts(store,rows){
   return store.getItem(HISTORY_KEY)===data;
  }catch{return false;}
 }
+/** Import only historical records, without restoring a live model session. */
+export function validateTranscriptArchive(archive,now=Date.now()){
+ if(archive?.version!==1||!Array.isArray(archive.rows)||
+    archive.rows.length>MAX_TRANSCRIPTS)return null;
+ try{if(new TextEncoder().encode(JSON.stringify(archive)).length>MAX_BYTES)return null;}catch{return null;}
+ const rows=archive.rows.map(x=>normalizeTranscript(x,now));
+ if(rows.some(x=>!x)||new Set(rows.map(x=>x.id)).size!==rows.length)return null;
+ return {version:1,rows};
+}
 export function initResearchHistory({store,now=()=>Date.now()}={}){
  if(store===undefined){try{store=globalThis.localStorage;}catch{store=null;}}
  const node=id=>document.getElementById(id);
@@ -142,5 +151,27 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  picker.addEventListener('change',()=>{visible=8;signature='';render();});
  limit.addEventListener('click',()=>{visible+=8;render();});
  recover();
- return {ingest,render,getRows:()=>rows.slice()};
+ return {ingest,render,getRows:()=>rows.slice(),
+  exportArchive:()=>({version:1,rows:rows.slice()}),
+  importArchive:archive=>{
+   const valid=validateTranscriptArchive(archive,now());
+   if(!valid)return {ok:false,reason:'INVALID_TRANSCRIPT_ARCHIVE'};
+   const merged=mergeTranscripts(rows,valid.rows,now());
+   // Do not silently evict existing history during a restore. Ask the user
+   // to keep the original file if combined storage exceeds the bounded archive.
+   const expected=new Set([...rows,...valid.rows].map(x=>x.id)).size;
+   if(merged.length<expected)return {ok:false,reason:'ARCHIVE_CAPACITY'};
+   for(const incoming of valid.rows){
+    const old=rows.find(x=>x.id===incoming.id);
+    if(old&&(old.analystText!==incoming.analystText||
+      JSON.stringify(old.evidence)!==JSON.stringify(incoming.evidence)||
+      old.stage==='COMPLETE'&&incoming.stage==='COMPLETE'&&
+      (old.criticText!==incoming.criticText||old.criticAt!==incoming.criticAt||
+       JSON.stringify(old.criticEvidence)!==JSON.stringify(incoming.criticEvidence))))
+      return {ok:false,reason:'ARCHIVE_CONFLICT'};
+   }
+   if(!writeTranscripts(store,merged))return {ok:false,reason:'LOCAL_STORAGE'};
+   rows=merged;saved=true;render();
+   return {ok:true,count:rows.length};
+  }};
 }

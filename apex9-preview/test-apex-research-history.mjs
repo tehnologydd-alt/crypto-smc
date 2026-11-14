@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS} from './apex-research-history.mjs';
+import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive} from './apex-research-history.mjs';
 const now=1794650000000;
 const run=(asset='BTCUSDT',startedAt=now-86400000)=>({
  version:1,asset,startedAt,stage:'ANALYST_READY',
@@ -37,4 +37,12 @@ test('batch recovery and storage are bounded, per asset and replay-idempotent',(
  assert.equal(mergeTranscripts([],many,now).length,MAX_TRANSCRIPTS);
  map.set(HISTORY_KEY,'broken');
  assert.deepEqual(readTranscripts(store,now),[]);
+});
+
+test('portable archive validation rejects duplicate, malformed and over-capacity records',()=>{
+ const a=normalizeTranscript(complete(run()),now);
+ assert.equal(validateTranscriptArchive({version:1,rows:[a]},now).rows.length,1);
+ assert.equal(validateTranscriptArchive({version:1,rows:[a,a]},now),null);
+ assert.equal(validateTranscriptArchive({version:1,rows:[{...a,asset:'ETHUSDT'}]},now),null);
+ assert.equal(validateTranscriptArchive({version:1,rows:Array(201).fill(a)},now),null);
 });
