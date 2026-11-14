@@ -362,6 +362,43 @@ export function researchQualityTimeline(rawRows,{asset='',now=Date.now()}={}){
   })
  }));
 }
+/**
+ * Source/field-specific transcription audit. Counts unique saved facts rather
+ * than response volume. Missing claims, mixed repeats and exact checks stay
+ * separate; this is not causal inference, source validation or model ranking.
+ */
+export function researchDiscrepancyPatterns(knowledge){
+ const groups=new Map();
+ const roles=['GLM','Qwen'];
+ for(const row of knowledge?.records||[]){
+  if(row.state!=='PARSED')continue;
+  for(const fact of row.facts){
+   const key=JSON.stringify([row.source,fact.field]);
+   if(!groups.has(key))groups.set(key,{source:row.source,field:fact.field,available:0,
+    paired:0,bothExact:0,oneExact:0,neitherExact:0,pairedMixed:0,
+    models:roles.map(role=>({role,exact:0,different:0,mixed:0,unchecked:0,attempts:0}))});
+   const g=groups.get(key);g.available++;
+   const states=[];
+   for(const m of g.models){
+    const c=fact.checks?.[m.role];
+    const matches=c?.matches||0,differences=c?.differences||0;
+    const state=matches&&differences?'mixed':matches?'exact':differences?'different':'unchecked';
+    m[state]++;m.attempts+=matches+differences;states.push(state);
+   }
+   if(states.includes('unchecked'))continue;
+   g.paired++;
+   if(states.includes('mixed'))g.pairedMixed++;
+   else if(states.every(x=>x==='exact'))g.bothExact++;
+   else if(states.includes('exact'))g.oneExact++;
+   else g.neitherExact++;
+  }
+ }
+ return [...groups.values()].map(g=>({...g,models:g.models.map(m=>{
+  const checked=g.available-m.unchecked;
+  return {...m,checked,coveragePercent:researchRatio(checked,g.available),
+   exactPercent:researchRatio(m.exact,checked)};
+ })})).sort((a,b)=>a.source.localeCompare(b.source)||a.field.localeCompare(b.field));
+}
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
  return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
@@ -602,7 +639,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   saveIssue==='ARCHIVE_CONFLICT'?' · конфликт с сохранённой сессией: запись не заменена':
   ' · новая запись не подтверждена, старый архив сохранён';
  const qualityTimeline=node('apex-quality-timeline'),qualitySources=node('apex-quality-sources'),
-  storageUsage=node('apex-history-capacity');
+  storageUsage=node('apex-history-capacity'),patternsNode=node('apex-quality-patterns');
  function renderQuality(){
   if(!qualityTimeline||!qualitySources||!storageUsage)return;
   const current=now();
@@ -626,6 +663,36 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     ' · неизвестный формат: '+g.unknown;
    card.append(name,researchMeter('Распознано без конфликта',g.parsed,g.total),note);
    qualitySources.append(card);
+  }
+  if(patternsNode){
+   patternsNode.replaceChildren();
+   const patterns=researchDiscrepancyPatterns(sources);
+   const fields={PRICE_USDT:'Цена',CHANGE_24H_PCT:'Изменение 24ч',
+    VOLUME_24H_USDT:'Объём 24ч',BEST_BID:'Лучшая покупка',BEST_ASK:'Лучшая продажа',
+    SPREAD_BPS:'Спред',VISIBLE_DEPTH_IMBALANCE:'Дисбаланс видимой глубины'};
+   if(!patterns.length){
+    const p=document.createElement('p');p.textContent='Нет распознанных числовых наблюдений.';patternsNode.append(p);
+   }
+   for(const p of patterns){
+    const details=document.createElement('details'),title=document.createElement('summary'),
+     note=document.createElement('p');
+    details.className='apex-quality-pattern';
+    title.textContent=p.source+' · '+(fields[p.field]||p.field)+' · '+p.available+' фактов';
+    const paired=document.createElement('p');
+    paired.textContent='Обе модели проверяли: '+p.paired+'/'+p.available+
+     ' · обе совпали: '+p.bothExact+' · одна совпала: '+p.oneExact+
+     ' · обе отличаются: '+p.neitherExact+' · смешанные: '+p.pairedMixed;
+    note.textContent='Проверки относятся к уникальным сохранённым фактам, а не к числу вызовов.';
+    details.append(title,note);
+    for(const m of p.models){
+     const count=document.createElement('small');
+     count.textContent=m.role+' · без сверки: '+m.unchecked+' · различия: '+m.different+
+      ' · смешанные: '+m.mixed+' · повторных/первичных сверок всего: '+m.attempts;
+     details.append(researchMeter(m.role+' · охват',m.checked,p.available),
+      researchMeter(m.role+' · только точные',m.exact,m.checked),count);
+    }
+    details.append(paired);patternsNode.append(details);
+   }
   }
   qualityTimeline.replaceChildren();
   const weeks=researchQualityTimeline(rows,{asset:picker.value,now:current});

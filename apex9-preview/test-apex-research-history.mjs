@@ -358,3 +358,24 @@ test('full archive and storage failure preserve prior records and bytes',async()
  assert.equal(upgraded.ok,true);assert.equal(upgraded.rows.length,400);
  assert.equal(upgraded.rows[0].stage,'COMPLETE');
 });
+
+test('source-field audit counts distinct facts, mixed repeats, and missing claims separately',async()=>{
+ const {buildResearchKnowledge,researchDiscrepancyPatterns}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const line=value=>'Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|'+value;
+ a.analystText=line(17.25);
+ const first={...complete(a),criticText:line(17.25)};
+ const repeat={...a,startedAt:a.startedAt+60000,analystText:line(17.26)};
+ const patterns=researchDiscrepancyPatterns(buildResearchKnowledge([first,repeat,first],{now}));
+ const p=patterns.find(x=>x.field==='PRICE_USDT');
+ assert.equal(p.available,1);assert.equal(p.models[0].checked,1);
+ assert.equal(p.models[0].attempts,2);assert.equal(p.models[0].mixed,1);
+ assert.equal(p.models[0].exactPercent,0);assert.equal(p.models[1].exactPercent,100);
+ assert.equal(p.paired,1);assert.equal(p.pairedMixed,1);assert.equal(p.bothExact,0);
+ const missing=patterns.find(x=>x.field==='VOLUME_24H_USDT');
+ assert.equal(missing.models[0].unchecked,1);
+ assert.equal(missing.models[0].exactPercent,null);assert.equal(missing.paired,0);
+ assert.deepEqual(researchDiscrepancyPatterns(buildResearchKnowledge([],{now})),[]);
+ const conflict={...a,startedAt:a.startedAt+120000,evidence:[{...a.evidence[0],text:a.evidence[0].text.replace('17.25 USDT','17.26 USDT')}]};
+ assert.deepEqual(researchDiscrepancyPatterns(buildResearchKnowledge([first,conflict],{now})),[]);
+});
