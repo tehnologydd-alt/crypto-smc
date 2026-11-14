@@ -856,31 +856,54 @@
         </div>
       </section>
     <nav class="apex-ai-jumps" aria-label="Разделы центра ИИ">
-      <button type="button" class="ghost" data-ai-jump="apex-ai-settings-anchor">Лимиты</button>
+      <button type="button" class="ghost" data-ai-jump="apex-ai-local-cycle-anchor">Цикл</button>
+      <button type="button" class="ghost" data-ai-jump="apex-ai-quality-center-anchor">Качество</button>
+      <button type="button" class="ghost" data-ai-jump="apex-ai-archive-anchor">Архив</button>
       <button type="button" class="ghost" data-ai-jump="apex-ai-models-anchor">Модели</button>
       <button type="button" class="ghost" data-ai-jump="apex-director-panel">Директор</button>
-      <button type="button" class="ghost" data-ai-jump="apex-ai-archive-anchor">Архив</button>
+      <button type="button" class="ghost" data-ai-jump="apex-ai-settings-anchor">Лимиты</button>
     </nav>
-    <h3 id="apex-ai-settings-anchor">Подключение и лимиты</h3>
-    <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
-    <div class="apex-backup-controls">
-      <button type="button" class="ghost" id="apex-ai-enroll">Привязать это устройство</button>
-      <button type="button" class="ghost" id="apex-ai-check">Проверить подключение и лимиты</button>
-    </div>
-    <p id="apex-ai-pair-status" class="muted" role="status" aria-live="polite">Подключение ещё не проверено.</p>
-    <section class="apex-ai-details" aria-label="Состояние APEX AI и история обращений">
-      <div class="apex-ai-details-line"><span>Последняя связь с сервером</span><strong id="apex-ai-health-checked">—</strong></div>
-      <div class="apex-ai-details-line"><span>Лимит запросов ИИ · день</span><strong id="apex-ai-quota-daily">—</strong></div>
-      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
-      <div class="apex-ai-details-line"><span>Месячные запросы</span><strong id="apex-ai-quota-monthly">—</strong></div>
-      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные месячные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-month"><span id="apex-ai-meter-month-fill"></span></div>
-      <div class="apex-ai-details-line"><span>Ночные запросы</span><strong id="apex-ai-quota-night">—</strong></div>
-      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные ночные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-night"><span id="apex-ai-meter-night-fill"></span></div>
-      <div class="apex-ai-details-line"><span>Оценка Neurons · сутки UTC</span><strong id="apex-ai-quota-neurons">—</strong></div>
-      <div class="apex-ai-meter" role="progressbar" aria-label="Оценочно зарезервированные Neurons" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-neurons"><span id="apex-ai-meter-neurons-fill"></span></div>
-      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
-      <div class="apex-ai-details-line"><span>Следующий разрешённый запрос</span><strong id="apex-ai-next-eligible">—</strong></div>
-      <div class="apex-ai-agent-grid" id="apex-ai-models-anchor">
+      <details class="apex-ai-director" id="apex-ai-local-cycle-anchor" open>
+        <summary>Автоматическая обработка <small>Локальный исследовательский цикл</small></summary>
+        <div class="apex-ai-director-body">
+          <label class="apex-local-cycle-toggle"><input type="checkbox" id="apex-local-cycle-enable"> Автоматическая локальная обработка истории</label>
+          <p id="apex-local-cycle-status" role="status">Автоматизация выключена</p>
+          <p id="apex-local-cycle-summary">Автоматических запросов к ИИ: 0.</p>
+          <div id="apex-local-cycle-metrics" class="apex-quality-periods"></div>
+          <details class="apex-research-statistics"><summary>Что означают показатели</summary>
+          <small>Сверки считаются по отдельным утверждениям; карточки моделей — по уникальным парам снимок/поле. Совпадение чисел не измеряет точность прогнозов. Новые записи содержат подробную сводку, доступную после перезапуска; предыдущие записи без сводки остаются читаемыми. Сохранённые результаты относятся к моменту расчёта, а не к текущим данным.</small>
+          </details>
+          <details class="apex-research-statistics">
+            <summary>Облачная диагностика · v4</summary>
+            <p id="apex-cycle-cloud-status">Нет подтверждённых данных</p>
+            <p>Режим сервера: <span id="apex-cycle-cloud-mode">Не подтверждён</span></p>
+            <p id="apex-cycle-cloud-quotas">День: — · месяц: — · ночь: —</p>
+            <p id="apex-cycle-cloud-models">GLM / Qwen: нет данных</p>
+            <p id="apex-cycle-cloud-queue">Состояние очереди неизвестно</p>
+            <small>Сводка последней существующей проверки монитора, без новых запросов. Время проверки старше 180 секунд на момент обновления считается устаревшим. Счётчики очереди описывают сохранённые записи, не пригодность задач к запуску. Наличие связи и лимитов не подтверждает доступность модели или разрешение на запуск. Автоматические облачные вызовы отключены. Испытания с искусственными сбоями выполняются отдельно в CI и не записывают тестовые данные в ваш архив.</small>
+          </details>
+          <details class="apex-research-statistics">
+            <summary>Стабильность и журнал выполнения</summary>
+            <small>Сводка всех сохранённых локальных попыток и последние 10 записей. Повторы не равны новым экспериментам, ожидание данных не равно ошибке. Время относится только к локальной обработке, не к ответам ИИ.</small>
+            <div id="apex-local-cycle-history" class="apex-quality-periods"></div>
+          </details>
+          <details class="apex-research-statistics"><summary>Как работает локальный цикл</summary>
+          <small>По умолчанию выключено при каждом запуске. Работает только при видимом приложении: обрабатывает текущий сохранённый архив при изменениях, сверяет наблюдения, формирует задачи проверки и сохраняет сводку лаборатории в существующем журнале. Если архив уже обработан и не изменился, повторное открытие экрана не запускает такой же цикл снова. При отсутствии однозначных числовых сверок показываются доступные факты и причина ожидания; лабораторный эксперимент не создаётся из неподтверждённых утверждений. Повторы входа не дублируются. При отключении, повреждении архива или переполнении запись блокируется. Постоянный локальный журнал: до 100 завершённых попыток без вытеснения, между попытками не менее 60 секунд от окончания предыдущей, длительность измеряется монотонными часами. При повреждении или заполнении журнала автоматические запуски блокируются. Завершённые записи журнала включены в резервную копию формата 9. Перед переносом выключите автоматизацию; текущая незавершённая попытка не переносится. До начала вычислений сохраняется отметка запуска. После перезапуска незавершённая попытка отмечается как прерванная (длительность неизвестна), а подтверждённая запись не дублируется. Восстановление не запускает новый цикл: требуется включить переключатель. Ограничение частоты не является жёстким тайм-аутом вычислений. Не запускает GLM/Qwen, не меняет правила и не выполняет финансовых операций.</small>
+          </details>
+        </div>
+      </details>
+      <details class="apex-ai-director" id="apex-ai-quality-center-anchor">
+        <summary>Центр качества исследований <small>Аудит ответов и согласованность</small></summary>
+        <div class="apex-ai-director-body">
+          <p id="apex-quality-center-status">Чтение локальных журналов…</p>
+          <div id="apex-quality-center-list" class="apex-quality-periods"></div>
+          <small>Сводка по всему архиву, независимо от фильтра актива. Наличие ID означает только наличие записи, а совпадение SHA-256 связывает ручную отметку с сохранённым экспериментом. Ни одно из них не подтверждает достоверность выводов. Отсутствующие ссылки не удаляются и отмечаются отдельно. Журналы Lab и правил включены в резервную копию формата 9.</small>
+        </div>
+      </details>
+      <details class="apex-ai-director apex-ai-group" id="apex-ai-models-anchor">
+        <summary>Модели GLM и Qwen <small>Ручные проверки и сохранённые ответы</small></summary>
+        <div class="apex-ai-director-body">
+      <div class="apex-ai-agent-grid">
         <div><span>GLM-4.7-Flash</span><strong id="apex-ai-glm-status">Нет подтверждённых ответов</strong><small id="apex-ai-glm-count">Ответов на этом телефоне: —</small></div>
         <div><span>Qwen3.8-27B</span><strong id="apex-ai-qwen-status">Нет подтверждённых ответов</strong><small id="apex-ai-qwen-count">Ответов на этом телефоне: —</small></div>
       </div>
@@ -931,6 +954,8 @@
           <small>Один пакет расходует одну разрешённую попытку модели, но вычислительный расход зависит от объёма. Результаты каждого актива проверяются по его источникам.</small>
         </div>
       </details>
+        </div>
+      </details>
       <details id="apex-director-panel" class="apex-ai-director">
         <summary>APEX · директор исследований <small>Локальная очередь · 0 запросов ИИ</small></summary>
         <div class="apex-ai-director-body">
@@ -940,78 +965,6 @@
           <p id="apex-director-status" role="status" aria-live="polite">Нет фоновых обращений к языковым моделям.</p>
           <ul id="apex-director-tasks"><li>Ожидаем подтверждённые наблюдения</li></ul>
           <small>Фактическое движение H1 — описание будущих данных, не доказательство точности выводов. Очередь хранится на этом телефоне; перенос её через резервную копию пока не подтверждён.</small>
-        </div>
-      </details>
-      <details class="apex-ai-director" id="apex-ai-local-cycle-anchor">
-        <summary>APEX Research Orchestrator <small>Локальный автоматический цикл · восстановление</small></summary>
-        <div class="apex-ai-director-body">
-          <label class="apex-local-cycle-toggle"><input type="checkbox" id="apex-local-cycle-enable"> Автоматическая локальная обработка истории</label>
-          <p id="apex-local-cycle-status" role="status">Автоматизация выключена</p>
-          <p id="apex-local-cycle-summary">Автоматических запросов к ИИ: 0.</p>
-          <div id="apex-local-cycle-metrics" class="apex-quality-periods"></div>
-          <small>Сверки считаются по отдельным утверждениям; карточки моделей — по уникальным парам снимок/поле. Совпадение чисел не измеряет точность прогнозов. Новые записи содержат подробную сводку, доступную после перезапуска; предыдущие записи без сводки остаются читаемыми. Сохранённые результаты относятся к моменту расчёта, а не к текущим данным.</small>
-          <details class="apex-research-statistics">
-            <summary>Облачная диагностика · v4</summary>
-            <p id="apex-cycle-cloud-status">Нет подтверждённых данных</p>
-            <p>Режим сервера: <span id="apex-cycle-cloud-mode">Не подтверждён</span></p>
-            <p id="apex-cycle-cloud-quotas">День: — · месяц: — · ночь: —</p>
-            <p id="apex-cycle-cloud-models">GLM / Qwen: нет данных</p>
-            <p id="apex-cycle-cloud-queue">Состояние очереди неизвестно</p>
-            <small>Сводка последней существующей проверки монитора, без новых запросов. Время проверки старше 180 секунд на момент обновления считается устаревшим. Счётчики очереди описывают сохранённые записи, не пригодность задач к запуску. Наличие связи и лимитов не подтверждает доступность модели или разрешение на запуск. Автоматические облачные вызовы отключены. Испытания с искусственными сбоями выполняются отдельно в CI и не записывают тестовые данные в ваш архив.</small>
-          </details>
-          <details class="apex-research-statistics">
-            <summary>Стабильность и журнал выполнения</summary>
-            <small>Сводка всех сохранённых локальных попыток и последние 10 записей. Повторы не равны новым экспериментам, ожидание данных не равно ошибке. Время относится только к локальной обработке, не к ответам ИИ.</small>
-            <div id="apex-local-cycle-history" class="apex-quality-periods"></div>
-          </details>
-          <small>По умолчанию выключено при каждом запуске. Работает только при видимом приложении: обрабатывает текущий сохранённый архив при изменениях, сверяет наблюдения, формирует задачи проверки и сохраняет сводку лаборатории в существующем журнале. Если архив уже обработан и не изменился, повторное открытие экрана не запускает такой же цикл снова. При отсутствии однозначных числовых сверок показываются доступные факты и причина ожидания; лабораторный эксперимент не создаётся из неподтверждённых утверждений. Повторы входа не дублируются. При отключении, повреждении архива или переполнении запись блокируется. Постоянный локальный журнал: до 100 завершённых попыток без вытеснения, между попытками не менее 60 секунд от окончания предыдущей, длительность измеряется монотонными часами. При повреждении или заполнении журнала автоматические запуски блокируются. Завершённые записи журнала включены в резервную копию формата 9. Перед переносом выключите автоматизацию; текущая незавершённая попытка не переносится. До начала вычислений сохраняется отметка запуска. После перезапуска незавершённая попытка отмечается как прерванная (длительность неизвестна), а подтверждённая запись не дублируется. Восстановление не запускает новый цикл: требуется включить переключатель. Ограничение частоты не является жёстким тайм-аутом вычислений. Не запускает GLM/Qwen, не меняет правила и не выполняет финансовых операций.</small>
-        </div>
-      </details>
-      <details class="apex-ai-director" id="apex-ai-quality-center-anchor">
-        <summary>Центр качества исследований <small>Аудит ответов и согласованность</small></summary>
-        <div class="apex-ai-director-body">
-          <p id="apex-quality-center-status">Чтение локальных журналов…</p>
-          <div id="apex-quality-center-list" class="apex-quality-periods"></div>
-          <small>Сводка по всему архиву, независимо от фильтра актива. Наличие ID означает только наличие записи, а совпадение SHA-256 связывает ручную отметку с сохранённым экспериментом. Ни одно из них не подтверждает достоверность выводов. Отсутствующие ссылки не удаляются и отмечаются отдельно. Журналы Lab и правил включены в резервную копию формата 9.</small>
-        </div>
-      </details>
-      <details class="apex-ai-director" id="apex-ai-rules-anchor">
-        <summary>APEX Knowledge Engine <small>Реестр исследовательских правил</small></summary>
-        <div class="apex-ai-director-body">
-          <p id="apex-rules-status" role="status">Реестр правил и ручных отметок; автоматической активации нет.</p>
-          <div id="apex-rules-list" class="apex-quality-periods"></div>
-          <small>Рабочие правила перечислены с версией и происхождением. Для экспериментального кандидата доступна ручная отметка после запуска Lab и прохождения критериев допуска. Отметка привязана к SHA-256 входа; через 30 дней считается устаревшей. Это срок повторного аудита, не срок достоверности информации. Журнал до 60 отметок; переносится резервной копией формата 9. Ни одна отметка не активирует правило.</small>
-        </div>
-      </details>
-      <details class="apex-ai-director" id="apex-ai-lab-anchor">
-        <summary>APEX Research Lab <small>Сравнение гипотез v3</small></summary>
-        <div class="apex-ai-director-body">
-          <p>Строгое числовое совпадение и два фиксированных относительных допуска: 0,00001% и 0,0001% на одних исторических утверждениях.</p>
-          <small>Для кандидата на ручную проверку требуется не менее 10 уникальных снимков в исследовательской выборке и 5 в контрольной, с переклассификацией как минимум двух снимков в каждой. Это предварительные эвристические пороги, не статистическое доказательство. Ни одна гипотеза не принимается автоматически. Отчёт v3 пересчитывается при запуске; журнал v2 сохраняется без изменения формата.</small>
-          <button type="button" id="apex-lab-run" class="ghost">Запустить эксперимент</button>
-          <p id="apex-lab-status" role="status">Журнал экспериментов: до 40 записей на этом телефоне.</p>
-          <div id="apex-lab-output" class="apex-quality-periods"></div>
-          <details class="apex-research-statistics">
-            <summary>Сохранённые эксперименты</summary>
-            <div id="apex-lab-history" class="apex-quality-periods"></div>
-          </details>
-          <small>Используется фильтр актива из архива. Повторные проверки одного факта объединяются; все его проверки должны удовлетворять правилу. Конфликтующие и неразрешённые данные исключаются, нулевое значение требует точного совпадения. Допуск — экспериментальная переклассификация, не подтверждение округления или улучшения модели. Основной алгоритм не изменяется. Фиксированное разбиение по ID снимка примерно 80/20; поля и повторы одного снимка не пересекают выборки. Контрольная выборка не является независимым проспективным тестом. Журнал хранит до 40 сводок и SHA-256 входа, без самих снимков и без облачных запросов; переносится резервной копией формата 9.</small>
-        </div>
-      </details>
-      <details class="apex-ai-director" id="apex-ai-feedback-anchor">
-        <summary>Research Feedback Engine <small>Локальная очередь контроля качества</small></summary>
-        <div class="apex-ai-director-body">
-          <p id="apex-feedback-summary">Чтение сохранённого архива…</p>
-          <div id="apex-feedback-list" class="apex-quality-periods"></div>
-          <button type="button" id="apex-feedback-more" class="ghost">Ещё задачи проверки</button>
-          <details class="apex-research-statistics">
-            <summary>Журнал ручных проверок</summary>
-            <p id="apex-feedback-review-status" role="status">Результат проверки можно записать в карточке задачи.</p>
-            <div id="apex-feedback-reviews" class="apex-quality-periods"></div>
-            <button type="button" id="apex-feedback-review-more" class="ghost">Ещё проверки</button>
-            <small>До 100 ручных отметок на этом телефоне, без вытеснения. Сравнение показывает изменение состава/доли, но не доказывает устранение проблемы. Журнал включён в новый переносимый зашифрованный архив. Старые архивы без журнала не заменяют уже сохранённые отметки.</small>
-          </details>
-          <small>Весь сохранённый архив. Конфликт ID и неизвестный формат выделяются сразу. Числовые различия: минимум 5 уникальных проверок, из них минимум 3 с различиями и доля от 30%. Низкий охват: минимум 10 доступных фактов, из них от 70% без явной сверки. Это эвристические пороги для ручного аудита, не доказательство качества модели, не обучение и не оценка прогнозов. Автоматических запросов нет.</small>
         </div>
       </details>
       <details class="apex-ai-director" id="apex-ai-archive-anchor">
@@ -1059,13 +1012,81 @@
           <small>До 400 записей и 2,4 МБ. При заполнении новые записи не добавляются, сохранённый архив не вытесняется. Старые версии APK могут отклонить расширенный архив. Сохранены тексты и исходные наблюдения, а не подтверждённые выводы. Включается в новый зашифрованный резервный архив; старые архивы без истории ИИ читаются.</small>
         </div>
       </details>
+      <details class="apex-ai-director apex-ai-group" id="apex-ai-advanced-anchor">
+        <summary>Инструменты аудита <small>Правила · лаборатория · обратная связь</small></summary>
+        <div class="apex-ai-director-body">
+      <details class="apex-ai-director" id="apex-ai-rules-anchor">
+        <summary>APEX Knowledge Engine <small>Реестр исследовательских правил</small></summary>
+        <div class="apex-ai-director-body">
+          <p id="apex-rules-status" role="status">Реестр правил и ручных отметок; автоматической активации нет.</p>
+          <div id="apex-rules-list" class="apex-quality-periods"></div>
+          <small>Рабочие правила перечислены с версией и происхождением. Для экспериментального кандидата доступна ручная отметка после запуска Lab и прохождения критериев допуска. Отметка привязана к SHA-256 входа; через 30 дней считается устаревшей. Это срок повторного аудита, не срок достоверности информации. Журнал до 60 отметок; переносится резервной копией формата 9. Ни одна отметка не активирует правило.</small>
+        </div>
+      </details>
+      <details class="apex-ai-director" id="apex-ai-lab-anchor">
+        <summary>APEX Research Lab <small>Сравнение гипотез v3</small></summary>
+        <div class="apex-ai-director-body">
+          <p>Строгое числовое совпадение и два фиксированных относительных допуска: 0,00001% и 0,0001% на одних исторических утверждениях.</p>
+          <small>Для кандидата на ручную проверку требуется не менее 10 уникальных снимков в исследовательской выборке и 5 в контрольной, с переклассификацией как минимум двух снимков в каждой. Это предварительные эвристические пороги, не статистическое доказательство. Ни одна гипотеза не принимается автоматически. Отчёт v3 пересчитывается при запуске; журнал v2 сохраняется без изменения формата.</small>
+          <button type="button" id="apex-lab-run" class="ghost">Запустить эксперимент</button>
+          <p id="apex-lab-status" role="status">Журнал экспериментов: до 40 записей на этом телефоне.</p>
+          <div id="apex-lab-output" class="apex-quality-periods"></div>
+          <details class="apex-research-statistics">
+            <summary>Сохранённые эксперименты</summary>
+            <div id="apex-lab-history" class="apex-quality-periods"></div>
+          </details>
+          <small>Используется фильтр актива из архива. Повторные проверки одного факта объединяются; все его проверки должны удовлетворять правилу. Конфликтующие и неразрешённые данные исключаются, нулевое значение требует точного совпадения. Допуск — экспериментальная переклассификация, не подтверждение округления или улучшения модели. Основной алгоритм не изменяется. Фиксированное разбиение по ID снимка примерно 80/20; поля и повторы одного снимка не пересекают выборки. Контрольная выборка не является независимым проспективным тестом. Журнал хранит до 40 сводок и SHA-256 входа, без самих снимков и без облачных запросов; переносится резервной копией формата 9.</small>
+        </div>
+      </details>
+      <details class="apex-ai-director" id="apex-ai-feedback-anchor">
+        <summary>Research Feedback Engine <small>Локальная очередь контроля качества</small></summary>
+        <div class="apex-ai-director-body">
+          <p id="apex-feedback-summary">Чтение сохранённого архива…</p>
+          <div id="apex-feedback-list" class="apex-quality-periods"></div>
+          <button type="button" id="apex-feedback-more" class="ghost">Ещё задачи проверки</button>
+          <details class="apex-research-statistics">
+            <summary>Журнал ручных проверок</summary>
+            <p id="apex-feedback-review-status" role="status">Результат проверки можно записать в карточке задачи.</p>
+            <div id="apex-feedback-reviews" class="apex-quality-periods"></div>
+            <button type="button" id="apex-feedback-review-more" class="ghost">Ещё проверки</button>
+            <small>До 100 ручных отметок на этом телефоне, без вытеснения. Сравнение показывает изменение состава/доли, но не доказывает устранение проблемы. Журнал включён в новый переносимый зашифрованный архив. Старые архивы без журнала не заменяют уже сохранённые отметки.</small>
+          </details>
+          <small>Весь сохранённый архив. Конфликт ID и неизвестный формат выделяются сразу. Числовые различия: минимум 5 уникальных проверок, из них минимум 3 с различиями и доля от 30%. Низкий охват: минимум 10 доступных фактов, из них от 70% без явной сверки. Это эвристические пороги для ручного аудита, не доказательство качества модели, не обучение и не оценка прогнозов. Автоматических запросов нет.</small>
+        </div>
+      </details>
+        </div>
+      </details>
+      <details class="apex-ai-director apex-ai-group" id="apex-ai-settings-anchor">
+        <summary>Подключение и лимиты <small>Cloudflare · квоты · диагностика</small></summary>
+        <div class="apex-ai-director-body">
+    <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
+    <div class="apex-backup-controls">
+      <button type="button" class="ghost" id="apex-ai-enroll">Привязать это устройство</button>
+      <button type="button" class="ghost" id="apex-ai-check">Проверить подключение и лимиты</button>
+    </div>
+    <p id="apex-ai-pair-status" class="muted" role="status" aria-live="polite">Подключение ещё не проверено.</p>
+    <div class="apex-ai-details" aria-label="Состояние APEX AI и история обращений">
+      <div class="apex-ai-details-line"><span>Последняя связь с сервером</span><strong id="apex-ai-health-checked">—</strong></div>
+      <div class="apex-ai-details-line"><span>Лимит запросов ИИ · день</span><strong id="apex-ai-quota-daily">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
+      <div class="apex-ai-details-line"><span>Месячные запросы</span><strong id="apex-ai-quota-monthly">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные месячные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-month"><span id="apex-ai-meter-month-fill"></span></div>
+      <div class="apex-ai-details-line"><span>Ночные запросы</span><strong id="apex-ai-quota-night">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные ночные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-night"><span id="apex-ai-meter-night-fill"></span></div>
+      <div class="apex-ai-details-line"><span>Оценка Neurons · сутки UTC</span><strong id="apex-ai-quota-neurons">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Оценочно зарезервированные Neurons" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-neurons"><span id="apex-ai-meter-neurons-fill"></span></div>
+      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
+      <div class="apex-ai-details-line"><span>Следующий разрешённый запрос</span><strong id="apex-ai-next-eligible">—</strong></div>
       <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
         <p id="apex-ai-recent-diagnostics" class="apex-ai-readiness">Журнал ещё не прочитан.</p>
         <ul id="apex-ai-events"><li>История обращений ещё не проверена</li></ul>
         <small>До восьми последних событий телефона. Ошибка ожидания не подтверждает отказ сервера, а код поставщика не доказывает исчерпание квоты. Общие лимиты отображаются отдельно.</small>
       </div>
       <p class="apex-ai-footnote" id="apex-ai-limit-note">Здесь показаны внутренние лимиты попыток, а не баланс Neurons или стоимость Cloudflare. Состояние модели считается подтверждённым только после настоящего ответа.</p>
-    </section>
+    </div>
+        </div>
+      </details>
+
 
 
       <button type="button" class="ghost apex-ai-source-link" data-go="sources">Источники данных и достоверность ›</button>

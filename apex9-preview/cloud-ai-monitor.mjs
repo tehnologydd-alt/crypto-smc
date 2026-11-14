@@ -363,7 +363,9 @@ export function initCloudAiMonitor({
   if(!button||!document.getElementById('view-ai')?.contains(button))return;
   const target=document.getElementById(button.dataset.aiJump);
   if(!target)return;
-  if(target.tagName==='DETAILS')target.open=true;
+  for(let item=target;item;item=item.parentElement){
+   if(item.tagName==='DETAILS')item.open=true;
+  }
   target.scrollIntoView({block:'start',behavior:'auto'});
  };
  document.addEventListener('click',jump);

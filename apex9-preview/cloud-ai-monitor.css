@@ -227,3 +227,6 @@
 .apex-cycle-metric{border:1px solid #385869;border-radius:10px;padding:10px;min-width:0}.apex-cycle-metric p{font-size:12px;line-height:1.45;margin:5px 0 0;overflow-wrap:anywhere}
 
 #apex-local-cycle-history .apex-cycle-metric{margin-bottom:10px}#apex-local-cycle-history .apex-cycle-metric p{margin:6px 0;line-height:1.5}
+
+/* Compact phone-first research navigation. Existing IDs and data paths are retained. */
+.apex-ai-page .apex-ai-jumps{grid-template-columns:repeat(3,minmax(0,1fr))}.apex-ai-page>.apex-ai-director{margin:8px 0}.apex-ai-page .apex-ai-group .apex-ai-details{margin-top:0;padding:9px}.apex-ai-page [id^="apex-ai-"][id$="-anchor"],.apex-ai-page #apex-director-panel{scroll-margin-top:76px}.apex-ai-page .apex-ai-group>.apex-ai-director-body{min-width:0}.apex-ai-page .apex-ai-group .apex-ai-director{margin:6px 0}

@@ -1543,7 +1543,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    card.className='apex-quality-period';heading.textContent=name;main.textContent=summary;sub.textContent=note;
    button.type='button';button.className='ghost';button.textContent='Открыть раздел';
    button.addEventListener('click',()=>{
-    const section=node(target);if(!section)return;section.open=true;section.scrollIntoView?.({block:'start',behavior:'smooth'});
+    const section=node(target);if(!section)return;
+    for(let item=section;item;item=item.parentElement)if(item.tagName==='DETAILS')item.open=true;
+    section.scrollIntoView?.({block:'start',behavior:'smooth'});
    });
    card.append(heading,main,sub,button);center.append(card);
   }

@@ -201,7 +201,7 @@ test('all four quota meters and mobile shortcuts have unique real targets',()=>{
   assert.match(html,new RegExp('data-state="unknown" id="'+id+'"'));
  }
  for(const [,id] of html.matchAll(/data-ai-jump="([^"]+)"/g))assert.equal(html.split('id="'+id+'"').length,2);
- assert.equal([...html.matchAll(/data-ai-jump="/g)].length,4);
+ assert.equal([...html.matchAll(/data-ai-jump="/g)].length,6);
 });
 test('failed refresh clears verified quota but retains last successful contact',async()=>{
  const {initCloudAiMonitor}=await import('./cloud-ai-monitor.mjs');
@@ -279,4 +279,14 @@ test('read-only diagnostics distinguish fixture connection failure, revoked devi
  assert.equal(researchCloudDiagnostics({...data,health:{state:'CLOUD_UNAVAILABLE'}},now).state,'NO_CONNECTION');
  assert.equal(researchCloudDiagnostics({...data,budget:{state:'POLICY_ACTIVE',httpStatus:503}},now).state,'BUDGET_UNKNOWN');
  assert.equal(researchCloudDiagnostics(data,now+181000).state,'STALE_HEALTH');
+});
+
+test('compact AI page puts the local cycle first and retains nested audit destinations',()=>{
+ const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+ const page=html.slice(html.indexOf('id="view-ai"'),html.indexOf('id="view-sources"'));
+ assert.ok(page.indexOf('id="apex-ai-local-cycle-anchor"')<page.indexOf('id="apex-ai-models-anchor"'));
+ assert.ok(page.indexOf('id="apex-ai-advanced-anchor"')<page.indexOf('id="apex-ai-rules-anchor"'));
+ assert.ok(page.indexOf('id="apex-ai-archive-anchor"')<page.indexOf('id="apex-ai-settings-anchor"'));
+ for(const id of ['apex-ai-check','apex-ai-test-asset','apex-ai-collective-start','apex-ai-collective-review','apex-batch-start','apex-batch-review','apex-local-cycle-enable','apex-lab-run','apex-history-filter','apex-ai-events'])
+  assert.equal(page.split('id="'+id+'"').length,2);
 });
