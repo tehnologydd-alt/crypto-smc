@@ -262,6 +262,24 @@ export function compareHistoricalClaims(row,{archiveConflicts=[]}={}){
 }
 /** Spot conflicting copies of the same observation across archived sessions.
  * Exact identity only; do not compare values from distinct timestamps. */
+/** Count response format coverage without interpreting prose or modifying history. */
+export function historicalClaimCoverage(rows){
+ const conflicts=findArchiveSourceConflicts(rows);
+ const models=['GLM','Qwen'].map(role=>({role,responses:0,withLines:0,withChecked:0,unresolved:0}));
+ for(const row of rows){
+  const results=compareHistoricalClaims(row,{archiveConflicts:conflicts}).results;
+  for(const m of models){
+   if(m.role==='Qwen'&&row.stage!=='COMPLETE')continue;
+   m.responses++;
+   const claims=results.filter(c=>c.role===m.role);
+   const checked=claims.filter(c=>['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state)).length;
+   if(claims.length)m.withLines++;
+   if(checked)m.withChecked++;
+   m.unresolved+=claims.length-checked;
+  }
+ }
+ return models;
+}
 export function findArchiveSourceConflicts(rows){
  const seen=new Map(),conflicts=new Set();
  for(const row of rows){
@@ -981,9 +999,10 @@ export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent
  if(!rows.length)return out('WAITING_DATA',{reason:'EMPTY_ARCHIVE'});
  const knowledge=buildResearchKnowledge(rows,{now}),worklist=buildResearchFeedback(knowledge);
  const result=runResearchLab(rows,{now});
+ const coverage=historicalClaimCoverage(rows);
  const summary={records:rows.length,observations:knowledge.total,conflicts:knowledge.quarantined,
   tasks:worklist.total,checked:result.checkedClaims,availableFacts:knowledge.uniqueFacts,
-  unresolved:result.unresolved,parsedObservations:knowledge.parsed,unknownObservations:knowledge.unknown};
+  unresolved:result.unresolved,parsedObservations:knowledge.parsed,unknownObservations:knowledge.unknown,coverage};
  if(!result.checkedClaims)return out('WAITING_DATA',{reason:'NO_CHECKED_FACTS',summary});
  const digest=await researchLabDigest(rows,'',now,cryptoApi);
  if(!isCurrent())return out('STOPPED');
@@ -1292,6 +1311,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     ' · распознанных наблюдений '+(s.parsedObservations??'—')+' · доступных числовых фактов '+(s.availableFacts??'—')+
     ' · задач '+s.tasks+' · сверок '+s.checked+' · неразрешённых утверждений '+(s.unresolved??'—')+
     ' · кандидатов на ручную проверку '+(s.candidates??'—')+'. ':'')+
+   (s?.coverage?s.coverage.map(m=>m.role+': ответы со строками APEX_FACT '+m.withLines+'/'+m.responses+
+    ', со сверяемыми строками '+m.withChecked+'/'+m.responses+', неразрешённых строк '+m.unresolved).join(' · ')+'. ':'')+
    (cycleLast?.reason==='NO_CHECKED_FACTS'?'Исторические данные обработаны. Пока нечего сравнивать в лаборатории. Отсутствие явной сверки не означает ошибку модели; новые данные не создаются автоматически. ':'')+
    'Автоматических запросов к ИИ: 0.'+(cycleJournalFault?' Запись диагностики не подтверждена: '+cycleJournalFault+'.':'');
   renderCycleHistory();

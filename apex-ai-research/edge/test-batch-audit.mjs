@@ -209,3 +209,10 @@ test('optional historical factual line passes through existing batch envelope',(
  const legacy=records.map(r=>({...r,summary:'Historical observation only.'}));
  assert.equal(inspectBatchOutput({response:{results:legacy}},valid).rows.length,2);
 });
+
+test('eligible historical literal is requested explicitly, without changing the output envelope',()=>{
+ assert.match(HISTORICAL_FACT_PROTOCOL,/when an allowed field has an unambiguous literal value/);
+ assert.match(HISTORICAL_FACT_PROTOCOL,/include exactly ONE separate plain line before the short narrative/);
+ assert.match(HISTORICAL_FACT_PROTOCOL,/Do not wrap this line in Markdown/);
+ assert.match(HISTORICAL_FACT_PROTOCOL,/If no allowed field.*omit the line/);
+});

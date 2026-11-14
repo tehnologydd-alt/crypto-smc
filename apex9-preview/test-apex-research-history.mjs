@@ -744,3 +744,18 @@ test('empty claims are a descriptive completed archive inspection, not a fabrica
  assert.match(localCycleReason('COOLDOWN'),/60 сек/);
  assert.match(localCycleReason('NO_CHECKED_FACTS'),/утверждений/);
 });
+
+test('response protocol coverage distinguishes absent, invalid and checkable assertions without changing stored text',async()=>{
+ const {historicalClaimCoverage}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const original='Historical report without an explicit assertion.';
+ const plain={...a,analystText:original};
+ const checked={...a,analystText:'APEX_FACT|'+id+'|PRICE_USDT|17.25'};
+ const malformed={...complete(a),analystText:'APEX_FACT|'+id+'|UNKNOWN_FIELD|17.25',
+  criticText:'Independent historical commentary.'};
+ assert.deepEqual(historicalClaimCoverage([plain,checked,malformed]),[
+  {role:'GLM',responses:3,withLines:2,withChecked:1,unresolved:1},
+  {role:'Qwen',responses:1,withLines:0,withChecked:0,unresolved:0}
+ ]);
+ assert.equal(plain.analystText,original);
+});
