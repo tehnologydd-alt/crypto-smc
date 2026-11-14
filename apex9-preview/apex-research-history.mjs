@@ -239,6 +239,61 @@ export function findArchiveSourceConflicts(rows){
  }
  return [...conflicts].sort();
 }
+/**
+ * Derived, read-only catalogue of unique historical observations.
+ * One ID with different content is quarantined across the entire archive.
+ * A new timestamp is a different observation, never a contradiction by itself.
+ * Model transcription is not independent verification of the source.
+ */
+export function buildResearchKnowledge(rawRows,{asset='',source='',now=Date.now()}={}){
+ const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
+ const conflicts=new Set(findArchiveSourceConflicts(rows));
+ const observations=new Map();
+ const claimsByFact=new Map();
+ const key=(id,field)=>JSON.stringify([id,field]);
+ for(const row of rows){
+  if(asset&&row.asset!==asset)continue;
+  for(const e of [...row.evidence,...(row.criticEvidence||[])]){
+   const group=/^(binance|okx|bybit):spot:(24h|depth):/.exec(e.source_id);
+   const channel=group?group[1]+':'+group[2]:'unknown';
+   if(source&&channel!==source)continue;
+   const old=observations.get(e.source_id);
+   if(old){old.sessions.add(row.id);continue;}
+   const facts=conflicts.has(e.source_id)?[]:extractHistoricalFacts(e,row.asset);
+   observations.set(e.source_id,{id:e.source_id,asset:row.asset,source:channel,
+    at:e.observed_at,sessions:new Set([row.id]),facts,
+    state:conflicts.has(e.source_id)?'CONFLICT':facts.length?'PARSED':'UNKNOWN_FORMAT'});
+  }
+  for(const c of compareHistoricalClaims(row,{archiveConflicts:[...conflicts]}).results){
+   if(!['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state))continue;
+   const k=key(c.sourceId,c.field);
+   const counts=claimsByFact.get(k)||{GLM:{matches:0,differences:0},Qwen:{matches:0,differences:0}};
+   counts[c.role][c.state==='EXACT_MATCH'?'matches':'differences']++;
+   claimsByFact.set(k,counts);
+  }
+ }
+ const groups=new Map(),records=[];
+ let parsed=0,unknown=0,quarantined=0,uniqueFacts=0,matchedFacts=0;
+ for(const o of observations.values()){
+  const group=groups.get(o.source)||{source:o.source,total:0,parsed:0,unknown:0,conflicts:0,facts:0};
+  group.total++;
+  if(o.state==='CONFLICT'){quarantined++;group.conflicts++;}
+  else if(o.state==='UNKNOWN_FORMAT'){unknown++;group.unknown++;}
+  else{parsed++;group.parsed++;}
+  const facts=o.facts.map(f=>{
+   const checks=claimsByFact.get(key(f.sourceId,f.field))||null;
+   if(checks&&(checks.GLM.matches||checks.Qwen.matches))matchedFacts++;
+   return {field:f.field,value:f.value,checks};
+  });
+  uniqueFacts+=facts.length;group.facts+=facts.length;
+  groups.set(o.source,group);
+  records.push({id:o.id,asset:o.asset,source:o.source,at:o.state==='CONFLICT'?null:o.at,
+   sessions:o.sessions.size,state:o.state,facts});
+ }
+ records.sort((a,b)=>(b.at||0)-(a.at||0)||a.id.localeCompare(b.id));
+ return {total:records.length,parsed,unknown,quarantined,uniqueFacts,matchedFacts,
+  groups:[...groups.values()].sort((a,b)=>a.source.localeCompare(b.source)),records};
+}
 function emptyModelStats(role){
  return {role,responses:0,withClaims:0,withoutClaims:0,
   checked:0,matches:0,differences:0,unresolved:0,
@@ -407,6 +462,65 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const stats=node('apex-history-stats'),statsRows=node('apex-history-stats-assets');
  const modelStats=node('apex-history-model-stats');
  const pairStats=node('apex-history-pair-stats');
+ const knowledgeSummary=node('apex-knowledge-summary'),knowledgeList=node('apex-knowledge-list'),
+  knowledgeSource=node('apex-knowledge-source'),knowledgeMore=node('apex-knowledge-more');
+ let knowledgeVisible=12,knowledgeSignature='',knowledgeBaseSignature='',knowledgeBase=null;
+ const renderKnowledge=()=>{
+  if(!knowledgeSummary||!knowledgeList||!knowledgeSource||!knowledgeMore)return;
+  const baseKey=JSON.stringify([rows,picker.value]);
+  if(baseKey!==knowledgeBaseSignature){
+   knowledgeBaseSignature=baseKey;
+   knowledgeBase=buildResearchKnowledge(rows,{asset:picker.value,now:now()});
+  }
+  const all=knowledgeBase,previous=knowledgeSource.value;
+  const sources=JSON.stringify(all.groups.map(x=>x.source));
+  const names={'binance:24h':'Binance · 24ч','binance:depth':'Binance · глубина',
+   'okx:depth':'OKX · глубина','bybit:depth':'Bybit · глубина','unknown':'Другой формат'};
+  if(knowledgeSource.dataset.sources!==sources){
+   knowledgeSource.replaceChildren();
+   for(const value of ['',...all.groups.map(x=>x.source)]){
+    const option=document.createElement('option');option.value=value;
+    option.textContent=value?(names[value]||value):'Все источники';knowledgeSource.append(option);
+   }
+   if(all.groups.some(x=>x.source===previous))knowledgeSource.value=previous;
+   knowledgeSource.dataset.sources=sources;
+  }
+  const records=all.records.filter(x=>!knowledgeSource.value||x.source===knowledgeSource.value);
+  const key=JSON.stringify([records,knowledgeVisible]);
+  if(key===knowledgeSignature)return;
+  knowledgeSignature=key;
+  const group=knowledgeSource.value?all.groups.find(x=>x.source===knowledgeSource.value):null;
+  knowledgeSummary.textContent='Уникальных снимков: '+records.length+
+   ' · распознано: '+(group?group.parsed:all.parsed)+
+   ' · фактов: '+(group?group.facts:all.uniqueFacts)+
+   ' · конфликт ID: '+(group?group.conflicts:all.quarantined)+
+   ' · неизвестный формат: '+(group?group.unknown:all.unknown);
+  knowledgeList.replaceChildren();
+  if(!records.length){
+   const p=document.createElement('p');p.textContent='Пока нет сохранённых наблюдений.';knowledgeList.append(p);
+  }
+  const labels={PRICE_USDT:'Цена (USDT)',CHANGE_24H_PCT:'Изменение за 24ч (%)',
+   VOLUME_24H_USDT:'Объём за 24ч (USDT)',BEST_BID:'Лучшая покупка',
+   BEST_ASK:'Лучшая продажа',SPREAD_BPS:'Спред (bps)',VISIBLE_DEPTH_IMBALANCE:'Дисбаланс видимой глубины'};
+  for(const row of records.slice(0,knowledgeVisible)){
+   const details=document.createElement('details'),title=document.createElement('summary'),meta=document.createElement('p');
+   title.textContent=row.asset+' · '+(names[row.source]||row.source)+' · '+
+    (row.state==='CONFLICT'?'Конфликт ID':row.at?new Date(row.at).toISOString():'—');
+   meta.textContent='ID: '+row.id+' · сессий: '+row.sessions+
+    (row.state==='CONFLICT'?' · исключён из сверки: содержимое или время различается':
+     row.state==='UNKNOWN_FORMAT'?' · формат не распознан':' · чисел: '+row.facts.length);
+   details.append(title,meta);
+   for(const f of row.facts){
+    const line=document.createElement('p');line.className='apex-evidence-audit';
+    line.textContent=(labels[f.field]||f.field)+': '+f.value+
+     (f.checks?'\nGLM: '+f.checks.GLM.matches+' совп. / '+f.checks.GLM.differences+' различ. · Qwen: '+
+      f.checks.Qwen.matches+' совп. / '+f.checks.Qwen.differences+' различ.':'\nНет явной числовой сверки модели');
+    details.append(line);
+   }
+   knowledgeList.append(details);
+  }
+  knowledgeMore.disabled=records.length<=knowledgeVisible;
+ };
  let statsSignature='';
  let rows=readTranscripts(store,now()),visible=8,signature='',saved=true;
  const render=()=>{
@@ -512,6 +626,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     }
    }
   }
+  renderKnowledge();
   limit.disabled=shown.length<=visible;
   const archiveConflicts=findArchiveSourceConflicts(shown);
   const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);
@@ -596,7 +711,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   try{const b=JSON.parse(store?.getItem('apex.ai.batch.v1')||'null');sessions.push(...batchTranscripts(b));}catch{}
   if(sessions.length)ingest(sessions);else render();
  };
- picker.addEventListener('change',()=>{visible=8;signature='';render();});
+ picker.addEventListener('change',()=>{visible=8;knowledgeVisible=12;signature='';render();});
+ knowledgeSource?.addEventListener('change',()=>{knowledgeVisible=12;renderKnowledge();});
+ knowledgeMore?.addEventListener('click',()=>{knowledgeVisible+=12;renderKnowledge();});
  limit.addEventListener('click',()=>{visible+=8;render();});
  recover();
  return {ingest,render,getRows:()=>rows.slice(),

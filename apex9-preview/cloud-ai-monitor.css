@@ -198,3 +198,6 @@
 .apex-model-pair-meters .apex-research-meter:nth-child(2) .apex-research-meter-track>span{background:#dbb67c}
 .apex-model-pair-meters .apex-research-meter:nth-child(3) .apex-research-meter-track>span{background:#d58c96}
 .apex-ai-readiness{padding:9px;border:1px solid #37566a;border-radius:8px;background:#112b3b;white-space:normal;overflow-wrap:anywhere}
+
+.apex-knowledge label{display:grid;gap:6px}.apex-knowledge select{width:100%;color:inherit;background:#0e2434;border:1px solid #385869;padding:8px;border-radius:8px}
+#apex-knowledge-list{display:grid;gap:8px}#apex-knowledge-list details{padding:9px;border:1px solid #385869;border-radius:9px;overflow-wrap:anywhere}#apex-knowledge-list details p{margin:7px 0;font-size:11px;line-height:1.5;color:#b7d1d8;white-space:pre-line}

@@ -268,3 +268,30 @@ test('research visualization ratios distinguish no data from observed zero',asyn
  assert.equal(researchRatio(6,5),null);
  assert.equal(researchRatio(null,5),null);
 });
+
+test('knowledge catalogue merges identical observations, preserves dates and counts model checks separately',async()=>{
+ const {buildResearchKnowledge}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const b={...a,startedAt:a.startedAt+60000};
+ const v=buildResearchKnowledge([a,b],{now});
+ assert.equal(v.total,1);assert.equal(v.uniqueFacts,3);assert.equal(v.matchedFacts,1);
+ assert.equal(v.records[0].sessions,2);assert.equal(v.records[0].at,a.evidence[0].observed_at);
+ assert.equal(v.records[0].facts[0].checks.GLM.matches,2);
+ assert.equal(buildResearchKnowledge([a,b],{now,asset:'ETHUSDT'}).total,0);
+ assert.equal(buildResearchKnowledge([a,b],{now,source:'okx:depth'}).total,0);
+ assert.equal(buildResearchKnowledge([a,b],{now,source:'binance:24h'}).total,1);
+});
+test('knowledge quarantines repeated identity with changed contents, not newer timestamps',async()=>{
+ const {buildResearchKnowledge}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const bad={...a,startedAt:a.startedAt+60000,evidence:[{...a.evidence[0],text:a.evidence[0].text.replace('17.25','17.26')}]};
+ const at=a.evidence[0].observed_at+120000;
+ const next={...a,startedAt:a.startedAt+120000,evidence:[{...a.evidence[0],source_id:id.replace(/:\d+$/,':'+at),observed_at:at,text:a.evidence[0].text.replace(new Date(a.evidence[0].observed_at).toISOString(),new Date(at).toISOString()).replace('17.25','17.29')}]};
+ next.sourceIds=next.evidence.map(e=>e.source_id);
+ const v=buildResearchKnowledge([a,bad,next,run('ETHUSDT')],{now});
+ assert.equal(v.total,3);assert.equal(v.parsed,1);assert.equal(v.unknown,1);assert.equal(v.quarantined,1);
+ assert.equal(v.uniqueFacts,3);
+ assert.equal(v.records.find(r=>r.id===id).at,null);
+ assert.deepEqual(v.records.find(r=>r.id===id).facts,[]);
+});
