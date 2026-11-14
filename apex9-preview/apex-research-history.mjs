@@ -857,12 +857,13 @@ export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,no
  */
 export const CYCLE_JOURNAL_KEY='apex.research.cycle.journal.v1';
 export const CYCLE_POLICY=Object.freeze({limit:100,bytes:80000,cooldownMs:60000});
-const CYCLE_STATES=['COMPLETED','ALREADY_RECORDED','WAITING_DATA','BLOCKED','STOPPED'];
+const CYCLE_STATES=['COMPLETED','ALREADY_RECORDED','WAITING_DATA','BLOCKED','STOPPED','INTERRUPTED'];
+export const CYCLE_PENDING_KEY='apex.research.cycle.pending.v1';
 function validCycleEntry(e){
  return portableKeys(e,['startedAt','finishedAt','durationMs','state','reason','digest'])&&
   Number.isSafeInteger(e.startedAt)&&e.startedAt>0&&e.startedAt<=8640000000000000&&
   Number.isSafeInteger(e.finishedAt)&&e.finishedAt>0&&e.finishedAt<=8640000000000000&&
-  Number.isSafeInteger(e.durationMs)&&e.durationMs>=0&&CYCLE_STATES.includes(e.state)&&
+  (e.state==='INTERRUPTED'?e.durationMs===null:Number.isSafeInteger(e.durationMs)&&e.durationMs>=0)&&CYCLE_STATES.includes(e.state)&&
   (e.reason===null||typeof e.reason==='string'&&/^[A-Z0-9_]{1,64}$/.test(e.reason))&&
   (e.digest===null||typeof e.digest==='string'&&/^[a-f0-9]{64}$/.test(e.digest));
 }
@@ -897,6 +898,66 @@ export function appendCycleJournal(store,entry){
   store.setItem(CYCLE_JOURNAL_KEY,raw);
   return store.getItem(CYCLE_JOURNAL_KEY)===raw?{ok:true}:{ok:false,reason:'CYCLE_JOURNAL_WRITE'};
  }catch{return {ok:false,reason:'CYCLE_JOURNAL_WRITE'};}
+}
+/** Persist start before work. Recovery never reruns work automatically. */
+export function readPendingCycle(store){
+ try{
+  if(!store)return {ok:false,reason:'CYCLE_PENDING_UNAVAILABLE'};
+  const raw=store.getItem(CYCLE_PENDING_KEY);
+  if(raw==null)return {ok:true,value:null};
+  if(typeof raw!=='string'||raw.length>512)return {ok:false,reason:'CYCLE_PENDING_INVALID'};
+  const p=JSON.parse(raw);
+  if(!portableKeys(p,['version','startedAt'])||p.version!==1||
+    !Number.isSafeInteger(p.startedAt)||p.startedAt<=0||p.startedAt>8640000000000000)
+   return {ok:false,reason:'CYCLE_PENDING_INVALID'};
+  return {ok:true,value:p};
+ }catch{return {ok:false,reason:'CYCLE_PENDING_UNAVAILABLE'};}
+}
+function clearPendingCycle(store,startedAt){
+ const p=readPendingCycle(store);
+ if(!p.ok||p.value?.startedAt!==startedAt)return {ok:false,reason:'CYCLE_PENDING_CHANGED'};
+ try{
+  store.removeItem(CYCLE_PENDING_KEY);
+  return store.getItem(CYCLE_PENDING_KEY)==null?{ok:true}:{ok:false,reason:'CYCLE_PENDING_CLEAR'};
+ }catch{return {ok:false,reason:'CYCLE_PENDING_CLEAR'};}
+}
+export function beginCycleAttempt(store,startedAt){
+ const p=readPendingCycle(store);
+ if(!p.ok)return p;
+ if(p.value)return {ok:false,reason:'CYCLE_PENDING_EXISTS'};
+ if(!Number.isSafeInteger(startedAt)||startedAt<=0||startedAt>8640000000000000)return {ok:false,reason:'CLOCK_INVALID'};
+ const gate=cycleAdmission(readCycleJournal(store),startedAt);
+ if(!gate.ok)return gate;
+ const raw=JSON.stringify({version:1,startedAt});
+ try{
+  store.setItem(CYCLE_PENDING_KEY,raw);
+  return store.getItem(CYCLE_PENDING_KEY)===raw?{ok:true}:{ok:false,reason:'CYCLE_PENDING_WRITE'};
+ }catch{return {ok:false,reason:'CYCLE_PENDING_WRITE'};}
+}
+export function finishCycleAttempt(store,entry){
+ const p=readPendingCycle(store);
+ if(!p.ok||p.value?.startedAt!==entry.startedAt)return {ok:false,reason:'CYCLE_PENDING_CHANGED'};
+ const logged=appendCycleJournal(store,entry);
+ if(!logged.ok)return logged;
+ return clearPendingCycle(store,entry.startedAt);
+}
+export function recoverPendingCycle(store,now=Date.now()){
+ const p=readPendingCycle(store);
+ if(!p.ok||!p.value)return p.ok?{ok:true,recovered:false}:p;
+ const journal=readCycleJournal(store);
+ if(journal===null)return {ok:false,reason:'CYCLE_JOURNAL_UNAVAILABLE'};
+ const startedAt=p.value.startedAt;
+ // A previous finish may have saved the log before process shutdown.
+ const existing=journal.find(e=>e.startedAt===startedAt);
+ if(existing){
+  const cleared=clearPendingCycle(store,startedAt);
+  return cleared.ok?{ok:true,recovered:false,entry:existing}:cleared;
+ }
+ if(!Number.isSafeInteger(now)||now<startedAt||now>8640000000000000)
+  return {ok:false,reason:'CLOCK_MOVED_BACK'};
+ const entry={startedAt,finishedAt:now,durationMs:null,state:'INTERRUPTED',reason:'PROCESS_INTERRUPTED',digest:null};
+ const done=finishCycleAttempt(store,entry);
+ return done.ok?{ok:true,recovered:true,entry}:done;
 }
 export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent=()=>true,cryptoApi=globalThis.crypto}={}){
  const out=(state,extra={})=>({state,at:now,automaticModelCalls:0,productionRuleChanged:false,...extra});
@@ -1198,7 +1259,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   cycleHistory.append(count);
   for(const e of (journal||[]).slice(0,10)){
    const line=document.createElement('p');
-   line.textContent=new Date(e.finishedAt).toISOString()+' · '+cycleLabels[e.state]+' · '+e.durationMs+' мс'+
+   line.textContent=new Date(e.finishedAt).toISOString()+' · '+cycleLabels[e.state]+' · '+(e.durationMs===null?'длительность неизвестна':e.durationMs+' мс')+
     (e.reason?' · '+e.reason:'');
    cycleHistory.append(line);
   }
@@ -1206,7 +1267,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const cycleLabels={COMPLETED:'Локальный цикл завершён; эксперимент сохранён',
   ALREADY_RECORDED:'Повторный расчёт совпал; эксперимент уже сохранён',
   WAITING_DATA:'Недостаточно сохранённых числовых сверок',
-  BLOCKED:'Цикл остановлен защитой',STOPPED:'Цикл остановлен'};
+  BLOCKED:'Цикл остановлен защитой',STOPPED:'Цикл остановлен',INTERRUPTED:'Прерванная попытка обнаружена при восстановлении'};
  function paintCycle(){
   if(!cycleStatus||!cycleSummary)return;
   cycleStatus.textContent=!cycleToggle?.checked?'Автоматизация выключена':document.hidden?
@@ -1233,9 +1294,15 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    return;
   }
   clearCycleTimer();cycleGate=null;
+  const generation=cycleGeneration,startedAt=now(),startedPerf=performance.now();
+  const started=beginCycleAttempt(store,startedAt);
+  if(!started.ok){
+   cycleGate=started.reason;paintCycle();
+   if(started.reason==='COOLDOWN')cycleTimer=setTimeout(()=>{cycleTimer=null;void maybeRunCycle();},started.remaining);
+   return;
+  }
   cycleAttempted=key;cycleBusy=true;
   if(labRun)labRun.disabled=true;
-  const generation=cycleGeneration,startedAt=now(),startedPerf=performance.now();
   const current=()=>cycleToggle.checked&&!document.hidden&&cycleGeneration===generation&&JSON.stringify(rows)===key;
   paintCycle();
   let result;
@@ -1245,7 +1312,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   finally{
    const entry={startedAt,finishedAt:now(),durationMs:Math.max(0,Math.round(performance.now()-startedPerf)),
     state:result.state,reason:result.reason||null,digest:result.digest||null};
-   const logged=appendCycleJournal(store,entry);
+   const logged=finishCycleAttempt(store,entry);
    if(!logged.ok)cycleJournalFault=logged.reason;
    if(generation===cycleGeneration){cycleLast=result;if(result.state==='STOPPED')cycleAttempted=null;}
    cycleBusy=false;if(labRun)labRun.disabled=false;
@@ -1255,6 +1322,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  }
  if(cycleToggle){
   cycleToggle.checked=false;
+  const recovery=recoverPendingCycle(store,now());
+  if(!recovery.ok)cycleJournalFault=recovery.reason;
+  else if(recovery.entry)cycleLast={state:recovery.entry.state,at:recovery.entry.startedAt,reason:recovery.entry.reason};
   cycleToggle.addEventListener('change',()=>{
    cycleGeneration++;cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
    if(cycleToggle.checked)void maybeRunCycle();

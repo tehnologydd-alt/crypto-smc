@@ -699,3 +699,31 @@ test('orchestrator integration: fixture-only failure injection preserves histori
  assert.equal(map.get(LAB_JOURNAL_KEY),persisted);
  assert.equal(map.get(HISTORY_KEY),original);
 });
+
+test('cycle crash recovery distinguishes interrupted work from a completed log with uncleared marker',async()=>{
+ const {beginCycleAttempt,finishCycleAttempt,recoverPendingCycle,readCycleJournal,readPendingCycle,
+  CYCLE_PENDING_KEY,CYCLE_JOURNAL_KEY}=await import('./apex-research-history.mjs');
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v),removeItem:k=>map.delete(k)};
+ const entry=t=>({startedAt:t,finishedAt:t+10,durationMs:10,state:'COMPLETED',reason:null,digest:'a'.repeat(64)});
+ assert.equal(beginCycleAttempt(store,now).ok,true);
+ assert.equal(beginCycleAttempt(store,now+1).reason,'CYCLE_PENDING_EXISTS');
+ assert.equal(recoverPendingCycle(store,now+20).recovered,true);
+ assert.equal(readCycleJournal(store)[0].state,'INTERRUPTED');
+ assert.equal(readCycleJournal(store)[0].durationMs,null);
+ assert.equal(readPendingCycle(store).value,null);
+ assert.equal(recoverPendingCycle(store,now+21).recovered,false);
+ assert.equal(readCycleJournal(store).length,1);
+ const t=now+60020;
+ assert.equal(beginCycleAttempt(store,t).ok,true);
+ const failingClear={...store,removeItem:()=>{throw Error('shutdown')}};
+ assert.equal(finishCycleAttempt(failingClear,entry(t)).reason,'CYCLE_PENDING_CLEAR');
+ assert.equal(readCycleJournal(store).length,2);
+ assert.equal(recoverPendingCycle(store,t+20).recovered,false);
+ assert.equal(readCycleJournal(store).length,2);
+ assert.equal(readPendingCycle(store).value,null);
+ map.set(CYCLE_PENDING_KEY,'broken');
+ const old=map.get(CYCLE_JOURNAL_KEY);
+ assert.equal(recoverPendingCycle(store,t+30).reason,'CYCLE_PENDING_INVALID');
+ assert.equal(map.get(CYCLE_PENDING_KEY),'broken');
+ assert.equal(map.get(CYCLE_JOURNAL_KEY),old);
+});

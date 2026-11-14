@@ -70,3 +70,10 @@ Schema 8 adds bounded Lab v2 summaries and manual rule review notes to the exist
 ## Pre-automation audit
 
 Review of the WebView research archive and render paths: distinguish unreadable archives from empty ones, refuse non-destructive appends/imports/exports when the saved archive is unreadable or differs from the screen snapshot, cache global derived knowledge/feedback, avoid rebuilding unchanged lab/rule cards, and apply whole-archive conflict detection before filtered metrics. No autonomous network calls, model activation or scheduling changes. The native schema 8 build and diagnostic workflow for commit 921beac47fded99e6a79ca555b8a182fc615f9cb succeeded; actual device-level backup/restore and UI responsiveness still require testing.
+
+
+## Combined final-stage audit: foreground local research cycle
+
+The local orchestrator writes a pending marker before processing, then saves the outcome before clearing it. On startup an uncleared marker with no matching outcome is logged as INTERRUPTED with unknown duration. An already logged outcome is not duplicated. Recovery does not restart automation. Lab writes and diagnostic writes remain separate; if interruption happened after the Lab write, the stored digest prevents duplicate experiments on a subsequent explicit start. Neither marker nor cycle diagnostic journal is in schema 8. No new cloud/model calls, financial actions, or rule activation are added.
+
+Device acceptance (not performed in CI): install the signed APK; verify automation is off on launch; enable with archived factual observations; check one completed cycle, repeat without duplicate experiment, close/reopen during an active run, verify interrupted or completed outcome, confirm restart remains off, hide and resume, export and restore schema 8 on a separate installation using an existing backup copy. Check Android battery and responsiveness with normal device tools. CI exercises storage/recovery with fixtures, not Android process termination, real cloud responses or background scheduling.
