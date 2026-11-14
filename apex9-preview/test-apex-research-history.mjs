@@ -585,3 +585,19 @@ test('portable lab and rule journals merge without truncation or conflicting ove
  assert.equal(mergePortableJournal('rules',[rule],{version:1,reviews:[{...rule,outcome:'REJECT_FOR_NOW'}]}).reason,'CONFLICT_RULES');
  assert.equal(mergePortableJournal('rules',Array.from({length:60},(_,i)=>({...rule,at:now-i})),{version:1,reviews:[{...rule,at:now+1}]}).reason,'CAPACITY_RULES');
 });
+
+test('audit: unreadable or externally changed transcript archive must not be overwritten',async()=>{
+ const {inspectTranscriptStorage,appendResearchArchive,HISTORY_KEY,mergeTranscripts}=await import('./apex-research-history.mjs');
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ assert.equal(inspectTranscriptStorage(store,now).ok,true);
+ const a=claimFixture();
+ map.set(HISTORY_KEY,'broken');
+ const denied=appendResearchArchive(store,[],[a],now);
+ assert.equal(denied.ok,false);assert.equal(denied.reason,'ARCHIVE_UNREADABLE');
+ assert.equal(map.get(HISTORY_KEY),'broken');
+ const normalized=mergeTranscripts([], [a],now);
+ map.set(HISTORY_KEY,JSON.stringify({version:1,rows:normalized}));
+ assert.equal(inspectTranscriptStorage(store,now).ok,true);
+ assert.equal(appendResearchArchive(store,[],[a],now).reason,'ARCHIVE_CHANGED');
+ assert.equal(appendResearchArchive(store,normalized,[a],now).ok,true);
+});

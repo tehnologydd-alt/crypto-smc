@@ -68,15 +68,26 @@ export function mergeTranscripts(previous,incoming,now=Date.now()){
  }
  return out;
 }
-export function readTranscripts(store,now=Date.now()){
+/** Distinguish an empty archive from an unreadable archive. Never recover by overwriting unreadable bytes. */
+export function inspectTranscriptStorage(store,now=Date.now()){
  try{
-  const raw=store?.getItem(HISTORY_KEY);
-  if(!raw)return [];
-  if(new TextEncoder().encode(raw).length>MAX_BYTES)return [];
+  if(!store)return {ok:false,reason:'ARCHIVE_UNAVAILABLE',rows:[]};
+  const raw=store.getItem(HISTORY_KEY);
+  if(raw==null)return {ok:true,rows:[]};
+  if(typeof raw!=='string'||new TextEncoder().encode(raw).length>MAX_BYTES)
+   return {ok:false,reason:'ARCHIVE_UNREADABLE',rows:[]};
   const parsed=JSON.parse(raw);
-  if(parsed.version!==1||!Array.isArray(parsed.rows)||parsed.rows.length>MAX_TRANSCRIPTS)return [];
-  return mergeTranscripts([],parsed.rows,now);
- }catch{return [];}
+  if(!parsed||Object.keys(parsed).length!==2||!Object.hasOwn(parsed,'rows')||!Object.hasOwn(parsed,'version'))
+   return {ok:false,reason:'ARCHIVE_UNREADABLE',rows:[]};
+  const valid=validateTranscriptArchive(parsed,now);
+  if(!valid)return {ok:false,reason:'ARCHIVE_UNREADABLE',rows:[]};
+  const rows=mergeTranscripts([],valid.rows,now);
+  if(rows.length!==valid.rows.length)return {ok:false,reason:'ARCHIVE_UNREADABLE',rows:[]};
+  return {ok:true,rows};
+ }catch{return {ok:false,reason:'ARCHIVE_UNREADABLE',rows:[]};}
+}
+export function readTranscripts(store,now=Date.now()){
+ return inspectTranscriptStorage(store,now).rows;
 }
 export function writeTranscripts(store,rows){
  try{
@@ -89,6 +100,10 @@ export function writeTranscripts(store,rows){
 /** Import only historical records, without restoring a live model session. */
 /** Do not evict archived history or publish an uncommitted candidate. */
 export function appendResearchArchive(store,previous,incoming,now=Date.now()){
+ const disk=inspectTranscriptStorage(store,now);
+ if(!disk.ok)return {ok:false,reason:disk.reason,rows:previous};
+ if(JSON.stringify(disk.rows)!==JSON.stringify(previous))
+  return {ok:false,reason:'ARCHIVE_CHANGED',rows:previous};
  const added=incoming.map(x=>normalizeTranscript(x,now));
  if(added.some(x=>!x))return {ok:false,reason:'INVALID_TRANSCRIPT',rows:previous};
  const merged=mergeTranscripts(previous,added,now);
@@ -804,10 +819,10 @@ export function mergePortableJournal(kind,previous,incoming){
  if(!validatePortableJournal(kind,archive))return {ok:false,reason:'CAPACITY_'+kind.toUpperCase()};
  return {ok:true,archive};
 }
-export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,now=Date.now()}={}){
+export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,now=Date.now(),derived=null}={}){
  const normalized=mergeTranscripts([],rows,now);
- const knowledge=buildResearchKnowledge(normalized,{now});
- const worklist=buildResearchFeedback(knowledge);
+ const knowledge=derived?.knowledge||buildResearchKnowledge(normalized,{now});
+ const worklist=derived?.feedback||buildResearchFeedback(knowledge);
  const usage=researchStorageUsage(normalized);
  const knownIds=new Set(knowledge.records.map(r=>r.id));
  const feedbackLinks=feedback===null?null:feedback.reduce((out,r)=>{
@@ -877,13 +892,14 @@ function addModelStats(model,claims,facts,unique){
  }
 }
 export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
- const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now)
-  .filter(row=>!asset||row.asset===asset);
+ const fullRows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
+ const rows=fullRows.filter(row=>!asset||row.asset===asset);
  const allIds=new Set(),venues=new Set(),days=new Set(),assets=new Set();
  const perAsset=new Map(),delays=[],ages=[];
  let completed=0,multiVenue=0,reviewNewEvidence=0,unknownVenue=0;
  let sourceConflicts=0,sharedSnapshots=0,laterSnapshots=0;
- const archiveConflicts=findArchiveSourceConflicts(rows);
+ const selectedIds=new Set(rows.flatMap(r=>[...r.evidence,...(r.criticEvidence||[])].map(e=>e.source_id)));
+ const archiveConflicts=findArchiveSourceConflicts(fullRows).filter(id=>selectedIds.has(id));
  const factIds=new Set(),unknownIds=new Set(),conflictingIds=new Set(archiveConflicts);
  const models=[emptyModelStats('GLM'),emptyModelStats('Qwen')];
  const uniqueByModel=[new Map(),new Map()];
@@ -1069,8 +1085,12 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   knowledgeMore.disabled=records.length<=knowledgeVisible;
  };
  let statsSignature='',qualitySignature='';
- let rows=readTranscripts(store,now()),visible=8,signature='',saved=true,saveIssue='';
- const archiveWarning=()=>saved?'':saveIssue==='ARCHIVE_CAPACITY'?
+ const initialArchive=inspectTranscriptStorage(store,now());
+ let rows=initialArchive.rows,visible=8,signature='',saved=initialArchive.ok,saveIssue=initialArchive.ok?'':initialArchive.reason;
+ const archiveWarning=()=>saved?'':saveIssue==='ARCHIVE_UNREADABLE'||saveIssue==='ARCHIVE_UNAVAILABLE'?
+  ' · архив недоступен: запись и экспорт заблокированы, исходные данные не изменены':
+  saveIssue==='ARCHIVE_CHANGED'?' · архив изменился вне текущего экрана: откройте приложение заново':
+  saveIssue==='ARCHIVE_CAPACITY'?
   ' · архив заполнен: новая запись не сохранена, старые сохранены. Сделайте резервную копию.':
   saveIssue==='ARCHIVE_CONFLICT'?' · конфликт с сохранённой сессией: запись не заменена':
   ' · новая запись не подтверждена, старый архив сохранён';
@@ -1083,14 +1103,23 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const labHistory=node('apex-lab-history'),labStatus=node('apex-lab-status');
  const ruleRegistry=node('apex-rules-list'),ruleStatus=node('apex-rules-status');
  const center=node('apex-quality-center-list'),centerStatus=node('apex-quality-center-status');
- let centerSignature='';
+ let centerSignature='',labHistorySignature='',ruleRegistrySignature='',labRenderSignature='';
+ let derivedArchiveSignature='',derivedKnowledge=null,derivedFeedback=null;
+ function localDerived(){
+  const key=JSON.stringify(rows);
+  if(key!==derivedArchiveSignature||!derivedKnowledge){
+   derivedArchiveSignature=key;derivedKnowledge=buildResearchKnowledge(rows,{now:now()});
+   derivedFeedback=buildResearchFeedback(derivedKnowledge);
+  }
+  return {knowledge:derivedKnowledge,feedback:derivedFeedback};
+ }
  function renderQualityCenter(){
   if(!center||!centerStatus)return;
   const current=now(),feedback=readFeedbackJournal(store),lab=readLabJournal(store),rules=readKnowledgeReviews(store);
   const key=JSON.stringify([rows,feedback,lab,rules,Math.floor(current/86400000),saved,saveIssue]);
   if(key===centerSignature)return;
   centerSignature=key;
-  const v=researchQualityCenter(rows,{feedback,lab,rules,now:current});
+  const v=researchQualityCenter(rows,{feedback,lab,rules,now:current,derived:localDerived()});
   const a=v.archive,f=v.feedback,l=v.lab,k=v.rules,show=x=>x===null?'Недоступен':String(x);
   centerStatus.textContent='Локальная сводка по всему архиву · автоматических запросов: 0'+archiveWarning();
   const parts=[
@@ -1125,6 +1154,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   const current=labSnapshot&&labSnapshot.signature===JSON.stringify([rows,picker.value]);
   const digest=current?labSnapshot.digest:null;
   const registry=knowledgeRuleRegistry(readKnowledgeReviews(store),{digest,now:now()});
+  const key=JSON.stringify([registry,current?labSnapshot?.hypotheses:null]);
+  if(key===ruleRegistrySignature)return;
+  ruleRegistrySignature=key;
   const outcomes={REVIEWED_NO_CHANGE:'Изучено, без изменения правила',NEEDS_MORE_EVIDENCE:'Нужны дополнительные доказательства',REJECT_FOR_NOW:'Отложено / отклонено пока'};
   const statuses={IMPLEMENTED_NOT_VALIDATED:'Используется в коде, не научная валидация',NOT_REVIEWED:'Не проверено вручную',INPUT_NOT_VERIFIED:'Входные данные не подтверждены',REVIEW_STALE:'Отметка старше 30 дней или дата неверна',REVIEW_RECORDED:'Ручная отметка актуальна для этого входа'};
   ruleRegistry.replaceChildren();
@@ -1169,6 +1201,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  function renderLabHistory(){
   if(!labHistory)return;
   const journal=readLabJournal(store);
+  const key=JSON.stringify(journal);
+  if(key===labHistorySignature)return;
+  labHistorySignature=key;
   labHistory.replaceChildren();
   if(!journal?.length){
    const p=document.createElement('p');p.textContent=journal===null?'Журнал недоступен.':'Нет сохранённых экспериментов.';labHistory.append(p);
@@ -1192,6 +1227,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   if(!labOutput||!labSnapshot)return;
   const {result,at,signature,hypotheses}=labSnapshot;
   const stale=signature!==JSON.stringify([rows,picker.value]);
+  const key=JSON.stringify([at,result,hypotheses,stale]);
+  if(key===labRenderSignature)return;
+  labRenderSignature=key;
   labOutput.replaceChildren();
   const info=document.createElement('p');
   info.textContent='Эксперимент '+new Date(at).toISOString()+' · '+(result.asset||'Все активы')+
@@ -1289,8 +1327,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  function renderFeedback(){
   if(!feedbackSummary||!feedbackList||!feedbackMore)return;
   // Director worklist describes the complete archive, not the current asset filter.
-  const knowledge=buildResearchKnowledge(rows,{now:now()});
-  const result=buildResearchFeedback(knowledge);
+  const result=localDerived().feedback;
   const key=JSON.stringify([result,feedbackVisible,reviewVisible,readFeedbackJournal(store)]);
   if(key===feedbackSignature)return;
   feedbackSignature=key;
@@ -1434,7 +1471,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    ' · завершено '+rows.filter(x=>x.stage==='COMPLETE').length+
    archiveWarning();
   if(stats&&statsRows){
-   const view=summarizeResearchHistory(shown,{now:now()});
+   const view=summarizeResearchHistory(rows,{asset:picker.value,now:now()});
    const minutes=ms=>ms===null?'—':(ms/60000).toFixed(1)+' мин';
    const key=JSON.stringify(view);
    if(key!==statsSignature){
@@ -1525,7 +1562,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   renderLab();
   renderQualityCenter();
   limit.disabled=shown.length<=visible;
-  const archiveConflicts=findArchiveSourceConflicts(shown);
+  const visibleIds=new Set(shown.flatMap(r=>[...r.evidence,...(r.criticEvidence||[])].map(e=>e.source_id)));
+  const archiveConflicts=findArchiveSourceConflicts(rows).filter(id=>visibleIds.has(id));
   const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);
   if(next===signature)return;
   signature=next;list.replaceChildren();
@@ -1617,6 +1655,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  recover();
  return {ingest,render,getRows:()=>rows.slice(),
   exportArchive:()=>{
+   const disk=inspectTranscriptStorage(store,now());
+   if(!disk.ok||JSON.stringify(disk.rows)!==JSON.stringify(rows))
+    throw Error('Архив недоступен или изменился; экспорт остановлен.');
    const reviews=readFeedbackJournal(store);
    if(reviews===null)throw Error('Журнал проверок недоступен; экспорт остановлен, данные не изменены.');
    const entries=readLabJournal(store),ruleReviews=readKnowledgeReviews(store);
@@ -1626,6 +1667,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    return {version:1,rows:rows.slice(),feedback:{version:1,reviews},lab,rules};
   },
   importArchive:archive=>{
+   const disk=inspectTranscriptStorage(store,now());
+   if(!disk.ok||JSON.stringify(disk.rows)!==JSON.stringify(rows))
+    return {ok:false,reason:disk.ok?'ARCHIVE_CHANGED':disk.reason};
    const valid=validateTranscriptArchive(archive,now());
    if(!valid)return {ok:false,reason:'INVALID_TRANSCRIPT_ARCHIVE'};
    let feedback=null;

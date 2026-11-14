@@ -65,3 +65,8 @@ Schema 7 adds optional validated feedback metadata to the encrypted AI archive. 
 ## Schema 8 – full research journal portability
 
 Schema 8 adds bounded Lab v2 summaries and manual rule review notes to the existing encrypted research transfer. Older schemas 5–7 remain readable; older APKs reject schema 8. Lab summaries are limited to 40 entries / 120000 bytes; rule notes to 60 entries / 80000 bytes. Journal identity conflicts and merged capacity overflow are rejected before WebView writes. Manifests and native responses report independent counts. Room restoration and separate localStorage writes are not one atomic transaction; a partial failure is explicitly reported, and the original backup should be retained. No credentials, live sessions, model execution settings or automatic rule activation are included by these new journal fields. On-device transfer remains to be tested.
+
+
+## Pre-automation audit
+
+Review of the WebView research archive and render paths: distinguish unreadable archives from empty ones, refuse non-destructive appends/imports/exports when the saved archive is unreadable or differs from the screen snapshot, cache global derived knowledge/feedback, avoid rebuilding unchanged lab/rule cards, and apply whole-archive conflict detection before filtered metrics. No autonomous network calls, model activation or scheduling changes. The native schema 8 build and diagnostic workflow for commit 921beac47fded99e6a79ca555b8a182fc615f9cb succeeded; actual device-level backup/restore and UI responsiveness still require testing.
