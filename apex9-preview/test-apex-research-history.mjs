@@ -601,3 +601,29 @@ test('audit: unreadable or externally changed transcript archive must not be ove
  assert.equal(appendResearchArchive(store,[],[a],now).reason,'ARCHIVE_CHANGED');
  assert.equal(appendResearchArchive(store,normalized,[a],now).ok,true);
 });
+
+test('local research cycle only persists a unique validated historical experiment',async()=>{
+ const {runLocalResearchCycle,mergeTranscripts,writeTranscripts,readLabJournal,HISTORY_KEY}=await import('./apex-research-history.mjs');
+ const {webcrypto}=await import('node:crypto');
+ const a=claimFixture();
+ a.analystText='Historical observation.\nAPEX_FACT|'+a.sourceIds[0]+'|PRICE_USDT|17.25';
+ const rows=mergeTranscripts([], [a], now);
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ const opts={store,rows,now,cryptoApi:webcrypto};
+ assert.equal(writeTranscripts(store,rows),true);
+ assert.equal((await runLocalResearchCycle({...opts,isCurrent:()=>false})).state,'STOPPED');
+ assert.equal(readLabJournal(store).length,0);
+ let calls=0;
+ assert.equal((await runLocalResearchCycle({...opts,isCurrent:()=>++calls===1})).state,'STOPPED');
+ assert.equal(readLabJournal(store).length,0);
+ const first=await runLocalResearchCycle(opts);
+ assert.equal(first.state,'COMPLETED');
+ assert.equal(first.automaticModelCalls,0);assert.equal(first.productionRuleChanged,false);
+ assert.equal(readLabJournal(store).length,1);
+ assert.equal((await runLocalResearchCycle(opts)).state,'ALREADY_RECORDED');
+ assert.equal(readLabJournal(store).length,1);
+ map.set(HISTORY_KEY,'broken');
+ assert.equal((await runLocalResearchCycle(opts)).reason,'ARCHIVE_UNREADABLE');
+ assert.equal(map.get(HISTORY_KEY),'broken');
+ assert.equal(readLabJournal(store).length,1);
+});

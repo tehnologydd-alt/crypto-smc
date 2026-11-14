@@ -850,6 +850,41 @@ export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,no
   automaticModelCalls:0,automaticActivation:false
  };
 }
+/**
+ * Local-only orchestration of historical evidence auditing and reproducible
+ * experiments. No scheduled network/model calls, no automatic rule changes.
+ * Stop before persistence if the caller disabled the cycle or the input changed.
+ */
+export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent=()=>true,cryptoApi=globalThis.crypto}={}){
+ const out=(state,extra={})=>({state,at:now,automaticModelCalls:0,productionRuleChanged:false,...extra});
+ if(!isCurrent())return out('STOPPED');
+ const disk=inspectTranscriptStorage(store,now);
+ if(!disk.ok)return out('BLOCKED',{reason:disk.reason});
+ const inputKey=JSON.stringify(disk.rows);
+ if(inputKey!==JSON.stringify(rows))return out('BLOCKED',{reason:'ARCHIVE_CHANGED'});
+ const feedback=readFeedbackJournal(store),lab=readLabJournal(store),rules=readKnowledgeReviews(store);
+ if(feedback===null||lab===null||rules===null)return out('BLOCKED',{reason:'JOURNAL_UNAVAILABLE'});
+ if(!rows.length)return out('WAITING_DATA',{reason:'EMPTY_ARCHIVE'});
+ const knowledge=buildResearchKnowledge(rows,{now}),worklist=buildResearchFeedback(knowledge);
+ const result=runResearchLab(rows,{now});
+ const summary={records:rows.length,observations:knowledge.total,conflicts:knowledge.quarantined,
+  tasks:worklist.total,checked:result.checkedClaims};
+ if(!result.checkedClaims)return out('WAITING_DATA',{reason:'NO_CHECKED_FACTS',summary});
+ const digest=await researchLabDigest(rows,'',now,cryptoApi);
+ if(!isCurrent())return out('STOPPED');
+ if(!digest)return out('BLOCKED',{reason:'NO_DIGEST',summary});
+ const again=inspectTranscriptStorage(store,now);
+ if(!again.ok||JSON.stringify(again.rows)!==inputKey)return out('BLOCKED',{reason:'ARCHIVE_CHANGED',summary});
+ const prior=readLabJournal(store);
+ if(prior===null)return out('BLOCKED',{reason:'JOURNAL_UNAVAILABLE',summary});
+ if(prior.length>=LAB_LIMIT&&!prior.some(e=>e.digest===digest&&e.result.asset===''&&e.result.policy.version===result.policy.version))
+  return out('BLOCKED',{reason:'JOURNAL_FULL',summary});
+ const candidates=compareLabHypotheses(rows,{now}).hypotheses.flatMap(h=>h.models).filter(m=>m.decision==='MANUAL_REVIEW_ONLY').length;
+ if(!isCurrent())return out('STOPPED');
+ const saved=recordLabExperiment(store,{at:now,digest,result});
+ if(!saved.ok)return out('BLOCKED',{reason:saved.reason,summary});
+ return out(saved.repeated?'ALREADY_RECORDED':'COMPLETED',{digest,summary:{...summary,candidates},saved:true});
+}
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
  return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
@@ -1104,6 +1139,52 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const ruleRegistry=node('apex-rules-list'),ruleStatus=node('apex-rules-status');
  const center=node('apex-quality-center-list'),centerStatus=node('apex-quality-center-status');
  let centerSignature='',labHistorySignature='',ruleRegistrySignature='',labRenderSignature='';
+ const cycleToggle=node('apex-local-cycle-enable'),cycleStatus=node('apex-local-cycle-status'),cycleSummary=node('apex-local-cycle-summary');
+ let cycleGeneration=0,cycleBusy=false,cycleAttempted=null,cycleLast=null;
+ const cycleLabels={COMPLETED:'Локальный цикл завершён; эксперимент сохранён',
+  ALREADY_RECORDED:'Повторный расчёт совпал; эксперимент уже сохранён',
+  WAITING_DATA:'Недостаточно сохранённых числовых сверок',
+  BLOCKED:'Цикл остановлен защитой',STOPPED:'Цикл остановлен'};
+ function paintCycle(){
+  if(!cycleStatus||!cycleSummary)return;
+  cycleStatus.textContent=!cycleToggle?.checked?'Автоматизация выключена':document.hidden?
+   'Приостановлено: приложение скрыто':cycleBusy?'Выполняется локальная проверка':
+   cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+cycleLast.reason:''):'Ожидание изменения архива';
+  const s=cycleLast?.summary;
+  cycleSummary.textContent=(cycleLast?'Последняя попытка: '+new Date(cycleLast.at).toISOString()+' · '+cycleLabels[cycleLast.state]+'. ':'')+
+   (s?'Записей '+s.records+' · наблюдений '+s.observations+' · конфликтов '+s.conflicts+
+    ' · задач '+s.tasks+' · сверок '+s.checked+' · кандидатов на ручную проверку '+(s.candidates??'—')+'. ':'')+
+   'Автоматических запросов к ИИ: 0.';
+ }
+ async function maybeRunCycle(){
+  if(!cycleToggle?.checked||document.hidden||cycleBusy||labBusy)return;
+  const input=rows.slice(),key=JSON.stringify(input);
+  if(cycleAttempted===key)return;
+  cycleAttempted=key;cycleBusy=true;
+  const generation=cycleGeneration;
+  const current=()=>cycleToggle.checked&&!document.hidden&&cycleGeneration===generation&&JSON.stringify(rows)===key;
+  paintCycle();
+  try{
+   const result=await runLocalResearchCycle({store,rows:input,now:now(),isCurrent:current});
+   if(generation===cycleGeneration){cycleLast=result;if(result.state==='STOPPED')cycleAttempted=null;}
+  }catch{if(generation===cycleGeneration)cycleLast={state:'BLOCKED',reason:'LOCAL_CYCLE_ERROR',at:now()};}
+  finally{
+   cycleBusy=false;paintCycle();renderLabHistory();renderQualityCenter();
+   if(cycleToggle.checked&&!document.hidden&&(generation!==cycleGeneration||JSON.stringify(rows)!==key))void maybeRunCycle();
+  }
+ }
+ if(cycleToggle){
+  cycleToggle.checked=false;
+  cycleToggle.addEventListener('change',()=>{
+   cycleGeneration++;cycleAttempted=null;paintCycle();
+   if(cycleToggle.checked)void maybeRunCycle();
+  });
+  document.addEventListener('visibilitychange',()=>{
+   if(document.hidden){cycleGeneration++;cycleAttempted=null;}
+   paintCycle();if(!document.hidden)void maybeRunCycle();
+  });
+  paintCycle();
+ }
  let derivedArchiveSignature='',derivedKnowledge=null,derivedFeedback=null;
  function localDerived(){
   const key=JSON.stringify(rows);
@@ -1296,7 +1377,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    if(labStatus)labStatus.textContent=saved.ok?
     (saved.repeated?'Повторный расчёт совпал с сохранённым результатом для того же входа.':'Эксперимент сохранён локально.'):
     'Результат рассчитан, но запись не подтверждена: '+saved.reason;
-  }finally{labBusy=false;labRun.disabled=false;renderLab();renderQualityCenter();}
+  }finally{labBusy=false;labRun.disabled=false;renderLab();renderQualityCenter();void maybeRunCycle();}
  });
  const reviewList=node('apex-feedback-reviews'),reviewStatus=node('apex-feedback-review-status'),
   reviewMore=node('apex-feedback-review-more');
@@ -1561,6 +1642,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   renderFeedback();
   renderLab();
   renderQualityCenter();
+  void maybeRunCycle();
   limit.disabled=shown.length<=visible;
   const visibleIds=new Set(shown.flatMap(r=>[...r.evidence,...(r.criticEvidence||[])].map(e=>e.source_id)));
   const archiveConflicts=findArchiveSourceConflicts(rows).filter(id=>visibleIds.has(id));

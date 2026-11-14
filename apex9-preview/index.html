@@ -942,6 +942,15 @@
           <small>Фактическое движение H1 — описание будущих данных, не доказательство точности выводов. Очередь хранится на этом телефоне; перенос её через резервную копию пока не подтверждён.</small>
         </div>
       </details>
+      <details class="apex-ai-director" id="apex-ai-local-cycle-anchor">
+        <summary>APEX Research Orchestrator <small>Локальный автоматический цикл v1</small></summary>
+        <div class="apex-ai-director-body">
+          <label class="apex-local-cycle-toggle"><input type="checkbox" id="apex-local-cycle-enable"> Автоматическая локальная обработка истории</label>
+          <p id="apex-local-cycle-status" role="status">Автоматизация выключена</p>
+          <p id="apex-local-cycle-summary">Автоматических запросов к ИИ: 0.</p>
+          <small>По умолчанию выключено при каждом запуске. Работает только при видимом приложении: обрабатывает текущий сохранённый архив при изменениях, сверяет наблюдения, формирует задачи проверки и сохраняет сводку лаборатории в существующем журнале. Повторы входа не дублируются. При отключении, повреждении архива или переполнении запись блокируется. Статус последней попытки — только в текущем сеансе. Не запускает GLM/Qwen, не меняет правила и не выполняет финансовых операций.</small>
+        </div>
+      </details>
       <details class="apex-ai-director" id="apex-ai-quality-center-anchor">
         <summary>Центр качества исследований <small>Состояние модулей и согласованность</small></summary>
         <div class="apex-ai-director-body">
