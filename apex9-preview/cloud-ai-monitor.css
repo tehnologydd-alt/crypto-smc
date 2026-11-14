@@ -205,3 +205,5 @@
 .apex-quality-periods{display:grid;gap:8px}.apex-quality-period{padding:10px;background:#0e2434;border:1px solid #385869;border-radius:10px;display:grid;gap:5px;overflow-wrap:anywhere}.apex-quality-period>strong{font-size:12px;color:#d5e7ed}.apex-quality-period small{line-height:1.5}
 
 .apex-quality-pattern{padding:10px;border:1px solid #385869;border-radius:10px;background:#0e2434;overflow-wrap:anywhere}.apex-quality-pattern summary{font-size:12px;line-height:1.5;cursor:pointer}.apex-quality-pattern p,.apex-quality-pattern small{font-size:11px;line-height:1.55;color:#b7d1d8}.apex-quality-pattern>[class="apex-research-meter"]{margin:8px 0}
+
+#apex-feedback-list{min-width:0}#apex-feedback-list .apex-evidence-audit{white-space:pre-wrap;overflow-wrap:anywhere}

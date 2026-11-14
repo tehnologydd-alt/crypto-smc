@@ -399,6 +399,46 @@ export function researchDiscrepancyPatterns(knowledge){
    exactPercent:researchRatio(m.exact,checked)};
  })})).sort((a,b)=>a.source.localeCompare(b.source)||a.field.localeCompare(b.field));
 }
+/**
+ * Feedback engine v1: deterministic local audit worklist, derived from the
+ * preserved research archive. Thresholds are review heuristics, not evidence
+ * of statistical significance. Nothing is sent to a model or used to rank it.
+ */
+export const RESEARCH_FEEDBACK_POLICY=Object.freeze({minChecked:5,minAffected:3,minRatio:.3,minCoverageSample:10,minMissingRatio:.7});
+export function buildResearchFeedback(knowledge){
+ const policy=RESEARCH_FEEDBACK_POLICY,items=[];
+ const add=(kind,source,field,role,affected,total,ids)=>{
+  items.push({id:JSON.stringify([kind,source,field,role]),kind,source,field,role,
+   affected,total,percent:researchRatio(affected,total),
+   evidenceIds:[...new Set(ids)].sort().slice(0,8)});
+ };
+ const records=knowledge?.records||[];
+ for(const g of knowledge?.groups||[]){
+  const bad=records.filter(r=>r.source===g.source&&r.state==='CONFLICT');
+  if(bad.length)add('SOURCE_ID_CONFLICT',g.source,null,null,bad.length,g.total,bad.map(r=>r.id));
+  const unknown=records.filter(r=>r.source===g.source&&r.state==='UNKNOWN_FORMAT');
+  if(unknown.length)add('UNRECOGNIZED_FORMAT',g.source,null,null,unknown.length,g.total,unknown.map(r=>r.id));
+ }
+ for(const p of researchDiscrepancyPatterns(knowledge)){
+  const pool=records.filter(r=>r.source===p.source&&r.state==='PARSED'&&r.facts.some(f=>f.field===p.field));
+  for(const m of p.models){
+   const counts=r=>r.facts.find(f=>f.field===p.field)?.checks?.[m.role];
+   const affected=m.different+m.mixed;
+   if(m.checked>=policy.minChecked&&affected>=policy.minAffected&&affected/m.checked>=policy.minRatio){
+    const ids=pool.filter(r=>(counts(r)?.differences||0)>0).map(r=>r.id);
+    add('REPEATED_NUMERIC_DIFFERENCE',p.source,p.field,m.role,affected,m.checked,ids);
+   }
+   if(p.available>=policy.minCoverageSample&&m.unchecked/p.available>=policy.minMissingRatio){
+    const ids=pool.filter(r=>!counts(r)?.matches&&!counts(r)?.differences).map(r=>r.id);
+    add('LOW_EXPLICIT_COVERAGE',p.source,p.field,m.role,m.unchecked,p.available,ids);
+   }
+  }
+ }
+ const priority={SOURCE_ID_CONFLICT:0,UNRECOGNIZED_FORMAT:1,REPEATED_NUMERIC_DIFFERENCE:2,LOW_EXPLICIT_COVERAGE:3};
+ items.sort((a,b)=>priority[a.kind]-priority[b.kind]||b.affected-a.affected||a.id.localeCompare(b.id));
+ return {items,total:items.length,observations:knowledge?.total||0,
+  policy:{...policy},automaticModelCalls:0};
+}
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
  return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
@@ -640,6 +680,42 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   ' · новая запись не подтверждена, старый архив сохранён';
  const qualityTimeline=node('apex-quality-timeline'),qualitySources=node('apex-quality-sources'),
   storageUsage=node('apex-history-capacity'),patternsNode=node('apex-quality-patterns');
+ const feedbackSummary=node('apex-feedback-summary'),feedbackList=node('apex-feedback-list'),
+  feedbackMore=node('apex-feedback-more');
+ let feedbackVisible=8,feedbackSignature='';
+ function renderFeedback(){
+  if(!feedbackSummary||!feedbackList||!feedbackMore)return;
+  // Director worklist describes the complete archive, not the current asset filter.
+  const knowledge=buildResearchKnowledge(rows,{now:now()});
+  const result=buildResearchFeedback(knowledge);
+  const key=JSON.stringify([result,feedbackVisible]);
+  if(key===feedbackSignature)return;
+  feedbackSignature=key;
+  feedbackSummary.textContent='Наблюдений: '+result.observations+' · задач проверки: '+result.total+
+   ' · автоматических обращений к ИИ: 0';
+  feedbackList.replaceChildren();
+  const labels={
+   SOURCE_ID_CONFLICT:['Конфликт исходного ID','Сопоставьте оригиналы записей; не используйте конфликтующее наблюдение для числовой сверки.'],
+   UNRECOGNIZED_FORMAT:['Неизвестный формат','Проверьте схему сохранённого наблюдения; не извлекайте числа догадкой.'],
+   REPEATED_NUMERIC_DIFFERENCE:['Повторяющиеся числовые различия','Сверьте указанные числа и единицы с исходным текстом. Различие может быть округлением.'],
+   LOW_EXPLICIT_COVERAGE:['Мало явных сверок','Изучите, какие доступные числа не представлены в формализованном виде. Это не ошибка модели.']
+  };
+  if(!result.items.length){
+   const p=document.createElement('p');p.textContent='Нет задач по текущим порогам. Это не подтверждение качества моделей.';feedbackList.append(p);
+  }
+  for(const item of result.items.slice(0,feedbackVisible)){
+   const details=document.createElement('details'),title=document.createElement('summary'),
+    meta=document.createElement('p'),action=document.createElement('p'),ids=document.createElement('p');
+   details.className='apex-quality-pattern';
+   const [label,instruction]=labels[item.kind];
+   title.textContent=label+' · '+item.source+(item.field?' · '+item.field:'')+(item.role?' · '+item.role:'');
+   meta.textContent='Наблюдений: '+item.affected+' / '+item.total+' · '+(item.percent===null?'—':item.percent+'%');
+   action.textContent=instruction;
+   ids.className='apex-evidence-audit';ids.textContent='ID для ручной сверки (до 8):\n'+item.evidenceIds.join('\n');
+   details.append(title,meta,action,ids);feedbackList.append(details);
+  }
+  feedbackMore.disabled=result.items.length<=feedbackVisible;
+ }
  function renderQuality(){
   if(!qualityTimeline||!qualitySources||!storageUsage)return;
   const current=now();
@@ -819,6 +895,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }
   renderKnowledge();
   renderQuality();
+  renderFeedback();
   limit.disabled=shown.length<=visible;
   const archiveConflicts=findArchiveSourceConflicts(shown);
   const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);
@@ -904,6 +981,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   if(sessions.length)ingest(sessions);else render();
  };
  picker.addEventListener('change',()=>{visible=8;knowledgeVisible=12;signature='';render();});
+ feedbackMore?.addEventListener('click',()=>{feedbackVisible+=8;renderFeedback();});
  knowledgeSource?.addEventListener('change',()=>{knowledgeVisible=12;renderKnowledge();});
  knowledgeMore?.addEventListener('click',()=>{knowledgeVisible+=12;renderKnowledge();});
  limit.addEventListener('click',()=>{visible+=8;render();});

@@ -379,3 +379,29 @@ test('source-field audit counts distinct facts, mixed repeats, and missing claim
  const conflict={...a,startedAt:a.startedAt+120000,evidence:[{...a.evidence[0],text:a.evidence[0].text.replace('17.25 USDT','17.26 USDT')}]};
  assert.deepEqual(researchDiscrepancyPatterns(buildResearchKnowledge([first,conflict],{now})),[]);
 });
+
+test('feedback engine requires distinct observations and separates missing coverage from errors',async()=>{
+ const {buildResearchFeedback,buildResearchKnowledge}=await import('./apex-research-history.mjs');
+ const a=claimFixture();
+ const single={...a,analystText:'Historical observation.\nAPEX_FACT|'+a.sourceIds[0]+'|PRICE_USDT|17.26'};
+ const repeats=Array.from({length:10},(_,i)=>({...single,startedAt:a.startedAt+i*1000}));
+ assert.equal(buildResearchFeedback(buildResearchKnowledge(repeats,{now})).items.length,0);
+ const rows=Array.from({length:10},(_,i)=>{
+  const at=a.evidence[0].observed_at+i*60000;
+  const e={...a.evidence[0],source_id:a.sourceIds[0].replace(/:\d+$/,':'+at),observed_at:at,
+   text:a.evidence[0].text.replace(new Date(a.evidence[0].observed_at).toISOString(),new Date(at).toISOString())};
+  return {...a,startedAt:at+1000,evidence:[e],sourceIds:[e.source_id],
+   analystText:i<5?'Historical observation.\nAPEX_FACT|'+e.source_id+'|PRICE_USDT|'+(i<3?'17.26':'17.25'):'Historical source, no explicit claim.'};
+ });
+ const r=buildResearchFeedback(buildResearchKnowledge(rows,{now}));
+ const item=r.items.find(x=>x.kind==='REPEATED_NUMERIC_DIFFERENCE');
+ assert.equal(item.role,'GLM');assert.equal(item.affected,3);assert.equal(item.total,5);
+ assert.equal(item.percent,60);assert.equal(item.evidenceIds.length,3);
+ assert.ok(r.items.some(x=>x.kind==='LOW_EXPLICIT_COVERAGE'&&x.role==='Qwen'));
+ assert.equal(r.automaticModelCalls,0);
+ const bad={...rows[0],startedAt:rows[0].startedAt+1000,evidence:[{...rows[0].evidence[0],text:'Conflicting contents'}]};
+ const conflicted=buildResearchFeedback(buildResearchKnowledge([...rows,bad],{now}));
+ assert.equal(conflicted.items[0].kind,'SOURCE_ID_CONFLICT');
+ assert.ok(!conflicted.items.some(x=>x.kind==='REPEATED_NUMERIC_DIFFERENCE'));
+ assert.equal(buildResearchFeedback(buildResearchKnowledge([],{now})).total,0);
+});
