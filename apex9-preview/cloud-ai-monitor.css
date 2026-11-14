@@ -154,3 +154,5 @@
 #apex-history-stats-assets li{font-size:11px}
 
 .apex-evidence-audit{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.55;color:#b7d1d8;padding:8px;background:#102b3b;border-radius:8px;margin:8px 0}
+
+#apex-history-list details details{margin:8px 0;background:#102433}

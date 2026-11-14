@@ -119,6 +119,61 @@ export function auditResearchEvidence(row){
    row?.stage==='COMPLETE'?'COMPARED':'AWAITING_REVIEW',
   semanticAgreement:null,conclusionAccuracy:null};
 }
+/**
+ * Reconstruct typed historical facts solely from the exact evidence format
+ * emitted by the local snapshot builder. Unknown formats remain unknown.
+ * Nothing here infers model agreement, predictions or validity of a venue.
+ */
+export function extractHistoricalFacts(e,asset){
+ if(!e||!SYMBOL.test(asset||'')||!time(e.observed_at)||
+    typeof e.source_id!=='string'||typeof e.text!=='string')return [];
+ const when=new Date(e.observed_at);
+ if(!Number.isFinite(when.getTime()))return [];
+ const stamp=when.toISOString(),n='([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?)';
+ const make=(fields,values)=>fields.map((field,i)=>({
+  field,value:values[i],sourceId:e.source_id,observedAt:e.observed_at
+ }));
+ if(e.source_id==='binance:spot:24h:'+asset+':'+e.observed_at){
+  const prefix='Asset '+asset+'; source Binance public spot 24h ticker; observed '+stamp+
+   '; last price ';
+  if(!e.text.startsWith(prefix))return [];
+  const body=e.text.slice(prefix.length);
+  const m=new RegExp('^'+n+' USDT; last 24h change '+n+'%; last 24h quote volume '+n+
+   ' USDT\\. This is past-market context, not a prediction\\.$').exec(body);
+  if(!m)return [];
+  const v=m.slice(1).map(Number);
+  if(!v.every(Number.isFinite)||v[0]<=0||v[2]<0)return [];
+  return make(['PRICE_USDT','CHANGE_24H_PCT','VOLUME_24H_USDT'],v);
+ }
+ const m=/^(binance|okx|bybit):spot:depth:([A-Z0-9]{2,16}USDT):(\d+)$/.exec(e.source_id);
+ if(!m||m[2]!==asset||m[3]!==String(e.observed_at))return [];
+ const prefix='Asset '+asset+'; source '+m[1]+':spot:depth public visible spot order book; observed '+stamp+
+  '; best bid ';
+ if(!e.text.startsWith(prefix))return [];
+ const tail=e.text.slice(prefix.length);
+ const match=new RegExp('^'+n+'; best ask '+n+'; spread '+n+' bps; visible depth imbalance '+n+
+  '\\. Visible levels are partial and can change rapidly; no inferred whale intent\\.$').exec(tail);
+ if(!match)return [];
+ const v=match.slice(1).map(Number);
+ if(!v.every(Number.isFinite)||v[0]<=0||v[1]<=0||v[0]>v[1]||v[2]<0||Math.abs(v[3])>1)return [];
+ return make(['BEST_BID','BEST_ASK','SPREAD_BPS','VISIBLE_DEPTH_IMBALANCE'],v);
+}
+export function structuredResearchRecord(row){
+ const audit=auditResearchEvidence(row);
+ const seen=new Set(),facts=[],unknown=[];
+ const blocked=new Set(audit.conflicts);
+ for(const e of [...(row.evidence||[]),...(row.criticEvidence||[])]){
+  if(seen.has(e.source_id))continue;
+  seen.add(e.source_id);
+  if(blocked.has(e.source_id))continue;
+  const list=extractHistoricalFacts(e,row.asset);
+  if(list.length)facts.push(...list);else unknown.push(e.source_id);
+ }
+ return {facts,unknown,conflicts:audit.conflicts,
+  analyst:{state:'UNVERIFIED_MODEL_TEXT'},
+  critic:{state:row.stage==='COMPLETE'?'UNVERIFIED_MODEL_TEXT':'NOT_REVIEWED'},
+  agreement:null,accuracy:null};
+}
 export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now)
   .filter(row=>!asset||row.asset===asset);
@@ -126,6 +181,7 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const perAsset=new Map(),delays=[],ages=[];
  let completed=0,multiVenue=0,reviewNewEvidence=0,unknownVenue=0;
  let sourceConflicts=0,sharedSnapshots=0,laterSnapshots=0;
+ const factIds=new Set(),unknownIds=new Set(),conflictingIds=new Set();
  const venue=e=>{
   const prefix=e.source_id.split(':')[0].toLowerCase();
   return ['binance','okx','bybit'].includes(prefix)?prefix:null;
@@ -143,6 +199,10 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   if(multi)multiVenue++;
   for(const e of row.evidence)ages.push(Math.max(0,row.startedAt-e.observed_at));
   const audit=auditResearchEvidence(row);
+  const structured=structuredResearchRecord(row);
+  for(const f of structured.facts)factIds.add(JSON.stringify([f.sourceId,f.field]));
+  for(const id of structured.unknown)unknownIds.add(id);
+  for(const id of structured.conflicts)conflictingIds.add(id);
   if(audit.conflicts.length)sourceConflicts++;
   sharedSnapshots+=audit.shared.length;
   laterSnapshots+=audit.later.length;
@@ -169,6 +229,8 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   medianInputAgeMs:median(ages),
   perAsset:[...perAsset.values()].sort((a,b)=>a.asset.localeCompare(b.asset)),
   sourceConflicts,sharedSnapshots,laterSnapshots,
+  structuredFacts:[...factIds].filter(key=>!conflictingIds.has(JSON.parse(key)[0])).length,
+  unknownFormats:unknownIds.size,
   agreement:null,accuracy:null};
 }
 export function initResearchHistory({store,now=()=>Date.now()}={}){
@@ -208,6 +270,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      ['Начальные данные ≥ 2 бирж',view.multiVenue+' / '+view.total],
      ['Qwen получил новые снимки',view.reviewNewEvidence+' / '+view.completed],
      ['Уникальные снимки',String(view.distinctSnapshots)],
+     ['Структурированные наблюдения',String(view.structuredFacts)],
+     ['Нераспознанные форматы',String(view.unknownFormats)],
      ['Конфликт содержимого одного ID',String(view.sourceConflicts)],
      ['Повторные снимки при проверке',String(view.sharedSnapshots)],
      ['Новые снимки при проверке',String(view.laterSnapshots)],
@@ -257,7 +321,27 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    ];
    if(audit.conflicts.length)lines.push('Конфликтующие ID: '+audit.conflicts.join(', '));
    note.textContent=lines.join('\n');
-   details.append(title,note,body);list.append(details);
+   const structured=structuredResearchRecord(row);
+   const facts=document.createElement('details');
+   const factsTitle=document.createElement('summary');
+   factsTitle.textContent='Структурированные наблюдения · '+structured.facts.length;
+   facts.append(factsTitle);
+   const labels={PRICE_USDT:'Цена (USDT)',CHANGE_24H_PCT:'Изменение за 24ч (%)',
+    VOLUME_24H_USDT:'Объём за 24ч (USDT)',BEST_BID:'Лучшая покупка',
+    BEST_ASK:'Лучшая продажа',SPREAD_BPS:'Спред (bps)',
+    VISIBLE_DEPTH_IMBALANCE:'Дисбаланс видимой глубины'};
+   for(const f of structured.facts){
+    const block=document.createElement('p');
+    block.className='apex-evidence-audit';
+    block.textContent=(labels[f.field]||f.field)+': '+f.value+
+     '\n'+new Date(f.observedAt).toISOString()+' · '+f.sourceId;
+    facts.append(block);
+   }
+   const statusNote=document.createElement('p');
+   statusNote.textContent='Нераспознанных снимков: '+structured.unknown.length+
+    '. Конфликтующие записи исключены. Данные не подтверждают выводы моделей.';
+   facts.append(statusNote);
+   details.append(title,note,facts,body);list.append(details);
   }
  };
  const ingest=sessions=>{

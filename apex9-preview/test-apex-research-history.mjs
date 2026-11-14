@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence} from './apex-research-history.mjs';
+import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence,extractHistoricalFacts,structuredResearchRecord} from './apex-research-history.mjs';
 const now=1794650000000;
 const run=(asset='BTCUSDT',startedAt=now-86400000)=>({
  version:1,asset,startedAt,stage:'ANALYST_READY',
@@ -98,4 +98,37 @@ test('unreviewed evidence remains unreviewed and does not imply disagreement',()
  assert.equal(a.status,'AWAITING_REVIEW');
  assert.equal(a.semanticAgreement,null);assert.equal(a.conclusionAccuracy,null);
  assert.equal(a.conflicts.length,0);
+});
+
+test('only exact historical public ticker format becomes typed observations',()=>{
+ const a=run(),e=a.evidence[0],at=e.observed_at;
+ e.source_id='binance:spot:24h:'+a.asset+':'+at;
+ a.sourceIds=[e.source_id];
+ e.text='Asset '+a.asset+'; source Binance public spot 24h ticker; observed '+
+  new Date(at).toISOString()+'; last price 1.234e-2 USDT; last 24h change -1.2%; last 24h quote volume 10 USDT. This is past-market context, not a prediction.';
+ const parsed=extractHistoricalFacts(e,a.asset);
+ assert.deepEqual(parsed.map(x=>x.field),['PRICE_USDT','CHANGE_24H_PCT','VOLUME_24H_USDT']);
+ assert.equal(parsed[0].value,.01234);
+ assert.equal(parsed[1].value,-1.2);
+ assert.equal(extractHistoricalFacts({...e,text:e.text+' extra text'},a.asset).length,0);
+ assert.equal(extractHistoricalFacts({...e,observed_at:at+1},a.asset).length,0);
+ assert.equal(extractHistoricalFacts(e,'ETHUSDT').length,0);
+ const row=complete(a);
+ assert.equal(structuredResearchRecord(row).facts.length,3);
+ assert.equal(structuredResearchRecord(row).agreement,null);
+ assert.equal(summarizeResearchHistory([row,row],{now}).structuredFacts,3);
+ const conflict={...row,criticEvidence:[{...e,text:e.text.replace('volume 10','volume 11')}]};
+ assert.equal(structuredResearchRecord(conflict).facts.length,0);
+ assert.equal(summarizeResearchHistory([conflict],{now}).structuredFacts,0);
+});
+test('depth facts enforce numeric bounds, source identity and timestamp',()=>{
+ const a=run(),at=a.evidence[0].observed_at;
+ const e={source_id:'okx:spot:depth:'+a.asset+':'+at,observed_at:at,
+  text:'Asset '+a.asset+'; source okx:spot:depth public visible spot order book; observed '+
+   new Date(at).toISOString()+'; best bid 100; best ask 101; spread 99.5 bps; visible depth imbalance -0.25. Visible levels are partial and can change rapidly; no inferred whale intent.'};
+ assert.equal(extractHistoricalFacts(e,a.asset).length,4);
+ assert.equal(extractHistoricalFacts({...e,text:e.text.replace('ask 101','ask 99')},a.asset).length,0);
+ assert.equal(extractHistoricalFacts({...e,text:e.text.replace('-0.25','2')},a.asset).length,0);
+ assert.equal(extractHistoricalFacts({...e,text:e.text.replace('spread 99.5','spread -1')},a.asset).length,0);
+ assert.equal(structuredResearchRecord(a).unknown.length,1);
 });
