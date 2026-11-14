@@ -221,3 +221,5 @@
 #apex-quality-center-list{min-width:0}#apex-quality-center-list p{margin:3px 0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}#apex-quality-center-list button{width:100%;min-height:40px;margin-top:5px}
 
 .apex-local-cycle-toggle{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13px}.apex-local-cycle-toggle input{width:20px;height:20px;flex:none}#apex-local-cycle-status,#apex-local-cycle-summary{font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+
+#apex-local-cycle-history p{font-size:11px;line-height:1.45;overflow-wrap:anywhere;margin:4px 0}

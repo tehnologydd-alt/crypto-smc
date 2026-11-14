@@ -627,3 +627,26 @@ test('local research cycle only persists a unique validated historical experimen
  assert.equal(map.get(HISTORY_KEY),'broken');
  assert.equal(readLabJournal(store).length,1);
 });
+
+test('cycle diagnostics measure attempts and gate starts across sessions without evicting history',async()=>{
+ const {readCycleJournal,appendCycleJournal,cycleAdmission,CYCLE_JOURNAL_KEY,CYCLE_POLICY}=await import('./apex-research-history.mjs');
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ const entry={startedAt:now-10,finishedAt:now,durationMs:10,state:'COMPLETED',reason:null,digest:'a'.repeat(64)};
+ assert.equal(cycleAdmission(readCycleJournal(store),now).ok,true);
+ assert.equal(appendCycleJournal(store,entry).ok,true);
+ assert.equal(readCycleJournal(store).length,1);
+ assert.equal(cycleAdmission(readCycleJournal(store),now).remaining,60000);
+ assert.equal(cycleAdmission(readCycleJournal(store),now+59999).reason,'COOLDOWN');
+ assert.equal(cycleAdmission(readCycleJournal(store),now+60000).ok,true);
+ assert.equal(cycleAdmission(readCycleJournal(store),now-1).reason,'CLOCK_MOVED_BACK');
+ assert.equal(appendCycleJournal(store,{...entry,durationMs:-1}).ok,false);
+ const full=JSON.stringify({version:1,entries:Array.from({length:CYCLE_POLICY.limit},(_,i)=>({...entry,startedAt:now-i*60000-10,finishedAt:now-i*60000}))});
+ map.set(CYCLE_JOURNAL_KEY,full);
+ assert.equal(cycleAdmission(readCycleJournal(store),now+60000).reason,'CYCLE_JOURNAL_FULL');
+ assert.equal(appendCycleJournal(store,entry).reason,'CYCLE_JOURNAL_FULL');
+ assert.equal(map.get(CYCLE_JOURNAL_KEY),full);
+ map.set(CYCLE_JOURNAL_KEY,'broken');
+ assert.equal(cycleAdmission(readCycleJournal(store),now).reason,'CYCLE_JOURNAL_UNAVAILABLE');
+ assert.equal(appendCycleJournal(store,entry).ok,false);
+ assert.equal(map.get(CYCLE_JOURNAL_KEY),'broken');
+});

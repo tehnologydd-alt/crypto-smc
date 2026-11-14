@@ -855,6 +855,49 @@ export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,no
  * experiments. No scheduled network/model calls, no automatic rule changes.
  * Stop before persistence if the caller disabled the cycle or the input changed.
  */
+export const CYCLE_JOURNAL_KEY='apex.research.cycle.journal.v1';
+export const CYCLE_POLICY=Object.freeze({limit:100,bytes:80000,cooldownMs:60000});
+const CYCLE_STATES=['COMPLETED','ALREADY_RECORDED','WAITING_DATA','BLOCKED','STOPPED'];
+function validCycleEntry(e){
+ return portableKeys(e,['startedAt','finishedAt','durationMs','state','reason','digest'])&&
+  Number.isSafeInteger(e.startedAt)&&e.startedAt>0&&e.startedAt<=8640000000000000&&
+  Number.isSafeInteger(e.finishedAt)&&e.finishedAt>0&&e.finishedAt<=8640000000000000&&
+  Number.isSafeInteger(e.durationMs)&&e.durationMs>=0&&CYCLE_STATES.includes(e.state)&&
+  (e.reason===null||typeof e.reason==='string'&&/^[A-Z0-9_]{1,64}$/.test(e.reason))&&
+  (e.digest===null||typeof e.digest==='string'&&/^[a-f0-9]{64}$/.test(e.digest));
+}
+export function readCycleJournal(store){
+ try{
+  if(!store)return null;
+  const raw=store.getItem(CYCLE_JOURNAL_KEY);
+  if(raw==null)return [];
+  if(new TextEncoder().encode(raw).length>CYCLE_POLICY.bytes)return null;
+  const data=JSON.parse(raw);
+  if(!portableKeys(data,['version','entries'])||data.version!==1||!Array.isArray(data.entries)||
+   data.entries.length>CYCLE_POLICY.limit||!data.entries.every(validCycleEntry))return null;
+  return data.entries;
+ }catch{return null;}
+}
+export function cycleAdmission(entries,now=Date.now()){
+ if(entries===null)return {ok:false,reason:'CYCLE_JOURNAL_UNAVAILABLE'};
+ if(entries.length>=CYCLE_POLICY.limit)return {ok:false,reason:'CYCLE_JOURNAL_FULL'};
+ const last=entries[0];
+ if(!last)return {ok:true};
+ if(now<last.finishedAt)return {ok:false,reason:'CLOCK_MOVED_BACK'};
+ const remaining=CYCLE_POLICY.cooldownMs-(now-last.finishedAt);
+ return remaining>0?{ok:false,reason:'COOLDOWN',remaining}:{ok:true};
+}
+export function appendCycleJournal(store,entry){
+ const old=readCycleJournal(store);
+ if(old===null||!validCycleEntry(entry))return {ok:false,reason:'CYCLE_JOURNAL_UNAVAILABLE'};
+ if(old.length>=CYCLE_POLICY.limit)return {ok:false,reason:'CYCLE_JOURNAL_FULL'};
+ const raw=JSON.stringify({version:1,entries:[entry,...old]});
+ if(new TextEncoder().encode(raw).length>CYCLE_POLICY.bytes)return {ok:false,reason:'CYCLE_JOURNAL_FULL'};
+ try{
+  store.setItem(CYCLE_JOURNAL_KEY,raw);
+  return store.getItem(CYCLE_JOURNAL_KEY)===raw?{ok:true}:{ok:false,reason:'CYCLE_JOURNAL_WRITE'};
+ }catch{return {ok:false,reason:'CYCLE_JOURNAL_WRITE'};}
+}
 export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent=()=>true,cryptoApi=globalThis.crypto}={}){
  const out=(state,extra={})=>({state,at:now,automaticModelCalls:0,productionRuleChanged:false,...extra});
  if(!isCurrent())return out('STOPPED');
@@ -1140,7 +1183,25 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const center=node('apex-quality-center-list'),centerStatus=node('apex-quality-center-status');
  let centerSignature='',labHistorySignature='',ruleRegistrySignature='',labRenderSignature='';
  const cycleToggle=node('apex-local-cycle-enable'),cycleStatus=node('apex-local-cycle-status'),cycleSummary=node('apex-local-cycle-summary');
- let cycleGeneration=0,cycleBusy=false,cycleAttempted=null,cycleLast=null;
+ const cycleHistory=node('apex-local-cycle-history');
+ let cycleGeneration=0,cycleBusy=false,cycleAttempted=null,cycleLast=null,cycleTimer=null,cycleGate=null,
+  cycleJournalFault=null,cycleHistorySignature='';
+ const clearCycleTimer=()=>{if(cycleTimer!==null){clearTimeout(cycleTimer);cycleTimer=null;}};
+ function renderCycleHistory(){
+  if(!cycleHistory)return;
+  const journal=readCycleJournal(store),key=JSON.stringify(journal);
+  if(key===cycleHistorySignature)return;cycleHistorySignature=key;
+  cycleHistory.replaceChildren();
+  const count=document.createElement('p');
+  count.textContent=journal===null?'Журнал недоступен':journal.length+' / '+CYCLE_POLICY.limit+' попыток';
+  cycleHistory.append(count);
+  for(const e of (journal||[]).slice(0,10)){
+   const line=document.createElement('p');
+   line.textContent=new Date(e.finishedAt).toISOString()+' · '+cycleLabels[e.state]+' · '+e.durationMs+' мс'+
+    (e.reason?' · '+e.reason:'');
+   cycleHistory.append(line);
+  }
+ }
  const cycleLabels={COMPLETED:'Локальный цикл завершён; эксперимент сохранён',
   ALREADY_RECORDED:'Повторный расчёт совпал; эксперимент уже сохранён',
   WAITING_DATA:'Недостаточно сохранённых числовых сверок',
@@ -1149,38 +1210,56 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   if(!cycleStatus||!cycleSummary)return;
   cycleStatus.textContent=!cycleToggle?.checked?'Автоматизация выключена':document.hidden?
    'Приостановлено: приложение скрыто':cycleBusy?'Выполняется локальная проверка':
+   cycleJournalFault?'Остановлено: '+cycleJournalFault:
+   cycleGate?'Ожидание / блокировка: '+cycleGate:
    cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+cycleLast.reason:''):'Ожидание изменения архива';
   const s=cycleLast?.summary;
   cycleSummary.textContent=(cycleLast?'Последняя попытка: '+new Date(cycleLast.at).toISOString()+' · '+cycleLabels[cycleLast.state]+'. ':'')+
    (s?'Записей '+s.records+' · наблюдений '+s.observations+' · конфликтов '+s.conflicts+
     ' · задач '+s.tasks+' · сверок '+s.checked+' · кандидатов на ручную проверку '+(s.candidates??'—')+'. ':'')+
-   'Автоматических запросов к ИИ: 0.';
+   'Автоматических запросов к ИИ: 0.'+(cycleJournalFault?' Запись диагностики не подтверждена: '+cycleJournalFault+'.':'');
+  renderCycleHistory();
  }
  async function maybeRunCycle(){
-  if(!cycleToggle?.checked||document.hidden||cycleBusy||labBusy)return;
+  if(!cycleToggle?.checked||document.hidden||cycleBusy||labBusy||cycleJournalFault)return;
   const input=rows.slice(),key=JSON.stringify(input);
   if(cycleAttempted===key)return;
+  const gate=cycleAdmission(readCycleJournal(store),now());
+  if(!gate.ok){
+   cycleGate=gate.reason;paintCycle();
+   if(gate.reason==='COOLDOWN'&&cycleTimer===null)
+    cycleTimer=setTimeout(()=>{cycleTimer=null;void maybeRunCycle();},gate.remaining);
+   return;
+  }
+  clearCycleTimer();cycleGate=null;
   cycleAttempted=key;cycleBusy=true;
-  const generation=cycleGeneration;
+  if(labRun)labRun.disabled=true;
+  const generation=cycleGeneration,startedAt=now(),startedPerf=performance.now();
   const current=()=>cycleToggle.checked&&!document.hidden&&cycleGeneration===generation&&JSON.stringify(rows)===key;
   paintCycle();
+  let result;
   try{
-   const result=await runLocalResearchCycle({store,rows:input,now:now(),isCurrent:current});
-   if(generation===cycleGeneration){cycleLast=result;if(result.state==='STOPPED')cycleAttempted=null;}
-  }catch{if(generation===cycleGeneration)cycleLast={state:'BLOCKED',reason:'LOCAL_CYCLE_ERROR',at:now()};}
+   result=await runLocalResearchCycle({store,rows:input,now:startedAt,isCurrent:current});
+  }catch{result={state:'BLOCKED',reason:'LOCAL_CYCLE_ERROR',at:startedAt};}
   finally{
-   cycleBusy=false;paintCycle();renderLabHistory();renderQualityCenter();
-   if(cycleToggle.checked&&!document.hidden&&(generation!==cycleGeneration||JSON.stringify(rows)!==key))void maybeRunCycle();
+   const entry={startedAt,finishedAt:now(),durationMs:Math.max(0,Math.round(performance.now()-startedPerf)),
+    state:result.state,reason:result.reason||null,digest:result.digest||null};
+   const logged=appendCycleJournal(store,entry);
+   if(!logged.ok)cycleJournalFault=logged.reason;
+   if(generation===cycleGeneration){cycleLast=result;if(result.state==='STOPPED')cycleAttempted=null;}
+   cycleBusy=false;if(labRun)labRun.disabled=false;
+   paintCycle();renderLabHistory();renderQualityCenter();
+   if(!cycleJournalFault&&cycleToggle.checked&&!document.hidden&&(generation!==cycleGeneration||JSON.stringify(rows)!==key))void maybeRunCycle();
   }
  }
  if(cycleToggle){
   cycleToggle.checked=false;
   cycleToggle.addEventListener('change',()=>{
-   cycleGeneration++;cycleAttempted=null;paintCycle();
+   cycleGeneration++;cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
    if(cycleToggle.checked)void maybeRunCycle();
   });
   document.addEventListener('visibilitychange',()=>{
-   if(document.hidden){cycleGeneration++;cycleAttempted=null;}
+   if(document.hidden){cycleGeneration++;cycleAttempted=null;clearCycleTimer();}
    paintCycle();if(!document.hidden)void maybeRunCycle();
   });
   paintCycle();
@@ -1366,7 +1445,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }
  }
  labRun?.addEventListener('click',async()=>{
-  if(labBusy)return;labBusy=true;labRun.disabled=true;
+  if(labBusy||cycleBusy)return;labBusy=true;labRun.disabled=true;
   try{
    const at=now(),input=rows.slice(),asset=picker.value;
    const signature=JSON.stringify([input,asset]),result=runResearchLab(input,{asset,now:at});
