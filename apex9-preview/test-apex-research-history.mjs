@@ -831,3 +831,18 @@ test('cycle portable journal deduplicates identical attempts and refuses conflic
  const full=Array.from({length:100},(_,i)=>({...e,startedAt:now-i*100,finishedAt:now-i*100+10}));
  assert.equal(mergePortableJournal('cycles',full,{version:1,entries:[next]}).reason,'CAPACITY_CYCLES');
 });
+
+test('response audit categories reconcile and do not silently score prose or unresolved claims',async()=>{
+ const {summarizeResponseAudit}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const line=(field,value)=>'APEX_FACT|'+id+'|'+field+'|'+value;
+ const texts=['Historical narrative with no explicit fact lines.',line('PRICE_USDT',17.25),
+  line('PRICE_USDT',17.26),line('UNKNOWN_FIELD',17.25),
+  [line('PRICE_USDT',17.25),line('UNKNOWN_FIELD',17.25)].join('\n')];
+ const rows=texts.map((analystText,i)=>({...a,startedAt:a.startedAt+i*1000,id:a.asset+':'+(a.startedAt+i*1000),analystText}));
+ const r=summarizeResponseAudit([...rows,rows[0]],{now});
+ assert.deepEqual(r.models[0],{role:'GLM',responses:5,noLines:1,unresolvedOnly:1,partial:1,allExact:1,withDifference:1,checked:3,exact:2,different:1,unresolved:2});
+ assert.equal(r.models[1].responses,0);
+ assert.equal(r.interpretationAccuracy,null);assert.equal(r.automaticModelCalls,0);
+ assert.equal(summarizeResponseAudit([],{now}).models[0].responses,0);
+});

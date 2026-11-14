@@ -280,6 +280,29 @@ export function historicalClaimCoverage(rows){
  }
  return models;
 }
+/** Mutually exclusive response audit categories. Exact transcription is
+ * not semantic correctness; missing claims are not evidence of model error.
+ */
+export function summarizeResponseAudit(rawRows,{now=Date.now()}={}){
+ const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
+ const conflicts=findArchiveSourceConflicts(rows);
+ const models=['GLM','Qwen'].map(role=>({role,responses:0,noLines:0,unresolvedOnly:0,
+  partial:0,allExact:0,withDifference:0,checked:0,exact:0,different:0,unresolved:0}));
+ for(const row of rows){
+  const result=compareHistoricalClaims(row,{archiveConflicts:conflicts});
+  for(const m of models){
+   if(m.role==='Qwen'&&row.stage!=='COMPLETE')continue;
+   const claims=result.results.filter(c=>c.role===m.role);
+   const exact=claims.filter(c=>c.state==='EXACT_MATCH').length;
+   const different=claims.filter(c=>c.state==='NUMERIC_DIFFERENCE').length;
+   const checked=exact+different,unresolved=claims.length-checked;
+   m.responses++;m.checked+=checked;m.exact+=exact;m.different+=different;m.unresolved+=unresolved;
+   const category=!claims.length?'noLines':!checked?'unresolvedOnly':unresolved?'partial':different?'withDifference':'allExact';
+   m[category]++;
+  }
+ }
+ return {models,interpretationAccuracy:null,automaticModelCalls:0};
+}
 export function findArchiveSourceConflicts(rows){
  const seen=new Map(),conflicts=new Set();
  for(const row of rows){
@@ -1463,14 +1486,15 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   });
   paintCycle();
  }
- let derivedArchiveSignature='',derivedKnowledge=null,derivedFeedback=null;
+ let derivedArchiveSignature='',derivedKnowledge=null,derivedFeedback=null,derivedResponseAudit=null;
  function localDerived(){
   const key=JSON.stringify(rows);
   if(key!==derivedArchiveSignature||!derivedKnowledge){
    derivedArchiveSignature=key;derivedKnowledge=buildResearchKnowledge(rows,{now:now()});
    derivedFeedback=buildResearchFeedback(derivedKnowledge);
+   derivedResponseAudit=summarizeResponseAudit(rows,{now:now()});
   }
-  return {knowledge:derivedKnowledge,feedback:derivedFeedback};
+  return {knowledge:derivedKnowledge,feedback:derivedFeedback,responseAudit:derivedResponseAudit};
  }
  function renderQualityCenter(){
   if(!center||!centerStatus)return;
@@ -1478,7 +1502,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   const key=JSON.stringify([rows,feedback,lab,rules,Math.floor(current/86400000),saved,saveIssue]);
   if(key===centerSignature)return;
   centerSignature=key;
-  const v=researchQualityCenter(rows,{feedback,lab,rules,now:current,derived:localDerived()});
+  const derived=localDerived();
+  const v=researchQualityCenter(rows,{feedback,lab,rules,now:current,derived});
   const a=v.archive,f=v.feedback,l=v.lab,k=v.rules,show=x=>x===null?'Недоступен':String(x);
   centerStatus.textContent='Локальная сводка по всему архиву · автоматических запросов: 0'+archiveWarning();
   const parts=[
@@ -1497,6 +1522,21 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      'Связь журналов не проверена','apex-ai-rules-anchor']
   ];
   center.replaceChildren();
+  if(saved){
+   for(const m of derived.responseAudit.models){
+    const card=document.createElement('div'),heading=document.createElement('strong'),p=document.createElement('p'),note=document.createElement('small');
+    card.className='apex-quality-period';heading.textContent=m.role+' · аудит формата ответов';
+    p.textContent='Ответов: '+m.responses+' · все строки совпали: '+m.allExact+
+     ' · есть расхождение без неразрешённых строк: '+m.withDifference+
+     ' · частично сверяемые: '+m.partial+' · ни одной сверяемой строки: '+m.unresolvedOnly+' · без строк: '+m.noLines;
+    note.textContent='Числовых сверок: '+m.checked+' · совпадений: '+m.exact+
+     ' · расхождений: '+m.different+' · неразрешённых строк: '+m.unresolved+
+     '. Это проверка явных утверждений, не оценка качества всего текста.';
+    card.append(heading,p,note);center.append(card);
+   }
+  }else{
+   const note=document.createElement('p');note.textContent='Аудит ответов недоступен: сохранённый архив не подтверждён.';center.append(note);
+  }
   for(const [name,summary,note,target] of parts){
    const card=document.createElement('div'),heading=document.createElement('strong'),main=document.createElement('p'),
     sub=document.createElement('small'),button=document.createElement('button');
