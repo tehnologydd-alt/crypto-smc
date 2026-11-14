@@ -117,9 +117,10 @@ test('timeout on Qwen uses actual failed attempt time, not preceding success tim
  assert.doesNotMatch(source,/model\.lastSuccessAt\?' · '/);
 });
 
-test('settings refresh on other pages and a failed network read preserves local audit',()=>{
+test('AI center and overview refresh in foreground and a failed network read preserves local audit',()=>{
  const source=readFileSync(new URL('./cloud-ai-monitor.mjs',import.meta.url),'utf8');
- assert.match(source,/!settings\?\.open&&document.body/);
+ assert.ok(source.includes("if(document.hidden)return;"));
+ assert.ok(source.includes("if(!['overview','ai'].includes(document.body?.dataset?.view))return;"));
  assert.match(source,/lastLocal=l/);
  assert.match(source,/local:l\?\.state==='LOCAL_AUDIT'\?l:lastLocal/);
  assert.match(source,/afterCurrent=false/);
@@ -145,4 +146,38 @@ test('AI center is a standalone routed view with unique live controls',()=>{
  assert.ok(monitor.includes("['overview','ai'].includes"));
  assert.ok(!monitor.includes('apex-settings-dialog'));
  for(const id of ['state','server','device','mode','usage'])assert.ok(monitor.includes('apex-ai-page-'+id));
+});
+
+
+test('AI center auto-refresh policy does not poll models or unrelated screens',async()=>{
+ const {initCloudAiMonitor}=await import('./cloud-ai-monitor.mjs');
+ const oldDoc=globalThis.document,oldSet=globalThis.setInterval,oldClear=globalThis.clearInterval,oldNow=Date.now;
+ let tick,now=1000000,reads=0;
+ globalThis.document={hidden:false,body:{dataset:{view:'overview'}},
+  getElementById:()=>null,addEventListener(){},removeEventListener(){}};
+ globalThis.setInterval=fn=>{tick=fn;return 1;};
+ globalThis.clearInterval=()=>{};
+ Date.now=()=>now;
+ let controller;
+ try{
+  controller=initCloudAiMonitor({
+   health:async()=>{reads++;return {state:'RUNNING',httpStatus:200};},
+   pairing:async()=>({state:'NOT_PAIRED'}),
+   activity:async()=>({state:'LOCAL_AUDIT'}),intervalMs:90000
+  });
+  await controller.refresh();
+  assert.equal(reads,1);
+  const flush=()=>new Promise(resolve=>setImmediate(resolve));
+  now+=90001;document.body.dataset.view='ai';tick();await flush();
+  assert.equal(reads,2,'AI screen refreshes when due');
+  now+=90001;document.body.dataset.view='asset';tick();await flush();
+  assert.equal(reads,2,'unrelated screen does not poll');
+  document.body.dataset.view='ai';document.hidden=true;tick();await flush();
+  assert.equal(reads,2,'hidden app does not poll');
+  document.hidden=false;document.body.dataset.view='overview';tick();await flush();
+  assert.equal(reads,3,'overview refreshes when due');
+ }finally{
+  controller?.destroy();globalThis.document=oldDoc;
+  globalThis.setInterval=oldSet;globalThis.clearInterval=oldClear;Date.now=oldNow;
+ }
 });
