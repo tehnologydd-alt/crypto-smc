@@ -967,6 +967,40 @@ export function summarizeLocalCycles(entries){
   durationSamples:n,medianMs:median,maxMs:n?durations[n-1]:null,
   blockedReasons:[...reasons].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([reason,count])=>({reason,count}))};
 }
+/** Read-only dashboard; 7 contiguous UTC days of actual logged attempts. */
+export function localResearchDashboard({rows,archiveConfirmed,journal,lab,feedback,rules,now=Date.now(),derived=null}={}){
+ const available=archiveConfirmed===true&&Array.isArray(rows);
+ const usage=available?researchStorageUsage(rows):null;
+ const responseAudit=available?(derived?.responseAudit||summarizeResponseAudit(rows,{now})):null;
+ const knowledge=available?(derived?.knowledge||buildResearchKnowledge(rows,{now})):null;
+ const journalOK=Array.isArray(journal)&&journal.every(validCycleEntry);
+ const days=journalOK?Array.from({length:7},(_,i)=>{
+  const at=(Math.floor(now/86400000)-6+i)*86400000;
+  return {day:new Date(at).toISOString().slice(0,10),completed:0,repeated:0,waiting:0,other:0};
+ }):null;
+ if(days){
+  const map=new Map(days.map(d=>[d.day,d]));
+  for(const e of journal){
+   if(e.finishedAt>now)continue;
+   const d=map.get(new Date(e.finishedAt).toISOString().slice(0,10));
+   if(!d)continue;
+   d[e.state==='COMPLETED'?'completed':e.state==='ALREADY_RECORDED'?'repeated':e.state==='WAITING_DATA'?'waiting':'other']++;
+  }
+ }
+ const meter=(label,value,max,kind='capacity')=>({label,value,max,kind});
+ const cover=role=>{
+  const m=responseAudit?.models.find(x=>x.role===role);
+  return meter(role+' · ответы со сверкой',m?.responses?m.responses-m.noLines-m.unresolvedOnly:null,m?.responses||null,'coverage');
+ };
+ return {records:usage?.records??null,observations:knowledge?.total??null,
+  checked:responseAudit?responseAudit.models.reduce((n,m)=>n+m.checked,0):null,experiments:Array.isArray(lab)?lab.length:null,days,
+  meters:[meter('Исследовательская память · записи',usage?.records??null,MAX_TRANSCRIPTS),
+   meter('Исследовательская память · объём',usage?.bytes??null,MAX_BYTES),
+   meter('Лаборатория',Array.isArray(lab)?lab.length:null,LAB_LIMIT),
+   meter('Ручные проверки',Array.isArray(feedback)?feedback.length:null,100),
+   meter('Отметки правил',Array.isArray(rules)?rules.length:null,KNOWLEDGE_REVIEW_LIMIT),
+   meter('Журнал циклов',journalOK?journal.length:null,CYCLE_POLICY.limit),cover('GLM'),cover('Qwen')]};
+}
 /** Presentation only: a cooldown is not an error or a new experiment. */
 export function localCycleReason(reason){
  const labels={COOLDOWN:'Пауза между попытками (до 60 сек)',NO_CHECKED_FACTS:'Нет однозначно сверяемых числовых утверждений моделей',
@@ -1496,13 +1530,62 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }
   return {knowledge:derivedKnowledge,feedback:derivedFeedback,responseAudit:derivedResponseAudit};
  }
+ let dashboardSignature='';
+ function renderDashboard(derived,feedback,lab,rules,current){
+  const status=node('apex-ai-dashboard-status'),kpis=node('apex-ai-dashboard-kpis'),chart=node('apex-ai-dashboard-chart'),progress=node('apex-ai-dashboard-progress');
+  if(!status||!kpis||!chart||!progress)return;
+  const journal=readCycleJournal(store);
+  const signature=JSON.stringify([rows,saved,journal,feedback?.length,lab?.length,rules?.length,Math.floor(current/60000)]);
+  if(signature===dashboardSignature)return;dashboardSignature=signature;
+  const v=localResearchDashboard({rows,archiveConfirmed:saved,journal,lab,feedback,rules,now:current,derived});
+  status.textContent=saved?(v.days?'По сохранённому архиву · локальные данные':'Архив доступен · журнал циклов недоступен'):'Архив не подтверждён · показатели архива недоступны';
+  const show=x=>x===null?'—':String(x);
+  kpis.replaceChildren();
+  for(const [label,value] of [['Исследования',v.records],['Наблюдения',v.observations],['Числовые сверки',v.checked],['Эксперименты',v.experiments]]){
+   const card=document.createElement('div'),name=document.createElement('small'),number=document.createElement('strong');
+   name.textContent=label;number.textContent=show(value);card.append(name,number);kpis.append(card);
+  }
+  chart.replaceChildren();
+  if(!v.days||!v.days.some(d=>d.completed+d.repeated+d.waiting+d.other)){
+   const p=document.createElement('p');p.textContent=v.days?'Нет сохранённых попыток за эти 7 дней.':'Журнал недоступен; график не построен.';chart.append(p);
+  }else{
+   const scale=Math.max(1,...v.days.map(d=>d.completed+d.repeated+d.waiting+d.other));
+   const plot=document.createElement('div');plot.className='apex-ai-dashboard-plot';
+   for(const d of v.days){
+    const total=d.completed+d.repeated+d.waiting+d.other;
+    const cell=document.createElement('div'),number=document.createElement('strong'),track=document.createElement('div'),date=document.createElement('small');
+    cell.className='apex-ai-dashboard-day';number.textContent=String(total);track.className='apex-ai-dashboard-bar';
+    track.setAttribute('role','img');track.setAttribute('aria-label',d.day+': новых '+d.completed+', повторов '+d.repeated+', ожидание '+d.waiting+', остановки '+d.other);
+    track.title=track.getAttribute('aria-label');
+    for(const kind of ['completed','repeated','waiting','other']){
+     if(!d[kind])continue;const segment=document.createElement('span');segment.dataset.kind=kind;
+     segment.style.height=(100*d[kind]/scale)+'%';track.append(segment);
+    }
+    date.textContent=d.day.slice(8)+'.'+d.day.slice(5,7);cell.append(number,track,date);plot.append(cell);
+   }
+   chart.append(plot);
+  }
+  progress.replaceChildren();
+  for(const m of v.meters){
+   const row=document.createElement('div'),head=document.createElement('div'),label=document.createElement('span'),value=document.createElement('strong'),track=document.createElement('div'),fill=document.createElement('span');
+   const known=m.value!==null&&m.max!==null&&m.max>0;
+   const percent=known?Math.min(100,100*m.value/m.max):null;
+   row.className='apex-ai-dashboard-meter';head.className='apex-ai-dashboard-meter-head';label.textContent=m.label;
+   value.textContent=known?(m.label.endsWith('объём')?(m.value/1000000).toFixed(2)+' / '+(m.max/1000000).toFixed(1)+' МБ':m.value+' / '+m.max)+' · '+percent.toFixed(1)+'%':'—';
+   track.className='apex-ai-dashboard-track';track.dataset.kind=m.kind;track.dataset.known=String(known);
+   if(known){track.setAttribute('role','progressbar');track.setAttribute('aria-label',m.label);track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax','100');track.setAttribute('aria-valuenow',String(percent));fill.style.width=percent+'%';}
+   else{track.setAttribute('role','img');track.setAttribute('aria-label',m.label+': нет данных');}
+   track.append(fill);head.append(label,value);row.append(head,track);progress.append(row);
+  }
+ }
  function renderQualityCenter(){
   if(!center||!centerStatus)return;
   const current=now(),feedback=readFeedbackJournal(store),lab=readLabJournal(store),rules=readKnowledgeReviews(store);
+  const derived=localDerived();
+  renderDashboard(derived,feedback,lab,rules,current);
   const key=JSON.stringify([rows,feedback,lab,rules,Math.floor(current/86400000),saved,saveIssue]);
   if(key===centerSignature)return;
   centerSignature=key;
-  const derived=localDerived();
   const v=researchQualityCenter(rows,{feedback,lab,rules,now:current,derived});
   const a=v.archive,f=v.feedback,l=v.lab,k=v.rules,show=x=>x===null?'Недоступен':String(x);
   centerStatus.textContent='Локальная сводка по всему архиву · автоматических запросов: 0'+archiveWarning();

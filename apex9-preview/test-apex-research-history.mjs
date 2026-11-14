@@ -846,3 +846,18 @@ test('response audit categories reconcile and do not silently score prose or unr
  assert.equal(r.interpretationAccuracy,null);assert.equal(r.automaticModelCalls,0);
  assert.equal(summarizeResponseAudit([],{now}).models[0].responses,0);
 });
+
+test('dashboard uses saved cycle counts, separate archive coverage and unknown states',async()=>{
+ const {localResearchDashboard}=await import('./apex-research-history.mjs');
+ const a=claimFixture();a.analystText='APEX_FACT|'+a.sourceIds[0]+'|PRICE_USDT|17.25';
+ const e={startedAt:now-100,finishedAt:now-90,durationMs:10,state:'COMPLETED',reason:null,digest:'a'.repeat(64)};
+ const v=localResearchDashboard({rows:[a],archiveConfirmed:true,journal:[e,{...e,state:'ALREADY_RECORDED',startedAt:now-80,finishedAt:now-70}],lab:[],feedback:[],rules:[],now});
+ assert.equal(v.records,1);assert.equal(v.checked,1);assert.equal(v.days.length,7);
+ assert.equal(v.days.at(-1).completed,1);assert.equal(v.days.at(-1).repeated,1);
+ assert.equal(v.meters.find(m=>m.label.startsWith('GLM')).value,1);
+ assert.equal(v.meters.find(m=>m.label.startsWith('Qwen')).value,null);
+ const bad=localResearchDashboard({rows:[a],archiveConfirmed:false,journal:null,lab:null,now});
+ assert.equal(bad.records,null);assert.equal(bad.days,null);assert.equal(bad.checked,null);
+ const empty=localResearchDashboard({rows:[],archiveConfirmed:true,journal:[],lab:[],now});
+ assert.equal(empty.records,0);assert.ok(empty.days.every(d=>d.completed+d.repeated+d.waiting+d.other===0));
+});
