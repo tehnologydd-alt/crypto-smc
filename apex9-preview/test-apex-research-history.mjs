@@ -775,3 +775,27 @@ test('cycle summary distinguishes check attempts from unique per-model exact and
  assert.equal(formatCycleTime(null),'—');
  assert.equal(formatCycleTime(now),new Date(now).toLocaleString('ru-RU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}));
 });
+
+test('cycle journal keeps validated detailed summaries and reads legacy entries',async()=>{
+ const {runLocalResearchCycle,mergeTranscripts,writeTranscripts,validCycleSummary,appendCycleJournal,readCycleJournal}=await import('./apex-research-history.mjs');
+ const {webcrypto}=await import('node:crypto');
+ const a=claimFixture();a.analystText='APEX_FACT|'+a.sourceIds[0]+'|PRICE_USDT|17.25';
+ const rows=mergeTranscripts([], [a],now);
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ assert.ok(writeTranscripts(store,rows));
+ const result=await runLocalResearchCycle({store,rows,now,cryptoApi:webcrypto});
+ assert.equal(result.state,'COMPLETED');
+ assert.equal(validCycleSummary(result.summary),true);
+ const entry={startedAt:now,finishedAt:now+10,durationMs:10,state:'COMPLETED',reason:null,digest:result.digest};
+ assert.equal(appendCycleJournal(store,entry).ok,true);
+ const next={...entry,startedAt:now+60010,finishedAt:now+60020,summary:result.summary};
+ assert.equal(appendCycleJournal(store,next).ok,true);
+ assert.deepEqual(readCycleJournal(store)[0].summary,result.summary);
+ assert.equal(Object.hasOwn(readCycleJournal(store)[1],'summary'),false);
+ const bad={...next,summary:{...result.summary,modelMetrics:result.summary.modelMetrics.map(m=>({...m,exact:m.total+1}))}};
+ assert.equal(appendCycleJournal(store,bad).ok,false);
+ assert.equal(readCycleJournal(store).length,2);
+ const repeated=await runLocalResearchCycle({store,rows,now,cryptoApi:webcrypto});
+ assert.equal(repeated.state,'ALREADY_RECORDED');
+ assert.deepEqual(repeated.summary,result.summary);
+});

@@ -874,11 +874,31 @@ export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,no
  * Stop before persistence if the caller disabled the cycle or the input changed.
  */
 export const CYCLE_JOURNAL_KEY='apex.research.cycle.journal.v1';
-export const CYCLE_POLICY=Object.freeze({limit:100,bytes:80000,cooldownMs:60000});
+export const CYCLE_POLICY=Object.freeze({limit:100,bytes:180000,cooldownMs:60000});
 const CYCLE_STATES=['COMPLETED','ALREADY_RECORDED','WAITING_DATA','BLOCKED','STOPPED','INTERRUPTED'];
 export const CYCLE_PENDING_KEY='apex.research.cycle.pending.v1';
+/** Optional compact diagnostics are backward compatible with earlier cycle entries. */
+export function validCycleSummary(s){
+ const keys=['records','observations','conflicts','tasks','checked','availableFacts','unresolved','parsedObservations','unknownObservations'];
+ const count=n=>Number.isSafeInteger(n)&&n>=0;
+ if(!s||!portableKeys(s,[...keys,'coverage','modelMetrics','candidates'].filter(k=>k!=='candidates'||Object.hasOwn(s,k)))||
+  !keys.every(k=>count(s[k]))||s.records>MAX_TRANSCRIPTS||
+  !Array.isArray(s.coverage)||s.coverage.length!==2||!Array.isArray(s.modelMetrics)||s.modelMetrics.length!==2)return false;
+ if(Object.hasOwn(s,'candidates')&&(!count(s.candidates)||s.candidates>4))return false;
+ return ['GLM','Qwen'].every((role,i)=>{
+  const c=s.coverage[i],m=s.modelMetrics[i];
+  return portableKeys(c,['role','responses','withLines','withChecked','unresolved'])&&c.role===role&&
+   ['responses','withLines','withChecked','unresolved'].every(k=>count(c[k]))&&
+   c.responses<=s.records&&c.withChecked<=c.withLines&&c.withLines<=c.responses&&
+   portableKeys(m,['role','total','exact','different'])&&m.role===role&&
+   ['total','exact','different'].every(k=>count(m[k]))&&m.total===m.exact+m.different&&m.total<=s.checked;
+ })&&s.modelMetrics.reduce((n,m)=>n+m.total,0)<=s.checked&&
+  s.coverage.reduce((n,m)=>n+m.unresolved,0)===s.unresolved;
+}
 function validCycleEntry(e){
- return portableKeys(e,['startedAt','finishedAt','durationMs','state','reason','digest'])&&
+ const keys=['startedAt','finishedAt','durationMs','state','reason','digest'];
+ return e&&portableKeys(e,Object.hasOwn(e,'summary')?[...keys,'summary']:keys)&&
+  (!Object.hasOwn(e,'summary')||validCycleSummary(e.summary))&&
   Number.isSafeInteger(e.startedAt)&&e.startedAt>0&&e.startedAt<=8640000000000000&&
   Number.isSafeInteger(e.finishedAt)&&e.finishedAt>0&&e.finishedAt<=8640000000000000&&
   (e.state==='INTERRUPTED'?e.durationMs===null:Number.isSafeInteger(e.durationMs)&&e.durationMs>=0)&&CYCLE_STATES.includes(e.state)&&
@@ -1314,7 +1334,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    cycleGate?localCycleReason(cycleGate):
    cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+localCycleReason(cycleLast.reason):''):'Ожидание изменения архива';
   const s=cycleLast?.summary;
-  cycleSummary.textContent=(cycleLast?'Последняя попытка (местное время): '+formatCycleTime(cycleLast.at)+' · '+cycleLabels[cycleLast.state]+'. ':'')+
+  cycleSummary.textContent=(cycleLast?'Последняя попытка (местное время): '+formatCycleTime(cycleLast.at)+' · '+cycleLabels[cycleLast.state]+'. '+(cycleLast.restored?'Сохранённый результат предыдущего сеанса; не новый расчёт. ':''):'')+
    (s?'Записей '+s.records+' · наблюдений '+s.observations+' · конфликтов '+s.conflicts+
     ' · распознанных наблюдений '+(s.parsedObservations??'—')+' · доступных числовых фактов '+(s.availableFacts??'—')+
     ' · задач '+s.tasks+' · сверок '+s.checked+' · неразрешённых утверждений '+(s.unresolved??'—')+
@@ -1328,7 +1348,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    if(key!==cycleMetricsSignature){
     cycleMetricsSignature=key;cycleMetrics.replaceChildren();
     if(!metrics){
-     const p=document.createElement('small');p.textContent='Подробные числовые результаты появятся после расчёта в этом сеансе.';cycleMetrics.append(p);
+     const p=document.createElement('small');p.textContent='Подробная сводка отсутствует в этой записи; появится после следующего расчёта.';cycleMetrics.append(p);
     }else for(const m of metrics){
      const card=document.createElement('div'),title=document.createElement('strong'),p=document.createElement('p');
      card.className='apex-cycle-metric';title.textContent=m.role+' · '+m.total+' уникальных пар снимок/поле';
@@ -1368,7 +1388,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }catch{result={state:'BLOCKED',reason:'LOCAL_CYCLE_ERROR',at:startedAt};}
   finally{
    const entry={startedAt,finishedAt:now(),durationMs:Math.max(0,Math.round(performance.now()-startedPerf)),
-    state:result.state,reason:result.reason||null,digest:result.digest||null};
+    state:result.state,reason:result.reason||null,digest:result.digest||null,
+    ...(validCycleSummary(result.summary)?{summary:result.summary}:{})};
    const logged=finishCycleAttempt(store,entry);
    if(!logged.ok)cycleJournalFault=logged.reason;
    if(result.state==='STOPPED'&&cycleAttempted===key)cycleAttempted=null;
@@ -1384,7 +1405,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   if(!recovery.ok)cycleJournalFault=recovery.reason;
   else {
    const last=recovery.entry||readCycleJournal(store)?.[0];
-   if(last)cycleLast={state:last.state,at:last.startedAt,reason:last.reason};
+   if(last)cycleLast={state:last.state,at:last.startedAt,reason:last.reason,summary:last.summary,restored:true};
   }
   cycleToggle.addEventListener('change',()=>{
    cycleGeneration++;if(cycleLast?.state==='BLOCKED'||cycleLast?.state==='STOPPED')cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
