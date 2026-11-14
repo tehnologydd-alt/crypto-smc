@@ -174,3 +174,13 @@
 .apex-ai-page .apex-ai-source-link{width:100%;margin-top:12px}
 .apex-ai-page-hero{margin-top:8px}
 @media(max-width:380px){.apex-ai-page .apex-backup-controls{grid-template-columns:1fr}}
+
+/* Quotas are separate confirmed observations. Missing data is not zero. */
+.apex-ai-meter[data-state="unknown"]{background:repeating-linear-gradient(135deg,#192d3b 0 5px,#29404e 5px 10px)}
+.apex-ai-meter[data-state="closed"]{background:repeating-linear-gradient(135deg,#352e28 0 5px,#594837 5px 10px)}
+.apex-ai-meter[data-state="near"]>span{background:#e3b26c}
+.apex-ai-meter[data-state="full"]>span{background:#e58d94}
+.apex-ai-jumps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:12px 0}
+.apex-ai-jumps button{min-width:0;min-height:44px;padding:6px 3px;font-size:11px;white-space:normal;border:1px solid #37576a;border-radius:10px}
+.apex-ai-page [id="apex-ai-settings-anchor"],.apex-ai-page [id="apex-ai-models-anchor"],.apex-ai-page [id="apex-director-panel"],.apex-ai-page [id="apex-ai-archive-anchor"]{scroll-margin-top:76px}
+@media(max-width:360px){.apex-ai-jumps{grid-template-columns:repeat(2,minmax(0,1fr))}}

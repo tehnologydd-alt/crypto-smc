@@ -855,6 +855,12 @@
           <div><span>Попытки сегодня</span><strong id="apex-ai-page-usage">—</strong></div>
         </div>
       </section>
+    <nav class="apex-ai-jumps" aria-label="Разделы центра ИИ">
+      <button type="button" class="ghost" data-ai-jump="apex-ai-settings-anchor">Лимиты</button>
+      <button type="button" class="ghost" data-ai-jump="apex-ai-models-anchor">Модели</button>
+      <button type="button" class="ghost" data-ai-jump="apex-director-panel">Директор</button>
+      <button type="button" class="ghost" data-ai-jump="apex-ai-archive-anchor">Архив</button>
+    </nav>
     <h3 id="apex-ai-settings-anchor">Подключение и лимиты</h3>
     <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
     <div class="apex-backup-controls">
@@ -865,11 +871,16 @@
     <section class="apex-ai-details" aria-label="Состояние APEX AI и история обращений">
       <div class="apex-ai-details-line"><span>Последняя связь с сервером</span><strong id="apex-ai-health-checked">—</strong></div>
       <div class="apex-ai-details-line"><span>Лимит запросов ИИ · день</span><strong id="apex-ai-quota-daily">—</strong></div>
-      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
       <div class="apex-ai-details-line"><span>Месячные запросы</span><strong id="apex-ai-quota-monthly">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные месячные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-month"><span id="apex-ai-meter-month-fill"></span></div>
       <div class="apex-ai-details-line"><span>Ночные запросы</span><strong id="apex-ai-quota-night">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные ночные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-night"><span id="apex-ai-meter-night-fill"></span></div>
+      <div class="apex-ai-details-line"><span>Оценка Neurons · сутки UTC</span><strong id="apex-ai-quota-neurons">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Оценочно зарезервированные Neurons" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет подтверждённых данных" data-state="unknown" id="apex-ai-meter-neurons"><span id="apex-ai-meter-neurons-fill"></span></div>
+      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
       <div class="apex-ai-details-line"><span>Следующий разрешённый запрос</span><strong id="apex-ai-next-eligible">—</strong></div>
-      <div class="apex-ai-agent-grid">
+      <div class="apex-ai-agent-grid" id="apex-ai-models-anchor">
         <div><span>GLM-4.7-Flash</span><strong id="apex-ai-glm-status">Нет подтверждённых ответов</strong><small id="apex-ai-glm-count">Ответов на этом телефоне: —</small></div>
         <div><span>Qwen3.8-27B</span><strong id="apex-ai-qwen-status">Нет подтверждённых ответов</strong><small id="apex-ai-qwen-count">Ответов на этом телефоне: —</small></div>
       </div>
@@ -929,7 +940,7 @@
           <small>Фактическое движение H1 — описание будущих данных, не доказательство точности выводов. Очередь хранится на этом телефоне; перенос её через резервную копию пока не подтверждён.</small>
         </div>
       </details>
-      <details class="apex-ai-director">
+      <details class="apex-ai-director" id="apex-ai-archive-anchor">
         <summary>Архив исследований GLM + Qwen <small>Локальная память</small></summary>
         <div class="apex-ai-director-body">
           <p id="apex-history-count">Чтение архива…</p>
@@ -951,7 +962,6 @@
       <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
         <ul id="apex-ai-events"><li>История обращений ещё не проверена</li></ul>
       </div>
-      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
       <p class="apex-ai-footnote" id="apex-ai-limit-note">Здесь показаны внутренние лимиты попыток, а не баланс Neurons или стоимость Cloudflare. Состояние модели считается подтверждённым только после настоящего ответа.</p>
     </section>
 

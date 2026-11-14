@@ -117,9 +117,30 @@ export function deriveCloudAiView(data = {}) {
  };
 }
 
+/** Unknown, zero capacity and confirmed empty usage are distinct. */
+export function quotaMeter(used,limit,verified=true){
+ const count=known(used),cap=known(limit);
+ if(!verified||count===null||cap===null)return {label:'—',percent:null,state:'unknown'};
+ const label=count+' / '+cap;
+ if(cap===0)return {label,percent:null,state:'closed'};
+ const percent=Math.round(100*Math.min(1,count/cap));
+ return {label,percent,state:count>=cap?'full':count/cap>=.8?'near':'ok'};
+}
+
 function text(id, value) {
- const node=document.getElementById(id);
- if(node)node.textContent=String(value);
+ const node=document.getElementById(id),next=String(value);
+ if(node&&node.textContent!==next)node.textContent=next;
+}
+function renderMeter(id,view){
+ const bar=document.getElementById(id),fill=document.getElementById(id+'-fill');
+ if(bar){
+  bar.dataset.state=view.state;
+  if(view.percent===null)bar.removeAttribute('aria-valuenow');
+  else bar.setAttribute('aria-valuenow',String(view.percent));
+  bar.setAttribute('aria-valuetext',view.state==='unknown'?'Нет подтверждённых данных':
+   view.state==='closed'?'Лимит равен нулю':view.label+' ('+view.percent+'%)');
+ }
+ if(fill&&fill.style.width!==(view.percent??0)+'%')fill.style.width=(view.percent??0)+'%';
 }
 function setStatus(el, value) {
  const node=document.getElementById(el);
@@ -134,7 +155,7 @@ export function initCloudAiMonitor({
  const enrollButton=document.getElementById('apex-ai-enroll');
  const checkButton=document.getElementById('apex-ai-check');
  const statusBox=document.getElementById('apex-ai-pair-status');
- let latestAt=0,work=null,lastLocal=null,lastEventsSignature='';
+ let latestAt=0,work=null,lastLocal=null,lastEventsSignature='',lastHealthyAt=null;
  const busy=(value)=>{
   for(const node of [refreshButton,enrollButton,checkButton])if(node)node.disabled=value;
  };
@@ -159,22 +180,22 @@ export function initCloudAiMonitor({
    'Проверено: '+renderTime(v.checkedAt):
    'Последняя связь: '+renderTime(v.lastHealthyAt));
   putTime('apex-ai-health-checked',v.checkedAt||v.lastHealthyAt);
-  text('apex-ai-quota-daily',v.quotas.verified?v.daily:'—');
-  text('apex-ai-quota-monthly',v.quotas.verified?
-   shown(v.quotas.monthUsed)+' / '+shown(v.quotas.monthCap):'—');
-  text('apex-ai-quota-night',v.quotas.verified?
-   shown(v.quotas.nightUsed)+' / '+shown(v.quotas.nightCap):'—');
+  const q=v.quotas;
+  for(const [suffix,id,used,limit] of [
+   ['daily','apex-ai-meter',q.count,q.cap],
+   ['monthly','apex-ai-meter-month',q.monthUsed,q.monthCap],
+   ['night','apex-ai-meter-night',q.nightUsed,q.nightCap],
+   ['neurons','apex-ai-meter-neurons',q.estimatedNeurons,q.estimatedCap]
+  ]){
+   const view=quotaMeter(used,limit,q.verified);
+   text('apex-ai-quota-'+suffix,view.label);
+   renderMeter(id,view);
+  }
   text('apex-ai-next-eligible',v.quotas.verified?
    (v.quotas.nextEligibleAt &&
     v.quotas.nextEligibleAt > Date.now()?
      renderTime(v.quotas.nextEligibleAt,{allowFuture:true}):
      'Пауза истекла · проверьте остальные лимиты'):'—');
-  const bar=document.getElementById('apex-ai-meter');
-  const fill=document.getElementById('apex-ai-meter-fill');
-  const percent=v.quotas.verified && v.quotas.cap>0 && v.quotas.count!==null?
-   Math.round(100*Math.min(1,v.quotas.count/v.quotas.cap)):0;
-  if(bar)bar.setAttribute('aria-valuenow',String(percent));
-  if(fill)fill.style.width=percent+'%';
   for(const [role,prefix] of [['analyst','glm'],['critic','qwen']]){
    const model=v[role];
    // Date must belong to the last attempt, not an older successful run.
@@ -241,12 +262,15 @@ export function initCloudAiMonitor({
     ]);
     if(l?.state==='LOCAL_AUDIT')lastLocal=l;
     const b=p?.state==='APPROVED'?await safe(budget):null;
-    const data={health:h,pair:p,local:l?.state==='LOCAL_AUDIT'?l:lastLocal,budget:b};
+    const confirmed=h?.state==='RUNNING'&&h?.httpStatus===200;
+    if(confirmed)lastHealthyAt=known(h.checkedAt)||Date.now();
+    else if(known(h?.lastHealthyAt))lastHealthyAt=Math.max(lastHealthyAt||0,h.lastHealthyAt);
+    const data={health:{...h,lastHealthyAt},pair:p,local:l?.state==='LOCAL_AUDIT'?l:lastLocal,budget:b};
     render(data);
     latestAt=Date.now();
     return deriveCloudAiView(data);
    }catch{
-    render({health:{state:'CLOUD_UNAVAILABLE'},pair:{state:'CLOUD_UNAVAILABLE'},local:lastLocal});
+    render({health:{state:'CLOUD_UNAVAILABLE',lastHealthyAt},pair:{state:'CLOUD_UNAVAILABLE'},local:lastLocal});
     latestAt=Date.now();
     return deriveCloudAiView({});
    }finally{busy(false);}
@@ -262,9 +286,19 @@ export function initCloudAiMonitor({
  refreshButton?.addEventListener('click',()=>void refresh());
  checkButton?.addEventListener('click',()=>void refresh());
  enrollButton?.addEventListener('click',()=>void refresh({enrollDevice:true}));
+ const jump=event=>{
+  const button=event.target?.closest?.('[data-ai-jump]');
+  if(!button||!document.getElementById('view-ai')?.contains(button))return;
+  const target=document.getElementById(button.dataset.aiJump);
+  if(!target)return;
+  if(target.tagName==='DETAILS')target.open=true;
+  target.scrollIntoView({block:'start',behavior:'auto'});
+ };
+ document.addEventListener('click',jump);
  document.addEventListener('visibilitychange',refreshIfDue);
  const timer=setInterval(refreshIfDue,intervalMs);
  void refresh();
  return {refresh,destroy(){clearInterval(timer);
+  document.removeEventListener('click',jump);
   document.removeEventListener('visibilitychange',refreshIfDue);}};
 }

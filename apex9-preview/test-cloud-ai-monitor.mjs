@@ -181,3 +181,54 @@ test('AI center auto-refresh policy does not poll models or unrelated screens',a
   globalThis.setInterval=oldSet;globalThis.clearInterval=oldClear;Date.now=oldNow;
  }
 });
+
+
+test('quota meters distinguish unknown, unavailable capacity, unused, near and exhausted limits',async()=>{
+ const {quotaMeter}=await import('./cloud-ai-monitor.mjs');
+ assert.deepEqual(quotaMeter(null,12),{label:'—',percent:null,state:'unknown'});
+ assert.equal(quotaMeter(0,12,false).state,'unknown');
+ assert.deepEqual(quotaMeter(0,0),{label:'0 / 0',percent:null,state:'closed'});
+ assert.deepEqual(quotaMeter(0,12),{label:'0 / 12',percent:0,state:'ok'});
+ assert.deepEqual(quotaMeter(9,12),{label:'9 / 12',percent:75,state:'ok'});
+ assert.equal(quotaMeter(10,12).state,'near');
+ assert.deepEqual(quotaMeter(13,12),{label:'13 / 12',percent:100,state:'full'});
+});
+test('all four quota meters and mobile shortcuts have unique real targets',()=>{
+ const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+ for(const id of ['apex-ai-meter','apex-ai-meter-month','apex-ai-meter-night','apex-ai-meter-neurons']){
+  assert.equal(html.split('id="'+id+'"').length,2);
+  assert.equal(html.split('id="'+id+'-fill"').length,2);
+  assert.match(html,new RegExp('data-state="unknown" id="'+id+'"'));
+ }
+ for(const [,id] of html.matchAll(/data-ai-jump="([^"]+)"/g))assert.equal(html.split('id="'+id+'"').length,2);
+ assert.equal([...html.matchAll(/data-ai-jump="/g)].length,4);
+});
+test('failed refresh clears verified quota but retains last successful contact',async()=>{
+ const {initCloudAiMonitor}=await import('./cloud-ai-monitor.mjs');
+ const original=globalThis.document;
+ let online=true;
+ const nodes=new Map();
+ for(const id of ['apex-ai-live-state','apex-ai-live-checked','apex-ai-quota-daily','apex-ai-meter','apex-ai-meter-fill']){
+  nodes.set(id,{textContent:'',dataset:{},style:{},attrs:{},setAttribute(k,v){this.attrs[k]=v},removeAttribute(k){delete this.attrs[k]}});
+ }
+ globalThis.document={getElementById:id=>nodes.get(id),addEventListener(){},removeEventListener(){}};
+ let controller;
+ try{
+  controller=initCloudAiMonitor({
+   health:async()=>online?{state:'RUNNING',httpStatus:200,checkedAt:Date.now()}:null,
+   pairing:async()=>online?{state:'APPROVED'}:null,
+   budget:async()=>({state:'POLICY_ACTIVE',httpStatus:200,usage:{language:{dailyUsed:3,dailyLimit:12}}}),
+   activity:async()=>null
+  });
+  const a=await controller.refresh();
+  assert.equal(a.status,'ok');
+  assert.equal(nodes.get('apex-ai-meter').attrs['aria-valuenow'],'25');
+  online=false;
+  const b=await controller.refresh();
+  assert.equal(b.status,'offline');
+  assert.equal(b.lastHealthyAt,a.lastHealthyAt);
+  assert.equal(nodes.get('apex-ai-quota-daily').textContent,'—');
+  assert.equal(nodes.get('apex-ai-meter').dataset.state,'unknown');
+  assert.equal(nodes.get('apex-ai-meter').attrs['aria-valuenow'],undefined);
+ }finally{controller?.destroy();globalThis.document=original;}
+});
