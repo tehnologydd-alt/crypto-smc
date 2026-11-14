@@ -295,3 +295,42 @@ test('knowledge quarantines repeated identity with changed contents, not newer t
  assert.equal(v.records.find(r=>r.id===id).at,null);
  assert.deepEqual(v.records.find(r=>r.id===id).facts,[]);
 });
+
+test('weekly quality distinguishes repeated and mixed observations and actual review week',async()=>{
+ const {researchQualityTimeline}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const start=Date.parse('2026-11-02T00:00:00Z');
+ const at=start-1000;
+ // Rebuild exact source identity with a timestamp at the preceding week.
+ a.startedAt=at;
+ const e=a.evidence[0],old=e.observed_at;
+ e.observed_at=at-1000;e.source_id=id.replace(/:\d+$/,':'+e.observed_at);
+ e.text=e.text.replace(new Date(old).toISOString(),new Date(e.observed_at).toISOString());
+ a.sourceIds=[e.source_id];
+ const line=value=>'Historical observation.\nAPEX_FACT|'+e.source_id+'|PRICE_USDT|'+value;
+ a.analystText=line(17.25);
+ const b={...a,startedAt:at-500,analystText:line(17.26)};
+ const c={...complete(a),criticAt:start+1000,criticText:line(17.25)};
+ const v=researchQualityTimeline([a,b,c,c],{now:start+86400000});
+ assert.equal(v.length,2);
+ assert.equal(v[0].partial,true);
+ assert.equal(v[0].models[0].exactPercent,null);
+ assert.equal(v[0].models[1].exactPercent,100);
+ assert.equal(v[1].models[0].responses,2);
+ assert.equal(v[1].models[0].unique,1);
+ assert.equal(v[1].models[0].mixed,1);
+ assert.equal(v[1].models[0].exactPercent,0);
+ assert.equal(v[1].models[1].exactPercent,null);
+ const conflict={...a,startedAt:start+120000,evidence:[{...e,text:e.text.replace('17.25 USDT','17.26 USDT')}]};
+ const blocked=researchQualityTimeline([a,b,c,conflict],{now:start+86400000});
+ assert.ok(blocked.every(w=>w.models.every(m=>m.unique===0)));
+});
+test('storage capacity uses UTF-8 bytes and existing portable limits',async()=>{
+ const {researchStorageUsage}=await import('./apex-research-history.mjs');
+ const rows=[{...run(),analystText:'Исторические сведения из источника.'}];
+ const u=researchStorageUsage(rows);
+ assert.equal(u.records,1);assert.equal(u.recordLimit,MAX_TRANSCRIPTS);
+ assert.equal(u.byteLimit,1800000);
+ assert.equal(u.bytes,new TextEncoder().encode(JSON.stringify({version:1,rows})).length);
+ assert.ok(u.bytes>JSON.stringify({version:1,rows}).length);
+});

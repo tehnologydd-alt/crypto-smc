@@ -294,6 +294,60 @@ export function buildResearchKnowledge(rawRows,{asset='',source='',now=Date.now(
  return {total:records.length,parsed,unknown,quarantined,uniqueFacts,matchedFacts,
   groups:[...groups.values()].sort((a,b)=>a.source.localeCompare(b.source)),records};
 }
+/**
+ * Weekly UTC cohorts of archived numeric transcriptions. A fact is counted
+ * once per model/week; mixed observations are not credited as exact.
+ * Conflicts are detected before time grouping. No predictions or inference.
+ */
+export function researchQualityTimeline(rawRows,{asset='',now=Date.now()}={}){
+ const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
+ const conflicts=findArchiveSourceConflicts(rows);
+ const weeks=new Map(),day=86400000;
+ const weekStart=t=>{
+  const d=new Date(t),mid=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+  return mid-((d.getUTCDay()+6)%7)*day;
+ };
+ for(const row of rows){
+  if(asset&&row.asset!==asset)continue;
+  const claims=compareHistoricalClaims(row,{archiveConflicts:conflicts}).results;
+  for(const [role,at] of [['GLM',row.startedAt],['Qwen',row.stage==='COMPLETE'?row.criticAt:null]]){
+   if(at===null)continue;
+   const start=weekStart(at);
+   if(!weeks.has(start))weeks.set(start,{start,end:start+7*day,models:new Map()});
+   const week=weeks.get(start);
+   if(!week.models.has(role))week.models.set(role,{responses:0,withClaims:0,unresolved:0,checked:new Map()});
+   const m=week.models.get(role);m.responses++;
+   const selected=claims.filter(c=>c.role===role);
+   if(selected.length)m.withClaims++;
+   for(const c of selected){
+    if(!['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state)){m.unresolved++;continue;}
+    const key=JSON.stringify([c.sourceId,c.field]);
+    const states=m.checked.get(key)||new Set();
+    states.add(c.state);m.checked.set(key,states);
+   }
+  }
+ }
+ return [...weeks.values()].sort((a,b)=>b.start-a.start).map(w=>({
+  start:w.start,end:w.end,partial:now<w.end,
+  models:['GLM','Qwen'].map(role=>{
+   const m=w.models.get(role);
+   let exact=0,different=0,mixed=0;
+   for(const states of m?.checked.values()||[]){
+    if(states.size>1)mixed++;else if(states.has('EXACT_MATCH'))exact++;else different++;
+   }
+   const unique=exact+different+mixed;
+   return {role,responses:m?.responses||0,withClaims:m?.withClaims||0,
+    unresolved:m?.unresolved||0,unique,exact,different,mixed,
+    exactPercent:unique?Math.round(100*exact/unique):null};
+  })
+ }));
+}
+export function researchStorageUsage(rows){
+ const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
+ return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
+  recordPercent:Math.min(100,Math.round(100*rows.length/MAX_TRANSCRIPTS)),
+  bytePercent:Math.min(100,Math.round(100*bytes/MAX_BYTES))};
+}
 function emptyModelStats(role){
  return {role,responses:0,withClaims:0,withoutClaims:0,
   checked:0,matches:0,differences:0,unresolved:0,
@@ -521,8 +575,54 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }
   knowledgeMore.disabled=records.length<=knowledgeVisible;
  };
- let statsSignature='';
+ let statsSignature='',qualitySignature='';
  let rows=readTranscripts(store,now()),visible=8,signature='',saved=true;
+ const qualityTimeline=node('apex-quality-timeline'),qualitySources=node('apex-quality-sources'),
+  storageUsage=node('apex-history-capacity');
+ function renderQuality(){
+  if(!qualityTimeline||!qualitySources||!storageUsage)return;
+  const current=now();
+  const key=JSON.stringify([rows,picker.value,Math.floor(current/86400000),saved]);
+  if(key===qualitySignature)return;
+  qualitySignature=key;
+  const usage=researchStorageUsage(rows);
+  storageUsage.textContent='Локальная память: '+usage.records+' / '+usage.recordLimit+
+   ' записей · '+Math.round(usage.bytes/1024)+' / '+Math.round(usage.byteLimit/1024)+' КиБ'+
+   (Math.max(usage.recordPercent,usage.bytePercent)>=80?' · близко к пределу, сохраните резервную копию':'')+
+   (saved?'':' · последняя запись не подтверждена');
+  const sources=knowledgeBase||buildResearchKnowledge(rows,{asset:picker.value,now:current});
+  qualitySources.replaceChildren();
+  if(!sources.groups.length){
+   const p=document.createElement('p');p.textContent='Нет сохранённых наблюдений для оценки.';qualitySources.append(p);
+  }
+  for(const g of sources.groups){
+   const card=document.createElement('div'),name=document.createElement('strong'),note=document.createElement('small');
+   card.className='apex-quality-period';name.textContent=g.source;
+   note.textContent='Уникальных ID: '+g.total+' · конфликтов: '+g.conflicts+
+    ' · неизвестный формат: '+g.unknown;
+   card.append(name,researchMeter('Распознано без конфликта',g.parsed,g.total),note);
+   qualitySources.append(card);
+  }
+  qualityTimeline.replaceChildren();
+  const weeks=researchQualityTimeline(rows,{asset:picker.value,now:current});
+  if(!weeks.length){
+   const p=document.createElement('p');p.textContent='Недостаточно записей для недельного среза.';qualityTimeline.append(p);
+  }
+  for(const w of weeks.slice(0,8)){
+   const card=document.createElement('div'),heading=document.createElement('strong');
+   card.className='apex-quality-period';
+   heading.textContent=new Date(w.start).toISOString().slice(0,10)+' — '+
+    new Date(w.end-1).toISOString().slice(0,10)+(w.partial?' · текущая неделя':'');
+   card.append(heading);
+   for(const m of w.models){
+    const note=document.createElement('small');
+    note.textContent=m.role+' · ответов: '+m.responses+' · уникальных чисел: '+m.unique+
+     ' · смешанных: '+m.mixed+' · без сверки: '+m.unresolved;
+    card.append(researchMeter(m.role+' · только точные совпадения',m.exact,m.unique),note);
+   }
+   qualityTimeline.append(card);
+  }
+ }
  const render=()=>{
   const assets=[...new Set(rows.map(x=>x.asset))].sort();
   const prev=picker.value;
@@ -627,6 +727,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    }
   }
   renderKnowledge();
+  renderQuality();
   limit.disabled=shown.length<=visible;
   const archiveConflicts=findArchiveSourceConflicts(shown);
   const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);
