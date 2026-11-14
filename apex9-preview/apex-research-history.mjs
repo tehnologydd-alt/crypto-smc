@@ -99,12 +99,33 @@ export function validateTranscriptArchive(archive,now=Date.now()){
  * or a forecast. Different snapshots from one exchange are not independent
  * sources. Repeated evidence IDs are counted once across the selection.
  */
+/** Compare source identity and chronology, not semantic agreement or forecasts. */
+export function auditResearchEvidence(row){
+ const original=Array.isArray(row?.evidence)?row.evidence:[];
+ const recent=Array.isArray(row?.criticEvidence)?row.criticEvidence:[];
+ const index=new Map(original.map(e=>[e.source_id,e]));
+ const conflicts=[],shared=[],later=[],other=[];
+ for(const e of recent){
+  const old=index.get(e.source_id);
+  if(old){
+   if(old.observed_at!==e.observed_at||old.text!==e.text)
+    conflicts.push(e.source_id);
+   else shared.push(e.source_id);
+  }else if(e.observed_at>row.startedAt)later.push(e.source_id);
+  else other.push(e.source_id);
+ }
+ return {conflicts,shared,later,other,
+  status:conflicts.length?'SOURCE_CONFLICT':
+   row?.stage==='COMPLETE'?'COMPARED':'AWAITING_REVIEW',
+  semanticAgreement:null,conclusionAccuracy:null};
+}
 export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now)
   .filter(row=>!asset||row.asset===asset);
  const allIds=new Set(),venues=new Set(),days=new Set(),assets=new Set();
  const perAsset=new Map(),delays=[],ages=[];
  let completed=0,multiVenue=0,reviewNewEvidence=0,unknownVenue=0;
+ let sourceConflicts=0,sharedSnapshots=0,laterSnapshots=0;
  const venue=e=>{
   const prefix=e.source_id.split(':')[0].toLowerCase();
   return ['binance','okx','bybit'].includes(prefix)?prefix:null;
@@ -121,6 +142,10 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   const multi=initialVenues.size>=2;
   if(multi)multiVenue++;
   for(const e of row.evidence)ages.push(Math.max(0,row.startedAt-e.observed_at));
+  const audit=auditResearchEvidence(row);
+  if(audit.conflicts.length)sourceConflicts++;
+  sharedSnapshots+=audit.shared.length;
+  laterSnapshots+=audit.later.length;
   const done=row.stage==='COMPLETE';
   if(done){
    completed++;delays.push(row.criticAt-row.startedAt);
@@ -143,6 +168,7 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   assets:assets.size,utcDays:days.size,medianReviewMs:median(delays),
   medianInputAgeMs:median(ages),
   perAsset:[...perAsset.values()].sort((a,b)=>a.asset.localeCompare(b.asset)),
+  sourceConflicts,sharedSnapshots,laterSnapshots,
   agreement:null,accuracy:null};
 }
 export function initResearchHistory({store,now=()=>Date.now()}={}){
@@ -182,6 +208,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      ['Начальные данные ≥ 2 бирж',view.multiVenue+' / '+view.total],
      ['Qwen получил новые снимки',view.reviewNewEvidence+' / '+view.completed],
      ['Уникальные снимки',String(view.distinctSnapshots)],
+     ['Конфликт содержимого одного ID',String(view.sourceConflicts)],
+     ['Повторные снимки при проверке',String(view.sharedSnapshots)],
+     ['Новые снимки при проверке',String(view.laterSnapshots)],
      ['Дни наблюдений (UTC)',String(view.utcDays)],
      ['Медиана возраста данных GLM',minutes(view.medianInputAgeMs)],
      ['Медиана паузы GLM → Qwen',minutes(view.medianReviewMs)]
@@ -216,7 +245,19 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    const critic=row.criticEvidence?.map(e=>e.source_id+' · '+new Date(e.observed_at).toISOString()+'\n'+e.text).join('\n\n');
    body.textContent='GLM\n'+row.analystText+'\n\nИсходные наблюдения\n'+evidence+
     (row.stage==='COMPLETE'?'\n\nQwen\n'+row.criticText+'\n\nНовые наблюдения для Qwen\n'+critic:'');
-   details.append(title,body);list.append(details);
+   const audit=auditResearchEvidence(row);
+   const note=document.createElement('p');
+   note.className='apex-evidence-audit';
+   const lines=[
+    'Сверка наблюдений: '+(audit.status==='AWAITING_REVIEW'?'Qwen ещё не проверил':
+     audit.status==='SOURCE_CONFLICT'?'конфликт содержимого одного ID':'выполнена'),
+    'Повторные снимки: '+audit.shared.length+' · новые: '+audit.later.length+
+    ' · другие: '+audit.other.length,
+    'Совпадение выводов моделей: не определено'
+   ];
+   if(audit.conflicts.length)lines.push('Конфликтующие ID: '+audit.conflicts.join(', '));
+   note.textContent=lines.join('\n');
+   details.append(title,note,body);list.append(details);
   }
  };
  const ingest=sessions=>{

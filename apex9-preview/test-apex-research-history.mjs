@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory} from './apex-research-history.mjs';
+import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence} from './apex-research-history.mjs';
 const now=1794650000000;
 const run=(asset='BTCUSDT',startedAt=now-86400000)=>({
  version:1,asset,startedAt,stage:'ANALYST_READY',
@@ -78,4 +78,24 @@ test('repeated observations and a new snapshot on the same exchange do not count
  const c=summarizeResearchHistory([b,b],{now});
  assert.equal(c.distinctSnapshots,1);assert.equal(c.multiVenue,0);
  assert.equal(c.reviewNewEvidence,0);assert.equal(c.total,1);
+});
+
+test('evidence comparison separates repeated snapshots, later observations and same-ID conflicts',()=>{
+ const a=run(),s=a.evidence[0];
+ const newer={...s,source_id:'binance:spot:24h:'+a.asset+':'+(a.startedAt+1000),
+  observed_at:a.startedAt+1000,text:'Different later observation'};
+ const b={...complete(a),criticEvidence:[s,newer]};
+ const good=auditResearchEvidence(b);
+ assert.equal(good.status,'COMPARED');
+ assert.equal(good.shared.length,1);assert.equal(good.later.length,1);
+ assert.equal(good.conflicts.length,0);assert.equal(good.semanticAgreement,null);
+ const bad={...b,criticEvidence:[{...s,text:'Changed same ID'}]};
+ assert.equal(auditResearchEvidence(bad).status,'SOURCE_CONFLICT');
+ assert.equal(summarizeResearchHistory([bad],{now}).sourceConflicts,1);
+});
+test('unreviewed evidence remains unreviewed and does not imply disagreement',()=>{
+ const a=auditResearchEvidence(run());
+ assert.equal(a.status,'AWAITING_REVIEW');
+ assert.equal(a.semanticAgreement,null);assert.equal(a.conclusionAccuracy,null);
+ assert.equal(a.conflicts.length,0);
 });
