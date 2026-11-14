@@ -919,7 +919,8 @@ export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent
  const again=inspectTranscriptStorage(store,now);
  if(!again.ok||JSON.stringify(again.rows)!==inputKey)return out('BLOCKED',{reason:'ARCHIVE_CHANGED',summary});
  const prior=readLabJournal(store);
- if(prior===null)return out('BLOCKED',{reason:'JOURNAL_UNAVAILABLE',summary});
+ if(prior===null||readFeedbackJournal(store)===null||readKnowledgeReviews(store)===null)
+  return out('BLOCKED',{reason:'JOURNAL_UNAVAILABLE',summary});
  if(prior.length>=LAB_LIMIT&&!prior.some(e=>e.digest===digest&&e.result.asset===''&&e.result.policy.version===result.policy.version))
   return out('BLOCKED',{reason:'JOURNAL_FULL',summary});
  const candidates=compareLabHypotheses(rows,{now}).hypotheses.flatMap(h=>h.models).filter(m=>m.decision==='MANUAL_REVIEW_ONLY').length;
@@ -1452,7 +1453,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    labSnapshot={at,signature,result,hypotheses:compareLabHypotheses(input,{asset,now:at})};
    const digest=await researchLabDigest(input,asset,at);
    labSnapshot.digest=digest;
-   const saved=digest?recordLabExperiment(store,{at,digest,result}):{ok:false,reason:'NO_DIGEST'};
+   const disk=inspectTranscriptStorage(store,now());
+   const saved=!disk.ok||JSON.stringify(disk.rows)!==JSON.stringify(input)?
+    {ok:false,reason:'ARCHIVE_CHANGED'}:digest?recordLabExperiment(store,{at,digest,result}):{ok:false,reason:'NO_DIGEST'};
    if(labStatus)labStatus.textContent=saved.ok?
     (saved.repeated?'Повторный расчёт совпал с сохранённым результатом для того же входа.':'Эксперимент сохранён локально.'):
     'Результат рассчитан, но запись не подтверждена: '+saved.reason;

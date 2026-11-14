@@ -650,3 +650,52 @@ test('cycle diagnostics measure attempts and gate starts across sessions without
  assert.equal(appendCycleJournal(store,entry).ok,false);
  assert.equal(map.get(CYCLE_JOURNAL_KEY),'broken');
 });
+
+test('orchestrator integration: fixture-only failure injection preserves historical archive and prior experiments',async()=>{
+ const {runLocalResearchCycle,mergeTranscripts,writeTranscripts,readLabJournal,recordLabExperiment,
+  HISTORY_KEY,LAB_JOURNAL_KEY,FEEDBACK_JOURNAL_KEY,KNOWLEDGE_REVIEW_KEY,runResearchLab}=await import('./apex-research-history.mjs');
+ const {webcrypto}=await import('node:crypto');
+ const a=claimFixture();
+ a.analystText='Historical observation.\nAPEX_FACT|'+a.sourceIds[0]+'|PRICE_USDT|17.25';
+ const rows=mergeTranscripts([], [a],now);
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ const opts={store,rows,now,cryptoApi:webcrypto};
+ assert.equal((await runLocalResearchCycle({...opts,rows:[]})).state,'WAITING_DATA');
+ assert.ok(writeTranscripts(store,rows));
+ const original=map.get(HISTORY_KEY);
+ assert.equal((await runLocalResearchCycle({...opts,cryptoApi:{}})).reason,'NO_DIGEST');
+ assert.equal(readLabJournal(store).length,0);
+ // A digest operation permits a deterministic mutation at the async boundary.
+ const changing={subtle:{digest:async(...args)=>{
+  map.set(HISTORY_KEY,'broken during digest');
+  return webcrypto.subtle.digest(...args);
+ }}};
+ assert.equal((await runLocalResearchCycle({...opts,cryptoApi:changing})).reason,'ARCHIVE_CHANGED');
+ assert.equal(map.get(HISTORY_KEY),'broken during digest');
+ map.set(HISTORY_KEY,original);
+ for(const key of [FEEDBACK_JOURNAL_KEY,KNOWLEDGE_REVIEW_KEY,LAB_JOURNAL_KEY]){
+  const corrupt={subtle:{digest:async(...args)=>{
+   map.set(key,'broken journal');return webcrypto.subtle.digest(...args);
+  }}};
+  assert.equal((await runLocalResearchCycle({...opts,cryptoApi:corrupt})).reason,'JOURNAL_UNAVAILABLE');
+  assert.equal(map.get(key),'broken journal');
+  map.delete(key);
+ }
+ const result=runResearchLab(rows,{now});
+ for(let i=0;i<40;i++)assert.equal(recordLabExperiment(store,{at:now-i,digest:(i+1).toString(16).padStart(64,'0'),result}).ok,true);
+ const full=map.get(LAB_JOURNAL_KEY);
+ assert.equal((await runLocalResearchCycle(opts)).reason,'JOURNAL_FULL');
+ assert.equal(map.get(LAB_JOURNAL_KEY),full);
+ map.delete(LAB_JOURNAL_KEY);
+ const quotaStore={getItem:store.getItem,setItem:(k,v)=>{if(k===LAB_JOURNAL_KEY)throw Error('quota');store.setItem(k,v)}};
+ assert.equal((await runLocalResearchCycle({...opts,store:quotaStore})).reason,'LOCAL_STORAGE');
+ assert.equal(readLabJournal(store).length,0);
+ const first=await runLocalResearchCycle(opts);
+ assert.equal(first.state,'COMPLETED');
+ assert.equal(first.automaticModelCalls,0);
+ assert.equal(first.productionRuleChanged,false);
+ const persisted=map.get(LAB_JOURNAL_KEY);
+ assert.equal((await runLocalResearchCycle(opts)).state,'ALREADY_RECORDED');
+ assert.equal(map.get(LAB_JOURNAL_KEY),persisted);
+ assert.equal(map.get(HISTORY_KEY),original);
+});

@@ -263,3 +263,20 @@ test('orchestrator cloud diagnostics only describe observed data and never enabl
  assert.equal(inspectDirectorQueueCounts({getItem:()=>JSON.stringify({version:1,tasks:[task,task]})}),null);
  assert.equal(inspectDirectorQueueCounts({getItem:()=>'{broken'}),null);
 });
+
+test('read-only diagnostics distinguish fixture connection failure, revoked device and resource exhaustion',async()=>{
+ const {researchCloudDiagnostics}=await import('./cloud-ai-monitor.mjs');
+ const now=Date.now();
+ const data={health:{state:'RUNNING',httpStatus:200,checkedAt:now},pair:{state:'APPROVED'},
+  budget:{state:'POLICY_ACTIVE',httpStatus:200,clock:{mode:'ACTIVE'},usage:{language:{
+   dailyUsed:12,dailyLimit:12,monthlyUsed:280,monthlyLimit:280,nightUsed:0,nightLimit:0}}},
+  local:{state:'LOCAL_AUDIT',analyst:{lastAt:now,lastOk:false,lastState:'MODEL_RESPONSE_TIMEOUT'}}};
+ const d=researchCloudDiagnostics(data,now);
+ assert.equal(d.daily.state,'full');assert.equal(d.monthly.state,'full');
+ assert.equal(d.night.state,'closed');assert.equal(d.automaticExecutionEnabled,false);
+ assert.match(d.modelActivity.GLM,/истекло время/);
+ assert.equal(researchCloudDiagnostics({...data,pair:{state:'REVOKED'}},now).state,'DEVICE_NOT_APPROVED');
+ assert.equal(researchCloudDiagnostics({...data,health:{state:'CLOUD_UNAVAILABLE'}},now).state,'NO_CONNECTION');
+ assert.equal(researchCloudDiagnostics({...data,budget:{state:'POLICY_ACTIVE',httpStatus:503}},now).state,'BUDGET_UNKNOWN');
+ assert.equal(researchCloudDiagnostics(data,now+181000).state,'STALE_HEALTH');
+});
