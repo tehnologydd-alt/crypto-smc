@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateBatchAudit,makeBatchPrompt,parseBatchOutput,inspectBatchOutput}
  from './batch-audit.mjs';
-import worker from './worker.mjs';
+import worker, {HISTORICAL_FACT_PROTOCOL} from './worker.mjs';
 const at=Date.parse('2026-11-13T20:40:00Z');
 const asset=['BTCUSDT','GRAMUSDT'];
 const src=a=>({source_id:'binance:spot:24h:'+a+':'+at,
@@ -191,4 +191,21 @@ test('invalid batch output exposes a safe diagnostic without leaking model conte
  assert.equal(output.diagnostic,'BATCH_JSON_NOT_PARSEABLE');
  assert.equal(calls,1);
  assert.equal(JSON.stringify(output).includes('DO_NOT_LEAK'),false);
+});
+
+
+test('optional historical factual line passes through existing batch envelope',()=>{
+ const valid=validateBatchAudit({role:'analyst',items},at);
+ assert.match(HISTORICAL_FACT_PROTOCOL,/APEX_FACT\|source_id\|field\|number/);
+ assert.match(HISTORICAL_FACT_PROTOCOL,/historical evidence only/);
+ assert.match(HISTORICAL_FACT_PROTOCOL,/omit the line/);
+ const records=items.map(x=>({asset:x.asset,
+  summary:'Historical observation, not a prediction.\nAPEX_FACT|'+x.evidence[0].source_id+'|PRICE_USDT|123.45',
+  source_ids:[x.evidence[0].source_id]}));
+ const parsed=inspectBatchOutput({response:JSON.stringify({results:records})},valid);
+ assert.equal(parsed.error,null);
+ assert.equal(parsed.rows[0].text,records[0].summary);
+ assert.deepEqual(parsed.rows[0].source_ids,records[0].source_ids);
+ const legacy=records.map(r=>({...r,summary:'Historical observation only.'}));
+ assert.equal(inspectBatchOutput({response:{results:legacy}},valid).rows.length,2);
 });

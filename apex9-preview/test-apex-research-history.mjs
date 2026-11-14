@@ -172,3 +172,17 @@ test('prose, unknown fields, other-asset citations, future evidence, and source 
  assert.equal(compareHistoricalClaims(bad).results[0].state,'SOURCE_CONFLICT');
  assert.equal(compareHistoricalClaims(bad).checked,0);
 });
+
+
+test('GLM and Qwen independently transcribe the same historical observation',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const b={...complete(a),criticText:'Independent description.\nAPEX_FACT|'+id+'|PRICE_USDT|17.26'};
+ const result=compareHistoricalClaims(b);
+ assert.equal(result.checked,2);
+ assert.equal(result.matches,1);
+ assert.equal(result.differences,1);
+ assert.equal(result.results[0].role,'GLM');
+ assert.equal(result.results[1].role,'Qwen');
+ assert.equal(result.interpretationAccuracy,null);
+});
