@@ -223,3 +223,5 @@
 .apex-local-cycle-toggle{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13px}.apex-local-cycle-toggle input{width:20px;height:20px;flex:none}#apex-local-cycle-status,#apex-local-cycle-summary{font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 
 #apex-local-cycle-history p{font-size:11px;line-height:1.45;overflow-wrap:anywhere;margin:4px 0}
+
+.apex-cycle-metric{border:1px solid #385869;border-radius:10px;padding:10px;min-width:0}.apex-cycle-metric p{font-size:12px;line-height:1.45;margin:5px 0 0;overflow-wrap:anywhere}

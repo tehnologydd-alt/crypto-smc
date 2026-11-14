@@ -759,3 +759,19 @@ test('response protocol coverage distinguishes absent, invalid and checkable ass
  ]);
  assert.equal(plain.analystText,original);
 });
+
+test('cycle summary distinguishes check attempts from unique per-model exact and different facts',async()=>{
+ const {runLocalResearchCycle,mergeTranscripts,writeTranscripts,formatCycleTime}=await import('./apex-research-history.mjs');
+ const {webcrypto}=await import('node:crypto');
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='APEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const b={...a,startedAt:a.startedAt+1000,analystText:'APEX_FACT|'+id+'|PRICE_USDT|17.26'};
+ const rows=mergeTranscripts([], [a,b],now);
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ assert.ok(writeTranscripts(store,rows));
+ const r=await runLocalResearchCycle({store,rows,now,cryptoApi:webcrypto});
+ assert.equal(r.state,'COMPLETED');assert.equal(r.summary.checked,2);
+ assert.deepEqual(r.summary.modelMetrics,[{role:'GLM',total:1,exact:0,different:1},{role:'Qwen',total:0,exact:0,different:0}]);
+ assert.equal(formatCycleTime(null),'—');
+ assert.equal(formatCycleTime(now),new Date(now).toLocaleString('ru-RU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}));
+});

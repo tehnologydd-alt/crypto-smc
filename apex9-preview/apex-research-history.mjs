@@ -907,6 +907,12 @@ export function localCycleReason(reason){
   LOCAL_CYCLE_ERROR:'Ошибка локального цикла',PROCESS_INTERRUPTED:'Приложение было завершено до подтверждения результата'};
  return labels[reason]||reason||'';
 }
+/** Display the device's local clock, retain UTC timestamps in storage. */
+export function formatCycleTime(at){
+ if(!Number.isSafeInteger(at)||at<=0||at>8640000000000000)return '—';
+ return new Date(at).toLocaleString('ru-RU',{year:'numeric',month:'2-digit',day:'2-digit',
+  hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
 export function cycleAdmission(entries,now=Date.now()){
  if(entries===null)return {ok:false,reason:'CYCLE_JOURNAL_UNAVAILABLE'};
  if(entries.length>=CYCLE_POLICY.limit)return {ok:false,reason:'CYCLE_JOURNAL_FULL'};
@@ -1002,7 +1008,8 @@ export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent
  const coverage=historicalClaimCoverage(rows);
  const summary={records:rows.length,observations:knowledge.total,conflicts:knowledge.quarantined,
   tasks:worklist.total,checked:result.checkedClaims,availableFacts:knowledge.uniqueFacts,
-  unresolved:result.unresolved,parsedObservations:knowledge.parsed,unknownObservations:knowledge.unknown,coverage};
+  unresolved:result.unresolved,parsedObservations:knowledge.parsed,unknownObservations:knowledge.unknown,coverage,
+  modelMetrics:result.models.map(m=>({role:m.role,total:m.total,exact:m.exact,different:m.total-m.exact}))};
  if(!result.checkedClaims)return out('WAITING_DATA',{reason:'NO_CHECKED_FACTS',summary});
  const digest=await researchLabDigest(rows,'',now,cryptoApi);
  if(!isCurrent())return out('STOPPED');
@@ -1275,7 +1282,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const center=node('apex-quality-center-list'),centerStatus=node('apex-quality-center-status');
  let centerSignature='',labHistorySignature='',ruleRegistrySignature='',labRenderSignature='';
  const cycleToggle=node('apex-local-cycle-enable'),cycleStatus=node('apex-local-cycle-status'),cycleSummary=node('apex-local-cycle-summary');
- const cycleHistory=node('apex-local-cycle-history');
+ const cycleHistory=node('apex-local-cycle-history'),cycleMetrics=node('apex-local-cycle-metrics');
+ let cycleMetricsSignature='';
  let cycleGeneration=0,cycleBusy=false,cycleAttempted=null,cycleLast=null,cycleTimer=null,cycleGate=null,
   cycleJournalFault=null,cycleHistorySignature='';
  const clearCycleTimer=()=>{if(cycleTimer!==null){clearTimeout(cycleTimer);cycleTimer=null;}};
@@ -1289,7 +1297,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   cycleHistory.append(count);
   for(const e of (journal||[]).slice(0,10)){
    const line=document.createElement('p');
-   line.textContent=new Date(e.finishedAt).toISOString()+' · '+cycleLabels[e.state]+' · '+(e.durationMs===null?'длительность неизвестна':e.durationMs+' мс')+
+   line.textContent=formatCycleTime(e.finishedAt)+' · '+cycleLabels[e.state]+' · '+(e.durationMs===null?'длительность неизвестна':e.durationMs+' мс')+
     (e.reason?' · '+localCycleReason(e.reason):'');
    cycleHistory.append(line);
   }
@@ -1306,7 +1314,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    cycleGate?localCycleReason(cycleGate):
    cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+localCycleReason(cycleLast.reason):''):'Ожидание изменения архива';
   const s=cycleLast?.summary;
-  cycleSummary.textContent=(cycleLast?'Последняя попытка: '+new Date(cycleLast.at).toISOString()+' · '+cycleLabels[cycleLast.state]+'. ':'')+
+  cycleSummary.textContent=(cycleLast?'Последняя попытка (местное время): '+formatCycleTime(cycleLast.at)+' · '+cycleLabels[cycleLast.state]+'. ':'')+
    (s?'Записей '+s.records+' · наблюдений '+s.observations+' · конфликтов '+s.conflicts+
     ' · распознанных наблюдений '+(s.parsedObservations??'—')+' · доступных числовых фактов '+(s.availableFacts??'—')+
     ' · задач '+s.tasks+' · сверок '+s.checked+' · неразрешённых утверждений '+(s.unresolved??'—')+
@@ -1315,6 +1323,20 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     ', со сверяемыми строками '+m.withChecked+'/'+m.responses+', неразрешённых строк '+m.unresolved).join(' · ')+'. ':'')+
    (cycleLast?.reason==='NO_CHECKED_FACTS'?'Исторические данные обработаны. Пока нечего сравнивать в лаборатории. Отсутствие явной сверки не означает ошибку модели; новые данные не создаются автоматически. ':'')+
    'Автоматических запросов к ИИ: 0.'+(cycleJournalFault?' Запись диагностики не подтверждена: '+cycleJournalFault+'.':'');
+  if(cycleMetrics){
+   const metrics=s?.modelMetrics||null,key=JSON.stringify(metrics);
+   if(key!==cycleMetricsSignature){
+    cycleMetricsSignature=key;cycleMetrics.replaceChildren();
+    if(!metrics){
+     const p=document.createElement('small');p.textContent='Подробные числовые результаты появятся после расчёта в этом сеансе.';cycleMetrics.append(p);
+    }else for(const m of metrics){
+     const card=document.createElement('div'),title=document.createElement('strong'),p=document.createElement('p');
+     card.className='apex-cycle-metric';title.textContent=m.role+' · '+m.total+' уникальных пар снимок/поле';
+     p.textContent='Строго совпали во всех сверках: '+m.exact+' · с хотя бы одним расхождением: '+m.different;
+     card.append(title,p);cycleMetrics.append(card);
+    }
+   }
+  }
   renderCycleHistory();
  }
  async function maybeRunCycle(){
@@ -1360,7 +1382,10 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   cycleToggle.checked=false;
   const recovery=recoverPendingCycle(store,now());
   if(!recovery.ok)cycleJournalFault=recovery.reason;
-  else if(recovery.entry)cycleLast={state:recovery.entry.state,at:recovery.entry.startedAt,reason:recovery.entry.reason};
+  else {
+   const last=recovery.entry||readCycleJournal(store)?.[0];
+   if(last)cycleLast={state:last.state,at:last.startedAt,reason:last.reason};
+  }
   cycleToggle.addEventListener('change',()=>{
    cycleGeneration++;if(cycleLast?.state==='BLOCKED'||cycleLast?.state==='STOPPED')cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
    if(cycleToggle.checked)void maybeRunCycle();
