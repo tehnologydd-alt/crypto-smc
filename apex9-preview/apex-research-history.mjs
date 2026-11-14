@@ -578,6 +578,58 @@ export function runResearchLab(rawRows,{asset='',now=Date.now()}={}){
  return {policy:{...RESEARCH_LAB_POLICY},asset,models,cohorts,checkedClaims,unresolved,
   archiveConflicts:conflicts.length,automaticModelCalls:0,productionRuleChanged:false};
 }
+/**
+ * Lab v3: fixed sensitivity hypotheses, not a model improvement test.
+ * Deliberately no automatic acceptance: relaxing an equality criterion
+ * cannot validate rounding without independent labelled examples.
+ */
+export const LAB_HYPOTHESES=Object.freeze([
+ Object.freeze({id:'REL_1E7',relative:1e-7}),
+ Object.freeze({id:'REL_1E6',relative:1e-6})
+]);
+export const LAB_REVIEW_GATE=Object.freeze({researchSources:10,controlSources:5,minAffectedSources:2});
+export function assessLabHypothesis(research,control){
+ const p=LAB_REVIEW_GATE;
+ if(research.sources<p.researchSources||control.sources<p.controlSources)return 'INSUFFICIENT_SAMPLE';
+ if(research.affectedSources===0&&control.affectedSources===0)return 'NO_OBSERVED_EFFECT';
+ if(research.affectedSources<p.minAffectedSources||control.affectedSources<p.minAffectedSources)return 'DEFER_REVIEW';
+ return 'MANUAL_REVIEW_ONLY';
+}
+export function compareLabHypotheses(rawRows,{asset='',now=Date.now()}={}){
+ const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
+ const conflicts=findArchiveSourceConflicts(rows);
+ const byRole={GLM:new Map(),Qwen:new Map()};
+ for(const row of rows){
+  if(asset&&row.asset!==asset)continue;
+  for(const c of compareHistoricalClaims(row,{archiveConflicts:conflicts}).results){
+   if(!['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state))continue;
+   const key=JSON.stringify([c.sourceId,c.field]),map=byRole[c.role];
+   let fact=map.get(key);
+   if(!fact){
+    fact={source:c.sourceId,partition:researchLabPartition(c.sourceId),exact:true,maxRelative:0};
+    map.set(key,fact);
+   }
+   const exact=c.state==='EXACT_MATCH';
+   fact.exact=fact.exact&&exact;
+   fact.maxRelative=Math.max(fact.maxRelative,exact?0:c.observed===0?Infinity:
+     Math.abs((c.claimed-c.observed)/c.observed));
+  }
+ }
+ const hypotheses=LAB_HYPOTHESES.map(h=>({...h,models:Object.entries(byRole).map(([role,map])=>{
+  const cohorts=['RESEARCH','CONTROL'].map(partition=>{
+   const facts=[...map.values()].filter(f=>f.partition===partition);
+   const affected=facts.filter(f=>!f.exact&&f.maxRelative<=h.relative);
+   return {partition,total:facts.length,sources:new Set(facts.map(f=>f.source)).size,
+    exact:facts.filter(f=>f.exact).length,affected:affected.length,
+    affectedSources:new Set(affected.map(f=>f.source)).size,
+    outside:facts.filter(f=>!f.exact&&f.maxRelative>h.relative).length,
+    examples:affected.map(f=>f.source).filter((id,i,a)=>a.indexOf(id)===i).sort().slice(0,5)};
+  });
+  return {role,cohorts,decision:assessLabHypothesis(cohorts[0],cohorts[1])};
+ })}));
+ return {version:3,asset,gate:{...LAB_REVIEW_GATE},hypotheses,
+  excludedConflictingIds:conflicts.length,automaticModelCalls:0,productionRuleChanged:false};
+}
 export const LAB_JOURNAL_KEY='apex.research.lab.journal.v1';
 const LAB_LIMIT=40,LAB_BYTES=120000;
 function validLabMetrics(m,role){
@@ -904,7 +956,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  function renderLab(){
   renderLabHistory();
   if(!labOutput||!labSnapshot)return;
-  const {result,at,signature}=labSnapshot;
+  const {result,at,signature,hypotheses}=labSnapshot;
   const stale=signature!==JSON.stringify([rows,picker.value]);
   labOutput.replaceChildren();
   const info=document.createElement('p');
@@ -929,13 +981,43 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     researchMeter(m.role+' · с допуском',m.exact+m.toleranceOnly,m.total));
    labOutput.append(card);
   }
+  if(hypotheses){
+   const heading=document.createElement('h4');heading.textContent='Отчёт лаборатории для директора · v3';
+   labOutput.append(heading);
+   const labels={INSUFFICIENT_SAMPLE:'Недостаточно уникальных снимков',NO_OBSERVED_EFFECT:'Переклассификаций нет',
+    DEFER_REVIEW:'Отложить ручную проверку',MANUAL_REVIEW_ONLY:'Кандидат на ручную проверку'};
+   for(const h of hypotheses.hypotheses){
+    const card=document.createElement('div'),title=document.createElement('strong');
+    card.className='apex-quality-period';
+    title.textContent='Относительный допуск '+(h.relative*100).toFixed(5)+'%';
+    card.append(title);
+    for(const m of h.models){
+     const d=document.createElement('details'),summary=document.createElement('summary');
+     summary.textContent=m.role+' · '+(stale?'устаревший отчёт':labels[m.decision]);
+     d.append(summary);
+     for(const c of m.cohorts){
+      const p=document.createElement('p');
+      p.textContent=(c.partition==='CONTROL'?'Контроль':'Исследование')+
+       ' · снимков '+c.sources+' · фактов '+c.total+' · строго '+c.exact+
+       ' · переклассифицировано '+c.affected+' · снимков с изменением '+c.affectedSources+
+       ' · вне допуска '+c.outside;
+      d.append(p);
+      if(c.examples.length){
+       const ids=document.createElement('p');ids.textContent='Примеры ID: '+c.examples.join(', ');d.append(ids);
+      }
+     }
+     card.append(d);
+    }
+    labOutput.append(card);
+   }
+  }
  }
  labRun?.addEventListener('click',async()=>{
   if(labBusy)return;labBusy=true;labRun.disabled=true;
   try{
    const at=now(),input=rows.slice(),asset=picker.value;
    const signature=JSON.stringify([input,asset]),result=runResearchLab(input,{asset,now:at});
-   labSnapshot={at,signature,result};
+   labSnapshot={at,signature,result,hypotheses:compareLabHypotheses(input,{asset,now:at})};
    const digest=await researchLabDigest(input,asset,at);
    const saved=digest?recordLabExperiment(store,{at,digest,result}):{ok:false,reason:'NO_DIGEST'};
    if(labStatus)labStatus.textContent=saved.ok?

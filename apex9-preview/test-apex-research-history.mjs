@@ -499,3 +499,31 @@ test('lab journal verifies reproducibility per digest, preserves earlier entries
  assert.equal(recordLabExperiment(store,{...entry,result:{...result,unresolved:result.unresolved+1}}).reason,'REPRODUCIBILITY_MISMATCH');
  assert.equal(readLabJournal(store).length,1);
 });
+
+test('hypothesis gates never automatically adopt a rule',async()=>{
+ const {assessLabHypothesis}=await import('./apex-research-history.mjs');
+ const a={sources:10,affectedSources:2},b={sources:5,affectedSources:2};
+ assert.equal(assessLabHypothesis(a,b),'MANUAL_REVIEW_ONLY');
+ assert.equal(assessLabHypothesis(a,{...b,sources:4}),'INSUFFICIENT_SAMPLE');
+ assert.equal(assessLabHypothesis({...a,affectedSources:0},{...b,affectedSources:0}),'NO_OBSERVED_EFFECT');
+ assert.equal(assessLabHypothesis(a,{...b,affectedSources:1}),'DEFER_REVIEW');
+});
+test('fixed sensitivity hypotheses use identical facts and the worst repeated difference',async()=>{
+ const {compareLabHypotheses}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const line=value=>'Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|'+value;
+ a.analystText=line(17.250005);
+ const r=compareLabHypotheses([a,a],{now});
+ const sum=(hyp,key)=>hyp.models[0].cohorts.reduce((n,c)=>n+c[key],0);
+ assert.equal(sum(r.hypotheses[0],'total'),1);
+ assert.equal(sum(r.hypotheses[0],'affected'),0);
+ assert.equal(sum(r.hypotheses[1],'affected'),1);
+ assert.equal(r.hypotheses[1].models[0].decision,'INSUFFICIENT_SAMPLE');
+ const far={...a,startedAt:a.startedAt+1000,analystText:line(17.26)};
+ const repeat=compareLabHypotheses([a,far],{now});
+ assert.equal(sum(repeat.hypotheses[1],'total'),1);
+ assert.equal(sum(repeat.hypotheses[1],'affected'),0);
+ assert.equal(sum(repeat.hypotheses[1],'outside'),1);
+ assert.equal(repeat.productionRuleChanged,false);
+ assert.equal(repeat.automaticModelCalls,0);
+});
