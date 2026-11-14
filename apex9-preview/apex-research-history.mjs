@@ -879,6 +879,16 @@ export function readCycleJournal(store){
   return data.entries;
  }catch{return null;}
 }
+/** Presentation only: a cooldown is not an error or a new experiment. */
+export function localCycleReason(reason){
+ const labels={COOLDOWN:'Пауза между попытками (до 60 сек)',NO_CHECKED_FACTS:'Нет однозначно сверяемых числовых утверждений моделей',
+  EMPTY_ARCHIVE:'В архиве пока нет исследований',ARCHIVE_CHANGED:'Архив изменился',ARCHIVE_UNREADABLE:'Архив недоступен для чтения',
+  JOURNAL_FULL:'Журнал лаборатории заполнен',CYCLE_JOURNAL_FULL:'Журнал цикла заполнен',
+  JOURNAL_UNAVAILABLE:'Один из журналов недоступен',NO_DIGEST:'Не удалось получить контрольный отпечаток',
+  LOCAL_STORAGE:'Не подтверждена запись в память',CLOCK_MOVED_BACK:'Изменилось время устройства',
+  LOCAL_CYCLE_ERROR:'Ошибка локального цикла',PROCESS_INTERRUPTED:'Приложение было завершено до подтверждения результата'};
+ return labels[reason]||reason||'';
+}
 export function cycleAdmission(entries,now=Date.now()){
  if(entries===null)return {ok:false,reason:'CYCLE_JOURNAL_UNAVAILABLE'};
  if(entries.length>=CYCLE_POLICY.limit)return {ok:false,reason:'CYCLE_JOURNAL_FULL'};
@@ -972,7 +982,8 @@ export async function runLocalResearchCycle({store,rows,now=Date.now(),isCurrent
  const knowledge=buildResearchKnowledge(rows,{now}),worklist=buildResearchFeedback(knowledge);
  const result=runResearchLab(rows,{now});
  const summary={records:rows.length,observations:knowledge.total,conflicts:knowledge.quarantined,
-  tasks:worklist.total,checked:result.checkedClaims};
+  tasks:worklist.total,checked:result.checkedClaims,availableFacts:knowledge.uniqueFacts,
+  unresolved:result.unresolved,parsedObservations:knowledge.parsed,unknownObservations:knowledge.unknown};
  if(!result.checkedClaims)return out('WAITING_DATA',{reason:'NO_CHECKED_FACTS',summary});
  const digest=await researchLabDigest(rows,'',now,cryptoApi);
  if(!isCurrent())return out('STOPPED');
@@ -1260,32 +1271,35 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   for(const e of (journal||[]).slice(0,10)){
    const line=document.createElement('p');
    line.textContent=new Date(e.finishedAt).toISOString()+' · '+cycleLabels[e.state]+' · '+(e.durationMs===null?'длительность неизвестна':e.durationMs+' мс')+
-    (e.reason?' · '+e.reason:'');
+    (e.reason?' · '+localCycleReason(e.reason):'');
    cycleHistory.append(line);
   }
  }
  const cycleLabels={COMPLETED:'Локальный цикл завершён; эксперимент сохранён',
   ALREADY_RECORDED:'Повторный расчёт совпал; эксперимент уже сохранён',
-  WAITING_DATA:'Недостаточно сохранённых числовых сверок',
+  WAITING_DATA:'Архив проверен; эксперимент ожидает данные',
   BLOCKED:'Цикл остановлен защитой',STOPPED:'Цикл остановлен',INTERRUPTED:'Прерванная попытка обнаружена при восстановлении'};
  function paintCycle(){
   if(!cycleStatus||!cycleSummary)return;
   cycleStatus.textContent=!cycleToggle?.checked?'Автоматизация выключена':document.hidden?
    'Приостановлено: приложение скрыто':cycleBusy?'Выполняется локальная проверка':
    cycleJournalFault?'Остановлено: '+cycleJournalFault:
-   cycleGate?'Ожидание / блокировка: '+cycleGate:
-   cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+cycleLast.reason:''):'Ожидание изменения архива';
+   cycleGate?localCycleReason(cycleGate):
+   cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+localCycleReason(cycleLast.reason):''):'Ожидание изменения архива';
   const s=cycleLast?.summary;
   cycleSummary.textContent=(cycleLast?'Последняя попытка: '+new Date(cycleLast.at).toISOString()+' · '+cycleLabels[cycleLast.state]+'. ':'')+
    (s?'Записей '+s.records+' · наблюдений '+s.observations+' · конфликтов '+s.conflicts+
-    ' · задач '+s.tasks+' · сверок '+s.checked+' · кандидатов на ручную проверку '+(s.candidates??'—')+'. ':'')+
+    ' · распознанных наблюдений '+(s.parsedObservations??'—')+' · доступных числовых фактов '+(s.availableFacts??'—')+
+    ' · задач '+s.tasks+' · сверок '+s.checked+' · неразрешённых утверждений '+(s.unresolved??'—')+
+    ' · кандидатов на ручную проверку '+(s.candidates??'—')+'. ':'')+
+   (cycleLast?.reason==='NO_CHECKED_FACTS'?'Исторические данные обработаны. Пока нечего сравнивать в лаборатории. Отсутствие явной сверки не означает ошибку модели; новые данные не создаются автоматически. ':'')+
    'Автоматических запросов к ИИ: 0.'+(cycleJournalFault?' Запись диагностики не подтверждена: '+cycleJournalFault+'.':'');
   renderCycleHistory();
  }
  async function maybeRunCycle(){
   if(!cycleToggle?.checked||document.hidden||cycleBusy||labBusy||cycleJournalFault)return;
   const input=rows.slice(),key=JSON.stringify(input);
-  if(cycleAttempted===key)return;
+  if(cycleAttempted===key){cycleGate=null;clearCycleTimer();paintCycle();return;}
   const gate=cycleAdmission(readCycleJournal(store),now());
   if(!gate.ok){
    cycleGate=gate.reason;paintCycle();
@@ -1314,7 +1328,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     state:result.state,reason:result.reason||null,digest:result.digest||null};
    const logged=finishCycleAttempt(store,entry);
    if(!logged.ok)cycleJournalFault=logged.reason;
-   if(generation===cycleGeneration){cycleLast=result;if(result.state==='STOPPED')cycleAttempted=null;}
+   if(result.state==='STOPPED'&&cycleAttempted===key)cycleAttempted=null;
+   if(generation===cycleGeneration||result.state!=='STOPPED')cycleLast=result;
    cycleBusy=false;if(labRun)labRun.disabled=false;
    paintCycle();renderLabHistory();renderQualityCenter();
    if(!cycleJournalFault&&cycleToggle.checked&&!document.hidden&&(generation!==cycleGeneration||JSON.stringify(rows)!==key))void maybeRunCycle();
@@ -1326,11 +1341,11 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   if(!recovery.ok)cycleJournalFault=recovery.reason;
   else if(recovery.entry)cycleLast={state:recovery.entry.state,at:recovery.entry.startedAt,reason:recovery.entry.reason};
   cycleToggle.addEventListener('change',()=>{
-   cycleGeneration++;cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
+   cycleGeneration++;if(cycleLast?.state==='BLOCKED'||cycleLast?.state==='STOPPED')cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
    if(cycleToggle.checked)void maybeRunCycle();
   });
   document.addEventListener('visibilitychange',()=>{
-   if(document.hidden){cycleGeneration++;cycleAttempted=null;clearCycleTimer();}
+   if(document.hidden){cycleGeneration++;clearCycleTimer();cycleGate=null;}
    paintCycle();if(!document.hidden)void maybeRunCycle();
   });
   paintCycle();

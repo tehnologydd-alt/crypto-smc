@@ -727,3 +727,20 @@ test('cycle crash recovery distinguishes interrupted work from a completed log w
  assert.equal(map.get(CYCLE_PENDING_KEY),'broken');
  assert.equal(map.get(CYCLE_JOURNAL_KEY),old);
 });
+
+test('empty claims are a descriptive completed archive inspection, not a fabricated lab experiment',async()=>{
+ const {runLocalResearchCycle,mergeTranscripts,writeTranscripts,readLabJournal,localCycleReason,buildResearchKnowledge}=await import('./apex-research-history.mjs');
+ const a=claimFixture();a.analystText='Historical observation without explicit numeric claim lines.';
+ const rows=mergeTranscripts([], [a], now);
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ assert.ok(writeTranscripts(store,rows));
+ const r=await runLocalResearchCycle({store,rows,now});
+ assert.equal(r.state,'WAITING_DATA');
+ assert.equal(r.reason,'NO_CHECKED_FACTS');
+ assert.equal(r.summary.checked,0);
+ assert.equal(r.summary.availableFacts,buildResearchKnowledge(rows,{now}).uniqueFacts);
+ assert.equal(r.summary.unresolved,0);
+ assert.equal(readLabJournal(store).length,0);
+ assert.match(localCycleReason('COOLDOWN'),/60 сек/);
+ assert.match(localCycleReason('NO_CHECKED_FACTS'),/утверждений/);
+});
