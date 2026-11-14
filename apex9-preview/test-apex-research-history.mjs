@@ -569,3 +569,19 @@ test('quality center separates inaccessible journals, empty journals and linked 
  assert.deepEqual(v.rules.links,{linked:1,notLinked:1,requiresDateReview:1});
  assert.equal(v.automaticActivation,false);
 });
+
+test('portable lab and rule journals merge without truncation or conflicting overwrites',async()=>{
+ const {runResearchLab,validatePortableJournal,mergePortableJournal}=await import('./apex-research-history.mjs');
+ const digest='a'.repeat(64),entry={at:now,digest,result:runResearchLab([claimFixture()],{now})};
+ const old={version:1,entries:[entry]};
+ assert.ok(validatePortableJournal('lab',old));
+ assert.equal(validatePortableJournal('lab',{version:1,entries:[entry,entry]}),null);
+ assert.equal(validatePortableJournal('lab',{version:1,entries:[{...entry,extra:true}]}),null);
+ assert.equal(mergePortableJournal('lab',[entry],{version:1,entries:[{...entry,at:now+10}]}).archive.entries.length,1);
+ assert.equal(mergePortableJournal('lab',[entry],{version:1,entries:[{...entry,result:{...entry.result,unresolved:entry.result.unresolved+1}}]}).reason,'CONFLICT_LAB');
+ const rule={ruleId:'REL_1E7',ruleVersion:1,role:'GLM',digest,at:now,outcome:'NEEDS_MORE_EVIDENCE'};
+ assert.ok(validatePortableJournal('rules',{version:1,reviews:[rule]}));
+ assert.equal(mergePortableJournal('rules',[rule],{version:1,reviews:[rule]}).archive.reviews.length,1);
+ assert.equal(mergePortableJournal('rules',[rule],{version:1,reviews:[{...rule,outcome:'REJECT_FOR_NOW'}]}).reason,'CONFLICT_RULES');
+ assert.equal(mergePortableJournal('rules',Array.from({length:60},(_,i)=>({...rule,at:now-i})),{version:1,reviews:[{...rule,at:now+1}]}).reason,'CAPACITY_RULES');
+});

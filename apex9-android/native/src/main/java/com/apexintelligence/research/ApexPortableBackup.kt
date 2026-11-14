@@ -51,7 +51,93 @@ object ApexPortableBackup {
     private const val MAX_TRANSCRIPT_BYTES = 2400000
     private const val MAX_TRANSCRIPTS = 400
     private const val MAX_FEEDBACK_BYTES = 180000
-    private const val MAX_PORTABLE_AI_BYTES = 2600000
+    private const val MAX_PORTABLE_AI_BYTES = 2900000
+    private fun exactKeys(o:JSONObject,vararg keys:String) {
+        require(o.keys().asSequence().toSet()==keys.toSet())
+    }
+    private fun safeCount(o:JSONObject,key:String):Long {
+        val value=o.get(key)
+        require(value is Number)
+        val n=value.toDouble()
+        require(n.isFinite() && n>=0 && n<=9007199254740991.0 && n==kotlin.math.floor(n))
+        return n.toLong()
+    }
+    private fun journalTime(o:JSONObject):Long {
+        val n=safeCount(o,"at")
+        require(n in 1..8640000000000000L)
+        return n
+    }
+    private fun journalDigest(o:JSONObject):String {
+        val value=o.get("digest")
+        require(value is String && value.matches(Regex("^[a-f0-9]{64}$")))
+        return value
+    }
+    private val metricKeys=listOf("total","exact","toleranceOnly","outside")
+    private fun checkedLabMetrics(o:JSONObject,role:String):List<Long> {
+        exactKeys(o,"role","total","exact","toleranceOnly","outside","exactPercent","tolerancePercent")
+        require(o.get("role")==role)
+        val values=metricKeys.map{safeCount(o,it)}
+        val (total,exact,near,outside)=values
+        require(exact+near+outside==total)
+        for((key,n) in listOf("exactPercent" to exact,"tolerancePercent" to exact+near)){
+            if(total==0L)require(o.isNull(key))
+            else require(safeCount(o,key)==kotlin.math.floor(100.0*n/total+0.5).toLong())
+        }
+        return values
+    }
+    private fun checkedLab(raw:JSONObject) {
+        exactKeys(raw,"version","entries")
+        require(safeCount(raw,"version")==1L && raw.toString().toByteArray(StandardCharsets.UTF_8).size<=120000)
+        val entries=raw.getJSONArray("entries")
+        require(entries.length()<=40)
+        val seen=mutableSetOf<Triple<String,String,Long>>()
+        for(i in 0 until entries.length()){
+            val e=entries.getJSONObject(i)
+            exactKeys(e,"at","digest","result")
+            journalTime(e);val digest=journalDigest(e)
+            val r=e.getJSONObject("result")
+            exactKeys(r,"policy","asset","models","cohorts","checkedClaims","unresolved","archiveConflicts","automaticModelCalls","productionRuleChanged")
+            val p=r.getJSONObject("policy")
+            exactKeys(p,"version","relativeTolerance","split")
+            require(safeCount(p,"version")==2L && p.get("relativeTolerance") is Number &&
+                p.getDouble("relativeTolerance")==0.000001 && p.get("split")=="SOURCE_ID_FNV1A_MOD5")
+            val asset=r.get("asset")
+            require(asset is String && (asset.isEmpty()||asset.matches(Regex("^[A-Z0-9]{2,16}USDT$"))) && seen.add(Triple(digest,asset,2L)))
+            require(safeCount(r,"automaticModelCalls")==0L && r.get("productionRuleChanged")==false)
+            for(k in listOf("checkedClaims","unresolved","archiveConflicts"))safeCount(r,k)
+            val models=r.getJSONArray("models");val cohorts=r.getJSONArray("cohorts")
+            require(models.length()==2 && cohorts.length()==2)
+            for(j in 0..1){
+                val role=listOf("GLM","Qwen")[j]
+                val all=checkedLabMetrics(models.getJSONObject(j),role)
+                val counts=(0..1).map{c->
+                    val cohort=cohorts.getJSONObject(c)
+                    exactKeys(cohort,"partition","models")
+                    require(cohort.get("partition")==listOf("RESEARCH","CONTROL")[c])
+                    val m=cohort.getJSONArray("models")
+                    require(m.length()==2)
+                    checkedLabMetrics(m.getJSONObject(j),role)
+                }
+                require(all.indices.all{k->all[k]==counts[0][k]+counts[1][k]})
+            }
+        }
+    }
+    private fun checkedRules(raw:JSONObject) {
+        exactKeys(raw,"version","reviews")
+        require(safeCount(raw,"version")==1L && raw.toString().toByteArray(StandardCharsets.UTF_8).size<=80000)
+        val reviews=raw.getJSONArray("reviews")
+        require(reviews.length()<=60)
+        val seen=mutableSetOf<Triple<String,String,Long>>()
+        for(i in 0 until reviews.length()){
+            val r=reviews.getJSONObject(i)
+            exactKeys(r,"ruleId","ruleVersion","role","digest","at","outcome")
+            val id=r.getString("ruleId");val role=r.getString("role");val at=journalTime(r)
+            require(id in setOf("REL_1E7","REL_1E6") && safeCount(r,"ruleVersion")==1L &&
+                role in setOf("GLM","Qwen") && seen.add(Triple(id,role,at)))
+            journalDigest(r)
+            require(r.getString("outcome") in setOf("REVIEWED_NO_CHANGE","NEEDS_MORE_EVIDENCE","REJECT_FOR_NOW"))
+        }
+    }
     private fun checkedFeedback(raw:JSONObject):JSONObject {
         require(raw.keys().asSequence().toSet()==setOf("version","reviews") && raw.optInt("version")==1)
         require(raw.toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_FEEDBACK_BYTES)
@@ -87,6 +173,12 @@ object ApexPortableBackup {
         val rows=raw.optJSONArray("rows") ?: throw IllegalArgumentException("Missing transcript rows")
         require(JSONObject().put("version",1).put("rows",rows).toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_TRANSCRIPT_BYTES)
         if(raw.has("feedback"))checkedFeedback(raw.getJSONObject("feedback"))
+        require(raw.has("lab")==raw.has("rules"))
+        if(raw.has("lab")){
+            require(raw.has("feedback"))
+            checkedLab(raw.getJSONObject("lab"))
+            checkedRules(raw.getJSONObject("rules"))
+        }
         require(rows.length()<=MAX_TRANSCRIPTS)
         val ids=mutableSetOf<String>()
         val now=System.currentTimeMillis()
@@ -127,7 +219,11 @@ object ApexPortableBackup {
             }
             require(row.keys().asSequence().toSet()==allowed)
         }
-        require(raw.keys().asSequence().toSet()==if(raw.has("feedback"))setOf("version","rows","feedback") else setOf("version","rows"))
+        require(raw.keys().asSequence().toSet()==when{
+            raw.has("lab")->setOf("version","rows","feedback","lab","rules")
+            raw.has("feedback")->setOf("version","rows","feedback")
+            else->setOf("version","rows")
+        })
         return raw
     }
     private val tableColumns = linkedMapOf(
@@ -254,7 +350,9 @@ object ApexPortableBackup {
                         if(archive!=null)zipText(zip,TRANSCRIPT_ENTRY,archive.toString())
                         zipText(zip,"manifest.json",JSONObject()
                             .put("format",FORMAT)
-                            .put("schemaVersion",if(archive?.has("feedback")==true)7 else if(archive!=null)6 else 5)
+                            .put("schemaVersion",if(archive?.has("lab")==true)8 else if(archive?.has("feedback")==true)7 else if(archive!=null)6 else 5)
+                            .put("labCount",archive?.optJSONObject("lab")?.optJSONArray("entries")?.length()?:0)
+                            .put("rulesCount",archive?.optJSONObject("rules")?.optJSONArray("reviews")?.length()?:0)
                             .put("feedbackCount",archive?.optJSONObject("feedback")?.optJSONArray("reviews")?.length()?:0)
                             .put("transcriptCount",archive?.getJSONArray("rows")?.length()?:0)
                             .put("exportedAt",System.currentTimeMillis())
@@ -292,6 +390,8 @@ object ApexPortableBackup {
                 .put("counts",counts)
                 .put("transcriptCount",transcripts?.getJSONArray("rows")?.length()?:0)
                 .put("feedbackCount",transcripts?.optJSONObject("feedback")?.optJSONArray("reviews")?.length()?:0)
+                .put("labCount",transcripts?.optJSONObject("lab")?.optJSONArray("entries")?.length()?:0)
+                .put("rulesCount",transcripts?.optJSONObject("rules")?.optJSONArray("reviews")?.length()?:0)
                 .put("note","Проверьте завершение загрузки в выбранном облаке")
         }finally{encrypted.delete()}
     }
@@ -385,7 +485,7 @@ object ApexPortableBackup {
     private fun verify(zip:ZipFile):Pair<JSONObject,JSONObject> {
         val manifest=JSONObject(textEntry(zip,"manifest.json"))
         val schema=manifest.optInt("schemaVersion")
-        require(schema==5||schema==6||schema==7) {"Несовместимая версия архива"}
+        require(schema==5||schema==6||schema==7||schema==8) {"Несовместимая версия архива"}
         val allowed=(tableColumns.keys.map{zipName(it)}+
             listOf("settings.json","manifest.json")+
             if(schema>=6)listOf(TRANSCRIPT_ENTRY) else emptyList()).toSet()
@@ -405,7 +505,7 @@ object ApexPortableBackup {
             "Архив содержит неизвестные файлы или неполную структуру"
         }
         require(manifest.optString("format")==FORMAT&&
-            (schema==5||schema==6||schema==7)&&
+            (schema==5||schema==6||schema==7||schema==8)&&
             manifest.optLong("exportedAt")>0){"Несовместимая версия архива"}
         val counts=manifest.optJSONObject("tableCounts")
             ?:throw IllegalArgumentException("Нет контрольных счётчиков")
@@ -413,8 +513,13 @@ object ApexPortableBackup {
         if(schema>=6){
             val history=checkedTranscripts(JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_PORTABLE_AI_BYTES)))
             require(manifest.optInt("transcriptCount",-1)==history.getJSONArray("rows").length())
-            require(history.has("feedback")== (schema==7))
-            if(schema==7)require(manifest.optInt("feedbackCount",-1)==history.getJSONObject("feedback").getJSONArray("reviews").length())
+            require(history.has("feedback")== (schema>=7))
+            require(history.has("lab")== (schema==8))
+            if(schema>=7)require(manifest.optInt("feedbackCount",-1)==history.getJSONObject("feedback").getJSONArray("reviews").length())
+            if(schema==8){
+                require(manifest.optInt("labCount",-1)==history.getJSONObject("lab").getJSONArray("entries").length())
+                require(manifest.optInt("rulesCount",-1)==history.getJSONObject("rules").getJSONArray("reviews").length())
+            }
         }
         // Validate settings and table counts BEFORE any Room modification.
         ApexPreferences.validateRestore(settings)

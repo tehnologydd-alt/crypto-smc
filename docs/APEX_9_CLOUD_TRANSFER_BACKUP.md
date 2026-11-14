@@ -60,3 +60,8 @@ The Android validator and WebView archive now accept up to 400 research transcri
 ## Research feedback portability
 
 Schema 7 adds optional validated feedback metadata to the encrypted AI archive. New exports include the review journal, up to 100 records and 180,000 UTF-8 bytes. Schemas 5 and 6 remain readable. Old APKs reject schema 7. Incoming reviews are merged by task/time without replacing conflicting records or evicting history. The Room merge and WebView writes are separate; a failure is reported and the source backup must be retained. Android file-picker export/import and actual WebView capacity require on-device verification.
+
+
+## Schema 8 – full research journal portability
+
+Schema 8 adds bounded Lab v2 summaries and manual rule review notes to the existing encrypted research transfer. Older schemas 5–7 remain readable; older APKs reject schema 8. Lab summaries are limited to 40 entries / 120000 bytes; rule notes to 60 entries / 80000 bytes. Journal identity conflicts and merged capacity overflow are rejected before WebView writes. Manifests and native responses report independent counts. Room restoration and separate localStorage writes are not one atomic transaction; a partial failure is explicitly reported, and the original backup should be retained. No credentials, live sessions, model execution settings or automatic rule activation are included by these new journal fields. On-device transfer remains to be tested.

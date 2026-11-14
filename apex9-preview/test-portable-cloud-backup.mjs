@@ -104,3 +104,11 @@ test('schema 7 includes the bounded feedback journal and accepts older schemas',
  assert.match(backup,/feedbackCount/);
  assert.match(read('./app.mjs'),/result.feedbackCount!==archive.feedback.reviews.length/);
 });
+
+test('schema 8 carries both bounded lab and rule journals with independent count checks',()=>{
+ assert.match(backup,/schema==5\|\|schema==6\|\|schema==7\|\|schema==8/);
+ assert.match(backup,/checkedLab\(raw.getJSONObject\("lab"\)\)/);
+ assert.match(backup,/checkedRules\(raw.getJSONObject\("rules"\)\)/);
+ assert.match(read('./app.mjs'),/result.labCount!==archive.lab.entries.length/);
+ assert.match(read('./app.mjs'),/result.rulesCount!==archive.rules.reviews.length/);
+});

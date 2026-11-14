@@ -751,6 +751,59 @@ export async function researchLabDigest(rows,asset,now=Date.now(),cryptoApi=glob
  * Unified local quality overview. A saved digest links a review to an input
  * fingerprint, not proof that the hypothesis or the facts are correct.
  */
+/** Strict bounded portable journal envelopes, preserving all saved entries. */
+const portableKeys=(o,keys)=>o&&typeof o==='object'&&!Array.isArray(o)&&
+ Object.keys(o).length===keys.length&&keys.every(k=>Object.hasOwn(o,k));
+function portableLabEntry(e){
+ const metrics=m=>portableKeys(m,['role','total','exact','toleranceOnly','outside','exactPercent','tolerancePercent']);
+ return validLabEntry(e)&&portableKeys(e,['at','digest','result'])&&
+  portableKeys(e.result,['policy','asset','models','cohorts','checkedClaims','unresolved','archiveConflicts','automaticModelCalls','productionRuleChanged'])&&
+  portableKeys(e.result.policy,['version','relativeTolerance','split'])&&e.result.models.every(metrics)&&
+  e.result.cohorts.every(c=>portableKeys(c,['partition','models'])&&c.models.every(metrics));
+}
+const journalSpec={
+ lab:{field:'entries',key:LAB_JOURNAL_KEY,limit:LAB_LIMIT,bytes:LAB_BYTES,valid:portableLabEntry,
+  identity:r=>JSON.stringify([r.digest,r.result.asset,r.result.policy.version])},
+ rules:{field:'reviews',key:KNOWLEDGE_REVIEW_KEY,limit:KNOWLEDGE_REVIEW_LIMIT,bytes:KNOWLEDGE_REVIEW_BYTES,valid:validKnowledgeReview,
+  identity:r=>JSON.stringify([r.ruleId,r.ruleVersion,r.role,r.at])}
+};
+function stableJSON(value){
+ if(Array.isArray(value))return '['+value.map(stableJSON).join(',')+']';
+ if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+stableJSON(value[k])).join(',')+'}';
+ return JSON.stringify(value);
+}
+export function validatePortableJournal(kind,data){
+ try{
+  const spec=journalSpec[kind];
+  if(!spec||!portableKeys(data,['version',spec.field])||data.version!==1||
+   !Array.isArray(data[spec.field])||data[spec.field].length>spec.limit||
+   new TextEncoder().encode(JSON.stringify(data)).length>spec.bytes)return null;
+  const ids=new Set();
+  for(const r of data[spec.field]){
+   if(!spec.valid(r))return null;
+   const id=spec.identity(r);if(ids.has(id))return null;ids.add(id);
+  }
+  return data;
+ }catch{return null;}
+}
+export function mergePortableJournal(kind,previous,incoming){
+ const spec=journalSpec[kind];
+ if(!spec||!validatePortableJournal(kind,{version:1,[spec.field]:previous})||
+  !validatePortableJournal(kind,incoming))return {ok:false,reason:'INVALID_'+kind.toUpperCase()};
+ const byId=new Map();
+ for(const r of [...previous,...incoming[spec.field]]){
+  const id=spec.identity(r),old=byId.get(id);
+  if(old){
+   // Re-running an identical lab input can have a different date.
+   const a=kind==='lab'?old.result:old,b=kind==='lab'?r.result:r;
+   if(stableJSON(a)!==stableJSON(b))return {ok:false,reason:'CONFLICT_'+kind.toUpperCase()};
+   if(kind==='lab'&&r.at<old.at)byId.set(id,r);
+  }else byId.set(id,r);
+ }
+ const archive={version:1,[spec.field]:[...byId.values()].sort((a,b)=>b.at-a.at||spec.identity(a).localeCompare(spec.identity(b)))};
+ if(!validatePortableJournal(kind,archive))return {ok:false,reason:'CAPACITY_'+kind.toUpperCase()};
+ return {ok:true,archive};
+}
 export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,now=Date.now()}={}){
  const normalized=mergeTranscripts([],rows,now);
  const knowledge=buildResearchKnowledge(normalized,{now});
@@ -1566,12 +1619,26 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   exportArchive:()=>{
    const reviews=readFeedbackJournal(store);
    if(reviews===null)throw Error('Журнал проверок недоступен; экспорт остановлен, данные не изменены.');
-   return {version:1,rows:rows.slice(),feedback:{version:1,reviews}};
+   const entries=readLabJournal(store),ruleReviews=readKnowledgeReviews(store);
+   const lab={version:1,entries},rules={version:1,reviews:ruleReviews};
+   if(!validatePortableJournal('lab',lab)||!validatePortableJournal('rules',rules))
+    throw Error('Журналы лаборатории или правил недоступны; экспорт остановлен.');
+   return {version:1,rows:rows.slice(),feedback:{version:1,reviews},lab,rules};
   },
   importArchive:archive=>{
    const valid=validateTranscriptArchive(archive,now());
    if(!valid)return {ok:false,reason:'INVALID_TRANSCRIPT_ARCHIVE'};
    let feedback=null;
+   const extra=[];
+   if(Object.hasOwn(archive,'lab')!==Object.hasOwn(archive,'rules'))return {ok:false,reason:'INVALID_JOURNAL_PAIR'};
+   for(const kind of ['lab','rules']){
+    if(!Object.hasOwn(archive,kind))continue;
+    const previous=kind==='lab'?readLabJournal(store):readKnowledgeReviews(store);
+    if(previous===null)return {ok:false,reason:'JOURNAL_STORAGE'};
+    const result=mergePortableJournal(kind,previous,archive[kind]);
+    if(!result.ok)return result;
+    extra.push({kind,key:journalSpec[kind].key,archive:result.archive});
+   }
    if(Object.hasOwn(archive,'feedback')){
     const previous=readFeedbackJournal(store);
     if(previous===null)return {ok:false,reason:'FEEDBACK_STORAGE'};
@@ -1601,7 +1668,15 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      if(store.getItem(FEEDBACK_JOURNAL_KEY)!==raw)throw Error('unconfirmed write');
     }catch{render();return {ok:false,reason:'FEEDBACK_STORAGE',partial:true};}
    }
+   for(const e of extra){
+    try{
+     const raw=JSON.stringify(e.archive);store.setItem(e.key,raw);
+     if(store.getItem(e.key)!==raw)throw Error('unconfirmed write');
+    }catch{render();return {ok:false,reason:'JOURNAL_STORAGE_'+e.kind.toUpperCase(),partial:true};}
+   }
    render();
-   return {ok:true,count:rows.length,feedbackCount:feedback?.archive.reviews.length??null};
+   return {ok:true,count:rows.length,feedbackCount:feedback?.archive.reviews.length??null,
+    labCount:extra.find(e=>e.kind==='lab')?.archive.entries.length??null,
+    rulesCount:extra.find(e=>e.kind==='rules')?.archive.reviews.length??null};
   }};
 }
