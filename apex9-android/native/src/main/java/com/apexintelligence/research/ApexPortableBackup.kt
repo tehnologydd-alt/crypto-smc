@@ -48,8 +48,8 @@ object ApexPortableBackup {
     private const val MAX_LINES = 2_500_000L
     private const val MAX_LINE = 65536
     private const val TRANSCRIPT_ENTRY = "ai-transcripts.json"
-    private const val MAX_TRANSCRIPT_BYTES = 1800000
-    private const val MAX_TRANSCRIPTS = 200
+    private const val MAX_TRANSCRIPT_BYTES = 2400000
+    private const val MAX_TRANSCRIPTS = 400
     /** Only public evidence transcripts, not live sessions, credentials or quotas. */
     fun checkedTranscripts(raw:JSONObject):JSONObject {
         require(raw.optInt("version")==1) {"Unsupported transcript archive"}

@@ -33,7 +33,7 @@ test('batch recovery and storage are bounded, per asset and replay-idempotent',(
  assert.equal(writeTranscripts(store,rows),true);
  assert.deepEqual(readTranscripts(store,now),rows);
  assert.equal(writeTranscripts({setItem(){throw Error('quota');}},rows),false);
- const many=Array.from({length:250},(_,i)=>run('BTCUSDT',now-86400000+i));
+ const many=Array.from({length:MAX_TRANSCRIPTS+50},(_,i)=>run('BTCUSDT',now-86400000+i));
  assert.equal(mergeTranscripts([],many,now).length,MAX_TRANSCRIPTS);
  map.set(HISTORY_KEY,'broken');
  assert.deepEqual(readTranscripts(store,now),[]);
@@ -44,7 +44,7 @@ test('portable archive validation rejects duplicate, malformed and over-capacity
  assert.equal(validateTranscriptArchive({version:1,rows:[a]},now).rows.length,1);
  assert.equal(validateTranscriptArchive({version:1,rows:[a,a]},now),null);
  assert.equal(validateTranscriptArchive({version:1,rows:[{...a,asset:'ETHUSDT'}]},now),null);
- assert.equal(validateTranscriptArchive({version:1,rows:Array(201).fill(a)},now),null);
+ assert.equal(validateTranscriptArchive({version:1,rows:Array(MAX_TRANSCRIPTS+1).fill(a)},now),null);
 });
 
 test('research statistics distinguish finished reviews, source coverage and unknown accuracy',()=>{
@@ -330,7 +330,31 @@ test('storage capacity uses UTF-8 bytes and existing portable limits',async()=>{
  const rows=[{...run(),analystText:'Исторические сведения из источника.'}];
  const u=researchStorageUsage(rows);
  assert.equal(u.records,1);assert.equal(u.recordLimit,MAX_TRANSCRIPTS);
- assert.equal(u.byteLimit,1800000);
+ assert.equal(u.byteLimit,2400000);
  assert.equal(u.bytes,new TextEncoder().encode(JSON.stringify({version:1,rows})).length);
  assert.ok(u.bytes>JSON.stringify({version:1,rows}).length);
+});
+
+test('expanded capacity accepts legacy and expanded archives without format migration',()=>{
+ const many=Array.from({length:401},(_,i)=>run('BTCUSDT',now-86400000+i));
+ const rows=mergeTranscripts([],many,now);
+ assert.equal(rows.length,400);
+ assert.equal(validateTranscriptArchive({version:1,rows:rows.slice(0,200)},now).rows.length,200);
+ assert.equal(validateTranscriptArchive({version:1,rows},now).rows.length,400);
+});
+test('full archive and storage failure preserve prior records and bytes',async()=>{
+ const {appendResearchArchive}=await import('./apex-research-history.mjs');
+ const previous=mergeTranscripts([],Array.from({length:400},(_,i)=>run('BTCUSDT',now-86400000+i)),now);
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ assert.equal(writeTranscripts(store,previous),true);
+ const original=map.get(HISTORY_KEY);
+ const full=appendResearchArchive(store,previous,[run('ETHUSDT')],now);
+ assert.equal(full.ok,false);assert.equal(full.reason,'ARCHIVE_CAPACITY');
+ assert.equal(full.rows,previous);assert.equal(map.get(HISTORY_KEY),original);
+ const failure=appendResearchArchive({setItem(){throw Error('quota')}},previous.slice(0,1),[run('ETHUSDT')],now);
+ assert.equal(failure.ok,false);assert.equal(failure.reason,'LOCAL_STORAGE');
+ assert.equal(failure.rows.length,1);
+ const upgraded=appendResearchArchive(store,previous,[complete(previous[0])],now);
+ assert.equal(upgraded.ok,true);assert.equal(upgraded.rows.length,400);
+ assert.equal(upgraded.rows[0].stage,'COMPLETE');
 });

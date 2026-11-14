@@ -87,3 +87,12 @@ test('JS only calls native backup after valid passphrase and restore confirmatio
    {available:true,lastWrittenAt:42});
  }finally{globalThis.window=prior}
 });
+
+test('expanded web and native archive quotas agree without changing schema compatibility',()=>{
+ const history=read('./apex-research-history.mjs');
+ assert.match(history,/MAX_TRANSCRIPTS=400/);
+ assert.match(history,/MAX_BYTES=2400000/);
+ assert.match(backup,/MAX_TRANSCRIPTS = 400/);
+ assert.match(backup,/MAX_TRANSCRIPT_BYTES = 2400000/);
+ assert.match(backup,/schema==5\|\|schema==6/);
+});

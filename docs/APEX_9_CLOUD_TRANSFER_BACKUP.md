@@ -50,3 +50,8 @@
 Node CI: `node --test apex9-preview/test-portable-cloud-backup.mjs`.
 Android CI: Kotlin/Room/Capacitor Activity callbacks, полная сборка APK.
 Нужно дополнительно испытать на двух физических телефонах, с настоящим Google Drive, включая неверный пароль, отмену системного выбора, полный архив, импорт поверх частично заполненной базы и нехватку места.
+
+
+## Research archive capacity (2026-11-14)
+
+The Android validator and WebView archive now accept up to 400 research transcripts and 2,400,000 UTF-8 bytes (previously 200 and 1,800,000). Transcript format v1 and portable manifest schemas 5/6 remain unchanged. New APKs read existing backups; older APKs may reject expanded backups above the older limits. Local WebView quota may be lower in practice, depending on other stored data. A failed append or capacity limit preserves the previously saved research archive; no silent eviction. Export a backup before reaching the limit. Actual on-device capacity and restore must still be verified on Android.

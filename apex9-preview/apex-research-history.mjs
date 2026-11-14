@@ -4,8 +4,8 @@
  * No inference, no network, no credentials. Bounded by records AND bytes.
  */
 export const HISTORY_KEY='apex.research.transcripts.v1';
-export const MAX_TRANSCRIPTS=200;
-const MAX_BYTES=1800000, SYMBOL=/^[A-Z0-9]{2,16}USDT$/;
+export const MAX_TRANSCRIPTS=400;
+const MAX_BYTES=2400000, SYMBOL=/^[A-Z0-9]{2,16}USDT$/;
 const time=x=>Number.isSafeInteger(x)&&x>0;
 const text=x=>typeof x==='string'&&x.trim().length>=15&&x.length<=2400;
 function snapshots(value,asset){
@@ -72,7 +72,7 @@ export function readTranscripts(store,now=Date.now()){
  try{
   const raw=store?.getItem(HISTORY_KEY);
   if(!raw)return [];
-  if(raw.length>MAX_BYTES)return [];
+  if(new TextEncoder().encode(raw).length>MAX_BYTES)return [];
   const parsed=JSON.parse(raw);
   if(parsed.version!==1||!Array.isArray(parsed.rows)||parsed.rows.length>MAX_TRANSCRIPTS)return [];
   return mergeTranscripts([],parsed.rows,now);
@@ -87,6 +87,26 @@ export function writeTranscripts(store,rows){
  }catch{return false;}
 }
 /** Import only historical records, without restoring a live model session. */
+/** Do not evict archived history or publish an uncommitted candidate. */
+export function appendResearchArchive(store,previous,incoming,now=Date.now()){
+ const added=incoming.map(x=>normalizeTranscript(x,now));
+ if(added.some(x=>!x))return {ok:false,reason:'INVALID_TRANSCRIPT',rows:previous};
+ const merged=mergeTranscripts(previous,added,now);
+ const expected=new Set([...previous,...added].map(x=>x.id)).size;
+ if(merged.length<expected)return {ok:false,reason:'ARCHIVE_CAPACITY',rows:previous};
+ for(const candidate of added){
+  const retained=merged.find(x=>x.id===candidate.id);
+  if(!retained||retained.analystText!==candidate.analystText||
+   JSON.stringify(retained.evidence)!==JSON.stringify(candidate.evidence)||
+   candidate.stage==='COMPLETE'&&(retained.stage!=='COMPLETE'||
+    retained.criticAt!==candidate.criticAt||retained.criticText!==candidate.criticText||
+    JSON.stringify(retained.criticEvidence)!==JSON.stringify(candidate.criticEvidence)))
+   return {ok:false,reason:'ARCHIVE_CONFLICT',rows:previous};
+ }
+ if(JSON.stringify(previous)===JSON.stringify(merged))return {ok:true,rows:previous};
+ if(!writeTranscripts(store,merged))return {ok:false,reason:'LOCAL_STORAGE',rows:previous};
+ return {ok:true,rows:merged};
+}
 export function validateTranscriptArchive(archive,now=Date.now()){
  if(archive?.version!==1||!Array.isArray(archive.rows)||
     archive.rows.length>MAX_TRANSCRIPTS)return null;
@@ -576,20 +596,24 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   knowledgeMore.disabled=records.length<=knowledgeVisible;
  };
  let statsSignature='',qualitySignature='';
- let rows=readTranscripts(store,now()),visible=8,signature='',saved=true;
+ let rows=readTranscripts(store,now()),visible=8,signature='',saved=true,saveIssue='';
+ const archiveWarning=()=>saved?'':saveIssue==='ARCHIVE_CAPACITY'?
+  ' · архив заполнен: новая запись не сохранена, старые сохранены. Сделайте резервную копию.':
+  saveIssue==='ARCHIVE_CONFLICT'?' · конфликт с сохранённой сессией: запись не заменена':
+  ' · новая запись не подтверждена, старый архив сохранён';
  const qualityTimeline=node('apex-quality-timeline'),qualitySources=node('apex-quality-sources'),
   storageUsage=node('apex-history-capacity');
  function renderQuality(){
   if(!qualityTimeline||!qualitySources||!storageUsage)return;
   const current=now();
-  const key=JSON.stringify([rows,picker.value,Math.floor(current/86400000),saved]);
+  const key=JSON.stringify([rows,picker.value,Math.floor(current/86400000),saved,saveIssue]);
   if(key===qualitySignature)return;
   qualitySignature=key;
   const usage=researchStorageUsage(rows);
   storageUsage.textContent='Локальная память: '+usage.records+' / '+usage.recordLimit+
    ' записей · '+Math.round(usage.bytes/1024)+' / '+Math.round(usage.byteLimit/1024)+' КиБ'+
    (Math.max(usage.recordPercent,usage.bytePercent)>=80?' · близко к пределу, сохраните резервную копию':'')+
-   (saved?'':' · последняя запись не подтверждена');
+   archiveWarning();
   const sources=knowledgeBase||buildResearchKnowledge(rows,{asset:picker.value,now:current});
   qualitySources.replaceChildren();
   if(!sources.groups.length){
@@ -639,7 +663,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   const shown=rows.filter(x=>!picker.value||x.asset===picker.value);
   count.textContent='Сохранено '+rows.length+' / '+MAX_TRANSCRIPTS+
    ' · завершено '+rows.filter(x=>x.stage==='COMPLETE').length+
-   (saved?'':' · ошибка локальной записи');
+   archiveWarning();
   if(stats&&statsRows){
    const view=summarizeResearchHistory(shown,{now:now()});
    const minutes=ms=>ms===null?'—':(ms/60000).toFixed(1)+' мин';
@@ -800,8 +824,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }
  };
  const ingest=sessions=>{
-  rows=mergeTranscripts(rows,sessions,now());
-  saved=writeTranscripts(store,rows);
+  const result=appendResearchArchive(store,rows,sessions,now());
+  rows=result.rows;saved=result.ok;saveIssue=result.reason||'';
   render();return saved;
  };
  // Recover last on-device sessions, including older completed runs. They
@@ -837,7 +861,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
       return {ok:false,reason:'ARCHIVE_CONFLICT'};
    }
    if(!writeTranscripts(store,merged))return {ok:false,reason:'LOCAL_STORAGE'};
-   rows=merged;saved=true;render();
+   rows=merged;saved=true;saveIssue='';render();
    return {ok:true,count:rows.length};
   }};
 }
