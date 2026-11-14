@@ -903,6 +903,35 @@ export const CYCLE_JOURNAL_KEY='apex.research.cycle.journal.v1';
 export const CYCLE_POLICY=Object.freeze({limit:100,bytes:180000,cooldownMs:60000});
 const CYCLE_STATES=['COMPLETED','ALREADY_RECORDED','WAITING_DATA','BLOCKED','STOPPED','INTERRUPTED'];
 export const CYCLE_PENDING_KEY='apex.research.cycle.pending.v1';
+export const LOCAL_CYCLE_MODE_KEY='apex.research.cycle.mode.v1';
+/** Local historical audit only. Default off; never portable or cloud-enabled. */
+export function readLocalCycleMode(store){
+ try{
+  const raw=store.getItem(LOCAL_CYCLE_MODE_KEY);
+  if(raw==null||raw==='disabled')return {ok:true,enabled:false};
+  if(raw==='enabled')return {ok:true,enabled:true};
+  return {ok:false,enabled:false};
+ }catch{return {ok:false,enabled:false};}
+}
+export function writeLocalCycleMode(store,enabled){
+ if(typeof enabled!=='boolean')return false;
+ try{
+  const raw=enabled?'enabled':'disabled';
+  store.setItem(LOCAL_CYCLE_MODE_KEY,raw);
+  return store.getItem(LOCAL_CYCLE_MODE_KEY)===raw;
+ }catch{return false;}
+}
+/** Skip only a recent confirmed input. A saved successful cycle must still
+ * have its corresponding lab record. Interrupted or blocked work is not done. */
+export function alreadyAuditedLocalInput(digest,journal,lab){
+ if(typeof digest!=='string'||!(/^[a-f0-9]{64}$/).test(digest)||
+    !Array.isArray(journal)||!Array.isArray(lab))return false;
+ const last=journal[0];
+ if(!last||!validCycleEntry(last)||last.digest!==digest)return false;
+ if(last.state==='WAITING_DATA')return ['EMPTY_ARCHIVE','NO_CHECKED_FACTS'].includes(last.reason);
+ return ['COMPLETED','ALREADY_RECORDED'].includes(last.state)&&
+  lab.some(e=>e.digest===digest&&e.result?.asset===''&&e.result?.policy?.version===RESEARCH_LAB_POLICY.version);
+}
 /** Optional compact diagnostics are backward compatible with earlier cycle entries. */
 export function validCycleSummary(s){
  const keys=['records','observations','conflicts','tasks','checked','availableFacts','unresolved','parsedObservations','unknownObservations'];
@@ -1003,7 +1032,7 @@ export function localResearchDashboard({rows,archiveConfirmed,journal,lab,feedba
 }
 /** Presentation only: a cooldown is not an error or a new experiment. */
 export function localCycleReason(reason){
- const labels={COOLDOWN:'Пауза между попытками (до 60 сек)',NO_CHECKED_FACTS:'Нет однозначно сверяемых числовых утверждений моделей',
+ const labels={ARCHIVE_ALREADY_AUDITED:'Архив уже обработан · ожидание новых записей',LOCAL_MODE_STORAGE:'Не удалось сохранить или прочитать настройку локального режима',COOLDOWN:'Пауза между попытками (до 60 сек)',NO_CHECKED_FACTS:'Нет однозначно сверяемых числовых утверждений моделей',
   EMPTY_ARCHIVE:'В архиве пока нет исследований',ARCHIVE_CHANGED:'Архив изменился',ARCHIVE_UNREADABLE:'Архив недоступен для чтения',
   JOURNAL_FULL:'Журнал лаборатории заполнен',CYCLE_JOURNAL_FULL:'Журнал цикла заполнен',
   JOURNAL_UNAVAILABLE:'Один из журналов недоступен',NO_DIGEST:'Не удалось получить контрольный отпечаток',
@@ -1388,7 +1417,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const cycleToggle=node('apex-local-cycle-enable'),cycleStatus=node('apex-local-cycle-status'),cycleSummary=node('apex-local-cycle-summary');
  const cycleHistory=node('apex-local-cycle-history'),cycleMetrics=node('apex-local-cycle-metrics');
  let cycleMetricsSignature='';
- let cycleGeneration=0,cycleBusy=false,cycleAttempted=null,cycleLast=null,cycleTimer=null,cycleGate=null,
+ let cycleGeneration=0,cycleBusy=false,cyclePreflight=false,cycleModeFault=false,cycleAttempted=null,cycleLast=null,cycleTimer=null,cycleGate=null,
   cycleJournalFault=null,cycleHistorySignature='';
  const clearCycleTimer=()=>{if(cycleTimer!==null){clearTimeout(cycleTimer);cycleTimer=null;}};
  function renderCycleHistory(){
@@ -1431,8 +1460,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   BLOCKED:'Цикл остановлен защитой',STOPPED:'Цикл остановлен',INTERRUPTED:'Прерванная попытка обнаружена при восстановлении'};
  function paintCycle(){
   if(!cycleStatus||!cycleSummary)return;
-  cycleStatus.textContent=!cycleToggle?.checked?'Автоматизация выключена':document.hidden?
-   'Приостановлено: приложение скрыто':cycleBusy?'Выполняется локальная проверка':
+  cycleStatus.textContent=cycleModeFault?'Настройка режима недоступна · проверьте локальное хранилище':!cycleToggle?.checked?'Автоматизация выключена':document.hidden?
+   'Приостановлено: приложение скрыто':cyclePreflight?'Проверка контрольного отпечатка':cycleBusy?'Выполняется локальная проверка':
    cycleJournalFault?'Остановлено: '+cycleJournalFault:
    cycleGate?localCycleReason(cycleGate):
    cycleLast?cycleLabels[cycleLast.state]+(cycleLast.reason?' · '+localCycleReason(cycleLast.reason):''):'Ожидание изменения архива';
@@ -1463,10 +1492,27 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   renderCycleHistory();
  }
  async function maybeRunCycle(){
-  if(!cycleToggle?.checked||document.hidden||cycleBusy||labBusy||cycleJournalFault)return;
+  if(!cycleToggle?.checked||document.hidden||cycleBusy||cyclePreflight||labBusy||cycleJournalFault||cycleModeFault)return;
   const input=rows.slice(),key=JSON.stringify(input);
-  if(cycleAttempted===key){cycleGate=null;clearCycleTimer();paintCycle();return;}
-  const gate=cycleAdmission(readCycleJournal(store),now());
+  if(cycleAttempted===key){clearCycleTimer();paintCycle();return;}
+  const before=inspectTranscriptStorage(store,now());
+  if(!before.ok||JSON.stringify(before.rows)!==key){cycleGate=before.ok?'ARCHIVE_CHANGED':before.reason;paintCycle();return;}
+  const preflightGeneration=cycleGeneration;
+  cyclePreflight=true;paintCycle();
+  let inputDigest;
+  try{inputDigest=await researchLabDigest(input,'',now());}
+  finally{cyclePreflight=false;}
+  if(!cycleToggle.checked||document.hidden||cycleModeFault||cycleJournalFault){paintCycle();return;}
+  if(preflightGeneration!==cycleGeneration||JSON.stringify(rows)!==key){paintCycle();void maybeRunCycle();return;}
+  if(labBusy){paintCycle();return;}
+  const after=inspectTranscriptStorage(store,now());
+  if(!after.ok||JSON.stringify(after.rows)!==key){cycleGate=after.ok?'ARCHIVE_CHANGED':after.reason;paintCycle();return;}
+  if(!inputDigest){cycleGate='NO_DIGEST';cycleAttempted=key;paintCycle();return;}
+  const journal=readCycleJournal(store),lab=readLabJournal(store);
+  if(readFeedbackJournal(store)!==null&&readKnowledgeReviews(store)!==null&&alreadyAuditedLocalInput(inputDigest,journal,lab)){
+   cycleAttempted=key;cycleGate='ARCHIVE_ALREADY_AUDITED';clearCycleTimer();paintCycle();return;
+  }
+  const gate=cycleAdmission(journal,now());
   if(!gate.ok){
    cycleGate=gate.reason;paintCycle();
    if(gate.reason==='COOLDOWN'&&cycleTimer===null)
@@ -1491,7 +1537,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }catch{result={state:'BLOCKED',reason:'LOCAL_CYCLE_ERROR',at:startedAt};}
   finally{
    const entry={startedAt,finishedAt:now(),durationMs:Math.max(0,Math.round(performance.now()-startedPerf)),
-    state:result.state,reason:result.reason||null,digest:result.digest||null,
+    state:result.state,reason:result.reason||null,digest:result.digest||(result.state==='WAITING_DATA'?inputDigest:null),
     ...(validCycleSummary(result.summary)?{summary:result.summary}:{})};
    const logged=finishCycleAttempt(store,entry);
    if(!logged.ok)cycleJournalFault=logged.reason;
@@ -1503,7 +1549,9 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   }
  }
  if(cycleToggle){
-  cycleToggle.checked=false;
+  const mode=readLocalCycleMode(store);
+  cycleModeFault=!mode.ok;
+  cycleToggle.checked=mode.ok&&mode.enabled;
   const recovery=recoverPendingCycle(store,now());
   if(!recovery.ok)cycleJournalFault=recovery.reason;
   else {
@@ -1511,8 +1559,10 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    if(last)cycleLast={state:last.state,at:last.startedAt,reason:last.reason,summary:last.summary,restored:true};
   }
   cycleToggle.addEventListener('change',()=>{
-   cycleGeneration++;if(cycleLast?.state==='BLOCKED'||cycleLast?.state==='STOPPED')cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
-   if(cycleToggle.checked)void maybeRunCycle();
+   cycleGeneration++;cycleModeFault=!writeLocalCycleMode(store,cycleToggle.checked);
+   if(cycleModeFault)cycleToggle.checked=false;
+   cycleAttempted=null;cycleGate=null;clearCycleTimer();paintCycle();
+   if(cycleToggle.checked&&!cycleModeFault)void maybeRunCycle();
   });
   document.addEventListener('visibilitychange',()=>{
    if(document.hidden){cycleGeneration++;clearCycleTimer();cycleGate=null;}
@@ -2143,7 +2193,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  return {ingest,render,getRows:()=>rows.slice(),
   backupReady:()=>{
    const pending=readPendingCycle(store);
-   return !cycleBusy&&!cycleToggle?.checked&&pending.ok&&!pending.value;
+   return !cycleBusy&&!cyclePreflight&&!cycleModeFault&&!cycleToggle?.checked&&pending.ok&&!pending.value;
   },
   exportArchive:()=>{
    const disk=inspectTranscriptStorage(store,now());
@@ -2155,7 +2205,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    const lab={version:1,entries},rules={version:1,reviews:ruleReviews};
    const cycles={version:1,entries:readCycleJournal(store)};
    const pending=readPendingCycle(store);
-   if(cycleBusy||cycleToggle?.checked||!pending.ok||pending.value)
+   if(cycleBusy||cyclePreflight||cycleModeFault||cycleToggle?.checked||!pending.ok||pending.value)
     throw Error('Выключите локальную автоматизацию и дождитесь завершения текущего цикла перед экспортом.');
    if(!validatePortableJournal('cycles',cycles))
     throw Error('Журнал автоматизации недоступен; экспорт остановлен.');
@@ -2175,7 +2225,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    if(Object.hasOwn(archive,'cycles')){
     const pending=readPendingCycle(store);
     if(!Object.hasOwn(archive,'lab')||!Object.hasOwn(archive,'feedback'))return {ok:false,reason:'INVALID_CYCLE_ARCHIVE'};
-    if(cycleBusy||cycleToggle?.checked||!pending.ok||pending.value)return {ok:false,reason:'CYCLE_NOT_IDLE'};
+    if(cycleBusy||cyclePreflight||cycleModeFault||cycleToggle?.checked||!pending.ok||pending.value)return {ok:false,reason:'CYCLE_NOT_IDLE'};
    }
    for(const kind of ['lab','rules','cycles']){
     if(!Object.hasOwn(archive,kind))continue;

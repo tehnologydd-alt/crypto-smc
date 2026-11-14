@@ -861,3 +861,28 @@ test('dashboard uses saved cycle counts, separate archive coverage and unknown s
  const empty=localResearchDashboard({rows:[],archiveConfirmed:true,journal:[],lab:[],now});
  assert.equal(empty.records,0);assert.ok(empty.days.every(d=>d.completed+d.repeated+d.waiting+d.other===0));
 });
+
+test('persistent local mode is explicit, verified and defaults off',async()=>{
+ const {readLocalCycleMode,writeLocalCycleMode,LOCAL_CYCLE_MODE_KEY}=await import('./apex-research-history.mjs');
+ const m=new Map(),store={getItem:k=>m.get(k),setItem:(k,v)=>m.set(k,v)};
+ assert.deepEqual(readLocalCycleMode(store),{ok:true,enabled:false});
+ assert.equal(writeLocalCycleMode(store,true),true);
+ assert.deepEqual(readLocalCycleMode(store),{ok:true,enabled:true});
+ assert.equal(writeLocalCycleMode(store,false),true);
+ assert.deepEqual(readLocalCycleMode(store),{ok:true,enabled:false});
+ m.set(LOCAL_CYCLE_MODE_KEY,'invalid');
+ assert.deepEqual(readLocalCycleMode(store),{ok:false,enabled:false});
+ assert.equal(writeLocalCycleMode({getItem:()=>null,setItem:()=>{}},true),false);
+});
+test('restart preflight skips a confirmed compatible input without inventing new experiments',async()=>{
+ const {alreadyAuditedLocalInput,RESEARCH_LAB_POLICY}=await import('./apex-research-history.mjs');
+ const digest='a'.repeat(64);
+ const e={startedAt:now-10,finishedAt:now,durationMs:10,state:'COMPLETED',reason:null,digest};
+ const lab=[{digest,result:{asset:'',policy:{version:RESEARCH_LAB_POLICY.version}}}];
+ assert.equal(alreadyAuditedLocalInput(digest,[e],lab),true);
+ assert.equal(alreadyAuditedLocalInput('b'.repeat(64),[e],lab),false);
+ assert.equal(alreadyAuditedLocalInput(digest,[e],[]),false);
+ assert.equal(alreadyAuditedLocalInput(digest,[{...e,state:'BLOCKED'}],lab),false);
+ assert.equal(alreadyAuditedLocalInput(digest,[{...e,state:'WAITING_DATA',reason:'NO_CHECKED_FACTS'}],[]),true);
+ assert.equal(alreadyAuditedLocalInput(digest,[{...e,state:'WAITING_DATA',reason:'EMPTY_ARCHIVE'}],null),false);
+});
