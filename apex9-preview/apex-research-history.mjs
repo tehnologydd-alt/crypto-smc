@@ -530,6 +530,46 @@ export function compareFeedbackReview(review,current){
  return {state:unchanged?'UNCHANGED':'CHANGED',before,after,
   beforeCount:review.affected,beforeTotal:review.total,afterCount:item.affected,afterTotal:item.total};
 }
+/**
+ * Research Lab v1: a paired descriptive sensitivity experiment.
+ * Exact production matching stays unchanged. A fixed relative tolerance
+ * is a counterfactual classification, not proof of correct rounding.
+ */
+export const RESEARCH_LAB_POLICY=Object.freeze({version:1,relativeTolerance:0.000001});
+export function runResearchLab(rawRows,{asset='',now=Date.now()}={}){
+ const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
+ const conflicts=findArchiveSourceConflicts(rows);
+ const maps={GLM:new Map(),Qwen:new Map()};
+ let unresolved=0,checkedClaims=0;
+ for(const row of rows){
+  if(asset&&row.asset!==asset)continue;
+  const result=compareHistoricalClaims(row,{archiveConflicts:conflicts});
+  unresolved+=result.unresolved;
+  for(const c of result.results){
+   if(!['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state))continue;
+   const key=JSON.stringify([c.sourceId,c.field]);
+   const map=maps[c.role];
+   let f=map.get(key);
+   if(!f){f={exact:true,within:true,hasDifference:false,attempts:0};map.set(key,f);}
+   const exact=c.state==='EXACT_MATCH';
+   // Zero has no relative tolerance; never use absolute floors across units.
+   const within=exact||(c.observed!==0&&
+    Math.abs((c.claimed-c.observed)/c.observed)<=RESEARCH_LAB_POLICY.relativeTolerance);
+   f.exact=f.exact&&exact;f.within=f.within&&within;
+   f.hasDifference=f.hasDifference||!exact;f.attempts++;checkedClaims++;
+  }
+ }
+ const models=Object.entries(maps).map(([role,map])=>{
+  const facts=[...map.values()],total=facts.length;
+  const exact=facts.filter(f=>f.exact).length;
+  const toleranceOnly=facts.filter(f=>!f.exact&&f.within).length;
+  return {role,total,exact,toleranceOnly,outside:total-exact-toleranceOnly,
+   exactPercent:researchRatio(exact,total),
+   tolerancePercent:researchRatio(exact+toleranceOnly,total)};
+ });
+ return {policy:{...RESEARCH_LAB_POLICY},asset,models,checkedClaims,unresolved,
+  archiveConflicts:conflicts.length,automaticModelCalls:0,productionRuleChanged:false};
+}
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
  return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
@@ -773,6 +813,34 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   storageUsage=node('apex-history-capacity'),patternsNode=node('apex-quality-patterns');
  const feedbackSummary=node('apex-feedback-summary'),feedbackList=node('apex-feedback-list'),
   feedbackMore=node('apex-feedback-more');
+ const labRun=node('apex-lab-run'),labOutput=node('apex-lab-output');
+ let labSnapshot=null;
+ function renderLab(){
+  if(!labOutput||!labSnapshot)return;
+  const {result,at,signature}=labSnapshot;
+  const stale=signature!==JSON.stringify([rows,picker.value]);
+  labOutput.replaceChildren();
+  const info=document.createElement('p');
+  info.textContent='Эксперимент '+new Date(at).toISOString()+' · '+(result.asset||'Все активы')+
+   ' · сверок: '+result.checkedClaims+' · неразрешённых: '+result.unresolved+
+   (stale?' · архив или фильтр изменился: запустите эксперимент заново.':'');
+  labOutput.append(info);
+  for(const m of result.models){
+   const card=document.createElement('div'),title=document.createElement('strong'),note=document.createElement('small');
+   card.className='apex-quality-period';title.textContent=m.role;
+   note.textContent='Уникальных фактов: '+m.total+' · только допуск: '+m.toleranceOnly+
+    ' · за пределами допуска: '+m.outside;
+   card.append(title,researchMeter('Строгое совпадение',m.exact,m.total),
+    researchMeter('Экспериментальный допуск',m.exact+m.toleranceOnly,m.total),note);
+   labOutput.append(card);
+  }
+ }
+ labRun?.addEventListener('click',()=>{
+  const at=now();
+  labSnapshot={at,signature:JSON.stringify([rows,picker.value]),
+   result:runResearchLab(rows,{asset:picker.value,now:at})};
+  renderLab();
+ });
  const reviewList=node('apex-feedback-reviews'),reviewStatus=node('apex-feedback-review-status'),
   reviewMore=node('apex-feedback-review-more');
  let feedbackVisible=8,feedbackSignature='',reviewVisible=8;
@@ -1035,6 +1103,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   renderKnowledge();
   renderQuality();
   renderFeedback();
+  renderLab();
   limit.disabled=shown.length<=visible;
   const archiveConflicts=findArchiveSourceConflicts(shown);
   const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);

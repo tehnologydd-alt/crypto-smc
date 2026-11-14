@@ -446,3 +446,26 @@ test('portable feedback merge preserves old notes, rejects conflicts and is idem
  assert.equal(mergeFeedbackArchives([row],{version:1,reviews:[{...row,outcome:'ROUNDING_OR_FORMAT'}]}).reason,'FEEDBACK_CONFLICT');
  assert.equal(mergeFeedbackArchives(Array.from({length:100},(_,i)=>({...row,at:now-i})),{version:1,reviews:[next]}).reason,'FEEDBACK_CAPACITY');
 });
+
+test('research lab compares the same unique facts without changing strict matching',async()=>{
+ const {runResearchLab}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ const line=value=>'Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|'+value;
+ a.analystText=line(17.25);
+ const near={...a,startedAt:a.startedAt+1000,analystText:line(17.250001)};
+ const far={...a,startedAt:a.startedAt+2000,analystText:line(17.26)};
+ const r=runResearchLab([a,near,near],{now});
+ assert.equal(r.models[0].total,1);
+ assert.equal(r.models[0].exact,0);
+ assert.equal(r.models[0].toleranceOnly,1);
+ assert.equal(r.models[0].tolerancePercent,100);
+ assert.equal(r.models[1].exactPercent,null);
+ assert.equal(r.checkedClaims,2);
+ assert.equal(r.productionRuleChanged,false);
+ assert.equal(compareHistoricalClaims(near).differences,1);
+ assert.equal(runResearchLab([a,near,far],{now}).models[0].outside,1);
+ const conflict={...a,startedAt:a.startedAt+3000,evidence:[{...a.evidence[0],text:'Conflicting contents'}]};
+ assert.equal(runResearchLab([a,conflict],{now}).models[0].total,0);
+ assert.equal(runResearchLab([a],{now,asset:'ETHUSDT'}).models[0].total,0);
+ assert.equal(runResearchLab([],{now}).checkedClaims,0);
+});

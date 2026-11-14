@@ -102,5 +102,5 @@ test('schema 7 includes the bounded feedback journal and accepts older schemas',
  assert.match(backup,/checkedFeedback\(raw.getJSONObject\("feedback"\)\)/);
  assert.match(backup,/MAX_FEEDBACK_BYTES = 180000/);
  assert.match(backup,/feedbackCount/);
- assert.match(app,/result.feedbackCount!==archive.feedback.reviews.length/);
+ assert.match(read('./app.mjs'),/result.feedbackCount!==archive.feedback.reviews.length/);
 });
