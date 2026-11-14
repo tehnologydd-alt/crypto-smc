@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "date": "2026-11-14",
+  "kind": "LIVE_ISOLATED_NONFINANCIAL_BATCH",
+  "benchmarkVersion": 1,
+  "partition": "holdout",
+  "provider": "Cloudflare Workers AI REST API",
+  "requestPolicy": {
+    "maxRequests": 6,
+    "max_completion_tokens": 256,
+    "temperature": 0.1,
+    "retries": 0,
+    "stopOnProviderError": true,
+    "stopBeforeFurtherRequestsWhenReportedNeuronsReach": 200
+  },
+  "plannedCases": [
+    "lab-length-b",
+    "lab-mass-b",
+    "lab-temp-d"
+  ],
+  "results": [
+    {
+      "case": "lab-length-b",
+      "role": "GLM",
+      "model": "@cf/zai-org/glm-4.7-flash",
+      "status": "EXACT",
+      "final": "APEX_FACT|lab-length-b|LENGTH_CM|0.0001",
+      "finish": "stop",
+      "usage": {
+        "prompt_tokens": 59,
+        "completion_tokens": 16,
+        "total_tokens": 75,
+        "neurons": 0.9069
+      }
+    },
+    {
+      "case": "lab-length-b",
+      "role": "Qwen",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "status": "PROVIDER_ERROR",
+      "httpStatus": 408,
+      "providerCode": 3046,
+      "error": "Request timeout",
+      "usage": null
+    },
+    {
+      "case": "lab-mass-b",
+      "role": "GLM",
+      "status": "NOT_RUN"
+    },
+    {
+      "case": "lab-mass-b",
+      "role": "Qwen",
+      "status": "NOT_RUN"
+    },
+    {
+      "case": "lab-temp-d",
+      "role": "GLM",
+      "status": "NOT_RUN"
+    },
+    {
+      "case": "lab-temp-d",
+      "role": "Qwen",
+      "status": "NOT_RUN"
+    }
+  ],
+  "stop": "PROVIDER_ERROR",
+  "attempted": 2,
+  "exact": 1,
+  "providerErrors": 1,
+  "notRun": 4,
+  "reportedNeurons": 0.9069,
+  "allAttemptUsageKnown": false,
+  "archiveWrites": 0,
+  "productionWorkerChanged": false,
+  "automaticScheduleChanged": false,
+  "notes": "One-off isolated REST batch. Production APEX budget counters were not used. Timeout request consumption is unknown; reported usage is not account-wide usage. No background schedule or retries. Results do not establish model accuracy."
+}
