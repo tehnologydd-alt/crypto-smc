@@ -95,11 +95,63 @@ export function validateTranscriptArchive(archive,now=Date.now()){
  if(rows.some(x=>!x)||new Set(rows.map(x=>x.id)).size!==rows.length)return null;
  return {version:1,rows};
 }
+/** Descriptive archive metrics only. Completion is not agreement, correctness
+ * or a forecast. Different snapshots from one exchange are not independent
+ * sources. Repeated evidence IDs are counted once across the selection.
+ */
+export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
+ const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now)
+  .filter(row=>!asset||row.asset===asset);
+ const allIds=new Set(),venues=new Set(),days=new Set(),assets=new Set();
+ const perAsset=new Map(),delays=[],ages=[];
+ let completed=0,multiVenue=0,reviewNewEvidence=0,unknownVenue=0;
+ const venue=e=>{
+  const prefix=e.source_id.split(':')[0].toLowerCase();
+  return ['binance','okx','bybit'].includes(prefix)?prefix:null;
+ };
+ for(const row of rows){
+  assets.add(row.asset);days.add(new Date(row.startedAt).toISOString().slice(0,10));
+  const original=new Set(row.sourceIds),rowVenues=new Set();
+  const snapshots=[...row.evidence,...(row.criticEvidence||[])];
+  for(const e of snapshots){
+   allIds.add(e.source_id);
+   const v=venue(e);if(v){venues.add(v);rowVenues.add(v);}else unknownVenue++;
+  }
+  const initialVenues=new Set(row.evidence.map(venue).filter(Boolean));
+  const multi=initialVenues.size>=2;
+  if(multi)multiVenue++;
+  for(const e of row.evidence)ages.push(Math.max(0,row.startedAt-e.observed_at));
+  const done=row.stage==='COMPLETE';
+  if(done){
+   completed++;delays.push(row.criticAt-row.startedAt);
+   if(row.criticEvidence.some(e=>!original.has(e.source_id)&&
+       e.observed_at>row.startedAt))reviewNewEvidence++;
+  }
+  const entry=perAsset.get(row.asset)||{asset:row.asset,total:0,completed:0,multiVenue:0};
+  entry.total++;if(done)entry.completed++;if(multi)entry.multiVenue++;
+  perAsset.set(row.asset,entry);
+ }
+ const median=values=>{
+  if(!values.length)return null;
+  const s=[...values].sort((a,b)=>a-b),mid=Math.floor(s.length/2);
+  return s.length%2?s[mid]:(s[mid-1]+s[mid])/2;
+ };
+ return {total:rows.length,completed,pending:rows.length-completed,
+  completionPercent:rows.length?Math.round(completed/rows.length*100):null,
+  multiVenue,reviewNewEvidence,distinctSnapshots:allIds.size,
+  venues:[...venues].sort(),unknownVenueReferences:unknownVenue,
+  assets:assets.size,utcDays:days.size,medianReviewMs:median(delays),
+  medianInputAgeMs:median(ages),
+  perAsset:[...perAsset.values()].sort((a,b)=>a.asset.localeCompare(b.asset)),
+  agreement:null,accuracy:null};
+}
 export function initResearchHistory({store,now=()=>Date.now()}={}){
  if(store===undefined){try{store=globalThis.localStorage;}catch{store=null;}}
  const node=id=>document.getElementById(id);
  const count=node('apex-history-count'),list=node('apex-history-list'),
  picker=node('apex-history-filter'),limit=node('apex-history-older');
+ const stats=node('apex-history-stats'),statsRows=node('apex-history-stats-assets');
+ let statsSignature='';
  let rows=readTranscripts(store,now()),visible=8,signature='',saved=true;
  const render=()=>{
   const assets=[...new Set(rows.map(x=>x.asset))].sort();
@@ -118,6 +170,38 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   count.textContent='Сохранено '+rows.length+' / '+MAX_TRANSCRIPTS+
    ' · завершено '+rows.filter(x=>x.stage==='COMPLETE').length+
    (saved?'':' · ошибка локальной записи');
+  if(stats&&statsRows){
+   const view=summarizeResearchHistory(shown,{now:now()});
+   const minutes=ms=>ms===null?'—':(ms/60000).toFixed(1)+' мин';
+   const key=JSON.stringify(view);
+   if(key!==statsSignature){
+    statsSignature=key;
+    const metrics=[
+     ['Проверено Qwen',view.completed+' / '+view.total],
+     ['Доля завершённых',view.completionPercent===null?'—':view.completionPercent+'%'],
+     ['Начальные данные ≥ 2 бирж',view.multiVenue+' / '+view.total],
+     ['Qwen получил новые снимки',view.reviewNewEvidence+' / '+view.completed],
+     ['Уникальные снимки',String(view.distinctSnapshots)],
+     ['Дни наблюдений (UTC)',String(view.utcDays)],
+     ['Медиана возраста данных GLM',minutes(view.medianInputAgeMs)],
+     ['Медиана паузы GLM → Qwen',minutes(view.medianReviewMs)]
+    ];
+    stats.replaceChildren();
+    for(const [name,value] of metrics){
+     const row=document.createElement('div'),label=document.createElement('small'),
+      number=document.createElement('strong');
+     label.textContent=name;number.textContent=value;
+     row.append(label,number);stats.append(row);
+    }
+    statsRows.replaceChildren();
+    for(const item of view.perAsset){
+     const line=document.createElement('li');
+     line.textContent=item.asset+' · проверено '+item.completed+'/'+item.total+
+      ' · ≥ 2 бирж '+item.multiVenue;
+     statsRows.append(line);
+    }
+   }
+  }
   limit.disabled=shown.length<=visible;
   const next=JSON.stringify(shown.slice(0,visible));
   if(next===signature)return;

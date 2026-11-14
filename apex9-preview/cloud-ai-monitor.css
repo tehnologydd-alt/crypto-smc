@@ -144,3 +144,11 @@
 #apex-history-list summary{font-size:11px;cursor:pointer}
 #apex-history-list pre{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}
 #apex-history-filter{max-width:100%;color:inherit;background:#0e2434;border:1px solid #385869;padding:7px;border-radius:8px}
+
+.apex-research-statistics{border:1px solid #385869;border-radius:10px;padding:10px;display:grid;gap:9px}
+.apex-research-statistics summary{cursor:pointer;font-size:12px;font-weight:650}
+.apex-history-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:10px 0}
+.apex-history-metrics>div{display:grid;gap:4px;background:#0e2434;border:1px solid #355264;border-radius:8px;padding:8px;min-width:0}
+.apex-history-metrics strong{font-size:15px;color:#d5f5f0;overflow-wrap:anywhere}
+#apex-history-stats-assets{margin:8px 0;display:grid;gap:5px}
+#apex-history-stats-assets li{font-size:11px}

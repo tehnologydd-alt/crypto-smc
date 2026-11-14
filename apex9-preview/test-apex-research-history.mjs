@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive} from './apex-research-history.mjs';
+import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory} from './apex-research-history.mjs';
 const now=1794650000000;
 const run=(asset='BTCUSDT',startedAt=now-86400000)=>({
  version:1,asset,startedAt,stage:'ANALYST_READY',
@@ -45,4 +45,37 @@ test('portable archive validation rejects duplicate, malformed and over-capacity
  assert.equal(validateTranscriptArchive({version:1,rows:[a,a]},now),null);
  assert.equal(validateTranscriptArchive({version:1,rows:[{...a,asset:'ETHUSDT'}]},now),null);
  assert.equal(validateTranscriptArchive({version:1,rows:Array(201).fill(a)},now),null);
+});
+
+test('research statistics distinguish finished reviews, source coverage and unknown accuracy',()=>{
+ const a=run(),b=run('ETHUSDT',a.startedAt+1000);
+ const newer={source_id:'binance:depth:BTCUSDT:'+(a.startedAt+1000),
+  observed_at:a.startedAt+1000,text:'A later public observation.'};
+ const done={...complete(a),criticEvidence:[newer]};
+ const extra={source_id:'okx:depth:ETHUSDT:'+b.startedAt,
+  observed_at:b.startedAt-2000,text:'Second exchange public observation.'};
+ b.evidence.push(extra);b.sourceIds.push(extra.source_id);
+ const s=summarizeResearchHistory([a,done,b,done],{now});
+ assert.equal(s.total,2);assert.equal(s.completed,1);
+ assert.equal(s.pending,1);assert.equal(s.completionPercent,50);
+ assert.equal(s.multiVenue,1);assert.equal(s.reviewNewEvidence,1);
+ assert.equal(s.distinctSnapshots,4);assert.equal(s.assets,2);
+ assert.equal(s.medianReviewMs,300000);
+ assert.equal(s.accuracy,null);assert.equal(s.agreement,null);
+ const only=summarizeResearchHistory([done,b],{asset:'BTCUSDT',now});
+ assert.equal(only.total,1);assert.equal(only.multiVenue,0);
+ assert.equal(only.completionPercent,100);assert.equal(only.accuracy,null);
+});
+test('empty archive has no fabricated percentages or time metrics',()=>{
+ const s=summarizeResearchHistory([],{now});
+ assert.equal(s.total,0);assert.equal(s.completionPercent,null);
+ assert.equal(s.medianReviewMs,null);assert.equal(s.medianInputAgeMs,null);
+ assert.equal(s.accuracy,null);assert.equal(s.agreement,null);
+});
+test('repeated observations and a new snapshot on the same exchange do not count as two exchanges',()=>{
+ const a=run();
+ const b=complete(a);
+ const c=summarizeResearchHistory([b,b],{now});
+ assert.equal(c.distinctSnapshots,1);assert.equal(c.multiVenue,0);
+ assert.equal(c.reviewNewEvidence,0);assert.equal(c.total,1);
 });

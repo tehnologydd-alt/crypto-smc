@@ -146,6 +146,12 @@
         <div class="apex-ai-director-body">
           <p id="apex-history-count">Чтение архива…</p>
           <label>Актив <select id="apex-history-filter" aria-label="Фильтр архива"></select></label>
+          <details class="apex-research-statistics">
+            <summary>Статистика качества данных и проверок</summary>
+            <div id="apex-history-stats" class="apex-history-metrics"></div>
+            <ul id="apex-history-stats-assets"></ul>
+            <small>Показатели относятся к сохранённым записям выбранного фильтра. Две биржи — это покрытие, не доказательство независимости. Завершение Qwen не означает согласия или правильности. Точность и согласие моделей пока не измеряются.</small>
+          </details>
           <div id="apex-history-list"></div>
           <button type="button" id="apex-history-older" class="ghost">Показать ещё</button>
           <small>До 200 записей и 1,8 МБ; старые записи вытесняются при заполнении. Сохранены тексты и исходные наблюдения, а не подтверждённые выводы. Включается в новый зашифрованный резервный архив; старые архивы без истории ИИ читаются.</small>
