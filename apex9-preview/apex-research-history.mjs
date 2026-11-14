@@ -110,7 +110,7 @@ export function appendResearchArchive(store,previous,incoming,now=Date.now()){
 export function validateTranscriptArchive(archive,now=Date.now()){
  if(archive?.version!==1||!Array.isArray(archive.rows)||
     archive.rows.length>MAX_TRANSCRIPTS)return null;
- try{if(new TextEncoder().encode(JSON.stringify(archive)).length>MAX_BYTES)return null;}catch{return null;}
+ try{if(new TextEncoder().encode(JSON.stringify({version:archive.version,rows:archive.rows})).length>MAX_BYTES)return null;}catch{return null;}
  const rows=archive.rows.map(x=>normalizeTranscript(x,now));
  if(rows.some(x=>!x)||new Set(rows.map(x=>x.id)).size!==rows.length)return null;
  return {version:1,rows};
@@ -460,6 +460,36 @@ function validFeedbackReview(r){
    [null,'GLM','Qwen'].includes(k[3])&&JSON.stringify(k)===r.taskId;
  }catch{return false;}
 }
+export function validateFeedbackArchive(data){
+ try{
+  if(data?.version!==1||Object.keys(data).length!==2||
+   !Array.isArray(data.reviews)||data.reviews.length>MAX_FEEDBACK_REVIEWS||
+   new TextEncoder().encode(JSON.stringify(data)).length>MAX_FEEDBACK_BYTES)return null;
+  const ids=new Set(),reviews=[];
+  for(const r of data.reviews){
+   if(!validFeedbackReview(r)||Object.keys(r).length!==6)return null;
+   const id=JSON.stringify([r.taskId,r.at]);
+   if(ids.has(id))return null;
+   ids.add(id);
+   reviews.push({taskId:r.taskId,at:r.at,outcome:r.outcome,affected:r.affected,total:r.total,
+    evidenceIds:[...r.evidenceIds].sort()});
+  }
+  return {version:1,reviews};
+ }catch{return null;}
+}
+export function mergeFeedbackArchives(previous,incoming){
+ const a=validateFeedbackArchive({version:1,reviews:previous}),b=validateFeedbackArchive(incoming);
+ if(!a||!b)return {ok:false,reason:'INVALID_FEEDBACK_ARCHIVE'};
+ const byId=new Map();
+ for(const row of [...a.reviews,...b.reviews]){
+  const id=JSON.stringify([row.taskId,row.at]),old=byId.get(id);
+  if(old&&JSON.stringify(old)!==JSON.stringify(row))return {ok:false,reason:'FEEDBACK_CONFLICT'};
+  byId.set(id,row);
+ }
+ const merged={version:1,reviews:[...byId.values()].sort((a,b)=>b.at-a.at||a.taskId.localeCompare(b.taskId))};
+ if(!validateFeedbackArchive(merged))return {ok:false,reason:'FEEDBACK_CAPACITY'};
+ return {ok:true,archive:merged};
+}
 export function readFeedbackJournal(store){
  try{
   if(!store)return null;
@@ -467,9 +497,7 @@ export function readFeedbackJournal(store){
   if(raw===null||raw===undefined)return [];
   if(new TextEncoder().encode(raw).length>MAX_FEEDBACK_BYTES)return null;
   const data=JSON.parse(raw);
-  if(data.version!==1||!Array.isArray(data.reviews)||data.reviews.length>MAX_FEEDBACK_REVIEWS||
-   !data.reviews.every(validFeedbackReview))return null;
-  return data.reviews;
+  return validateFeedbackArchive(data)?.reviews??null;
  }catch{return null;}
 }
 export function recordFeedbackReview(store,item,outcome,at=Date.now()){
@@ -480,6 +508,8 @@ export function recordFeedbackReview(store,item,outcome,at=Date.now()){
   evidenceIds:[...new Set(item.evidenceIds||[])].sort()};
  if(!validFeedbackReview(review))return {ok:false,reason:'INVALID_REVIEW'};
  const latest=previous.find(r=>r.taskId===review.taskId);
+ if(previous.some(r=>r.taskId===review.taskId&&r.at===review.at&&
+    JSON.stringify(r)!==JSON.stringify(review)))return {ok:false,reason:'ARCHIVE_CONFLICT'};
  const signature=r=>JSON.stringify([r.outcome,r.affected,r.total,r.evidenceIds]);
  if(latest&&signature(latest)===signature(review))return {ok:true,duplicate:true,reviews:previous};
  if(previous.length>=MAX_FEEDBACK_REVIEWS)return {ok:false,reason:'JOURNAL_FULL'};
@@ -1097,10 +1127,21 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  limit.addEventListener('click',()=>{visible+=8;render();});
  recover();
  return {ingest,render,getRows:()=>rows.slice(),
-  exportArchive:()=>({version:1,rows:rows.slice()}),
+  exportArchive:()=>{
+   const reviews=readFeedbackJournal(store);
+   if(reviews===null)throw Error('Журнал проверок недоступен; экспорт остановлен, данные не изменены.');
+   return {version:1,rows:rows.slice(),feedback:{version:1,reviews}};
+  },
   importArchive:archive=>{
    const valid=validateTranscriptArchive(archive,now());
    if(!valid)return {ok:false,reason:'INVALID_TRANSCRIPT_ARCHIVE'};
+   let feedback=null;
+   if(Object.hasOwn(archive,'feedback')){
+    const previous=readFeedbackJournal(store);
+    if(previous===null)return {ok:false,reason:'FEEDBACK_STORAGE'};
+    feedback=mergeFeedbackArchives(previous,archive.feedback);
+    if(!feedback.ok)return feedback;
+   }
    const merged=mergeTranscripts(rows,valid.rows,now());
    // Do not silently evict existing history during a restore. Ask the user
    // to keep the original file if combined storage exceeds the bounded archive.
@@ -1116,7 +1157,15 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
       return {ok:false,reason:'ARCHIVE_CONFLICT'};
    }
    if(!writeTranscripts(store,merged))return {ok:false,reason:'LOCAL_STORAGE'};
-   rows=merged;saved=true;saveIssue='';render();
-   return {ok:true,count:rows.length};
+   rows=merged;saved=true;saveIssue='';
+   if(feedback){
+    try{
+     const raw=JSON.stringify(feedback.archive);
+     store.setItem(FEEDBACK_JOURNAL_KEY,raw);
+     if(store.getItem(FEEDBACK_JOURNAL_KEY)!==raw)throw Error('unconfirmed write');
+    }catch{render();return {ok:false,reason:'FEEDBACK_STORAGE',partial:true};}
+   }
+   render();
+   return {ok:true,count:rows.length,feedbackCount:feedback?.archive.reviews.length??null};
   }};
 }

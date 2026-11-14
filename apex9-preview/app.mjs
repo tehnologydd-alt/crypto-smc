@@ -329,8 +329,9 @@ async function runCloudBackup(mode){
    ))].slice(-300):[];
    const archive=researchHistory.exportArchive();
    result=await exportMobileCloudBackup(passphrase,ids,hiddenIds,archive);
-   if(result?.saved&&result.transcriptCount!==archive.rows.length)
-    throw Error('Запись архива ИИ не подтверждена; требуется совместимая Android-сборка.');
+   if(result?.saved&&(result.transcriptCount!==archive.rows.length||
+    result.feedbackCount!==archive.feedback.reviews.length))
+    throw Error('Запись архива ИИ или журнала не подтверждена; требуется совместимая Android-сборка.');
   }
   if(result?.cancelled){
    text('apex-backup-status','Выбор файла отменён. История не изменена.');
@@ -340,7 +341,9 @@ async function runCloudBackup(mode){
    if(result.aiTranscripts!=null){
     const merged=researchHistory.importArchive(result.aiTranscripts);
     if(!merged.ok){
-     text('apex-backup-status','История Room объединена, но архив ИИ не перенесён ('+
+     text('apex-backup-status',merged.partial?
+      'История Room и тексты ИИ объединены, но запись журнала проверок не подтверждена. Сохраните исходный файл.':
+      'История Room объединена, но архив ИИ не перенесён ('+
       merged.reason+'). Исходный файл сохраните; локальные записи ИИ не удалены.');
      return;
     }

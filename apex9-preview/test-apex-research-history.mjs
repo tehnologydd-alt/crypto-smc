@@ -431,3 +431,18 @@ test('manual feedback journal persists a baseline, avoids duplicate marks and ne
  assert.equal(recordFeedbackReview(store,item,'INSUFFICIENT_EVIDENCE',now+4).ok,false);
  assert.equal(map.get(FEEDBACK_JOURNAL_KEY),'broken');
 });
+
+test('portable feedback merge preserves old notes, rejects conflicts and is idempotent',async()=>{
+ const {mergeFeedbackArchives,validateFeedbackArchive}=await import('./apex-research-history.mjs');
+ const row={taskId:JSON.stringify(['SOURCE_ID_CONFLICT','binance:24h',null,null]),at:now,outcome:'REQUIRES_REVIEW',affected:1,total:2,evidenceIds:['binance:spot:24h:BTCUSDT:1']};
+ const next={...row,at:now+1,outcome:'INSUFFICIENT_EVIDENCE'};
+ const archive={version:1,reviews:[next,row]};
+ assert.ok(validateFeedbackArchive(archive));
+ assert.equal(validateFeedbackArchive({version:1,reviews:[row,row]}),null);
+ const merged=mergeFeedbackArchives([row],archive);
+ assert.equal(merged.ok,true);
+ assert.equal(merged.archive.reviews.length,2);
+ assert.deepEqual(mergeFeedbackArchives(merged.archive.reviews,archive).archive,merged.archive);
+ assert.equal(mergeFeedbackArchives([row],{version:1,reviews:[{...row,outcome:'ROUNDING_OR_FORMAT'}]}).reason,'FEEDBACK_CONFLICT');
+ assert.equal(mergeFeedbackArchives(Array.from({length:100},(_,i)=>({...row,at:now-i})),{version:1,reviews:[next]}).reason,'FEEDBACK_CAPACITY');
+});

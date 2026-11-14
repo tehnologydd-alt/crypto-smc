@@ -96,3 +96,11 @@ test('expanded web and native archive quotas agree without changing schema compa
  assert.match(backup,/MAX_TRANSCRIPT_BYTES = 2400000/);
  assert.match(backup,/schema==5\|\|schema==6/);
 });
+
+test('schema 7 includes the bounded feedback journal and accepts older schemas',()=>{
+ assert.match(backup,/schema==5\|\|schema==6\|\|schema==7/);
+ assert.match(backup,/checkedFeedback\(raw.getJSONObject\("feedback"\)\)/);
+ assert.match(backup,/MAX_FEEDBACK_BYTES = 180000/);
+ assert.match(backup,/feedbackCount/);
+ assert.match(app,/result.feedbackCount!==archive.feedback.reviews.length/);
+});

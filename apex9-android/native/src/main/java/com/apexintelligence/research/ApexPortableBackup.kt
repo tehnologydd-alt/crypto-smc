@@ -50,11 +50,43 @@ object ApexPortableBackup {
     private const val TRANSCRIPT_ENTRY = "ai-transcripts.json"
     private const val MAX_TRANSCRIPT_BYTES = 2400000
     private const val MAX_TRANSCRIPTS = 400
+    private const val MAX_FEEDBACK_BYTES = 180000
+    private const val MAX_PORTABLE_AI_BYTES = 2600000
+    private fun checkedFeedback(raw:JSONObject):JSONObject {
+        require(raw.keys().asSequence().toSet()==setOf("version","reviews") && raw.optInt("version")==1)
+        require(raw.toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_FEEDBACK_BYTES)
+        val reviews=raw.getJSONArray("reviews")
+        require(reviews.length()<=100)
+        val identity=mutableSetOf<Pair<String,Long>>()
+        for(i in 0 until reviews.length()){
+            val r=reviews.getJSONObject(i)
+            require(r.keys().asSequence().toSet()==setOf("taskId","at","outcome","affected","total","evidenceIds"))
+            val task=r.getString("taskId")
+            val k=JSONArray(task)
+            val at=r.getLong("at")
+            require(task.length<=200 && k.length()==4 &&
+                k.getString(0) in setOf("SOURCE_ID_CONFLICT","UNRECOGNIZED_FORMAT","REPEATED_NUMERIC_DIFFERENCE","LOW_EXPLICIT_COVERAGE") &&
+                k.getString(1).length<=40 && (k.isNull(2)||k.getString(2).length<=40) &&
+                (k.isNull(3)||k.getString(3) in setOf("GLM","Qwen")) &&
+                at in 1..9007199254740991L && identity.add(task to at))
+            require(r.getString("outcome") in setOf("REQUIRES_REVIEW","ROUNDING_OR_FORMAT","SOURCE_INCONSISTENCY","INSUFFICIENT_EVIDENCE"))
+            val affected=r.getLong("affected")
+            val total=r.getLong("total")
+            require(affected>=1 && total>=affected && total<=9007199254740991L)
+            val ids=r.getJSONArray("evidenceIds")
+            require(ids.length() in 1..8)
+            val values=(0 until ids.length()).map{ids.getString(it)}
+            require(values.all{it.length in 1..100} && values.toSet().size==values.size)
+        }
+        return raw
+    }
     /** Only public evidence transcripts, not live sessions, credentials or quotas. */
     fun checkedTranscripts(raw:JSONObject):JSONObject {
         require(raw.optInt("version")==1) {"Unsupported transcript archive"}
-        require(raw.toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_TRANSCRIPT_BYTES)
+        require(raw.toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_PORTABLE_AI_BYTES)
         val rows=raw.optJSONArray("rows") ?: throw IllegalArgumentException("Missing transcript rows")
+        require(JSONObject().put("version",1).put("rows",rows).toString().toByteArray(StandardCharsets.UTF_8).size<=MAX_TRANSCRIPT_BYTES)
+        if(raw.has("feedback"))checkedFeedback(raw.getJSONObject("feedback"))
         require(rows.length()<=MAX_TRANSCRIPTS)
         val ids=mutableSetOf<String>()
         val now=System.currentTimeMillis()
@@ -95,7 +127,7 @@ object ApexPortableBackup {
             }
             require(row.keys().asSequence().toSet()==allowed)
         }
-        require(raw.keys().asSequence().toSet()==setOf("version","rows"))
+        require(raw.keys().asSequence().toSet()==if(raw.has("feedback"))setOf("version","rows","feedback") else setOf("version","rows"))
         return raw
     }
     private val tableColumns = linkedMapOf(
@@ -222,7 +254,8 @@ object ApexPortableBackup {
                         if(archive!=null)zipText(zip,TRANSCRIPT_ENTRY,archive.toString())
                         zipText(zip,"manifest.json",JSONObject()
                             .put("format",FORMAT)
-                            .put("schemaVersion",if(archive!=null)6 else 5)
+                            .put("schemaVersion",if(archive?.has("feedback")==true)7 else if(archive!=null)6 else 5)
+                            .put("feedbackCount",archive?.optJSONObject("feedback")?.optJSONArray("reviews")?.length()?:0)
                             .put("transcriptCount",archive?.getJSONArray("rows")?.length()?:0)
                             .put("exportedAt",System.currentTimeMillis())
                             .put("tableCounts",counts).toString())
@@ -258,6 +291,7 @@ object ApexPortableBackup {
             return JSONObject().put("saved",true).put("writtenAt",at)
                 .put("counts",counts)
                 .put("transcriptCount",transcripts?.getJSONArray("rows")?.length()?:0)
+                .put("feedbackCount",transcripts?.optJSONObject("feedback")?.optJSONArray("reviews")?.length()?:0)
                 .put("note","Проверьте завершение загрузки в выбранном облаке")
         }finally{encrypted.delete()}
     }
@@ -351,10 +385,10 @@ object ApexPortableBackup {
     private fun verify(zip:ZipFile):Pair<JSONObject,JSONObject> {
         val manifest=JSONObject(textEntry(zip,"manifest.json"))
         val schema=manifest.optInt("schemaVersion")
-        require(schema==5||schema==6) {"Несовместимая версия архива"}
+        require(schema==5||schema==6||schema==7) {"Несовместимая версия архива"}
         val allowed=(tableColumns.keys.map{zipName(it)}+
             listOf("settings.json","manifest.json")+
-            if(schema==6)listOf(TRANSCRIPT_ENTRY) else emptyList()).toSet()
+            if(schema>=6)listOf(TRANSCRIPT_ENTRY) else emptyList()).toSet()
         val entries=zip.entries().toList()
         val present=entries.map{it.name}
         var expanded=0L
@@ -371,14 +405,16 @@ object ApexPortableBackup {
             "Архив содержит неизвестные файлы или неполную структуру"
         }
         require(manifest.optString("format")==FORMAT&&
-            (schema==5||schema==6)&&
+            (schema==5||schema==6||schema==7)&&
             manifest.optLong("exportedAt")>0){"Несовместимая версия архива"}
         val counts=manifest.optJSONObject("tableCounts")
             ?:throw IllegalArgumentException("Нет контрольных счётчиков")
         val settings=JSONObject(textEntry(zip,"settings.json"))
-        if(schema==6){
-            val history=checkedTranscripts(JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_TRANSCRIPT_BYTES)))
+        if(schema>=6){
+            val history=checkedTranscripts(JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_PORTABLE_AI_BYTES)))
             require(manifest.optInt("transcriptCount",-1)==history.getJSONArray("rows").length())
+            require(history.has("feedback")== (schema==7))
+            if(schema==7)require(manifest.optInt("feedbackCount",-1)==history.getJSONObject("feedback").getJSONArray("reviews").length())
         }
         // Validate settings and table counts BEFORE any Room modification.
         ApexPreferences.validateRestore(settings)
@@ -438,8 +474,8 @@ object ApexPortableBackup {
                     .put("uiHiddenIds",settings.optJSONArray("uiHiddenIds")?:JSONArray())
                     .put("exportedAt",manifest.getLong("exportedAt"))
                     .put("scannedRows",scanned)
-                    .put("aiTranscripts",if(manifest.optInt("schemaVersion")==6)
-                        JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_TRANSCRIPT_BYTES)) else JSONObject.NULL)
+                    .put("aiTranscripts",if(manifest.optInt("schemaVersion")>=6)
+                        JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_PORTABLE_AI_BYTES)) else JSONObject.NULL)
                     .put("note",if(settingsRestored)
                         "Исследования объединены, настройки перенесены. Перезапустите APEX."
                         else "История Room объединена, но настройки не перенесены; попробуйте восстановление ещё раз.")

@@ -55,3 +55,8 @@ Android CI: Kotlin/Room/Capacitor Activity callbacks, полная сборка 
 ## Research archive capacity (2026-11-14)
 
 The Android validator and WebView archive now accept up to 400 research transcripts and 2,400,000 UTF-8 bytes (previously 200 and 1,800,000). Transcript format v1 and portable manifest schemas 5/6 remain unchanged. New APKs read existing backups; older APKs may reject expanded backups above the older limits. Local WebView quota may be lower in practice, depending on other stored data. A failed append or capacity limit preserves the previously saved research archive; no silent eviction. Export a backup before reaching the limit. Actual on-device capacity and restore must still be verified on Android.
+
+
+## Research feedback portability
+
+Schema 7 adds optional validated feedback metadata to the encrypted AI archive. New exports include the review journal, up to 100 records and 180,000 UTF-8 bytes. Schemas 5 and 6 remain readable. Old APKs reject schema 7. Incoming reviews are merged by task/time without replacing conflicting records or evicting history. The Room merge and WebView writes are separate; a failure is reported and the source backup must be retained. Android file-picker export/import and actual WebView capacity require on-device verification.
