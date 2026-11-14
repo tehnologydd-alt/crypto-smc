@@ -184,3 +184,5 @@
 .apex-ai-jumps button{min-width:0;min-height:44px;padding:6px 3px;font-size:11px;white-space:normal;border:1px solid #37576a;border-radius:10px}
 .apex-ai-page [id="apex-ai-settings-anchor"],.apex-ai-page [id="apex-ai-models-anchor"],.apex-ai-page [id="apex-director-panel"],.apex-ai-page [id="apex-ai-archive-anchor"]{scroll-margin-top:76px}
 @media(max-width:360px){.apex-ai-jumps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.apex-model-pair-stats{white-space:pre-line;font-size:12px;line-height:1.65;margin:0;padding:10px;border:1px solid #355264;border-radius:10px;background:#0e2434;color:#d5e7ed}

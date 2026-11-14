@@ -219,3 +219,43 @@ test('conflicting snapshot identity across sessions excludes all matching claims
  assert.equal(s.models[0].unresolved,2);assert.equal(s.models[0].sourceIssues,2);
  assert.equal(s.models[0].exactMatchPercent,null);
 });
+
+
+test('available fact coverage counts omissions and separates repeated checks from unique facts',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const b={...a,startedAt:a.startedAt+60000,
+  analystText:'Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.26'};
+ const s=summarizeResearchHistory([a,b],{now});
+ const g=s.models[0];
+ assert.equal(g.usableFactOpportunities,6);
+ assert.equal(g.coveredFactOpportunities,2);
+ assert.equal(g.factCoveragePercent,33);
+ assert.equal(g.uniqueChecked,1);
+ assert.equal(g.uniqueMixed,1);
+ assert.equal(g.uniqueExact,0);
+ assert.equal(g.uniqueDifferent,0);
+ assert.equal(s.models[1].factCoveragePercent,null);
+});
+test('paired comparison only compares checked same-source facts in one session',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ const line=(field,value)=>'APEX_FACT|'+id+'|'+field+'|'+value;
+ a.analystText=[line('PRICE_USDT',17.25),line('CHANGE_24H_PCT',-2),line('VOLUME_24H_USDT',501)].join('\n');
+ const b={...complete(a),criticText:[line('PRICE_USDT',17.25),line('CHANGE_24H_PCT',-3),line('VOLUME_24H_USDT',502)].join('\n')};
+ const s=summarizeResearchHistory([b,b],{now});
+ assert.deepEqual(s.pairStats,{compared:3,bothExact:1,oneExact:1,bothDifferent:1,distinctFacts:3});
+ assert.equal(s.accuracy,null);assert.equal(s.agreement,null);
+ const conflict={...b,criticEvidence:[{...a.evidence[0],text:'Changed observation'}]};
+ const bad=summarizeResearchHistory([conflict],{now});
+ assert.equal(bad.pairStats.compared,0);
+ assert.equal(bad.models[0].factCoveragePercent,null);
+});
+test('empty archive and free prose never produce a fake factual accuracy score',()=>{
+ const empty=summarizeResearchHistory([],{now});
+ assert.equal(empty.models[0].factCoveragePercent,null);
+ assert.equal(empty.pairStats.compared,0);
+ const s=summarizeResearchHistory([claimFixture()],{now});
+ assert.equal(s.models[0].factCoveragePercent,0);
+ assert.equal(s.models[0].exactMatchPercent,null);
+ assert.equal(s.models[0].uniqueChecked,0);
+});

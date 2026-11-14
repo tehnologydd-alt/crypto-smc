@@ -243,11 +243,25 @@ function emptyModelStats(role){
  return {role,responses:0,withClaims:0,withoutClaims:0,
   checked:0,matches:0,differences:0,unresolved:0,
   sourceIssues:0,formatIssues:0,ambiguous:0,
-  coveragePercent:null,exactMatchPercent:null};
+  coveragePercent:null,exactMatchPercent:null,
+  usableFactOpportunities:0,coveredFactOpportunities:0,
+  factCoveragePercent:null,uniqueChecked:0,uniqueExact:0,uniqueDifferent:0,uniqueMixed:0};
 }
-function addModelStats(model,claims){
+function addModelStats(model,claims,facts,unique){
  model.responses++;
+ const keys=new Set(facts.map(f=>JSON.stringify([f.sourceId,f.field])));
+ model.usableFactOpportunities+=keys.size;
+ const checkedKeys=new Set();
  if(claims.length)model.withClaims++;else model.withoutClaims++;
+ for(const c of claims){
+  if(!['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state))continue;
+  const key=JSON.stringify([c.sourceId,c.field]);
+  if(!keys.has(key))continue;
+  checkedKeys.add(key);
+  const prior=unique.get(key)||new Set();
+  prior.add(c.state);unique.set(key,prior);
+ }
+ model.coveredFactOpportunities+=checkedKeys.size;
  for(const c of claims){
   switch(c.state){
    case 'EXACT_MATCH':model.checked++;model.matches++;break;
@@ -270,6 +284,9 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const archiveConflicts=findArchiveSourceConflicts(rows);
  const factIds=new Set(),unknownIds=new Set(),conflictingIds=new Set(archiveConflicts);
  const models=[emptyModelStats('GLM'),emptyModelStats('Qwen')];
+ const uniqueByModel=[new Map(),new Map()];
+ const pairStats={compared:0,bothExact:0,oneExact:0,bothDifferent:0,distinctFacts:0};
+ const pairedKeys=new Set();
  let claimStudies=0,claimsChecked=0,claimsMatched=0,claimsDifferent=0,claimsUnresolved=0;
  const venue=e=>{
   const prefix=e.source_id.split(':')[0].toLowerCase();
@@ -290,8 +307,25 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   const audit=auditResearchEvidence(row);
   const structured=structuredResearchRecord(row);
   const claims=compareHistoricalClaims(row,{archiveConflicts});
-  addModelStats(models[0],claims.results.filter(c=>c.role==='GLM'));
-  if(row.stage==='COMPLETE')addModelStats(models[1],claims.results.filter(c=>c.role==='Qwen'));
+  const usable=structured.facts.filter(f=>!conflictingIds.has(f.sourceId));
+  const glm=claims.results.filter(c=>c.role==='GLM');
+  const qwen=claims.results.filter(c=>c.role==='Qwen');
+  const allowed=new Set(row.sourceIds);
+  addModelStats(models[0],glm,usable.filter(f=>allowed.has(f.sourceId)),uniqueByModel[0]);
+  if(row.stage==='COMPLETE'){
+   addModelStats(models[1],qwen,usable,uniqueByModel[1]);
+   const checked=c=>['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(c.state);
+   const key=c=>JSON.stringify([c.sourceId,c.field]);
+   const qMap=new Map(qwen.filter(checked).map(c=>[key(c),c]));
+   for(const g of glm.filter(checked)){
+    const q=qMap.get(key(g));if(!q)continue;
+    pairedKeys.add(key(g));pairStats.compared++;
+    const exact=Number(g.state==='EXACT_MATCH')+Number(q.state==='EXACT_MATCH');
+    if(exact===2)pairStats.bothExact++;
+    else if(exact===1)pairStats.oneExact++;
+    else pairStats.bothDifferent++;
+   }
+  }
   if(claims.status==='EXPLICIT_LINES_FOUND')claimStudies++;
   claimsChecked+=claims.checked;claimsMatched+=claims.matches;
   claimsDifferent+=claims.differences;claimsUnresolved+=claims.unresolved;
@@ -316,12 +350,20 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   const s=[...values].sort((a,b)=>a-b),mid=Math.floor(s.length/2);
   return s.length%2?s[mid]:(s[mid-1]+s[mid])/2;
  };
- for(const m of models){
+ for(const [i,m] of models.entries()){
   if(m.responses)m.coveragePercent=Math.round(100*m.withClaims/m.responses);
   if(m.checked)m.exactMatchPercent=Math.round(100*m.matches/m.checked);
+  if(m.usableFactOpportunities)m.factCoveragePercent=Math.round(100*m.coveredFactOpportunities/m.usableFactOpportunities);
+  m.uniqueChecked=uniqueByModel[i].size;
+  for(const states of uniqueByModel[i].values()){
+   if(states.size>1)m.uniqueMixed++;
+   else if(states.has('EXACT_MATCH'))m.uniqueExact++;
+   else m.uniqueDifferent++;
+  }
  }
+ pairStats.distinctFacts=pairedKeys.size;
  return {total:rows.length,completed,pending:rows.length-completed,
-  models,archiveConflicts,
+  models,pairStats,archiveConflicts,
   completionPercent:rows.length?Math.round(completed/rows.length*100):null,
   multiVenue,reviewNewEvidence,distinctSnapshots:allIds.size,
   venues:[...venues].sort(),unknownVenueReferences:unknownVenue,
@@ -341,6 +383,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  picker=node('apex-history-filter'),limit=node('apex-history-older');
  const stats=node('apex-history-stats'),statsRows=node('apex-history-stats-assets');
  const modelStats=node('apex-history-model-stats');
+ const pairStats=node('apex-history-pair-stats');
  let statsSignature='';
  let rows=readTranscripts(store,now()),visible=8,signature='',saved=true;
  const render=()=>{
@@ -408,8 +451,23 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
       note.textContent='Нет явных фактов: '+m.withoutClaims+
        ' · источник/поле: '+m.sourceIssues+' · формат: '+m.formatIssues+
        ' · неоднозначность: '+m.ambiguous;
-      card.append(name,numbers,note);modelStats.append(card);
+      const coverage=document.createElement('p');
+      coverage.className='apex-model-transcription-numbers';
+      coverage.textContent='Охват доступных чисел: '+m.coveredFactOpportunities+'/'+m.usableFactOpportunities+
+       ' · '+(m.factCoveragePercent===null?'—':m.factCoveragePercent+'%')+
+       '\nУникальных проверенных фактов: '+m.uniqueChecked+
+       '\nТолько совпадения: '+m.uniqueExact+' · только различия: '+m.uniqueDifferent+
+       ' · смешанные результаты: '+m.uniqueMixed;
+      card.append(name,numbers,coverage,note);modelStats.append(card);
      }
+    }
+    if(pairStats){
+     const p=view.pairStats;
+     pairStats.textContent=p.compared?
+      'Парных сверок одного факта: '+p.compared+' · уникальных фактов: '+p.distinctFacts+
+      '\nОбе модели совпали с источником: '+p.bothExact+
+      '\nОдна совпала: '+p.oneExact+'\nОбе отличаются от источника: '+p.bothDifferent:
+      'Пока нет парных сверок одного исторического факта.';
     }
     statsRows.replaceChildren();
     for(const item of view.perAsset){
