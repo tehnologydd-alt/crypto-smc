@@ -145,7 +145,7 @@ test('source code wires native-only periodic scan, explicit Qwen and Android pac
  assert.match(app,/getRadar:getMobileRadarHistory/);
  assert.match(app,/getCandles:getMobileCandles/);
  assert.match(app,/if\(!document.hidden\)void researchDirector.scan\(\)/);
- assert.match(app,/onSession:session=>researchDirector.onCollectiveSession\(session\)/);
+ assert.match(app,/onSession:session=>\{researchDirector.onCollectiveSession\(session\);researchHistory.ingest\(\[session\]\)/);
  assert.match(collective,/onSession\(session\)/);
  assert.match(staged,/'apex-research-director-core.mjs'/);
  assert.match(staged,/'apex-research-director-ui.mjs'/);
