@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence,extractHistoricalFacts,structuredResearchRecord} from './apex-research-history.mjs';
+import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence,extractHistoricalFacts,structuredResearchRecord,compareHistoricalClaims} from './apex-research-history.mjs';
 const now=1794650000000;
 const run=(asset='BTCUSDT',startedAt=now-86400000)=>({
  version:1,asset,startedAt,stage:'ANALYST_READY',
@@ -131,4 +131,44 @@ test('depth facts enforce numeric bounds, source identity and timestamp',()=>{
  assert.equal(extractHistoricalFacts({...e,text:e.text.replace('-0.25','2')},a.asset).length,0);
  assert.equal(extractHistoricalFacts({...e,text:e.text.replace('spread 99.5','spread -1')},a.asset).length,0);
  assert.equal(structuredResearchRecord(a).unknown.length,1);
+});
+
+
+function claimFixture(){
+ const a=run(),e=a.evidence[0],at=e.observed_at;
+ e.source_id='binance:spot:24h:'+a.asset+':'+at;a.sourceIds=[e.source_id];
+ e.text='Asset '+a.asset+'; source Binance public spot 24h ticker; observed '+
+  new Date(at).toISOString()+'; last price 17.25 USDT; last 24h change -2%; last 24h quote volume 500 USDT. This is past-market context, not a prediction.';
+ return a;
+}
+test('explicit source-bound lines are compared exactly and ambiguous duplicates stay unknown',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ const line=(field,value)=>'APEX_FACT|'+id+'|'+field+'|'+value;
+ a.analystText=[line('PRICE_USDT',17.25),line('PRICE_USDT',17.25),
+  line('CHANGE_24H_PCT',-2.1),line('VOLUME_24H_USDT',500),
+  line('VOLUME_24H_USDT',520)].join('\n');
+ const result=compareHistoricalClaims(a);
+ assert.equal(result.checked,2);assert.equal(result.matches,1);
+ assert.equal(result.differences,1);assert.equal(result.unresolved,1);
+ assert.equal(result.results[2].state,'AMBIGUOUS_CLAIMS');
+ const stats=summarizeResearchHistory([a],{now});
+ assert.equal(stats.claimStudies,1);assert.equal(stats.claimsChecked,2);
+ assert.equal(stats.claimsMatched,1);assert.equal(stats.accuracy,null);
+});
+test('prose, unknown fields, other-asset citations, future evidence, and source conflicts are not scored',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ assert.equal(compareHistoricalClaims(a).status,'NO_EXPLICIT_CLAIMS');
+ const recent={...a.evidence[0],source_id:id.replace(/:\d+$/,':'+(a.startedAt+1000)),
+  observed_at:a.startedAt+1000,text:a.evidence[0].text.replace(new Date(a.evidence[0].observed_at).toISOString(),new Date(a.startedAt+1000).toISOString())};
+ a.analystText=['APEX_FACT|'+id.replace('BTCUSDT','ETHUSDT')+'|PRICE_USDT|17.25',
+  'APEX_FACT|'+id+'|UNKNOWN_FIELD|17.25',
+  'APEX_FACT|'+recent.source_id+'|PRICE_USDT|17.25',
+  'APEX_FACT|'+id+'|PRICE_USDT|1e999'].join('\n');
+ const b={...complete(a),criticEvidence:[recent]};
+ assert.equal(compareHistoricalClaims(b).checked,0);
+ assert.equal(compareHistoricalClaims(b).unresolved,4);
+ const c=claimFixture();c.analystText='APEX_FACT|'+c.sourceIds[0]+'|PRICE_USDT|17.25';
+ const bad={...complete(c),criticEvidence:[{...c.evidence[0],text:'Different snapshot'}]};
+ assert.equal(compareHistoricalClaims(bad).results[0].state,'SOURCE_CONFLICT');
+ assert.equal(compareHistoricalClaims(bad).checked,0);
 });

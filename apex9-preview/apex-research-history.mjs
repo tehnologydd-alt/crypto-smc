@@ -174,6 +174,57 @@ export function structuredResearchRecord(row){
   critic:{state:row.stage==='COMPLETE'?'UNVERIFIED_MODEL_TEXT':'NOT_REVIEWED'},
   agreement:null,accuracy:null};
 }
+/**
+ * Optional explicit historical factual assertion protocol, version 1.
+ * One complete line: APEX_FACT|source_id|field|number
+ * Only exact source-bound literals count. No extraction from prose or causal
+ * claims, and no interpretation of forecasts. Existing free-text archives
+ * stay unassessed. This is a local comparator, not an additional AI call.
+ */
+export function compareHistoricalClaims(row){
+ const structured=structuredResearchRecord(row);
+ const blocked=new Set(structured.conflicts);
+ const results=[];
+ for(const [role,text,available] of [
+  ['GLM',row.analystText,row.evidence||[]],
+  ['Qwen',row.stage==='COMPLETE'?row.criticText:'',[
+    ...(row.evidence||[]),...(row.criticEvidence||[])]]
+ ]){
+  if(typeof text!=='string')continue;
+  const allowed=new Set(available.map(e=>e.source_id));
+  const seen=new Map();
+  for(const raw of text.split(/\r?\n/)){
+   const line=raw.trim();
+   if(!line.startsWith('APEX_FACT|'))continue;
+   const match=/^APEX_FACT\|([a-zA-Z0-9_.:-]{4,100})\|([A-Z0-9_]{1,40})\|([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)$/.exec(line);
+   if(!match||match[3].length>40||!Number.isFinite(Number(match[3]))){
+    results.push({role,state:'INVALID_FORMAT'});continue;
+   }
+   const [,sourceId,field,literal]=match,claimed=Number(literal);
+   const key=JSON.stringify([sourceId,field]);
+   if(seen.has(key)){
+    const previous=seen.get(key);
+    if(previous.claimed!==claimed)previous.state='AMBIGUOUS_CLAIMS';
+    continue;
+   }
+   const result={role,sourceId,field,claimed,state:'UNKNOWN_SOURCE_OR_FIELD'};
+   seen.set(key,result);results.push(result);
+   if(!allowed.has(sourceId))continue;
+   if(blocked.has(sourceId)){result.state='SOURCE_CONFLICT';continue;}
+   const fact=structured.facts.find(f=>f.sourceId===sourceId&&f.field===field);
+   if(!fact)continue;
+   result.observed=fact.value;
+   result.state=claimed===fact.value?'EXACT_MATCH':'NUMERIC_DIFFERENCE';
+  }
+ }
+ const checked=results.filter(r=>['EXACT_MATCH','NUMERIC_DIFFERENCE'].includes(r.state));
+ return {results,checked:checked.length,
+  matches:checked.filter(r=>r.state==='EXACT_MATCH').length,
+  differences:checked.filter(r=>r.state==='NUMERIC_DIFFERENCE').length,
+  unresolved:results.length-checked.length,
+  status:results.length?'EXPLICIT_LINES_FOUND':'NO_EXPLICIT_CLAIMS',
+  interpretationAccuracy:null};
+}
 export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now)
   .filter(row=>!asset||row.asset===asset);
@@ -182,6 +233,7 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  let completed=0,multiVenue=0,reviewNewEvidence=0,unknownVenue=0;
  let sourceConflicts=0,sharedSnapshots=0,laterSnapshots=0;
  const factIds=new Set(),unknownIds=new Set(),conflictingIds=new Set();
+ let claimStudies=0,claimsChecked=0,claimsMatched=0,claimsDifferent=0,claimsUnresolved=0;
  const venue=e=>{
   const prefix=e.source_id.split(':')[0].toLowerCase();
   return ['binance','okx','bybit'].includes(prefix)?prefix:null;
@@ -200,6 +252,10 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   for(const e of row.evidence)ages.push(Math.max(0,row.startedAt-e.observed_at));
   const audit=auditResearchEvidence(row);
   const structured=structuredResearchRecord(row);
+  const claims=compareHistoricalClaims(row);
+  if(claims.status==='EXPLICIT_LINES_FOUND')claimStudies++;
+  claimsChecked+=claims.checked;claimsMatched+=claims.matches;
+  claimsDifferent+=claims.differences;claimsUnresolved+=claims.unresolved;
   for(const f of structured.facts)factIds.add(JSON.stringify([f.sourceId,f.field]));
   for(const id of structured.unknown)unknownIds.add(id);
   for(const id of structured.conflicts)conflictingIds.add(id);
@@ -231,6 +287,7 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   sourceConflicts,sharedSnapshots,laterSnapshots,
   structuredFacts:[...factIds].filter(key=>!conflictingIds.has(JSON.parse(key)[0])).length,
   unknownFormats:unknownIds.size,
+  claimStudies,claimsChecked,claimsMatched,claimsDifferent,claimsUnresolved,
   agreement:null,accuracy:null};
 }
 export function initResearchHistory({store,now=()=>Date.now()}={}){
@@ -272,6 +329,10 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      ['Уникальные снимки',String(view.distinctSnapshots)],
      ['Структурированные наблюдения',String(view.structuredFacts)],
      ['Нераспознанные форматы',String(view.unknownFormats)],
+     ['Записей с явными утверждениями',view.claimStudies+' / '+view.total],
+     ['Точно совпали с источником',view.claimsChecked?view.claimsMatched+' / '+view.claimsChecked:'—'],
+     ['Числовые различия',view.claimsChecked?String(view.claimsDifferent):'—'],
+     ['Утверждения без однозначной сверки',String(view.claimsUnresolved)],
      ['Конфликт содержимого одного ID',String(view.sourceConflicts)],
      ['Повторные снимки при проверке',String(view.sharedSnapshots)],
      ['Новые снимки при проверке',String(view.laterSnapshots)],
@@ -341,7 +402,28 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    statusNote.textContent='Нераспознанных снимков: '+structured.unknown.length+
     '. Конфликтующие записи исключены. Данные не подтверждают выводы моделей.';
    facts.append(statusNote);
-   details.append(title,note,facts,body);list.append(details);
+   const claims=compareHistoricalClaims(row);
+   const claimBox=document.createElement('details');
+   const claimTitle=document.createElement('summary');
+   claimTitle.textContent='Сверка явных утверждений · '+claims.checked+' проверено';
+   claimBox.append(claimTitle);
+   const claimStatus=document.createElement('p');
+   claimStatus.textContent=claims.status==='NO_EXPLICIT_CLAIMS'?
+    'Нет утверждений в формализованном формате. Свободный текст автоматически не оценивается.':
+    'Сопоставление чисел только с указанным историческим снимком. Различие может быть округлением; это не оценка общей точности модели.';
+   claimBox.append(claimStatus);
+   const states={EXACT_MATCH:'Точное совпадение',NUMERIC_DIFFERENCE:'Числовое различие',
+    UNKNOWN_SOURCE_OR_FIELD:'Источник или поле не сопоставлены',
+    AMBIGUOUS_CLAIMS:'Несовместимые значения в одном ответе',
+    SOURCE_CONFLICT:'Конфликт исходного снимка',INVALID_FORMAT:'Неверный формат'};
+   for(const claim of claims.results){
+    const p=document.createElement('p');p.className='apex-evidence-audit';
+    p.textContent=claim.role+' · '+states[claim.state]+
+     (claim.sourceId?'\n'+claim.field+' · '+claim.sourceId+'\nУтверждение: '+claim.claimed:'')+
+     (claim.observed!==undefined?'\nВ источнике: '+claim.observed:'');
+    claimBox.append(p);
+   }
+   details.append(title,note,facts,claimBox,body);list.append(details);
   }
  };
  const ingest=sessions=>{
