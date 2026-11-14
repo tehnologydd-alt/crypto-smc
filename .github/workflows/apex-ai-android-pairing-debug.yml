@@ -1,7 +1,7 @@
 name: APEX Android — Cloudflare Pairing Signed Update APK
 on:
   push:
-    branches: [apex-ai-device-pairing-20261113, apex-ai-live-audit-20261113]
+    branches: [apex-ai-device-pairing-20261113, apex-ai-live-audit-20261113, apex-dev]
     paths:
       - 'apex9-android/**'
       - 'apex9-preview/**'

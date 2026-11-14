@@ -1,6 +1,0 @@
-<div className="rounded-xl border border-teal-500/20 bg-teal-950/10 p-3 space-y-2">
-   <div className="flex flex-wrap justify-between gap-2 text-sm"><strong className="text-teal-200">Паспорт прогноза · Guardian</strong><span className="text-xs text-slate-300">{passport.supported} подтверждают / {passport.conflicted} против</span></div>
-   <div className="flex flex-wrap gap-1.5">{passport.evidence.map(e=><span key={e.frame} title={e.label} className={'rounded-lg border px-2 py-1 text-[11px] '+(e.status==='supports'?'text-teal-300 border-teal-800':e.status==='conflicts'?'text-rose-300 border-rose-800':'text-slate-400 border-slate-700')}>{e.frame.toUpperCase()} · {e.status==='supports'?'подтверждает':e.status==='conflicts'?'против':'нет данных'}</span>)}</div>
-   <p className="text-xs text-slate-300">{passport.reason}</p>
-  </div>
-  

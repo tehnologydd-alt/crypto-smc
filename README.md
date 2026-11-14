@@ -1,47 +1,33 @@
-# APEX Intelligence 2.0 — Android Market Radar
+# APEX 9 · Market Intelligence
 
-**Отдельное приложение** для наблюдения за избранными криптовалютными парами. Не заменяет ApexiCrypto и не меняет его ветку.
+Android-first, research-only application. Active development candidate: `apex-dev`. Previous verified reference: `apex-ai-live-audit-20261113` at `bc6b77ac0abf3ef369594aff77d286b0f8b00a57`.
 
-## Реализовано в MVP
+## Current source tree
 
-- Избранное до 10 пар, хранящееся локально.
-- Живые события Binance Spot через комбинированный WebSocket `aggTrade`, `kline_5m`, `miniTicker`, автоматическое переподключение и два публичных endpoint.
-- Загрузка свечей по HTTPS; **нет фиктивных данных**. Подтверждение на закрытой 5-минутной свече.
-- Два разных состояния: `WATCH` (цена подошла к границе диапазона) и `CONFIRMED` (закрытый пробой с увеличенным объёмом).
-- Локальные нотификации при новых подтверждениях, 30-минутный антиспам.
-- Android WorkManager: фоновые проверки избранного, ориентировочно от 15 минут и дольше; ОС может отложить выполнение. После полного отключения или в энергосберегающем режиме мгновенные нотификации не гарантируются.
-- История подтверждений на устройстве; отдельные разделы «Радар», «Сигналы» и «Настройки».
-- Никакой привязки к Google AI Studio, Gemini, API-ключам, криптокошельку или торговому счёту.
-- Нет реальных ордеров. Эвристический сигнал — не гарантированная вероятность или финансовый совет.
+- `apex9-android/` — Capacitor Android packaging, native Room storage, notifications, signed release tooling.
+- `apex9-preview/` — current mobile interface, public source integrations, research and AI monitor.
+- `apex-ai-research/` — AI research gateway, device authorization and guarded budgets.
+- `apex9-cloudflare/` and `apex9-news-gateway/` — gateway services; infrastructure is not changed by this cleanup.
+- `updates/` — only the two shared v90 evidence/depth modules and their tests.
+- `docs/` — historical design and verification documentation.
 
-## Принцип анализа
+## Local checks
 
-Базовый диапазон — 20 закрытых пятиминутных свечей, исключая 5 последних для проверки пробоя. Радар показывает подготовку вблизи границ диапазона. Подтверждение — закрытие свечи за границей при объёме от 1,45 среднего и согласованной направленности свечи; при достаточных сделках также учитывается агрессивный поток покупателей/продавцов. `CONFIRMED` не означает, что сделка будет прибыльной. Риск и ориентир рассчитаны из диапазона для сравнения сценария.
+Node.js 22+:
 
-## Уведомления
-
-- **Приложение открыто:** WebSocket в реальном времени, подтверждение после закрытия 5-минутной свечи.
-- **Приложение закрыто:** native Android WorkManager с периодической проверкой, минимальный интервал 15 мин, фактическое время не гарантируется.
-- Для действительно непрерывного мониторинга 24/7 и моментального push при закрытом приложении потребуются внешний сервер и push-очередь. В этой версии их нет.
-
-## Сборка
-
-GitHub Actions (`.github/workflows/apex-v2-android.yml`) собирает debug APK на ветке `apex-intelligence-v2`.
-Локально: Node 22+, Java 21, Android SDK, затем:
-
-```bash
-npm install
-npm run lint
-npm run test
-npm run build
-npx cap add android
-npx cap sync android
-node scripts/apply-android.js
-cd android && ./gradlew assembleDebug
+```sh
+node apex9-android/scripts/prepare-web.mjs --check
+node --test updates/test-v90-evidence.mjs updates/test-v90-market-depth.mjs apex9-preview/test-cloud-ai-monitor.mjs
+cd apex9-android
+npm ci
+npm test
+npm run build:web
 ```
 
-`android/app/build/outputs/apk/debug/app-debug.apk` — тестовая сборка, не подписанный релиз.
+The existing signed-update Android workflow checks release signer and increasing version code. Never commit credentials or signing material. Download only a successfully validated APK from GitHub Actions. Last verified pre-cleanup build: https://github.com/tehnologydd-alt/crypto-smc/actions/runs/43581150275 .
 
-## Ограничения
+## Cleanup and recovery
 
-Зависимость от доступности Binance и интернета; в некоторых странах/сетях API может не отвечать. Веб-версия может столкнуться с CORS при REST. Индикаторы не проходили полноценную историческую калибровку. Тщательное тестирование на реальном Android и независимых рыночных периодах необходимо до использования для серьёзных решений.
+The previous active branch and commit remain unchanged. Historical V2–V8.8 patch files, encoded V2 snapshot and obsolete V2/8.6 build workflows are removed from this candidate tree only, not from Git history. See `docs/REPOSITORY_CLEANUP_20261114.md`. Do not delete older branches until their ancestry and open PR dependencies have been reviewed. The default branch `main` has diverged and is not overwritten.
+
+No real orders or account-management capabilities are included in this research application. Market observations and model outputs do not establish predictive accuracy.

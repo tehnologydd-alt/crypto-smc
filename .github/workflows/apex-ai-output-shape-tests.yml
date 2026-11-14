@@ -1,7 +1,7 @@
 name: APEX AI - GLM Qwen final output diagnostics
 on:
   push:
-    branches: [apex-ai-live-audit-20261113]
+    branches: [apex-ai-live-audit-20261113, apex-dev]
     paths:
       - 'apex-ai-research/edge/**'
       - 'apex9-preview/cloud-ai-*'

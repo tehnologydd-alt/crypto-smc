@@ -1,6 +1,0 @@
-function APEXSwitch({enabled,label,onToggle}:{enabled:boolean;label:string;onToggle:()=>void}){
- return <button type="button" role="switch" aria-checked={enabled} aria-label={label}
-  onClick={onToggle} data-on={enabled?"true":"false"} className="apex-switch">
-  <span aria-hidden="true">{enabled?"Вкл":"Выкл"}</span><span aria-hidden="true" className="apex-switch-track"/>
- </button>;
-}
