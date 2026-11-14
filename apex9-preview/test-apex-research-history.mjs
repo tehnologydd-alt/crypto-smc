@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence,extractHistoricalFacts,structuredResearchRecord,compareHistoricalClaims} from './apex-research-history.mjs';
+import {normalizeTranscript,mergeTranscripts,batchTranscripts,readTranscripts,writeTranscripts,HISTORY_KEY,MAX_TRANSCRIPTS,validateTranscriptArchive,summarizeResearchHistory,auditResearchEvidence,extractHistoricalFacts,structuredResearchRecord,compareHistoricalClaims,findArchiveSourceConflicts} from './apex-research-history.mjs';
 const now=1794650000000;
 const run=(asset='BTCUSDT',startedAt=now-86400000)=>({
  version:1,asset,startedAt,stage:'ANALYST_READY',
@@ -185,4 +185,37 @@ test('GLM and Qwen independently transcribe the same historical observation',()=
  assert.equal(result.results[0].role,'GLM');
  assert.equal(result.results[1].role,'Qwen');
  assert.equal(result.interpretationAccuracy,null);
+});
+
+
+test('per-role factual transcription separates coverage, differences and missing claims',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const reviewed={...complete(a),criticText:'Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.26'};
+ const plain=run('ETHUSDT',a.startedAt+1000);
+ const stats=summarizeResearchHistory([reviewed,plain,reviewed],{now});
+ const [g,q]=stats.models;
+ assert.equal(g.responses,2);assert.equal(g.withClaims,1);
+ assert.equal(g.withoutClaims,1);assert.equal(g.coveragePercent,50);
+ assert.equal(g.checked,1);assert.equal(g.exactMatchPercent,100);
+ assert.equal(q.responses,1);assert.equal(q.differences,1);
+ assert.equal(q.exactMatchPercent,0);assert.equal(q.coveragePercent,100);
+ assert.equal(stats.accuracy,null);
+ const empty=summarizeResearchHistory([],{now}).models;
+ assert.ok(empty.every(m=>m.coveragePercent===null&&m.exactMatchPercent===null));
+ const missing=summarizeResearchHistory([plain],{now}).models;
+ assert.equal(missing[0].exactMatchPercent,null);
+ assert.equal(missing[1].responses,0);
+});
+test('conflicting snapshot identity across sessions excludes all matching claims from numeric comparison',()=>{
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const b={...a,startedAt:a.startedAt+60000,
+  evidence:[{...a.evidence[0],text:a.evidence[0].text.replace('17.25 USDT','17.26 USDT')}]};
+ assert.deepEqual(findArchiveSourceConflicts([a,b]),[id]);
+ const s=summarizeResearchHistory([a,b],{now});
+ assert.deepEqual(s.archiveConflicts,[id]);
+ assert.equal(s.claimsChecked,0);assert.equal(s.structuredFacts,0);
+ assert.equal(s.models[0].unresolved,2);assert.equal(s.models[0].sourceIssues,2);
+ assert.equal(s.models[0].exactMatchPercent,null);
 });

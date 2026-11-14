@@ -156,3 +156,8 @@
 .apex-evidence-audit{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.55;color:#b7d1d8;padding:8px;background:#102b3b;border-radius:8px;margin:8px 0}
 
 #apex-history-list details details{margin:8px 0;background:#102433}
+
+.apex-model-transcription-grid{display:grid;gap:8px;margin:6px 0}
+.apex-model-transcription-grid>div{padding:10px;border:1px solid #355264;border-radius:10px;background:#0e2434}
+.apex-model-transcription-grid strong{font-size:13px;color:#d5f5f0}
+.apex-model-transcription-numbers{white-space:pre-line;font-size:11px;line-height:1.65;margin:5px 0}

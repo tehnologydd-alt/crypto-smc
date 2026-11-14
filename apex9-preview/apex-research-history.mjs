@@ -181,9 +181,9 @@ export function structuredResearchRecord(row){
  * claims, and no interpretation of forecasts. Existing free-text archives
  * stay unassessed. This is a local comparator, not an additional AI call.
  */
-export function compareHistoricalClaims(row){
+export function compareHistoricalClaims(row,{archiveConflicts=[]}={}){
  const structured=structuredResearchRecord(row);
- const blocked=new Set(structured.conflicts);
+ const blocked=new Set([...structured.conflicts,...archiveConflicts]);
  const results=[];
  for(const [role,text,available] of [
   ['GLM',row.analystText,row.evidence||[]],
@@ -225,6 +225,41 @@ export function compareHistoricalClaims(row){
   status:results.length?'EXPLICIT_LINES_FOUND':'NO_EXPLICIT_CLAIMS',
   interpretationAccuracy:null};
 }
+/** Spot conflicting copies of the same observation across archived sessions.
+ * Exact identity only; do not compare values from distinct timestamps. */
+export function findArchiveSourceConflicts(rows){
+ const seen=new Map(),conflicts=new Set();
+ for(const row of rows){
+  for(const e of [...row.evidence,...(row.criticEvidence||[])]){
+   const old=seen.get(e.source_id);
+   if(old&&(old.observed_at!==e.observed_at||old.text!==e.text))
+    conflicts.add(e.source_id);
+   else if(!old)seen.set(e.source_id,e);
+  }
+ }
+ return [...conflicts].sort();
+}
+function emptyModelStats(role){
+ return {role,responses:0,withClaims:0,withoutClaims:0,
+  checked:0,matches:0,differences:0,unresolved:0,
+  sourceIssues:0,formatIssues:0,ambiguous:0,
+  coveragePercent:null,exactMatchPercent:null};
+}
+function addModelStats(model,claims){
+ model.responses++;
+ if(claims.length)model.withClaims++;else model.withoutClaims++;
+ for(const c of claims){
+  switch(c.state){
+   case 'EXACT_MATCH':model.checked++;model.matches++;break;
+   case 'NUMERIC_DIFFERENCE':model.checked++;model.differences++;break;
+   default:
+    model.unresolved++;
+    if(c.state==='SOURCE_CONFLICT'||c.state==='UNKNOWN_SOURCE_OR_FIELD')model.sourceIssues++;
+    if(c.state==='INVALID_FORMAT')model.formatIssues++;
+    if(c.state==='AMBIGUOUS_CLAIMS')model.ambiguous++;
+  }
+ }
+}
 export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now)
   .filter(row=>!asset||row.asset===asset);
@@ -232,7 +267,9 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
  const perAsset=new Map(),delays=[],ages=[];
  let completed=0,multiVenue=0,reviewNewEvidence=0,unknownVenue=0;
  let sourceConflicts=0,sharedSnapshots=0,laterSnapshots=0;
- const factIds=new Set(),unknownIds=new Set(),conflictingIds=new Set();
+ const archiveConflicts=findArchiveSourceConflicts(rows);
+ const factIds=new Set(),unknownIds=new Set(),conflictingIds=new Set(archiveConflicts);
+ const models=[emptyModelStats('GLM'),emptyModelStats('Qwen')];
  let claimStudies=0,claimsChecked=0,claimsMatched=0,claimsDifferent=0,claimsUnresolved=0;
  const venue=e=>{
   const prefix=e.source_id.split(':')[0].toLowerCase();
@@ -252,7 +289,9 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   for(const e of row.evidence)ages.push(Math.max(0,row.startedAt-e.observed_at));
   const audit=auditResearchEvidence(row);
   const structured=structuredResearchRecord(row);
-  const claims=compareHistoricalClaims(row);
+  const claims=compareHistoricalClaims(row,{archiveConflicts});
+  addModelStats(models[0],claims.results.filter(c=>c.role==='GLM'));
+  if(row.stage==='COMPLETE')addModelStats(models[1],claims.results.filter(c=>c.role==='Qwen'));
   if(claims.status==='EXPLICIT_LINES_FOUND')claimStudies++;
   claimsChecked+=claims.checked;claimsMatched+=claims.matches;
   claimsDifferent+=claims.differences;claimsUnresolved+=claims.unresolved;
@@ -277,7 +316,12 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   const s=[...values].sort((a,b)=>a-b),mid=Math.floor(s.length/2);
   return s.length%2?s[mid]:(s[mid-1]+s[mid])/2;
  };
+ for(const m of models){
+  if(m.responses)m.coveragePercent=Math.round(100*m.withClaims/m.responses);
+  if(m.checked)m.exactMatchPercent=Math.round(100*m.matches/m.checked);
+ }
  return {total:rows.length,completed,pending:rows.length-completed,
+  models,archiveConflicts,
   completionPercent:rows.length?Math.round(completed/rows.length*100):null,
   multiVenue,reviewNewEvidence,distinctSnapshots:allIds.size,
   venues:[...venues].sort(),unknownVenueReferences:unknownVenue,
@@ -296,6 +340,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const count=node('apex-history-count'),list=node('apex-history-list'),
  picker=node('apex-history-filter'),limit=node('apex-history-older');
  const stats=node('apex-history-stats'),statsRows=node('apex-history-stats-assets');
+ const modelStats=node('apex-history-model-stats');
  let statsSignature='';
  let rows=readTranscripts(store,now()),visible=8,signature='',saved=true;
  const render=()=>{
@@ -334,6 +379,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      ['Числовые различия',view.claimsChecked?String(view.claimsDifferent):'—'],
      ['Утверждения без однозначной сверки',String(view.claimsUnresolved)],
      ['Конфликт содержимого одного ID',String(view.sourceConflicts)],
+     ['Конфликтующие ID во всём выбранном архиве',String(view.archiveConflicts.length)],
      ['Повторные снимки при проверке',String(view.sharedSnapshots)],
      ['Новые снимки при проверке',String(view.laterSnapshots)],
      ['Дни наблюдений (UTC)',String(view.utcDays)],
@@ -347,6 +393,24 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      label.textContent=name;number.textContent=value;
      row.append(label,number);stats.append(row);
     }
+    if(modelStats){
+     modelStats.replaceChildren();
+     for(const m of view.models){
+      const card=document.createElement('div'),name=document.createElement('strong'),
+       numbers=document.createElement('p'),note=document.createElement('small');
+      name.textContent=m.role;
+      numbers.className='apex-model-transcription-numbers';
+      numbers.textContent='Ответы с явными фактами: '+m.withClaims+'/'+m.responses+
+       ' · '+(m.coveragePercent===null?'—':m.coveragePercent+'%')+
+       '\nТочные совпадения: '+m.matches+'/'+m.checked+
+       ' · '+(m.exactMatchPercent===null?'—':m.exactMatchPercent+'%')+
+       '\nРазличия: '+m.differences+' · без сверки: '+m.unresolved;
+      note.textContent='Нет явных фактов: '+m.withoutClaims+
+       ' · источник/поле: '+m.sourceIssues+' · формат: '+m.formatIssues+
+       ' · неоднозначность: '+m.ambiguous;
+      card.append(name,numbers,note);modelStats.append(card);
+     }
+    }
     statsRows.replaceChildren();
     for(const item of view.perAsset){
      const line=document.createElement('li');
@@ -357,7 +421,8 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    }
   }
   limit.disabled=shown.length<=visible;
-  const next=JSON.stringify(shown.slice(0,visible));
+  const archiveConflicts=findArchiveSourceConflicts(shown);
+  const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);
   if(next===signature)return;
   signature=next;list.replaceChildren();
   for(const row of shown.slice(0,visible)){
@@ -385,13 +450,13 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    const structured=structuredResearchRecord(row);
    const facts=document.createElement('details');
    const factsTitle=document.createElement('summary');
-   factsTitle.textContent='Структурированные наблюдения · '+structured.facts.length;
+   factsTitle.textContent='Структурированные наблюдения · '+structured.facts.filter(f=>!archiveConflicts.includes(f.sourceId)).length;
    facts.append(factsTitle);
    const labels={PRICE_USDT:'Цена (USDT)',CHANGE_24H_PCT:'Изменение за 24ч (%)',
     VOLUME_24H_USDT:'Объём за 24ч (USDT)',BEST_BID:'Лучшая покупка',
     BEST_ASK:'Лучшая продажа',SPREAD_BPS:'Спред (bps)',
     VISIBLE_DEPTH_IMBALANCE:'Дисбаланс видимой глубины'};
-   for(const f of structured.facts){
+   for(const f of structured.facts.filter(f=>!archiveConflicts.includes(f.sourceId))){
     const block=document.createElement('p');
     block.className='apex-evidence-audit';
     block.textContent=(labels[f.field]||f.field)+': '+f.value+
@@ -402,7 +467,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    statusNote.textContent='Нераспознанных снимков: '+structured.unknown.length+
     '. Конфликтующие записи исключены. Данные не подтверждают выводы моделей.';
    facts.append(statusNote);
-   const claims=compareHistoricalClaims(row);
+   const claims=compareHistoricalClaims(row,{archiveConflicts});
    const claimBox=document.createElement('details');
    const claimTitle=document.createElement('summary');
    claimTitle.textContent='Сверка явных утверждений · '+claims.checked+' проверено';
