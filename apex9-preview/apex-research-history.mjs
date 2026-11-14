@@ -630,6 +630,66 @@ export function compareLabHypotheses(rawRows,{asset='',now=Date.now()}={}){
  return {version:3,asset,gate:{...LAB_REVIEW_GATE},hypotheses,
   excludedConflictingIds:conflicts.length,automaticModelCalls:0,productionRuleChanged:false};
 }
+/**
+ * Knowledge Engine v1 is an inventory of implemented research-audit rules
+ * and experimental alternatives, not learned market knowledge.
+ * Manual review notes do not activate or validate an alternative.
+ */
+export const KNOWLEDGE_RULES=Object.freeze([
+ Object.freeze({id:'EXACT_NUMERIC',version:1,kind:'IMPLEMENTED',source:'compareHistoricalClaims',title:'Строгое числовое совпадение'}),
+ Object.freeze({id:'SOURCE_ID_QUARANTINE',version:1,kind:'IMPLEMENTED',source:'findArchiveSourceConflicts',title:'Исключение конфликтующих ID'}),
+ Object.freeze({id:'UNIQUE_SOURCE_FIELD',version:1,kind:'IMPLEMENTED',source:'buildResearchKnowledge',title:'Уникальность снимка и поля'}),
+ ...LAB_HYPOTHESES.map(h=>Object.freeze({id:h.id,version:1,kind:'EXPERIMENTAL',source:'compareLabHypotheses',title:'Относительный допуск '+(h.relative*100).toFixed(5)+'%'}))
+]);
+export const KNOWLEDGE_REVIEW_KEY='apex.research.rules.review.v1';
+const KNOWLEDGE_REVIEW_LIMIT=60,KNOWLEDGE_REVIEW_BYTES=80000;
+export const KNOWLEDGE_REVIEW_DAYS=30;
+const knowledgeOutcomes=['REVIEWED_NO_CHANGE','NEEDS_MORE_EVIDENCE','REJECT_FOR_NOW'];
+function validKnowledgeReview(r){
+ return r&&Object.keys(r).length===6&&
+  KNOWLEDGE_RULES.some(k=>k.id===r.ruleId&&k.version===r.ruleVersion&&k.kind==='EXPERIMENTAL')&&
+  ['GLM','Qwen'].includes(r.role)&&typeof r.digest==='string'&&/^[a-f0-9]{64}$/.test(r.digest)&&
+  knowledgeOutcomes.includes(r.outcome)&&Number.isSafeInteger(r.at)&&r.at>0&&r.at<=8640000000000000;
+}
+export function readKnowledgeReviews(store){
+ try{
+  if(!store)return null;
+  const raw=store.getItem(KNOWLEDGE_REVIEW_KEY);
+  if(raw==null)return [];
+  if(new TextEncoder().encode(raw).length>KNOWLEDGE_REVIEW_BYTES)return null;
+  const d=JSON.parse(raw);
+  if(d.version!==1||!Array.isArray(d.reviews)||d.reviews.length>KNOWLEDGE_REVIEW_LIMIT||
+   !d.reviews.every(validKnowledgeReview))return null;
+  return d.reviews;
+ }catch{return null;}
+}
+export function recordKnowledgeReview(store,review){
+ const old=readKnowledgeReviews(store);
+ if(old===null||!validKnowledgeReview(review))return {ok:false,reason:'INVALID_OR_UNAVAILABLE'};
+ const latest=old.find(r=>r.ruleId===review.ruleId&&r.role===review.role&&r.ruleVersion===review.ruleVersion);
+ if(latest&&latest.digest===review.digest&&latest.outcome===review.outcome)return {ok:true,repeated:true};
+ if(old.length>=KNOWLEDGE_REVIEW_LIMIT)return {ok:false,reason:'JOURNAL_FULL'};
+ const raw=JSON.stringify({version:1,reviews:[review,...old]});
+ if(new TextEncoder().encode(raw).length>KNOWLEDGE_REVIEW_BYTES)return {ok:false,reason:'JOURNAL_FULL'};
+ try{
+  store.setItem(KNOWLEDGE_REVIEW_KEY,raw);
+  return store.getItem(KNOWLEDGE_REVIEW_KEY)===raw?{ok:true,repeated:false}:{ok:false,reason:'LOCAL_STORAGE'};
+ }catch{return {ok:false,reason:'LOCAL_STORAGE'};}
+}
+export function knowledgeRuleRegistry(reviews,{digest=null,now=Date.now()}={}){
+ const rules=[];
+ for(const k of KNOWLEDGE_RULES){
+  if(k.kind==='IMPLEMENTED'){rules.push({...k,status:'IMPLEMENTED_NOT_VALIDATED',review:null});continue;}
+  for(const role of ['GLM','Qwen']){
+   const prior=(reviews||[]).find(r=>r.ruleId===k.id&&r.role===role&&r.ruleVersion===k.version);
+   const status=!prior?'NOT_REVIEWED':
+    !digest||prior.digest!==digest?'INPUT_NOT_VERIFIED':
+    prior.at>now||now-prior.at>=KNOWLEDGE_REVIEW_DAYS*86400000?'REVIEW_STALE':'REVIEW_RECORDED';
+   rules.push({...k,role,status,review:prior||null});
+  }
+ }
+ return {rules,automaticActivation:false,journalAvailable:reviews!==null};
+}
 export const LAB_JOURNAL_KEY='apex.research.lab.journal.v1';
 const LAB_LIMIT=40,LAB_BYTES=120000;
 function validLabMetrics(m,role){
@@ -933,6 +993,52 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const labRun=node('apex-lab-run'),labOutput=node('apex-lab-output');
  let labSnapshot=null,labBusy=false;
  const labHistory=node('apex-lab-history'),labStatus=node('apex-lab-status');
+ const ruleRegistry=node('apex-rules-list'),ruleStatus=node('apex-rules-status');
+ function renderRuleRegistry(){
+  if(!ruleRegistry)return;
+  const current=labSnapshot&&labSnapshot.signature===JSON.stringify([rows,picker.value]);
+  const digest=current?labSnapshot.digest:null;
+  const registry=knowledgeRuleRegistry(readKnowledgeReviews(store),{digest,now:now()});
+  const outcomes={REVIEWED_NO_CHANGE:'Изучено, без изменения правила',NEEDS_MORE_EVIDENCE:'Нужны дополнительные доказательства',REJECT_FOR_NOW:'Отложено / отклонено пока'};
+  const statuses={IMPLEMENTED_NOT_VALIDATED:'Используется в коде, не научная валидация',NOT_REVIEWED:'Не проверено вручную',INPUT_NOT_VERIFIED:'Входные данные не подтверждены',REVIEW_STALE:'Отметка старше 30 дней или дата неверна',REVIEW_RECORDED:'Ручная отметка актуальна для этого входа'};
+  ruleRegistry.replaceChildren();
+  if(!registry.journalAvailable){
+   const p=document.createElement('p');p.textContent='Журнал правил недоступен. Ранее сохранённые данные не изменены.';ruleRegistry.append(p);
+  }
+  for(const rule of registry.rules){
+   const d=document.createElement('details'),title=document.createElement('summary'),p=document.createElement('p');
+   d.className='apex-quality-pattern';
+   title.textContent=rule.title+' · v'+rule.version+(rule.role?' · '+rule.role:'');
+   p.textContent=statuses[rule.status]+' · '+rule.source;
+   d.append(title,p);
+   if(rule.review){
+    const note=document.createElement('p');
+    note.textContent=outcomes[rule.review.outcome]+' · '+new Date(rule.review.at).toISOString()+' · SHA-256 '+rule.review.digest;
+    d.append(note);
+   }
+   if(rule.kind==='EXPERIMENTAL'&&digest&&registry.journalAvailable){
+    const matching=labSnapshot.hypotheses.hypotheses.find(h=>h.id===rule.id)?.models.find(m=>m.role===rule.role);
+    if(matching?.decision==='MANUAL_REVIEW_ONLY'){
+     const select=document.createElement('select'),button=document.createElement('button');
+     select.setAttribute('aria-label','Результат проверки правила');
+     for(const [value,label] of Object.entries(outcomes)){
+      const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);
+     }
+     button.type='button';button.className='ghost';button.textContent='Сохранить отметку';
+     button.addEventListener('click',()=>{
+      if(labSnapshot?.digest!==digest||labSnapshot.signature!==JSON.stringify([rows,picker.value])){
+       if(ruleStatus)ruleStatus.textContent='Эксперимент устарел; пересчитайте его.';return;
+      }
+      const r=recordKnowledgeReview(store,{ruleId:rule.id,ruleVersion:rule.version,role:rule.role,digest,at:now(),outcome:select.value});
+      if(ruleStatus)ruleStatus.textContent=r.ok?'Отметка сохранена. Рабочее правило не изменено.':'Запись не подтверждена: '+r.reason;
+      renderRuleRegistry();
+     });
+     d.append(select,button);
+    }
+   }
+   ruleRegistry.append(d);
+  }
+ }
  function renderLabHistory(){
   if(!labHistory)return;
   const journal=readLabJournal(store);
@@ -955,6 +1061,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  }
  function renderLab(){
   renderLabHistory();
+  renderRuleRegistry();
   if(!labOutput||!labSnapshot)return;
   const {result,at,signature,hypotheses}=labSnapshot;
   const stale=signature!==JSON.stringify([rows,picker.value]);
@@ -1019,6 +1126,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    const signature=JSON.stringify([input,asset]),result=runResearchLab(input,{asset,now:at});
    labSnapshot={at,signature,result,hypotheses:compareLabHypotheses(input,{asset,now:at})};
    const digest=await researchLabDigest(input,asset,at);
+   labSnapshot.digest=digest;
    const saved=digest?recordLabExperiment(store,{at,digest,result}):{ok:false,reason:'NO_DIGEST'};
    if(labStatus)labStatus.textContent=saved.ok?
     (saved.repeated?'Повторный расчёт совпал с сохранённым результатом для того же входа.':'Эксперимент сохранён локально.'):

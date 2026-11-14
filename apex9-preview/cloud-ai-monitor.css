@@ -215,3 +215,5 @@
 #apex-lab-history p{font-size:11px;overflow-wrap:anywhere;white-space:normal}#apex-lab-status{font-size:12px;line-height:1.5}
 
 #apex-lab-output details{border-top:1px solid #385869;padding-top:6px}#apex-lab-output details summary{font-size:12px;line-height:1.5;cursor:pointer}
+
+#apex-rules-list p{overflow-wrap:anywhere}#apex-rules-list select{width:100%;padding:8px;margin:6px 0;border:1px solid #385869;border-radius:8px;background:#0e2434;color:inherit}#apex-rules-list button{width:100%}

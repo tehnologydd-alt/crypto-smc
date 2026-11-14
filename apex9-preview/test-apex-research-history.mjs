@@ -527,3 +527,24 @@ test('fixed sensitivity hypotheses use identical facts and the worst repeated di
  assert.equal(repeat.productionRuleChanged,false);
  assert.equal(repeat.automaticModelCalls,0);
 });
+
+test('knowledge registry separates implementation, review status and activation',async()=>{
+ const {knowledgeRuleRegistry,recordKnowledgeReview,readKnowledgeReviews,KNOWLEDGE_REVIEW_KEY}=await import('./apex-research-history.mjs');
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ const digest='a'.repeat(64),row={ruleId:'REL_1E7',ruleVersion:1,role:'GLM',digest,at:now,outcome:'NEEDS_MORE_EVIDENCE'};
+ assert.equal(knowledgeRuleRegistry([]).rules.length,7);
+ assert.equal(knowledgeRuleRegistry([]).automaticActivation,false);
+ assert.equal(recordKnowledgeReview(store,{...row,ruleId:'EXACT_NUMERIC'}).ok,false);
+ assert.equal(recordKnowledgeReview(store,row).ok,true);
+ assert.equal(recordKnowledgeReview(store,{...row,at:now+1}).repeated,true);
+ const reviews=readKnowledgeReviews(store);
+ const status=(d,t)=>knowledgeRuleRegistry(reviews,{digest:d,now:t}).rules.find(r=>r.id===row.ruleId&&r.role===row.role).status;
+ assert.equal(status(digest,now),'REVIEW_RECORDED');
+ assert.equal(status(null,now),'INPUT_NOT_VERIFIED');
+ assert.equal(status('b'.repeat(64),now),'INPUT_NOT_VERIFIED');
+ assert.equal(status(digest,now+30*86400000),'REVIEW_STALE');
+ assert.equal(readKnowledgeReviews(store).length,1);
+ map.set(KNOWLEDGE_REVIEW_KEY,'broken');
+ assert.equal(recordKnowledgeReview(store,row).ok,false);
+ assert.equal(map.get(KNOWLEDGE_REVIEW_KEY),'broken');
+});
