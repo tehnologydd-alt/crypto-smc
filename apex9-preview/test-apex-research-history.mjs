@@ -351,7 +351,7 @@ test('full archive and storage failure preserve prior records and bytes',async()
  const full=appendResearchArchive(store,previous,[run('ETHUSDT')],now);
  assert.equal(full.ok,false);assert.equal(full.reason,'ARCHIVE_CAPACITY');
  assert.equal(full.rows,previous);assert.equal(map.get(HISTORY_KEY),original);
- const failure=appendResearchArchive({setItem(){throw Error('quota')}},previous.slice(0,1),[run('ETHUSDT')],now);
+ const failure=appendResearchArchive({getItem(){return JSON.stringify({version:1,rows:previous.slice(0,1)})},setItem(){throw Error('quota')}},previous.slice(0,1),[run('ETHUSDT')],now);
  assert.equal(failure.ok,false);assert.equal(failure.reason,'LOCAL_STORAGE');
  assert.equal(failure.rows.length,1);
  const upgraded=appendResearchArchive(store,previous,[complete(previous[0])],now);
