@@ -135,7 +135,7 @@ export function initCloudAiMonitor({
  const checkButton=document.getElementById('apex-ai-check');
  const detailsButton=document.getElementById('apex-ai-live-details');
  const statusBox=document.getElementById('apex-ai-pair-status');
- let latestAt=0,work=null;
+ let latestAt=0,work=null,lastLocal=null,lastEventsSignature='';
  const busy=(value)=>{
   for(const node of [refreshButton,enrollButton,checkButton])if(node)node.disabled=value;
  };
@@ -199,7 +199,9 @@ export function initCloudAiMonitor({
    statusBox.textContent='Cloudflare: '+v.server+' · '+detail;
   }
   const ul=document.getElementById('apex-ai-events');
-  if(ul){
+  const signature=JSON.stringify([v.localKnown,v.events]);
+  if(ul&&signature!==lastEventsSignature){
+   lastEventsSignature=signature;
    ul.replaceChildren();
    if(v.events.length===0){
     const li=document.createElement('li');
@@ -217,27 +219,28 @@ export function initCloudAiMonitor({
   }
  }
 
- async function refresh({enrollDevice=false}={}) {
+ async function refresh({enrollDevice=false,afterCurrent=false}={}) {
   if(work){
-   if(!enrollDevice)return work;
-   await work;
+   if(!enrollDevice&&!afterCurrent)return work;
+   try{await work;}catch{}
+   if(work)return refresh({enrollDevice,afterCurrent});
   }
   const task=(async()=>{
    busy(true);
    text('apex-ai-live-checked','Проверяем Cloudflare…');
    try{
+    const safe=fn=>Promise.resolve().then(fn).catch(()=>null);
     const [h,p,l]=await Promise.all([
-     Promise.resolve().then(health),
-     Promise.resolve().then(enrollDevice?enroll:pairing),
-     Promise.resolve().then(activity)
+     safe(health),safe(enrollDevice?enroll:pairing),safe(activity)
     ]);
-    const b=p?.state==='APPROVED'?await budget():null;
-    const data={health:h,pair:p,local:l,budget:b};
+    if(l?.state==='LOCAL_AUDIT')lastLocal=l;
+    const b=p?.state==='APPROVED'?await safe(budget):null;
+    const data={health:h,pair:p,local:l?.state==='LOCAL_AUDIT'?l:lastLocal,budget:b};
     render(data);
     latestAt=Date.now();
     return deriveCloudAiView(data);
    }catch{
-    render({health:{state:'CLOUD_UNAVAILABLE'},pair:{state:'CLOUD_UNAVAILABLE'}});
+    render({health:{state:'CLOUD_UNAVAILABLE'},pair:{state:'CLOUD_UNAVAILABLE'},local:lastLocal});
     latestAt=Date.now();
     return deriveCloudAiView({});
    }finally{busy(false);}
@@ -247,7 +250,8 @@ export function initCloudAiMonitor({
  }
  function refreshIfDue(){
   if(document.hidden)return;
-  if(document.body?.dataset?.view!=='overview')return;
+  const settings=document.getElementById('apex-settings-dialog');
+  if(!settings?.open&&document.body?.dataset?.view!=='overview')return;
   if(Date.now()-latestAt>=intervalMs)void refresh();
  }
  refreshButton?.addEventListener('click',()=>void refresh());

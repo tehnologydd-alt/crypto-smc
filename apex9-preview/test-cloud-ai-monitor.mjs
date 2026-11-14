@@ -116,3 +116,12 @@ test('timeout on Qwen uses actual failed attempt time, not preceding success tim
  assert.match(source,/model\.lastAt\?' · '/);
  assert.doesNotMatch(source,/model\.lastSuccessAt\?' · '/);
 });
+
+test('settings refresh on other pages and a failed network read preserves local audit',()=>{
+ const source=readFileSync(new URL('./cloud-ai-monitor.mjs',import.meta.url),'utf8');
+ assert.match(source,/!settings\?\.open&&document.body/);
+ assert.match(source,/lastLocal=l/);
+ assert.match(source,/local:l\?\.state==='LOCAL_AUDIT'\?l:lastLocal/);
+ assert.match(source,/afterCurrent=false/);
+ assert.match(source,/signature!==lastEventsSignature/);
+});

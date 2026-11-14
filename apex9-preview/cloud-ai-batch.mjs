@@ -10,6 +10,11 @@ const KEY='apex.ai.batch.v1',MIN=2,MAX=3,HOUR=3600000;
 const symbol=s=>typeof s==='string'&&/^[A-Z0-9]{2,16}USDT$/.test(s);
 const storeDefault=()=>{try{return globalThis.localStorage||null;}catch{return null;}};
 const ids=e=>e.map(x=>x.source_id);
+export function sameBatchAssets(a,b){
+ return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&
+  new Set(a).size===a.length&&new Set(b).size===b.length&&
+  a.every(x=>b.includes(x));
+}
 const validOutput=(data,role,items)=>data?.state==='OBSERVED_MODEL_BATCH'&&
  data.httpStatus===200&&data.role===role&&
  Array.isArray(data.results)&&data.results.length===items.length&&
@@ -51,7 +56,7 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
  const checks=el('apex-batch-options'),start=el('apex-batch-start');
  const review=el('apex-batch-review'),status=el('apex-batch-status');
  const output=el('apex-batch-output');
- let selected=[],busy=false,session=null,available=[];
+ let selected=[],busy=false,session=null,available=[],budgetSnapshot=null,lastOutput=null;
  try{const raw=store?.getItem(KEY);
   if(raw)session=validateSavedBatch(JSON.parse(raw),now());
  }catch{}
@@ -59,15 +64,23 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
   const favorites=(getFavorites()||[]).filter(symbol).slice(0,10);
   const priority=(getPriorityAssets()||[]).filter(s=>favorites.includes(s));
   const ordered=[...new Set([...priority,...favorites])];
-  if(JSON.stringify(ordered)===JSON.stringify(available))return;
-  available=ordered;
+  // Preserve the visual order during routine priority changes.
+  const stable=[...available.filter(s=>ordered.includes(s)),
+   ...ordered.filter(s=>!available.includes(s))];
+  if(JSON.stringify(stable)===JSON.stringify(available))return;
+  const first=available.length===0;
+  available=stable;
   selected=selected.filter(s=>available.includes(s)).slice(0,MAX);
-  if(!selected.length)selected=available.slice(0,Math.min(MAX,available.length));
+  if(first&&!selected.length){
+   const pending=session?.stage==='ANALYST_READY'?session.items.map(x=>x.asset):[];
+   selected=pending.length&&pending.every(s=>available.includes(s))?
+    pending:available.slice(0,Math.min(MAX,available.length));
+  }
   checks.replaceChildren();
   for(const asset of available){
    const label=document.createElement('label');
    const box=document.createElement('input');
-   box.type='checkbox';box.checked=selected.includes(asset);
+   box.type='checkbox';box.value=asset;box.checked=selected.includes(asset);
    box.disabled=busy;
    box.addEventListener('change',()=>{
     if(box.checked){
@@ -87,12 +100,18 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
   const stage=session?.stage==='ANALYST_READY'&&
    now()-session.startedAt<55*60000;
   review.disabled=busy||!stage||
-   JSON.stringify(selection)!==JSON.stringify(session.items.map(x=>x.asset));
+   !sameBatchAssets(selection,session?.items?.map(x=>x.asset));
+  // Never overwrite the report DOM on an unchanged refresh (scroll stability).
+  if(stage&&!busy&&sameBatchAssets(selection,session.items.map(x=>x.asset))){
+   const gate=budgetSnapshot?checkCloudAiLanguageBudget(budgetSnapshot,now()):null;
+   review.title=gate&&!gate.allowed?gate.message:'Готово к ручной проверке Qwen';
+  }else review.title='';
   for(const input of checks.querySelectorAll('input'))input.disabled=busy;
   output.hidden=!session;
-  if(session)output.textContent=session.items.map(x=>
+  const report=session?session.items.map(x=>
    x.asset+' · GLM\n'+x.analystText+
-   (x.criticText?'\nQwen\n'+x.criticText:'')).join('\n\n———\n\n');
+   (x.criticText?'\nQwen\n'+x.criticText:'')).join('\n\n———\n\n'):'';
+  if(report!==lastOutput){output.textContent=report;lastOutput=report;}
   return selection;
  }
  const say=message=>{status.textContent=message;};
@@ -110,25 +129,29 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
  }
  async function run(role){
   if(busy)return;
-  const chosen=sync();
+  let chosen=sync();
   if(chosen.length<MIN||chosen.length>MAX)return;
   if(role==='critic'&&
    (!session||session.stage!=='ANALYST_READY'||
     now()-session.startedAt>=55*60000||
-    JSON.stringify(chosen)!==JSON.stringify(session.items.map(x=>x.asset)))){
+    !sameBatchAssets(chosen,session.items.map(x=>x.asset)))){
    say('Пакет GLM устарел или изменён состав активов.');return;
   }
+  // Critic must follow the saved analyst order, not current display order.
+  if(role==='critic')chosen=session.items.map(x=>x.asset);
   busy=true;sync();let error=null,done=false;
   say('Проверяем одобрение телефона и бюджет Cloudflare…');
   try{
    const pair=await getPairing();
    if(pair?.state!=='APPROVED')throw Error('Телефон не подтверждён.');
-   const limit=checkCloudAiLanguageBudget(await getBudget(),now());
+   budgetSnapshot=await getBudget();
+   const limit=checkCloudAiLanguageBudget(budgetSnapshot,now());
    if(!limit.allowed)throw Error(limit.message);
    say('Проверяем актуальные публичные данные по '+chosen.join(', ')+'…');
    const fresh=await Promise.all(chosen.map(asset=>evidence(asset)));
-   if(fresh.some(e=>e.length===0))
-    throw Error('Часть активов не имеет свежих подтверждённых данных. Запрос отменён.');
+   const missing=chosen.filter((_,i)=>!fresh[i].length);
+   if(missing.length)
+    throw Error('Нет свежих подтверждённых данных: '+missing.join(', ')+'. Запрос отменён.');
    const items=chosen.map((asset,i)=>{
     const previous=role==='critic'?session.items[i]:null;
     const data=previous?
@@ -181,5 +204,7 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
  sync();
  return {sync,getSession:()=>session,
   getSelected:()=>orderedSelected(),
-  setSelected:values=>{selected=[...new Set(values.filter(x=>available.includes(x)))].slice(0,MAX);sync();}};
+  setSelected:values=>{selected=[...new Set(values.filter(x=>available.includes(x)))].slice(0,MAX);
+   for(const box of checks.querySelectorAll('input'))box.checked=selected.includes(box.value);
+   sync();}};
 }

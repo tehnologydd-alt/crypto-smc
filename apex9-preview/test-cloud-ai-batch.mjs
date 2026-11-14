@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {validateSavedBatch} from './cloud-ai-batch.mjs';
+import {validateSavedBatch,sameBatchAssets} from './cloud-ai-batch.mjs';
 const at=Date.parse('2026-11-13T19:40:00Z');
 const item=a=>({asset:a,
  evidence:[{source_id:'binance:spot:24h:'+a+':'+at,
@@ -32,4 +32,17 @@ test('native signed batch, UI and APK staging exist without background AI loops'
  for(const id of ['apex-batch-start','apex-batch-review',
   'apex-batch-options','apex-batch-output'])
   assert.ok(ui.includes('id="'+id+'"'));
+});
+
+test('same asset set remains reviewable after priority reorder but not substitution',()=>{
+ assert.equal(sameBatchAssets(['BTCUSDT','GRAMUSDT'],['GRAMUSDT','BTCUSDT']),true);
+ assert.equal(sameBatchAssets(['BTCUSDT','GRAMUSDT'],['BTCUSDT','ETHUSDT']),false);
+ assert.equal(sameBatchAssets(['BTCUSDT','BTCUSDT'],['BTCUSDT','BTCUSDT']),false);
+ assert.equal(sameBatchAssets(['BTCUSDT'],undefined),false);
+});
+test('batch critic uses preserved session order and preserves report scroll',()=>{
+ const source=readFileSync(new URL('./cloud-ai-batch.mjs',import.meta.url),'utf8');
+ assert.match(source,/if\(role==='critic'\)chosen=session.items.map/);
+ assert.match(source,/if\(report!==lastOutput\)/);
+ assert.match(source,/sameBatchAssets\(selection,session/);
 });

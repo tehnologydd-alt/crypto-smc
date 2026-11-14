@@ -2282,7 +2282,7 @@ cloudAiAudit=initCloudAiAudit({
  getPairing:cloudAiPairingStatus,
  getBudget:cloudAiBudgetStatus,
  runAudit:cloudAiEvidenceAudit,
- refreshMonitor:()=>cloudAiMonitor.refresh()
+ refreshMonitor:()=>cloudAiMonitor.refresh({afterCurrent:true})
 });
 // Research Director reads the existing native Room + Radar cache only.
 // It queues evidence candidates, never calls Workers AI itself.
@@ -2307,7 +2307,7 @@ cloudAiCollective=initCloudAiCollective({
  getPairing:cloudAiPairingStatus,
  getBudget:cloudAiBudgetStatus,
  runAudit:cloudAiEvidenceAudit,
- refreshMonitor:()=>cloudAiMonitor.refresh(),
+ refreshMonitor:()=>cloudAiMonitor.refresh({afterCurrent:true}),
  onSession:session=>researchDirector.onCollectiveSession(session)
 });
 cloudAiBatch=initCloudAiBatch({
@@ -2320,7 +2320,7 @@ cloudAiBatch=initCloudAiBatch({
  getBudget:cloudAiBudgetStatus,
  runBatch:cloudAiBatchAudit,
  onSession:session=>researchDirector.onCollectiveSession(session),
- refreshMonitor:()=>cloudAiMonitor.refresh()
+ refreshMonitor:()=>cloudAiMonitor.refresh({afterCurrent:true})
 });
 // Restore the last genuinely completed two-model study to the Director journal
 // without sending either model a new request.
