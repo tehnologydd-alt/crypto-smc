@@ -125,3 +125,24 @@ test('settings refresh on other pages and a failed network read preserves local 
  assert.match(source,/afterCurrent=false/);
  assert.match(source,/signature!==lastEventsSignature/);
 });
+
+
+test('AI center is a standalone routed view with unique live controls',()=>{
+ const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+ const app=readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
+ const monitor=readFileSync(new URL('./cloud-ai-monitor.mjs',import.meta.url),'utf8');
+ const settings=html.slice(html.indexOf('<dialog id="apex-settings-dialog"'),html.indexOf('</dialog>'));
+ const ai=html.slice(html.indexOf('id="view-ai"'),html.indexOf('id="view-sources"'));
+ for(const id of ['apex-ai-enroll','apex-ai-check','apex-ai-test-analyst','apex-ai-test-critic','apex-batch-start','apex-batch-review','apex-director-panel','apex-history-list','apex-ai-events','apex-ai-page-state','apex-ai-page-usage']){
+  assert.ok(ai.includes('id="'+id+'"'),id+' must live in AI center');
+  assert.ok(!settings.includes('id="'+id+'"'),id+' must not be inside settings');
+  assert.equal(html.split('id="'+id+'"').length,2,id+' must be unique');
+ }
+ assert.equal((settings.match(/class="apex-settings-divider"/g)||[]).length,3);
+ assert.match(html,/id="apex-ai-live-details"[^>]+data-go="ai"/);
+ assert.ok(app.includes("'radar','ai'"));
+ assert.ok(app.includes("if(view==='ai')void cloudAiMonitor.refresh()"));
+ assert.ok(monitor.includes("['overview','ai'].includes"));
+ assert.ok(!monitor.includes('apex-settings-dialog'));
+ for(const id of ['state','server','device','mode','usage'])assert.ok(monitor.includes('apex-ai-page-'+id));
+});

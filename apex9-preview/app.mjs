@@ -257,7 +257,6 @@ el('native-show-history').addEventListener('click',()=>void showMobileHistory())
 el('apex-settings-open').addEventListener('click',()=>{
  const dialog=el('apex-settings-dialog');
  void refreshMobileStatus();
- void cloudAiMonitor.refresh();
  if(typeof dialog.showModal==='function')dialog.showModal();
  else dialog.setAttribute('open','');
 });
@@ -505,7 +504,7 @@ function updateTab(view){
   if(active)tab.setAttribute('aria-current','page');
   else tab.removeAttribute('aria-current');
  }
- for(const name of ['overview','catalog','asset','forecasts','sources','news','macro','quality','radar'])
+ for(const name of ['overview','catalog','asset','forecasts','sources','news','macro','quality','radar','ai'])
   el('view-'+name).classList.toggle('hidden',name!==view);
 }
 
@@ -1442,6 +1441,7 @@ function navigate(view,targetId){
  }
  if(view==='quality')setQualityArea(researchAreaForTarget(targetId));
  updateTab(view);
+ if(view==='ai')void cloudAiMonitor.refresh();
  requestAnimationFrame(()=>{
   if(view==='radar')radarDashboard.open();
   if(view==='asset'){

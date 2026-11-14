@@ -161,3 +161,16 @@
 .apex-model-transcription-grid>div{padding:10px;border:1px solid #355264;border-radius:10px;background:#0e2434}
 .apex-model-transcription-grid strong{font-size:13px;color:#d5f5f0}
 .apex-model-transcription-numbers{white-space:pre-line;font-size:11px;line-height:1.65;margin:5px 0}
+
+/* Dedicated AI workspace; the compact Overview card remains unchanged. */
+.apex-ai-page{min-width:0}
+.apex-ai-page>h3{font-size:15px;color:#e0f5f5;margin:18px 0 8px}
+.apex-ai-page>.muted{font-size:12px;line-height:1.55;color:#a9c3d0}
+.apex-ai-page .apex-backup-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.apex-ai-page .apex-backup-controls button,.apex-ai-source-link{min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.apex-ai-page .apex-ai-details{padding:13px;gap:12px}
+.apex-ai-page .apex-ai-details>*{min-width:0}
+.apex-ai-page .apex-ai-model-probe select{width:100%;min-width:0}
+.apex-ai-page .apex-ai-source-link{width:100%;margin-top:12px}
+.apex-ai-page-hero{margin-top:8px}
+@media(max-width:380px){.apex-ai-page .apex-backup-controls{grid-template-columns:1fr}}

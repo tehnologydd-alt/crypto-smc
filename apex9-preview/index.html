@@ -67,107 +67,6 @@
     <label class="apex-setting-toggle"><input id="apex-settings-screen" type="checkbox" disabled><span>Не выключать экран<small>Только пока APEX открыт на экране телефона. Увеличивает расход батареи.</small></span></label>
     <p id="apex-settings-screen-status" class="muted" role="status">По умолчанию экран гаснет по настройкам телефона.</p>
     <div class="apex-settings-divider"></div>
-    <h3 class="apex-settings-subtitle" id="apex-ai-settings-anchor">Облачный исследовательский ИИ</h3>
-    <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
-    <div class="apex-backup-controls">
-      <button type="button" class="ghost" id="apex-ai-enroll">Привязать это устройство</button>
-      <button type="button" class="ghost" id="apex-ai-check">Проверить подключение и лимиты</button>
-    </div>
-    <p id="apex-ai-pair-status" class="muted" role="status" aria-live="polite">Облачный ИИ отключён до одобрения устройства.</p>
-    <section class="apex-ai-details" aria-label="Состояние APEX AI и история обращений">
-      <div class="apex-ai-details-line"><span>Последняя связь с сервером</span><strong id="apex-ai-health-checked">—</strong></div>
-      <div class="apex-ai-details-line"><span>Лимит запросов ИИ · день</span><strong id="apex-ai-quota-daily">—</strong></div>
-      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
-      <div class="apex-ai-details-line"><span>Месячные запросы</span><strong id="apex-ai-quota-monthly">—</strong></div>
-      <div class="apex-ai-details-line"><span>Ночные запросы</span><strong id="apex-ai-quota-night">—</strong></div>
-      <div class="apex-ai-details-line"><span>Следующий разрешённый запрос</span><strong id="apex-ai-next-eligible">—</strong></div>
-      <div class="apex-ai-agent-grid">
-        <div><span>GLM-4.7-Flash</span><strong id="apex-ai-glm-status">Нет подтверждённых ответов</strong><small id="apex-ai-glm-count">Успешных вызовов с телефона: 0</small></div>
-        <div><span>Qwen3.8-27B</span><strong id="apex-ai-qwen-status">Нет подтверждённых ответов</strong><small id="apex-ai-qwen-count">Успешных вызовов с телефона: 0</small></div>
-      </div>
-      <section class="apex-ai-model-probe" aria-label="Ручная проверка GLM и Qwen">
-        <strong>Проверка моделей · только по запросу</strong>
-        <p>Выберите избранный актив. APEX передаст только свежие проверенные публичные снимки рынка и покажет настоящий ответ модели. Один запуск расходует до одной попытки внутреннего лимита.</p>
-        <label for="apex-ai-test-asset">Избранный актив</label>
-        <select id="apex-ai-test-asset" aria-label="Актив для проверки исследовательского ИИ"></select>
-        <div class="apex-ai-probe-actions">
-          <button type="button" class="ghost" id="apex-ai-test-analyst">Проверить GLM</button>
-          <button type="button" class="ghost" id="apex-ai-test-critic">Проверить Qwen</button>
-        </div>
-        <p class="muted" id="apex-ai-test-status" role="status" aria-live="polite">Никаких запросов к моделям без нажатия кнопки.</p>
-        <pre id="apex-ai-test-output" hidden aria-label="Реальный ответ исследовательской модели"></pre>
-      </section>
-      <details class="apex-ai-collective">
-        <summary>Совместное исследование GLM + Qwen <small>2 этапа · только вручную</small></summary>
-        <div class="apex-ai-collective-body">
-          <p>GLM фиксирует анализ выбранного избранного актива. После общей паузы Qwen проверяет его выводы по исходным и новым публичным наблюдениям. Каждый этап расходует не более одной разрешённой попытки.</p>
-          <div class="apex-ai-collective-actions">
-            <button type="button" id="apex-ai-collective-start" class="ghost">1. Исследовать · GLM</button>
-            <button type="button" id="apex-ai-collective-review" class="ghost">2. Проверить · Qwen</button>
-          </div>
-          <p id="apex-ai-collective-status" role="status" aria-live="polite">Запросов без нажатия не будет.</p>
-          <p id="apex-ai-collective-coverage" class="muted">Пока нет накопленных результатов</p>
-          <div class="apex-ai-collective-report">
-            <strong>Аналитик GLM</strong>
-            <pre id="apex-ai-collective-analyst-output" hidden></pre>
-            <strong>Независимый критик Qwen</strong>
-            <pre id="apex-ai-collective-critic-output" hidden></pre>
-          </div>
-          <small>Последняя сессия хранится локально на этом устройстве; перенос её через резервную копию ещё не подтверждён. Результаты — исследовательские гипотезы, а не торговые сигналы.</small>
-        </div>
-      </details>
-      <details class="apex-ai-batch">
-        <summary>Пакетное исследование · GLM + Qwen <small>2–3 актива за запрос</small></summary>
-        <div class="apex-ai-batch-body">
-          <p>Выберите 2–3 актива из избранного. GLM исследует их одним запросом, Qwen отдельным запросом проверяет каждый вывод после паузы. Запуск только вручную.</p>
-          <div id="apex-batch-options" class="apex-ai-batch-options" role="group" aria-label="Активы для пакетного анализа"></div>
-          <div class="apex-ai-batch-actions">
-            <button type="button" class="ghost" id="apex-batch-start">1. GLM · пакет</button>
-            <button type="button" class="ghost" id="apex-batch-review">2. Qwen · проверка</button>
-          </div>
-          <p id="apex-batch-status" role="status" aria-live="polite">Модели запускаются только нажатием кнопки.</p>
-          <pre id="apex-batch-output" hidden></pre>
-          <small>Один пакет расходует одну разрешённую попытку модели, но вычислительный расход зависит от объёма. Результаты каждого актива проверяются по его источникам.</small>
-        </div>
-      </details>
-      <details id="apex-director-panel" class="apex-ai-director">
-        <summary>APEX · директор исследований <small>Локальная очередь · 0 запросов ИИ</small></summary>
-        <div class="apex-ai-director-body">
-          <p>APEX проверяет только избранные активы и закрытые свечи из локального Радара. Не создаёт прогнозы и не обращается к GLM/Qwen автоматически.</p>
-          <p id="apex-director-summary">Читаем сохранённый исследовательский журнал…</p>
-          <button type="button" class="ghost" id="apex-director-refresh">Проверить локальный архив</button>
-          <p id="apex-director-status" role="status" aria-live="polite">Нет фоновых обращений к языковым моделям.</p>
-          <ul id="apex-director-tasks"><li>Ожидаем подтверждённые наблюдения</li></ul>
-          <small>Фактическое движение H1 — описание будущих данных, не доказательство точности выводов. Очередь хранится на этом телефоне; перенос её через резервную копию пока не подтверждён.</small>
-        </div>
-      </details>
-      <details class="apex-ai-director">
-        <summary>Архив исследований GLM + Qwen <small>Локальная память</small></summary>
-        <div class="apex-ai-director-body">
-          <p id="apex-history-count">Чтение архива…</p>
-          <label>Актив <select id="apex-history-filter" aria-label="Фильтр архива"></select></label>
-          <details class="apex-research-statistics">
-            <summary>Статистика качества данных и проверок</summary>
-            <div id="apex-history-stats" class="apex-history-metrics"></div>
-            <h4>Сверка чисел по моделям</h4>
-            <div id="apex-history-model-stats" class="apex-model-transcription-grid"></div>
-            <small>Доля совпадений относится только к явно указанным числам, которые удалось сопоставить с сохранённым историческим снимком. Это не оценка качества прогнозов, независимости источников или общей точности ИИ. Если проверяемых чисел нет, процент не вычисляется.</small>
-            <ul id="apex-history-stats-assets"></ul>
-            <small>Показатели относятся к сохранённым записям выбранного фильтра. Две биржи — это покрытие, не доказательство независимости. Завершение Qwen не означает согласия или правильности. Сверка проверяет идентичность снимков и время наблюдений. Изменение показателей между разными снимками не считается противоречием. Структурированные наблюдения извлекаются только из известных форматов сохранённых публичных снимков. Они не являются выводами GLM или Qwen. Точная сверка доступна для явно формализованных исторических числовых утверждений. Свободный текст, причинные объяснения и смысловое согласие моделей автоматически не оцениваются.</small>
-          </details>
-          <div id="apex-history-list"></div>
-          <button type="button" id="apex-history-older" class="ghost">Показать ещё</button>
-          <small>До 200 записей и 1,8 МБ; старые записи вытесняются при заполнении. Сохранены тексты и исходные наблюдения, а не подтверждённые выводы. Включается в новый зашифрованный резервный архив; старые архивы без истории ИИ читаются.</small>
-        </div>
-      </details>
-      <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
-        <ul id="apex-ai-events"><li>Обращений к моделям ещё не было</li></ul>
-      </div>
-      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
-      <p class="apex-ai-footnote" id="apex-ai-limit-note">Здесь показаны внутренние лимиты попыток, а не баланс Neurons или стоимость Cloudflare. Состояние модели считается подтверждённым только после настоящего ответа.</p>
-    </section>
-
-    <div class="apex-settings-divider"></div>
     <h3 class="apex-settings-subtitle">Резервное копирование в облако</h3>
     <p class="muted">Полный перенос истории исследований, свечей, прогнозов, TP/SL, избранного и настроек. В системном окне можно выбрать Google Drive или другое подключённое облако.</p>
     <label class="apex-backup-password-label">Парольная фраза для архива (не менее 12 символов)
@@ -214,7 +113,7 @@
       <div class="apex-ai-overview-actions">
         <small id="apex-ai-live-checked">Проверка ещё не выполнена</small>
         <div><button id="apex-ai-live-refresh" type="button" class="ghost">Обновить</button>
-          <button id="apex-ai-live-details" type="button" class="ghost">Подробности</button></div>
+          <button id="apex-ai-live-details" type="button" class="ghost" aria-controls="view-ai" data-go="ai">Центр ИИ ›</button></div>
       </div>
     </section>
 
@@ -940,6 +839,124 @@
         <div id="macro-calendar-list" class="editorial-calendar-list"></div>
         <p class="footnote">Даты могут измениться. Числовые ряды BLS показаны отдельно выше. Для недавно прошедшей календарной даты доступны сравнения BTC и ETH на закрытых M5 за 15/60/240 минут с тем же временем UTC предыдущих 1 и 2 суток. Это описательные контрольные окна из одного бесплатного запроса, не доказательство выхода публикации или её воздействия. ФРС и ЕЦБ пока не подключены автоматически.</p>
       </article>
+    </section>
+
+    <section class="view hidden apex-ai-page" id="view-ai" aria-labelledby="apex-ai-title">
+      <div class="section-title"><h2 id="apex-ai-title">APEX AI</h2><button type="button" class="ghost" data-go="overview">‹ Обзор</button></div>
+      <section class="apex-ai-overview apex-ai-page-hero" aria-label="Состояние исследовательской системы">
+        <div class="apex-ai-overview-head">
+          <div class="apex-ai-overview-title"><span class="apex-ai-pulse" id="apex-ai-page-dot" data-status="unknown"></span><div><strong>Центр исследований</strong><small>Cloudflare · GLM · Qwen · локальный APEX</small></div></div>
+          <span id="apex-ai-page-state" class="apex-ai-state" data-status="unknown">Не проверено</span>
+        </div>
+        <div class="apex-ai-metrics">
+          <div><span>Сервер</span><strong id="apex-ai-page-server">—</strong></div>
+          <div><span>Телефон</span><strong id="apex-ai-page-device">—</strong></div>
+          <div><span>Режим</span><strong id="apex-ai-page-mode">—</strong></div>
+          <div><span>Попытки сегодня</span><strong id="apex-ai-page-usage">—</strong></div>
+        </div>
+      </section>
+    <h3 id="apex-ai-settings-anchor">Подключение и лимиты</h3>
+    <p class="muted">Подключение только по вашему запросу. Закрытый ключ остаётся в Android Keystore, доступ одобряется владельцем Cloudflare. Запросы к моделям не запускаются автоматически.</p>
+    <div class="apex-backup-controls">
+      <button type="button" class="ghost" id="apex-ai-enroll">Привязать это устройство</button>
+      <button type="button" class="ghost" id="apex-ai-check">Проверить подключение и лимиты</button>
+    </div>
+    <p id="apex-ai-pair-status" class="muted" role="status" aria-live="polite">Подключение ещё не проверено.</p>
+    <section class="apex-ai-details" aria-label="Состояние APEX AI и история обращений">
+      <div class="apex-ai-details-line"><span>Последняя связь с сервером</span><strong id="apex-ai-health-checked">—</strong></div>
+      <div class="apex-ai-details-line"><span>Лимит запросов ИИ · день</span><strong id="apex-ai-quota-daily">—</strong></div>
+      <div class="apex-ai-meter" role="progressbar" aria-label="Использованные дневные попытки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="apex-ai-meter"><span id="apex-ai-meter-fill"></span></div>
+      <div class="apex-ai-details-line"><span>Месячные запросы</span><strong id="apex-ai-quota-monthly">—</strong></div>
+      <div class="apex-ai-details-line"><span>Ночные запросы</span><strong id="apex-ai-quota-night">—</strong></div>
+      <div class="apex-ai-details-line"><span>Следующий разрешённый запрос</span><strong id="apex-ai-next-eligible">—</strong></div>
+      <div class="apex-ai-agent-grid">
+        <div><span>GLM-4.7-Flash</span><strong id="apex-ai-glm-status">Нет подтверждённых ответов</strong><small id="apex-ai-glm-count">Ответов на этом телефоне: —</small></div>
+        <div><span>Qwen3.8-27B</span><strong id="apex-ai-qwen-status">Нет подтверждённых ответов</strong><small id="apex-ai-qwen-count">Ответов на этом телефоне: —</small></div>
+      </div>
+      <section class="apex-ai-model-probe" aria-label="Ручная проверка GLM и Qwen">
+        <strong>Проверка моделей · только по запросу</strong>
+        <p>Выберите избранный актив. APEX передаст только свежие проверенные публичные снимки рынка и покажет настоящий ответ модели. Один запуск расходует до одной попытки внутреннего лимита.</p>
+        <label for="apex-ai-test-asset">Избранный актив</label>
+        <select id="apex-ai-test-asset" aria-label="Актив для проверки исследовательского ИИ"></select>
+        <div class="apex-ai-probe-actions">
+          <button type="button" class="ghost" id="apex-ai-test-analyst">Проверить GLM</button>
+          <button type="button" class="ghost" id="apex-ai-test-critic">Проверить Qwen</button>
+        </div>
+        <p class="muted" id="apex-ai-test-status" role="status" aria-live="polite">Никаких запросов к моделям без нажатия кнопки.</p>
+        <pre id="apex-ai-test-output" hidden aria-label="Реальный ответ исследовательской модели"></pre>
+      </section>
+      <details class="apex-ai-collective">
+        <summary>Совместное исследование GLM + Qwen <small>2 этапа · только вручную</small></summary>
+        <div class="apex-ai-collective-body">
+          <p>GLM фиксирует анализ выбранного избранного актива. После общей паузы Qwen проверяет его выводы по исходным и новым публичным наблюдениям. Каждый этап расходует не более одной разрешённой попытки.</p>
+          <div class="apex-ai-collective-actions">
+            <button type="button" id="apex-ai-collective-start" class="ghost">1. Исследовать · GLM</button>
+            <button type="button" id="apex-ai-collective-review" class="ghost">2. Проверить · Qwen</button>
+          </div>
+          <p id="apex-ai-collective-status" role="status" aria-live="polite">Запросов без нажатия не будет.</p>
+          <p id="apex-ai-collective-coverage" class="muted">Пока нет накопленных результатов</p>
+          <div class="apex-ai-collective-report">
+            <strong>Аналитик GLM</strong>
+            <pre id="apex-ai-collective-analyst-output" hidden></pre>
+            <strong>Независимый критик Qwen</strong>
+            <pre id="apex-ai-collective-critic-output" hidden></pre>
+          </div>
+          <small>Последняя сессия хранится локально на этом устройстве; перенос её через резервную копию ещё не подтверждён. Результаты — исследовательские гипотезы, а не торговые сигналы.</small>
+        </div>
+      </details>
+      <details class="apex-ai-batch">
+        <summary>Пакетное исследование · GLM + Qwen <small>2–3 актива за запрос</small></summary>
+        <div class="apex-ai-batch-body">
+          <p>Выберите 2–3 актива из избранного. GLM исследует их одним запросом, Qwen отдельным запросом проверяет каждый вывод после паузы. Запуск только вручную.</p>
+          <div id="apex-batch-options" class="apex-ai-batch-options" role="group" aria-label="Активы для пакетного анализа"></div>
+          <div class="apex-ai-batch-actions">
+            <button type="button" class="ghost" id="apex-batch-start">1. GLM · пакет</button>
+            <button type="button" class="ghost" id="apex-batch-review">2. Qwen · проверка</button>
+          </div>
+          <p id="apex-batch-status" role="status" aria-live="polite">Модели запускаются только нажатием кнопки.</p>
+          <pre id="apex-batch-output" hidden></pre>
+          <small>Один пакет расходует одну разрешённую попытку модели, но вычислительный расход зависит от объёма. Результаты каждого актива проверяются по его источникам.</small>
+        </div>
+      </details>
+      <details id="apex-director-panel" class="apex-ai-director">
+        <summary>APEX · директор исследований <small>Локальная очередь · 0 запросов ИИ</small></summary>
+        <div class="apex-ai-director-body">
+          <p>APEX проверяет только избранные активы и закрытые свечи из локального Радара. Не создаёт прогнозы и не обращается к GLM/Qwen автоматически.</p>
+          <p id="apex-director-summary">Читаем сохранённый исследовательский журнал…</p>
+          <button type="button" class="ghost" id="apex-director-refresh">Проверить локальный архив</button>
+          <p id="apex-director-status" role="status" aria-live="polite">Нет фоновых обращений к языковым моделям.</p>
+          <ul id="apex-director-tasks"><li>Ожидаем подтверждённые наблюдения</li></ul>
+          <small>Фактическое движение H1 — описание будущих данных, не доказательство точности выводов. Очередь хранится на этом телефоне; перенос её через резервную копию пока не подтверждён.</small>
+        </div>
+      </details>
+      <details class="apex-ai-director">
+        <summary>Архив исследований GLM + Qwen <small>Локальная память</small></summary>
+        <div class="apex-ai-director-body">
+          <p id="apex-history-count">Чтение архива…</p>
+          <label>Актив <select id="apex-history-filter" aria-label="Фильтр архива"></select></label>
+          <details class="apex-research-statistics">
+            <summary>Статистика качества данных и проверок</summary>
+            <div id="apex-history-stats" class="apex-history-metrics"></div>
+            <h4>Сверка чисел по моделям</h4>
+            <div id="apex-history-model-stats" class="apex-model-transcription-grid"></div>
+            <small>Доля совпадений относится только к явно указанным числам, которые удалось сопоставить с сохранённым историческим снимком. Это не оценка качества прогнозов, независимости источников или общей точности ИИ. Если проверяемых чисел нет, процент не вычисляется.</small>
+            <ul id="apex-history-stats-assets"></ul>
+            <small>Показатели относятся к сохранённым записям выбранного фильтра. Две биржи — это покрытие, не доказательство независимости. Завершение Qwen не означает согласия или правильности. Сверка проверяет идентичность снимков и время наблюдений. Изменение показателей между разными снимками не считается противоречием. Структурированные наблюдения извлекаются только из известных форматов сохранённых публичных снимков. Они не являются выводами GLM или Qwen. Точная сверка доступна для явно формализованных исторических числовых утверждений. Свободный текст, причинные объяснения и смысловое согласие моделей автоматически не оцениваются.</small>
+          </details>
+          <div id="apex-history-list"></div>
+          <button type="button" id="apex-history-older" class="ghost">Показать ещё</button>
+          <small>До 200 записей и 1,8 МБ; старые записи вытесняются при заполнении. Сохранены тексты и исходные наблюдения, а не подтверждённые выводы. Включается в новый зашифрованный резервный архив; старые архивы без истории ИИ читаются.</small>
+        </div>
+      </details>
+      <div class="apex-ai-history"><strong>Последние обращения с этого телефона</strong>
+        <ul id="apex-ai-events"><li>История обращений ещё не проверена</li></ul>
+      </div>
+      <p class="apex-ai-footnote" id="apex-ai-neurons-estimate">Оценка расхода Neurons пока недоступна.</p>
+      <p class="apex-ai-footnote" id="apex-ai-limit-note">Здесь показаны внутренние лимиты попыток, а не баланс Neurons или стоимость Cloudflare. Состояние модели считается подтверждённым только после настоящего ответа.</p>
+    </section>
+
+
+      <button type="button" class="ghost apex-ai-source-link" data-go="sources">Источники данных и достоверность ›</button>
     </section>
 
     <section class="view hidden" id="view-sources" aria-labelledby="sources-title">

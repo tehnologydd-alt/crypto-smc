@@ -133,7 +133,6 @@ export function initCloudAiMonitor({
  const refreshButton=document.getElementById('apex-ai-live-refresh');
  const enrollButton=document.getElementById('apex-ai-enroll');
  const checkButton=document.getElementById('apex-ai-check');
- const detailsButton=document.getElementById('apex-ai-live-details');
  const statusBox=document.getElementById('apex-ai-pair-status');
  let latestAt=0,work=null,lastLocal=null,lastEventsSignature='';
  const busy=(value)=>{
@@ -149,6 +148,13 @@ export function initCloudAiMonitor({
   text('apex-ai-live-device',v.access);
   text('apex-ai-live-mode',v.mode);
   text('apex-ai-live-usage',v.daily);
+  setStatus('apex-ai-page-dot',v.status);
+  setStatus('apex-ai-page-state',v.status);
+  text('apex-ai-page-state',v.statusLabel);
+  text('apex-ai-page-server',v.server);
+  text('apex-ai-page-device',v.access);
+  text('apex-ai-page-mode',v.mode);
+  text('apex-ai-page-usage',v.daily);
   text('apex-ai-live-checked',v.checkedAt?
    'Проверено: '+renderTime(v.checkedAt):
    'Последняя связь: '+renderTime(v.lastHealthyAt));
@@ -250,20 +256,12 @@ export function initCloudAiMonitor({
  }
  function refreshIfDue(){
   if(document.hidden)return;
-  const settings=document.getElementById('apex-settings-dialog');
-  if(!settings?.open&&document.body?.dataset?.view!=='overview')return;
+  if(!['overview','ai'].includes(document.body?.dataset?.view))return;
   if(Date.now()-latestAt>=intervalMs)void refresh();
  }
  refreshButton?.addEventListener('click',()=>void refresh());
  checkButton?.addEventListener('click',()=>void refresh());
  enrollButton?.addEventListener('click',()=>void refresh({enrollDevice:true}));
- detailsButton?.addEventListener('click',()=>{
-  const dialog=document.getElementById('apex-settings-dialog');
-  if(typeof dialog?.showModal==='function'&&!dialog.open)dialog.showModal();
-  else if(dialog&&!dialog.open)dialog.setAttribute('open','');
-  document.getElementById('apex-ai-settings-anchor')?.scrollIntoView({block:'start'});
-  void refresh();
- });
  document.addEventListener('visibilitychange',refreshIfDue);
  const timer=setInterval(refreshIfDue,intervalMs);
  void refresh();
