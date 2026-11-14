@@ -138,3 +138,9 @@
  overflow-wrap:anywhere;max-height:320px;overflow-y:auto;background:#0b2033;
  border:1px solid #375267;border-radius:11px;padding:11px;margin:0}
 #apex-batch-output[hidden]{display:none}
+
+#apex-history-list{display:grid;gap:8px}
+#apex-history-list details{border:1px solid #385869;border-radius:9px;padding:9px}
+#apex-history-list summary{font-size:11px;cursor:pointer}
+#apex-history-list pre{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}
+#apex-history-filter{max-width:100%;color:inherit;background:#0e2434;border:1px solid #385869;padding:7px;border-radius:8px}

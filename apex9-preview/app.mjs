@@ -10,6 +10,7 @@ import {initCloudAiMonitor} from './cloud-ai-monitor.mjs';
 import {initCloudAiAudit} from './cloud-ai-manual-audit.mjs';
 import {initCloudAiCollective} from './cloud-ai-collective.mjs';
 import {initCloudAiBatch} from './cloud-ai-batch.mjs';
+import {initResearchHistory} from './apex-research-history.mjs';
 import {cloudAiBatchAudit} from './mobile-bridge.mjs';
 import {initApexResearchDirector} from './apex-research-director-ui.mjs';
 import {exportMobileCloudBackup,importMobileCloudBackup,
@@ -2298,6 +2299,7 @@ researchDirector=initApexResearchDirector({
   if(section)section.open=true;
  }
 });
+const researchHistory=initResearchHistory();
 // Two explicit calls, not an autonomous background loop: the second call
 // carries bounded historical GLM hypotheses as untrusted claims to Qwen.
 cloudAiCollective=initCloudAiCollective({
@@ -2308,7 +2310,7 @@ cloudAiCollective=initCloudAiCollective({
  getBudget:cloudAiBudgetStatus,
  runAudit:cloudAiEvidenceAudit,
  refreshMonitor:()=>cloudAiMonitor.refresh({afterCurrent:true}),
- onSession:session=>researchDirector.onCollectiveSession(session)
+ onSession:session=>{researchDirector.onCollectiveSession(session);researchHistory.ingest([session]);}
 });
 cloudAiBatch=initCloudAiBatch({
  getFavorites:()=>favoriteManager.getFavorites(),
@@ -2319,7 +2321,7 @@ cloudAiBatch=initCloudAiBatch({
  getPairing:cloudAiPairingStatus,
  getBudget:cloudAiBudgetStatus,
  runBatch:cloudAiBatchAudit,
- onSession:session=>researchDirector.onCollectiveSession(session),
+ onSession:session=>{researchDirector.onCollectiveSession(session);researchHistory.ingest([session]);},
  refreshMonitor:()=>cloudAiMonitor.refresh({afterCurrent:true})
 });
 // Restore the last genuinely completed two-model study to the Director journal
