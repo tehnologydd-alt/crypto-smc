@@ -747,6 +747,41 @@ export async function researchLabDigest(rows,asset,now=Date.now(),cryptoApi=glob
   return Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
  }catch{return null;}
 }
+/**
+ * Unified local quality overview. A saved digest links a review to an input
+ * fingerprint, not proof that the hypothesis or the facts are correct.
+ */
+export function researchQualityCenter(rows,{feedback=null,lab=null,rules=null,now=Date.now()}={}){
+ const normalized=mergeTranscripts([],rows,now);
+ const knowledge=buildResearchKnowledge(normalized,{now});
+ const worklist=buildResearchFeedback(knowledge);
+ const usage=researchStorageUsage(normalized);
+ const knownIds=new Set(knowledge.records.map(r=>r.id));
+ const feedbackLinks=feedback===null?null:feedback.reduce((out,r)=>{
+  const available=r.evidenceIds.filter(id=>knownIds.has(id)).length;
+  if(available===r.evidenceIds.length)out.allPresent++;
+  else if(available===0)out.nonePresent++;
+  else out.partiallyPresent++;
+  if(worklist.items.some(i=>i.id===r.taskId))out.currentlyFlagged++;
+  return out;
+ },{allPresent:0,partiallyPresent:0,nonePresent:0,currentlyFlagged:0});
+ const ruleLinks=rules===null||lab===null?null:rules.reduce((out,r)=>{
+  if(lab.some(e=>e.digest===r.digest))out.linked++;else out.notLinked++;
+  if(r.at>now||now-r.at>=KNOWLEDGE_REVIEW_DAYS*86400000)out.requiresDateReview++;
+  return out;
+ },{linked:0,notLinked:0,requiresDateReview:0});
+ return {
+  archive:{records:usage.records,recordLimit:usage.recordLimit,byteLimit:usage.byteLimit,bytes:usage.bytes,
+   nearCapacity:Math.max(usage.recordPercent,usage.bytePercent)>=80,
+   observations:knowledge.total,facts:knowledge.uniqueFacts,conflicts:knowledge.quarantined,unknown:knowledge.unknown},
+  feedback:{tasks:worklist.total,reviewCount:feedback===null?null:feedback.length,links:feedbackLinks},
+  lab:{experiments:lab===null?null:lab.length,limit:LAB_LIMIT},
+  rules:{implemented:KNOWLEDGE_RULES.filter(r=>r.kind==='IMPLEMENTED').length,
+   experimental:KNOWLEDGE_RULES.filter(r=>r.kind==='EXPERIMENTAL').length,
+   reviews:rules===null?null:rules.length,links:ruleLinks},
+  automaticModelCalls:0,automaticActivation:false
+ };
+}
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
  return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
@@ -994,6 +1029,44 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  let labSnapshot=null,labBusy=false;
  const labHistory=node('apex-lab-history'),labStatus=node('apex-lab-status');
  const ruleRegistry=node('apex-rules-list'),ruleStatus=node('apex-rules-status');
+ const center=node('apex-quality-center-list'),centerStatus=node('apex-quality-center-status');
+ let centerSignature='';
+ function renderQualityCenter(){
+  if(!center||!centerStatus)return;
+  const current=now(),feedback=readFeedbackJournal(store),lab=readLabJournal(store),rules=readKnowledgeReviews(store);
+  const key=JSON.stringify([rows,feedback,lab,rules,Math.floor(current/86400000),saved,saveIssue]);
+  if(key===centerSignature)return;
+  centerSignature=key;
+  const v=researchQualityCenter(rows,{feedback,lab,rules,now:current});
+  const a=v.archive,f=v.feedback,l=v.lab,k=v.rules,show=x=>x===null?'Недоступен':String(x);
+  centerStatus.textContent='Локальная сводка по всему архиву · автоматических запросов: 0'+archiveWarning();
+  const parts=[
+   ['Research Memory',a.records+'/'+a.recordLimit+' записей · '+a.observations+' уникальных снимков',
+    'Числовых фактов: '+a.facts+' · конфликтующих ID: '+a.conflicts+' · неизвестных форматов: '+a.unknown+
+    (a.nearCapacity?' · близко к пределу памяти':''),'apex-ai-archive-anchor'],
+   ['Feedback Engine',f.tasks+' задач · ручных отметок: '+show(f.reviewCount),
+    f.links?'Все указанные ID присутствуют: '+f.links.allPresent+' · часть ID: '+f.links.partiallyPresent+
+     ' · ни одного ID: '+f.links.nonePresent+' · отметки по текущим задачам: '+f.links.currentlyFlagged:
+     'Журнал недоступен, связь с архивом не проверена','apex-ai-feedback-anchor'],
+   ['Research Lab',show(l.experiments)+' / '+l.limit+' экспериментов',
+    'Сводки и контрольные отпечатки; исходные данные хранятся отдельно в архиве.','apex-ai-lab-anchor'],
+   ['Knowledge Engine',k.implemented+' рабочих · '+k.experimental+' экспериментальных правил · отметок: '+show(k.reviews),
+    k.links?'Отметок с сохранённым отпечатком эксперимента: '+k.links.linked+
+     ' · без совпадающего отпечатка: '+k.links.notLinked+' · требуется проверка даты: '+k.links.requiresDateReview:
+     'Связь журналов не проверена','apex-ai-rules-anchor']
+  ];
+  center.replaceChildren();
+  for(const [name,summary,note,target] of parts){
+   const card=document.createElement('div'),heading=document.createElement('strong'),main=document.createElement('p'),
+    sub=document.createElement('small'),button=document.createElement('button');
+   card.className='apex-quality-period';heading.textContent=name;main.textContent=summary;sub.textContent=note;
+   button.type='button';button.className='ghost';button.textContent='Открыть раздел';
+   button.addEventListener('click',()=>{
+    const section=node(target);if(!section)return;section.open=true;section.scrollIntoView?.({block:'start',behavior:'smooth'});
+   });
+   card.append(heading,main,sub,button);center.append(card);
+  }
+ }
  function renderRuleRegistry(){
   if(!ruleRegistry)return;
   const current=labSnapshot&&labSnapshot.signature===JSON.stringify([rows,picker.value]);
@@ -1032,6 +1105,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
       const r=recordKnowledgeReview(store,{ruleId:rule.id,ruleVersion:rule.version,role:rule.role,digest,at:now(),outcome:select.value});
       if(ruleStatus)ruleStatus.textContent=r.ok?'Отметка сохранена. Рабочее правило не изменено.':'Запись не подтверждена: '+r.reason;
       renderRuleRegistry();
+      renderQualityCenter();
      });
      d.append(select,button);
     }
@@ -1131,7 +1205,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    if(labStatus)labStatus.textContent=saved.ok?
     (saved.repeated?'Повторный расчёт совпал с сохранённым результатом для того же входа.':'Эксперимент сохранён локально.'):
     'Результат рассчитан, но запись не подтверждена: '+saved.reason;
-  }finally{labBusy=false;labRun.disabled=false;renderLab();}
+  }finally{labBusy=false;labRun.disabled=false;renderLab();renderQualityCenter();}
  });
  const reviewList=node('apex-feedback-reviews'),reviewStatus=node('apex-feedback-review-status'),
   reviewMore=node('apex-feedback-review-more');
@@ -1206,7 +1280,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      const recorded=recordFeedbackReview(store,live,select.value,now());
      reviewStatus.textContent=recorded.ok?(recorded.duplicate?'Такая проверка уже сохранена.':'Ручная отметка сохранена; устранение проблемы не подтверждено.'):
       recorded.reason==='JOURNAL_FULL'?'Журнал заполнен; прежние записи сохранены.':'Не удалось подтвердить запись журнала.';
-     feedbackSignature='';renderFeedback();
+     feedbackSignature='';renderFeedback();renderQualityCenter();
     });
     details.append(select,button);
    }
@@ -1396,6 +1470,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   renderQuality();
   renderFeedback();
   renderLab();
+  renderQualityCenter();
   limit.disabled=shown.length<=visible;
   const archiveConflicts=findArchiveSourceConflicts(shown);
   const next=JSON.stringify([shown.slice(0,visible),archiveConflicts]);

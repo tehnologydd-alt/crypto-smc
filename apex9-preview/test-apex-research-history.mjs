@@ -548,3 +548,24 @@ test('knowledge registry separates implementation, review status and activation'
  assert.equal(recordKnowledgeReview(store,row).ok,false);
  assert.equal(map.get(KNOWLEDGE_REVIEW_KEY),'broken');
 });
+
+test('quality center separates inaccessible journals, empty journals and linked records',async()=>{
+ const {researchQualityCenter,buildResearchFeedback,buildResearchKnowledge}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0],digest='a'.repeat(64);
+ const unavailable=researchQualityCenter([a],{now});
+ assert.equal(unavailable.archive.records,1);
+ assert.equal(unavailable.feedback.reviewCount,null);
+ assert.equal(unavailable.rules.links,null);
+ const empty=researchQualityCenter([a],{now,feedback:[],lab:[],rules:[]});
+ assert.equal(empty.feedback.reviewCount,0);
+ assert.equal(empty.lab.experiments,0);
+ assert.deepEqual(empty.rules.links,{linked:0,notLinked:0,requiresDateReview:0});
+ const reviews=[{taskId:'x',evidenceIds:[id]},{taskId:'y',evidenceIds:[id,'missing']},{taskId:'z',evidenceIds:['missing']}];
+ const ruleNotes=[{digest,at:now},{digest:'b'.repeat(64),at:now-31*86400000}];
+ const v=researchQualityCenter([a,a],{now,feedback:reviews,lab:[{digest}],rules:ruleNotes});
+ assert.equal(v.archive.records,1);
+ assert.equal(v.archive.observations,1);
+ assert.deepEqual(v.feedback.links,{allPresent:1,partiallyPresent:1,nonePresent:1,currentlyFlagged:0});
+ assert.deepEqual(v.rules.links,{linked:1,notLinked:1,requiresDateReview:1});
+ assert.equal(v.automaticActivation,false);
+});
