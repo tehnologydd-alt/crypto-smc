@@ -906,7 +906,7 @@ export function readPendingCycle(store){
   const raw=store.getItem(CYCLE_PENDING_KEY);
   if(raw==null)return {ok:true,value:null};
   if(typeof raw!=='string'||raw.length>512)return {ok:false,reason:'CYCLE_PENDING_INVALID'};
-  const p=JSON.parse(raw);
+  let p;try{p=JSON.parse(raw);}catch{return {ok:false,reason:'CYCLE_PENDING_INVALID'};}
   if(!portableKeys(p,['version','startedAt'])||p.version!==1||
     !Number.isSafeInteger(p.startedAt)||p.startedAt<=0||p.startedAt>8640000000000000)
    return {ok:false,reason:'CYCLE_PENDING_INVALID'};
