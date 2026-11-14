@@ -469,3 +469,33 @@ test('research lab compares the same unique facts without changing strict matchi
  assert.equal(runResearchLab([a],{now,asset:'ETHUSDT'}).models[0].total,0);
  assert.equal(runResearchLab([],{now}).checkedClaims,0);
 });
+
+test('research lab source partition is stable and all cohort counts reconcile',async()=>{
+ const {runResearchLab,researchLabPartition}=await import('./apex-research-history.mjs');
+ const a=claimFixture(),id=a.sourceIds[0];
+ a.analystText='Historical observation.\nAPEX_FACT|'+id+'|PRICE_USDT|17.25';
+ const b={...complete(a),criticText:a.analystText};
+ const result=runResearchLab([a,b,b],{now});
+ const partition=researchLabPartition(id);
+ assert.equal(result.cohorts.find(c=>c.partition===partition).models[0].total,1);
+ assert.equal(result.cohorts.find(c=>c.partition===partition).models[1].total,1);
+ assert.equal(result.cohorts.find(c=>c.partition!==partition).models[0].total,0);
+ assert.equal(result.cohorts.find(c=>c.partition!==partition).models[1].exactPercent,null);
+ assert.equal(new Set(Array.from({length:100},(_,i)=>researchLabPartition('source:'+i))).size,2);
+});
+test('lab journal verifies reproducibility per digest, preserves earlier entries',async()=>{
+ const {runResearchLab,researchLabDigest,recordLabExperiment,readLabJournal}=await import('./apex-research-history.mjs');
+ const {webcrypto}=await import('node:crypto');
+ const a=claimFixture(),result=runResearchLab([a],{now});
+ const digest=await researchLabDigest([a],'',now,webcrypto);
+ assert.match(digest,/^[a-f0-9]{64}$/);
+ assert.equal(await researchLabDigest([a,a],'',now,webcrypto),digest);
+ assert.notEqual(await researchLabDigest([{...a,analystText:'Different historical observation.'}],'',now,webcrypto),digest);
+ const data=new Map(),store={getItem:k=>data.get(k),setItem:(k,v)=>data.set(k,v)};
+ const entry={at:now,digest,result};
+ assert.equal(recordLabExperiment(store,entry).ok,true);
+ assert.equal(recordLabExperiment(store,{...entry,at:now+1}).repeated,true);
+ assert.equal(readLabJournal(store).length,1);
+ assert.equal(recordLabExperiment(store,{...entry,result:{...result,unresolved:result.unresolved+1}}).reason,'REPRODUCIBILITY_MISMATCH');
+ assert.equal(readLabJournal(store).length,1);
+});

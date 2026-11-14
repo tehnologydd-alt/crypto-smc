@@ -211,3 +211,5 @@
 #apex-feedback-list select{width:100%;margin:6px 0;padding:8px;box-sizing:border-box;background:#0e2434;color:inherit;border:1px solid #385869;border-radius:8px}#apex-feedback-list button{width:100%}#apex-feedback-reviews p{white-space:pre-wrap;overflow-wrap:anywhere}
 
 #apex-lab-output{min-width:0}#apex-lab-output p{overflow-wrap:anywhere;font-size:11px;line-height:1.55}
+
+#apex-lab-history p{font-size:11px;overflow-wrap:anywhere;white-space:normal}#apex-lab-status{font-size:12px;line-height:1.5}

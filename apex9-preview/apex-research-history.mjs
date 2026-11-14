@@ -535,7 +535,19 @@ export function compareFeedbackReview(review,current){
  * Exact production matching stays unchanged. A fixed relative tolerance
  * is a counterfactual classification, not proof of correct rounding.
  */
-export const RESEARCH_LAB_POLICY=Object.freeze({version:1,relativeTolerance:0.000001});
+export const RESEARCH_LAB_POLICY=Object.freeze({version:2,relativeTolerance:0.000001,split:'SOURCE_ID_FNV1A_MOD5'});
+/** Fixed 80/20 assignment by observation ID; all fields and model repeats stay together. */
+export function researchLabPartition(sourceId){
+ let hash=2166136261;
+ for(let i=0;i<sourceId.length;i++)hash=Math.imul(hash^sourceId.charCodeAt(i),16777619);
+ return (hash>>>0)%5===0?'CONTROL':'RESEARCH';
+}
+function labMetrics(role,facts){
+ const total=facts.length,exact=facts.filter(f=>f.exact).length;
+ const toleranceOnly=facts.filter(f=>!f.exact&&f.within).length;
+ return {role,total,exact,toleranceOnly,outside:total-exact-toleranceOnly,
+  exactPercent:researchRatio(exact,total),tolerancePercent:researchRatio(exact+toleranceOnly,total)};
+}
 export function runResearchLab(rawRows,{asset='',now=Date.now()}={}){
  const rows=mergeTranscripts([],Array.isArray(rawRows)?rawRows:[],now);
  const conflicts=findArchiveSourceConflicts(rows);
@@ -550,7 +562,8 @@ export function runResearchLab(rawRows,{asset='',now=Date.now()}={}){
    const key=JSON.stringify([c.sourceId,c.field]);
    const map=maps[c.role];
    let f=map.get(key);
-   if(!f){f={exact:true,within:true,hasDifference:false,attempts:0};map.set(key,f);}
+   if(!f){f={exact:true,within:true,hasDifference:false,attempts:0,
+    partition:researchLabPartition(c.sourceId)};map.set(key,f);}
    const exact=c.state==='EXACT_MATCH';
    // Zero has no relative tolerance; never use absolute floors across units.
    const within=exact||(c.observed!==0&&
@@ -559,16 +572,68 @@ export function runResearchLab(rawRows,{asset='',now=Date.now()}={}){
    f.hasDifference=f.hasDifference||!exact;f.attempts++;checkedClaims++;
   }
  }
- const models=Object.entries(maps).map(([role,map])=>{
-  const facts=[...map.values()],total=facts.length;
-  const exact=facts.filter(f=>f.exact).length;
-  const toleranceOnly=facts.filter(f=>!f.exact&&f.within).length;
-  return {role,total,exact,toleranceOnly,outside:total-exact-toleranceOnly,
-   exactPercent:researchRatio(exact,total),
-   tolerancePercent:researchRatio(exact+toleranceOnly,total)};
- });
- return {policy:{...RESEARCH_LAB_POLICY},asset,models,checkedClaims,unresolved,
+ const models=Object.entries(maps).map(([role,map])=>labMetrics(role,[...map.values()]));
+ const cohorts=['RESEARCH','CONTROL'].map(partition=>({partition,
+  models:Object.entries(maps).map(([role,map])=>labMetrics(role,[...map.values()].filter(f=>f.partition===partition)))}));
+ return {policy:{...RESEARCH_LAB_POLICY},asset,models,cohorts,checkedClaims,unresolved,
   archiveConflicts:conflicts.length,automaticModelCalls:0,productionRuleChanged:false};
+}
+export const LAB_JOURNAL_KEY='apex.research.lab.journal.v1';
+const LAB_LIMIT=40,LAB_BYTES=120000;
+function validLabMetrics(m,role){
+ return m?.role===role&&['total','exact','toleranceOnly','outside'].every(k=>Number.isSafeInteger(m[k])&&m[k]>=0)&&
+  m.total===m.exact+m.toleranceOnly+m.outside&&m.exactPercent===researchRatio(m.exact,m.total)&&
+  m.tolerancePercent===researchRatio(m.exact+m.toleranceOnly,m.total);
+}
+function validLabEntry(e){
+ if(!e||!Number.isSafeInteger(e.at)||e.at<=0||e.at>8640000000000000||
+  typeof e.digest!=='string'||!/^[a-f0-9]{64}$/.test(e.digest))return false;
+ const r=e.result;
+ if(!r||r.policy?.version!==2||r.policy.relativeTolerance!==RESEARCH_LAB_POLICY.relativeTolerance||
+  r.policy.split!==RESEARCH_LAB_POLICY.split||typeof r.asset!=='string'||(r.asset&&!SYMBOL.test(r.asset))||
+  !['checkedClaims','unresolved','archiveConflicts'].every(k=>Number.isSafeInteger(r[k])&&r[k]>=0)||
+  r.automaticModelCalls!==0||r.productionRuleChanged!==false||!Array.isArray(r.models)||r.models.length!==2||
+  !Array.isArray(r.cohorts)||r.cohorts.length!==2)return false;
+ const roles=['GLM','Qwen'];
+ if(!roles.every((role,i)=>validLabMetrics(r.models[i],role)))return false;
+ if(!r.cohorts.every((c,i)=>c.partition===['RESEARCH','CONTROL'][i]&&Array.isArray(c.models)&&c.models.length===2&&
+  roles.every((role,j)=>validLabMetrics(c.models[j],role))))return false;
+ return roles.every((role,i)=>['total','exact','toleranceOnly','outside'].every(k=>
+  r.models[i][k]===r.cohorts.reduce((n,c)=>n+c.models[i][k],0)));
+}
+export function readLabJournal(store){
+ try{
+  if(!store)return null;
+  const raw=store.getItem(LAB_JOURNAL_KEY);
+  if(raw==null)return [];
+  if(new TextEncoder().encode(raw).length>LAB_BYTES)return null;
+  const d=JSON.parse(raw);
+  if(d.version!==1||!Array.isArray(d.entries)||d.entries.length>LAB_LIMIT||!d.entries.every(validLabEntry))return null;
+  return d.entries;
+ }catch{return null;}
+}
+export function recordLabExperiment(store,entry){
+ const old=readLabJournal(store);
+ if(old===null||!validLabEntry(entry))return {ok:false,reason:'INVALID_OR_UNAVAILABLE'};
+ const same=old.find(e=>e.digest===entry.digest&&e.result.asset===entry.result.asset&&e.result.policy.version===entry.result.policy.version);
+ if(same)return JSON.stringify(same.result)===JSON.stringify(entry.result)?
+  {ok:true,repeated:true}:{ok:false,reason:'REPRODUCIBILITY_MISMATCH'};
+ if(old.length>=LAB_LIMIT)return {ok:false,reason:'JOURNAL_FULL'};
+ const raw=JSON.stringify({version:1,entries:[entry,...old]});
+ if(new TextEncoder().encode(raw).length>LAB_BYTES)return {ok:false,reason:'JOURNAL_FULL'};
+ try{
+  store.setItem(LAB_JOURNAL_KEY,raw);
+  return store.getItem(LAB_JOURNAL_KEY)===raw?{ok:true,repeated:false}:{ok:false,reason:'LOCAL_STORAGE'};
+ }catch{return {ok:false,reason:'LOCAL_STORAGE'};}
+}
+/** SHA-256 identifies the normalized input, not correctness of the experiment. */
+export async function researchLabDigest(rows,asset,now=Date.now(),cryptoApi=globalThis.crypto){
+ if(!cryptoApi?.subtle)return null;
+ try{
+  const canonical=mergeTranscripts([],rows,now).sort((a,b)=>a.id.localeCompare(b.id));
+  const bytes=new TextEncoder().encode(JSON.stringify([RESEARCH_LAB_POLICY,asset,canonical]));
+  return Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+ }catch{return null;}
 }
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
@@ -814,8 +879,30 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  const feedbackSummary=node('apex-feedback-summary'),feedbackList=node('apex-feedback-list'),
   feedbackMore=node('apex-feedback-more');
  const labRun=node('apex-lab-run'),labOutput=node('apex-lab-output');
- let labSnapshot=null;
+ let labSnapshot=null,labBusy=false;
+ const labHistory=node('apex-lab-history'),labStatus=node('apex-lab-status');
+ function renderLabHistory(){
+  if(!labHistory)return;
+  const journal=readLabJournal(store);
+  labHistory.replaceChildren();
+  if(!journal?.length){
+   const p=document.createElement('p');p.textContent=journal===null?'Журнал недоступен.':'Нет сохранённых экспериментов.';labHistory.append(p);
+  }
+  for(const e of (journal||[])){
+   const d=document.createElement('details'),title=document.createElement('summary'),p=document.createElement('p');
+   d.className='apex-quality-pattern';title.textContent=new Date(e.at).toISOString()+' · '+(e.result.asset||'Все активы');
+   p.textContent='SHA-256: '+e.digest+' · правило v'+e.result.policy.version;
+   d.append(title,p);
+   for(const c of e.result.cohorts){
+    const note=document.createElement('p');note.textContent=(c.partition==='CONTROL'?'Контрольная':'Исследовательская')+
+     ': '+c.models.map(m=>m.role+' '+m.exact+'/'+m.total+' строго, '+(m.exact+m.toleranceOnly)+'/'+m.total+' с допуском').join(' · ');
+    d.append(note);
+   }
+   labHistory.append(d);
+  }
+ }
  function renderLab(){
+  renderLabHistory();
   if(!labOutput||!labSnapshot)return;
   const {result,at,signature}=labSnapshot;
   const stale=signature!==JSON.stringify([rows,picker.value]);
@@ -834,12 +921,27 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
     researchMeter('Экспериментальный допуск',m.exact+m.toleranceOnly,m.total),note);
    labOutput.append(card);
   }
+  for(const c of result.cohorts){
+   const card=document.createElement('div'),title=document.createElement('strong');
+   card.className='apex-quality-period';title.textContent=c.partition==='CONTROL'?'Контрольная выборка':'Исследовательская выборка';
+   card.append(title);
+   for(const m of c.models)card.append(researchMeter(m.role+' · строго',m.exact,m.total),
+    researchMeter(m.role+' · с допуском',m.exact+m.toleranceOnly,m.total));
+   labOutput.append(card);
+  }
  }
- labRun?.addEventListener('click',()=>{
-  const at=now();
-  labSnapshot={at,signature:JSON.stringify([rows,picker.value]),
-   result:runResearchLab(rows,{asset:picker.value,now:at})};
-  renderLab();
+ labRun?.addEventListener('click',async()=>{
+  if(labBusy)return;labBusy=true;labRun.disabled=true;
+  try{
+   const at=now(),input=rows.slice(),asset=picker.value;
+   const signature=JSON.stringify([input,asset]),result=runResearchLab(input,{asset,now:at});
+   labSnapshot={at,signature,result};
+   const digest=await researchLabDigest(input,asset,at);
+   const saved=digest?recordLabExperiment(store,{at,digest,result}):{ok:false,reason:'NO_DIGEST'};
+   if(labStatus)labStatus.textContent=saved.ok?
+    (saved.repeated?'Повторный расчёт совпал с сохранённым результатом для того же входа.':'Эксперимент сохранён локально.'):
+    'Результат рассчитан, но запись не подтверждена: '+saved.reason;
+  }finally{labBusy=false;labRun.disabled=false;renderLab();}
  });
  const reviewList=node('apex-feedback-reviews'),reviewStatus=node('apex-feedback-review-status'),
   reviewMore=node('apex-feedback-review-more');
