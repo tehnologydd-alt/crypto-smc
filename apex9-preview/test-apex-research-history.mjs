@@ -405,3 +405,29 @@ test('feedback engine requires distinct observations and separates missing cover
  assert.ok(!conflicted.items.some(x=>x.kind==='REPEATED_NUMERIC_DIFFERENCE'));
  assert.equal(buildResearchFeedback(buildResearchKnowledge([],{now})).total,0);
 });
+
+test('manual feedback journal persists a baseline, avoids duplicate marks and never claims resolution',async()=>{
+ const {recordFeedbackReview,readFeedbackJournal,compareFeedbackReview,FEEDBACK_JOURNAL_KEY}=await import('./apex-research-history.mjs');
+ const map=new Map(),store={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};
+ const item={id:JSON.stringify(['REPEATED_NUMERIC_DIFFERENCE','binance:24h','PRICE_USDT','GLM']),affected:3,total:5,evidenceIds:['binance:spot:24h:BTCUSDT:1','binance:spot:24h:BTCUSDT:2']};
+ assert.deepEqual(readFeedbackJournal(store),[]);
+ const first=recordFeedbackReview(store,item,'REQUIRES_REVIEW',now);
+ assert.equal(first.ok,true);
+ assert.equal(recordFeedbackReview(store,item,'REQUIRES_REVIEW',now+1).duplicate,true);
+ assert.equal(readFeedbackJournal(store).length,1);
+ assert.equal(compareFeedbackReview(first.reviews[0],{items:[item]}).state,'UNCHANGED');
+ const changed=compareFeedbackReview(first.reviews[0],{items:[{...item,total:8}]});
+ assert.equal(changed.state,'CHANGED');assert.equal(changed.before,60);assert.equal(changed.after,38);
+ const absent=compareFeedbackReview(first.reviews[0],{items:[]});
+ assert.equal(absent.state,'NOT_CURRENTLY_FLAGGED');assert.equal(absent.after,null);
+ assert.equal(recordFeedbackReview(store,item,'ROUNDING_OR_FORMAT',now+2).ok,true);
+ assert.equal(readFeedbackJournal(store).length,2);
+ const filled=Array.from({length:100},(_,i)=>({...first.reviews[0],at:now-i}));
+ map.set(FEEDBACK_JOURNAL_KEY,JSON.stringify({version:1,reviews:filled}));
+ const raw=map.get(FEEDBACK_JOURNAL_KEY);
+ assert.equal(recordFeedbackReview(store,item,'INSUFFICIENT_EVIDENCE',now+3).reason,'JOURNAL_FULL');
+ assert.equal(map.get(FEEDBACK_JOURNAL_KEY),raw);
+ map.set(FEEDBACK_JOURNAL_KEY,'broken');
+ assert.equal(recordFeedbackReview(store,item,'INSUFFICIENT_EVIDENCE',now+4).ok,false);
+ assert.equal(map.get(FEEDBACK_JOURNAL_KEY),'broken');
+});

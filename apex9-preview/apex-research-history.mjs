@@ -439,6 +439,67 @@ export function buildResearchFeedback(knowledge){
  return {items,total:items.length,observations:knowledge?.total||0,
   policy:{...policy},automaticModelCalls:0};
 }
+/** Manual audit journal: evidence metadata only, no model calls or learning. */
+export const FEEDBACK_JOURNAL_KEY='apex.research.feedback.journal.v1';
+const MAX_FEEDBACK_REVIEWS=100,MAX_FEEDBACK_BYTES=180000;
+export const FEEDBACK_REVIEW_OUTCOMES=Object.freeze(['REQUIRES_REVIEW','ROUNDING_OR_FORMAT','SOURCE_INCONSISTENCY','INSUFFICIENT_EVIDENCE']);
+function validFeedbackReview(r){
+ if(!r||typeof r.taskId!=='string'||r.taskId.length>200||
+  !Number.isSafeInteger(r.at)||r.at<=0||!FEEDBACK_REVIEW_OUTCOMES.includes(r.outcome)||
+  !Number.isSafeInteger(r.affected)||!Number.isSafeInteger(r.total)||
+  r.affected<1||r.total<r.affected||!Array.isArray(r.evidenceIds)||
+  r.evidenceIds.length<1||r.evidenceIds.length>8||
+  r.evidenceIds.some(id=>typeof id!=='string'||id.length<1||id.length>100)||
+  new Set(r.evidenceIds).size!==r.evidenceIds.length)return false;
+ try{
+  const k=JSON.parse(r.taskId);
+  return Array.isArray(k)&&k.length===4&&
+   ['SOURCE_ID_CONFLICT','UNRECOGNIZED_FORMAT','REPEATED_NUMERIC_DIFFERENCE','LOW_EXPLICIT_COVERAGE'].includes(k[0])&&
+   typeof k[1]==='string'&&k[1].length<=40&&
+   (k[2]===null||typeof k[2]==='string'&&k[2].length<=40)&&
+   [null,'GLM','Qwen'].includes(k[3])&&JSON.stringify(k)===r.taskId;
+ }catch{return false;}
+}
+export function readFeedbackJournal(store){
+ try{
+  if(!store)return null;
+  const raw=store.getItem(FEEDBACK_JOURNAL_KEY);
+  if(raw===null||raw===undefined)return [];
+  if(new TextEncoder().encode(raw).length>MAX_FEEDBACK_BYTES)return null;
+  const data=JSON.parse(raw);
+  if(data.version!==1||!Array.isArray(data.reviews)||data.reviews.length>MAX_FEEDBACK_REVIEWS||
+   !data.reviews.every(validFeedbackReview))return null;
+  return data.reviews;
+ }catch{return null;}
+}
+export function recordFeedbackReview(store,item,outcome,at=Date.now()){
+ const previous=readFeedbackJournal(store);
+ if(previous===null)return {ok:false,reason:'LOCAL_STORAGE'};
+ if(!item)return {ok:false,reason:'INVALID_REVIEW'};
+ const review={taskId:item.id,at,outcome,affected:item.affected,total:item.total,
+  evidenceIds:[...new Set(item.evidenceIds||[])].sort()};
+ if(!validFeedbackReview(review))return {ok:false,reason:'INVALID_REVIEW'};
+ const latest=previous.find(r=>r.taskId===review.taskId);
+ const signature=r=>JSON.stringify([r.outcome,r.affected,r.total,r.evidenceIds]);
+ if(latest&&signature(latest)===signature(review))return {ok:true,duplicate:true,reviews:previous};
+ if(previous.length>=MAX_FEEDBACK_REVIEWS)return {ok:false,reason:'JOURNAL_FULL'};
+ const reviews=[review,...previous],data=JSON.stringify({version:1,reviews});
+ if(new TextEncoder().encode(data).length>MAX_FEEDBACK_BYTES)return {ok:false,reason:'JOURNAL_FULL'};
+ try{
+  store.setItem(FEEDBACK_JOURNAL_KEY,data);
+  if(store.getItem(FEEDBACK_JOURNAL_KEY)!==data)return {ok:false,reason:'LOCAL_STORAGE'};
+  return {ok:true,reviews};
+ }catch{return {ok:false,reason:'LOCAL_STORAGE'};}
+}
+export function compareFeedbackReview(review,current){
+ const item=current?.items?.find(i=>i.id===review.taskId);
+ if(!item)return {state:'NOT_CURRENTLY_FLAGGED',before:researchRatio(review.affected,review.total),after:null};
+ const before=researchRatio(review.affected,review.total),after=researchRatio(item.affected,item.total);
+ const unchanged=review.affected===item.affected&&review.total===item.total&&
+  JSON.stringify(review.evidenceIds)===JSON.stringify([...item.evidenceIds].sort());
+ return {state:unchanged?'UNCHANGED':'CHANGED',before,after,
+  beforeCount:review.affected,beforeTotal:review.total,afterCount:item.affected,afterTotal:item.total};
+}
 export function researchStorageUsage(rows){
  const bytes=new TextEncoder().encode(JSON.stringify({version:1,rows})).length;
  return {records:rows.length,recordLimit:MAX_TRANSCRIPTS,bytes,byteLimit:MAX_BYTES,
@@ -682,13 +743,38 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   storageUsage=node('apex-history-capacity'),patternsNode=node('apex-quality-patterns');
  const feedbackSummary=node('apex-feedback-summary'),feedbackList=node('apex-feedback-list'),
   feedbackMore=node('apex-feedback-more');
- let feedbackVisible=8,feedbackSignature='';
+ const reviewList=node('apex-feedback-reviews'),reviewStatus=node('apex-feedback-review-status'),
+  reviewMore=node('apex-feedback-review-more');
+ let feedbackVisible=8,feedbackSignature='',reviewVisible=8;
+ const reviewNames={REQUIRES_REVIEW:'Требуется повторная проверка',ROUNDING_OR_FORMAT:'Возможное округление / формат',SOURCE_INCONSISTENCY:'Замечено несоответствие источника',INSUFFICIENT_EVIDENCE:'Недостаточно доказательств'};
+ function renderReviewJournal(result){
+  if(!reviewList||!reviewMore)return;
+  const reviews=readFeedbackJournal(store);
+  reviewList.replaceChildren();
+  if(!reviews?.length){
+   const p=document.createElement('p');p.textContent=reviews===null?'Журнал недоступен; записи не изменены.':'Пока нет ручных проверок.';reviewList.append(p);
+  }
+  for(const r of (reviews||[]).slice(0,reviewVisible)){
+   const details=document.createElement('details'),title=document.createElement('summary'),
+    text=document.createElement('p'),ids=document.createElement('p');
+   details.className='apex-quality-pattern';
+   title.textContent=new Date(r.at).toISOString().slice(0,16).replace('T',' ')+' UTC · '+reviewNames[r.outcome];
+   const comparison=compareFeedbackReview(r,result);
+   text.textContent=JSON.parse(r.taskId).filter(Boolean).join(' · ')+'\nПри проверке: '+r.affected+'/'+r.total+
+    (comparison.after===null?' · сейчас порог не достигнут или данных нет; устранение не подтверждено':
+     ' · сейчас: '+comparison.afterCount+'/'+comparison.afterTotal+
+     (comparison.state==='CHANGED'?' · состав/доля изменились':' · без изменений'));
+   ids.className='apex-evidence-audit';ids.textContent=r.evidenceIds.join('\n');
+   details.append(title,text,ids);reviewList.append(details);
+  }
+  reviewMore.disabled=!reviews||reviews.length<=reviewVisible;
+ }
  function renderFeedback(){
   if(!feedbackSummary||!feedbackList||!feedbackMore)return;
   // Director worklist describes the complete archive, not the current asset filter.
   const knowledge=buildResearchKnowledge(rows,{now:now()});
   const result=buildResearchFeedback(knowledge);
-  const key=JSON.stringify([result,feedbackVisible]);
+  const key=JSON.stringify([result,feedbackVisible,reviewVisible,readFeedbackJournal(store)]);
   if(key===feedbackSignature)return;
   feedbackSignature=key;
   feedbackSummary.textContent='Наблюдений: '+result.observations+' · задач проверки: '+result.total+
@@ -712,9 +798,32 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    meta.textContent='Наблюдений: '+item.affected+' / '+item.total+' · '+(item.percent===null?'—':item.percent+'%');
    action.textContent=instruction;
    ids.className='apex-evidence-audit';ids.textContent='ID для ручной сверки (до 8):\n'+item.evidenceIds.join('\n');
-   details.append(title,meta,action,ids);feedbackList.append(details);
+   details.append(title,meta,action,ids);
+   if(reviewList&&reviewStatus){
+    const select=document.createElement('select'),button=document.createElement('button');
+    select.setAttribute('aria-label','Результат ручной проверки');
+    for(const [value,label] of Object.entries(reviewNames)){
+     const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);
+    }
+    button.type='button';button.className='ghost';button.textContent='Записать результат проверки';
+    button.addEventListener('click',()=>{
+     const current=buildResearchFeedback(buildResearchKnowledge(rows,{now:now()}));
+     const live=current.items.find(i=>i.id===item.id);
+     if(!live||JSON.stringify(live)!==JSON.stringify(item)){
+      reviewStatus.textContent='Данные задачи изменились; откройте актуальную карточку.';
+      feedbackSignature='';renderFeedback();return;
+     }
+     const recorded=recordFeedbackReview(store,live,select.value,now());
+     reviewStatus.textContent=recorded.ok?(recorded.duplicate?'Такая проверка уже сохранена.':'Ручная отметка сохранена; устранение проблемы не подтверждено.'):
+      recorded.reason==='JOURNAL_FULL'?'Журнал заполнен; прежние записи сохранены.':'Не удалось подтвердить запись журнала.';
+     feedbackSignature='';renderFeedback();
+    });
+    details.append(select,button);
+   }
+   feedbackList.append(details);
   }
   feedbackMore.disabled=result.items.length<=feedbackVisible;
+  renderReviewJournal(result);
  }
  function renderQuality(){
   if(!qualityTimeline||!qualitySources||!storageUsage)return;
@@ -982,6 +1091,7 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  };
  picker.addEventListener('change',()=>{visible=8;knowledgeVisible=12;signature='';render();});
  feedbackMore?.addEventListener('click',()=>{feedbackVisible+=8;renderFeedback();});
+ reviewMore?.addEventListener('click',()=>{reviewVisible+=8;renderFeedback();});
  knowledgeSource?.addEventListener('change',()=>{knowledgeVisible=12;renderKnowledge();});
  knowledgeMore?.addEventListener('click',()=>{knowledgeVisible+=12;renderKnowledge();});
  limit.addEventListener('click',()=>{visible+=8;render();});

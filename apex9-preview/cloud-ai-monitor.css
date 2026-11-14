@@ -207,3 +207,5 @@
 .apex-quality-pattern{padding:10px;border:1px solid #385869;border-radius:10px;background:#0e2434;overflow-wrap:anywhere}.apex-quality-pattern summary{font-size:12px;line-height:1.5;cursor:pointer}.apex-quality-pattern p,.apex-quality-pattern small{font-size:11px;line-height:1.55;color:#b7d1d8}.apex-quality-pattern>[class="apex-research-meter"]{margin:8px 0}
 
 #apex-feedback-list{min-width:0}#apex-feedback-list .apex-evidence-audit{white-space:pre-wrap;overflow-wrap:anywhere}
+
+#apex-feedback-list select{width:100%;margin:6px 0;padding:8px;box-sizing:border-box;background:#0e2434;color:inherit;border:1px solid #385869;border-radius:8px}#apex-feedback-list button{width:100%}#apex-feedback-reviews p{white-space:pre-wrap;overflow-wrap:anywhere}
