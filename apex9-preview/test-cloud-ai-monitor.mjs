@@ -242,3 +242,24 @@ test('recent native diagnostics distinguish response, transport, output and unce
  assert.equal(recentAiDiagnostics({state:'LOCAL_AUDIT',events:[]}).total,0);
  assert.equal(recentAiDiagnostics({state:'LOCAL_AUDIT',events:Array(12).fill(events[0])}).total,8);
 });
+
+test('orchestrator cloud diagnostics only describe observed data and never enable model execution',async()=>{
+ const {researchCloudDiagnostics,inspectDirectorQueueCounts}=await import('./cloud-ai-monitor.mjs');
+ const now=Date.now();
+ const data={health:{state:'RUNNING',httpStatus:200,checkedAt:now},
+  pair:{state:'APPROVED'},budget:{state:'POLICY_ACTIVE',httpStatus:200,clock:{mode:'ECO'},
+   usage:{language:{dailyUsed:1,dailyLimit:12,monthlyUsed:2,monthlyLimit:280,nightUsed:1,nightLimit:1}}}};
+ const d=researchCloudDiagnostics(data,now);
+ assert.equal(d.state,'OBSERVED');assert.equal(d.mode,'ECO');
+ assert.equal(d.night.state,'full');assert.equal(d.automaticExecutionEnabled,false);
+ assert.equal(d.automaticModelCalls,0);
+ assert.equal(researchCloudDiagnostics(data,now+180001).state,'STALE_HEALTH');
+ assert.equal(researchCloudDiagnostics({...data,budget:null},now).state,'BUDGET_UNKNOWN');
+ assert.equal(researchCloudDiagnostics({},now).state,'NO_CONNECTION');
+ assert.equal(inspectDirectorQueueCounts({getItem:()=>null}).queued,0);
+ const task={id:'a',stage:'QUEUED'};
+ assert.deepEqual(inspectDirectorQueueCounts({getItem:()=>JSON.stringify({version:1,tasks:[task,{id:'b',stage:'REVIEWED'}]})}),
+  {queued:1,analystReady:0,reviewed:1});
+ assert.equal(inspectDirectorQueueCounts({getItem:()=>JSON.stringify({version:1,tasks:[task,task]})}),null);
+ assert.equal(inspectDirectorQueueCounts({getItem:()=>'{broken'}),null);
+});

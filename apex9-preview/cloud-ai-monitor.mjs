@@ -136,6 +136,44 @@ export function deriveCloudAiView(data = {}) {
  };
 }
 
+/**
+ * Read-only preflight snapshot. This is a diagnostic of the existing
+ * monitor response, never a permission token or model execution decision.
+ */
+export function researchCloudDiagnostics(data={},now=Date.now()){
+ const v=deriveCloudAiView(data);
+ const age=v.checkedAt===null?null:now-v.checkedAt;
+ const fresh=age!==null&&age>=0&&age<=180000;
+ const q=v.quotas,mode=q.verified?h(data.budget?.clock?.mode):'';
+ const state=v.status==='offline'?'NO_CONNECTION':!fresh?'STALE_HEALTH':
+  !v.approved?'DEVICE_NOT_APPROVED':!q.verified?'BUDGET_UNKNOWN':'OBSERVED';
+ return {state,ageMs:age!==null&&age>=0?age:null,
+  mode:mode==='ACTIVE'||mode==='ECO'?mode:null,
+  daily:quotaMeter(q.count,q.cap,q.verified),
+  monthly:quotaMeter(q.monthUsed,q.monthCap,q.verified),
+  night:quotaMeter(q.nightUsed,q.nightCap,q.verified),
+  modelActivity:{GLM:v.analyst.title,Qwen:v.critic.title},
+  automaticModelCalls:0,automaticExecutionEnabled:false};
+}
+/** Only count saved queue states; do not select or execute research tasks. */
+export function inspectDirectorQueueCounts(store){
+ try{
+  if(!store)return null;
+  const raw=store.getItem('apex9.research.director.v1');
+  if(raw==null)return {queued:0,analystReady:0,reviewed:0};
+  if(typeof raw!=='string'||raw.length>150000)return null;
+  const d=JSON.parse(raw);
+  if(d?.version!==1||!Array.isArray(d.tasks)||d.tasks.length>24)return null;
+  const counts={queued:0,analystReady:0,reviewed:0},ids=new Set();
+  for(const task of d.tasks){
+   if(!task||typeof task.id!=='string'||!task.id||ids.has(task.id))return null;
+   const key={QUEUED:'queued',ANALYST_READY:'analystReady',REVIEWED:'reviewed'}[task.stage];
+   if(!key||!Object.hasOwn(counts,key))return null;
+   ids.add(task.id);counts[key]++;
+  }
+  return counts;
+ }catch{return null;}
+}
 /** Unknown, zero capacity and confirmed empty usage are distinct. */
 export function quotaMeter(used,limit,verified=true){
  const count=known(used),cap=known(limit);
@@ -181,6 +219,15 @@ export function initCloudAiMonitor({
 
  function render(data) {
   const v=deriveCloudAiView(data);
+  const diagnostic=researchCloudDiagnostics(data);
+  const diagnosticLabels={NO_CONNECTION:'Нет ответа сервера',STALE_HEALTH:'Нет свежего времени проверки',
+   DEVICE_NOT_APPROVED:'Устройство не подтверждено',BUDGET_UNKNOWN:'Лимиты не подтверждены',OBSERVED:'Получены данные монитора'};
+  text('apex-cycle-cloud-status',diagnosticLabels[diagnostic.state]);
+  text('apex-cycle-cloud-mode',diagnostic.mode==='ACTIVE'?'День':diagnostic.mode==='ECO'?'ЭКО · ночь':'Не подтверждён');
+  text('apex-cycle-cloud-quotas','День: '+diagnostic.daily.label+' · месяц: '+diagnostic.monthly.label+' · ночь: '+diagnostic.night.label);
+  text('apex-cycle-cloud-models','GLM: '+diagnostic.modelActivity.GLM+' · Qwen: '+diagnostic.modelActivity.Qwen);
+  let queue=null;try{queue=inspectDirectorQueueCounts(globalThis.localStorage);}catch{}
+  text('apex-cycle-cloud-queue',queue?'В сохранённой очереди: '+queue.queued+' · после GLM: '+queue.analystReady+' · проверено: '+queue.reviewed:'Состояние очереди неизвестно');
   setStatus('apex-ai-live-dot',v.status);
   setStatus('apex-ai-live-state',v.status);
   text('apex-ai-live-state',v.statusLabel);
