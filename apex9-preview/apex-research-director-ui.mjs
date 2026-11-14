@@ -36,6 +36,7 @@ export function initApexResearchDirector({getFavorites,getRadar,getCandles,
   const stats=summarizeDirectorTasks(tasks);
   summary.textContent='Очередь '+stats.queued+
    ' · GLM '+stats.analystReady+' · проверено Qwen '+stats.reviewed+
+   ' · уникальных сессий '+stats.distinctSessions+
    ' · наблюдаемых исходов H1 '+stats.marketOutcomes+
    ' · точность моделей ещё не измерена';
   list.replaceChildren();
@@ -64,8 +65,9 @@ export function initApexResearchDirector({getFavorites,getRadar,getCandles,
    }
    const choose=document.createElement('button');
    choose.type='button';choose.className='ghost';
-   choose.textContent='Выбрать для исследования';
-   choose.disabled=!favorite.has(task.asset);
+   choose.textContent=task.stage==='REVIEWED'?'Проверка завершена':
+    task.stage==='ANALYST_READY'?'Открыть сессию':'Выбрать для исследования';
+   choose.disabled=!favorite.has(task.asset)||task.stage==='REVIEWED';
    choose.addEventListener('click',()=>{
     selected=task.id;
     onChoose(task.asset);

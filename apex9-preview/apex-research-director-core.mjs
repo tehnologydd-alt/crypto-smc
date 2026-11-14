@@ -148,7 +148,7 @@ export function mergeDirectorTasks(existing,candidates,{now=Date.now()}={}){
   const validated=verifyTask(c,now);
   if(!validated||indexed.has(validated.id))continue;
   // Keep only one open task per asset, not a new one every M15 bar.
-  if(existing.some(t=>t.asset===validated.asset&&t.stage!=='REVIEWED'&&
+  if([...existing,...newTasks].some(t=>t.asset===validated.asset&&t.stage!=='REVIEWED'&&
      now-t.detectedAt<2*HOUR))continue;
   indexed.add(validated.id);newTasks.push(validated);
  }
@@ -162,8 +162,18 @@ export function attachCollectiveResult(tasks,session,{
  if(!checked||!SYMBOL.test(checked.asset))return tasks;
  const find=t=>t.asset===checked.asset&&t.detectedAt<=checked.startedAt&&
   checked.startedAt-t.detectedAt<=2*HOUR;
- let target=tasks.find(t=>t.id===selectedId&&find(t))||
-  tasks.find(t=>find(t)&&t.stage!=='REVIEWED');
+ // A session identity is asset + analyst start time. Existing completed
+ // results cannot be reassigned, replaced or downgraded on restore/replay.
+ let target=tasks.find(t=>t.asset===checked.asset&&t.analyst?.at===checked.startedAt);
+ if(target){
+  if(target.analyst.text!==checked.analystText||
+    JSON.stringify(target.analyst.sourceIds)!==JSON.stringify(checked.sourceIds)||
+    target.stage==='REVIEWED'||checked.stage!=='COMPLETE')return tasks;
+ }else{
+  const available=t=>find(t)&&t.stage==='QUEUED'&&!t.analyst;
+  target=tasks.find(t=>t.id===selectedId&&available(t))||
+   tasks.find(available);
+ }
  if(!target){
   const started=checked.startedAt;
   target={id:'manual:'+checked.asset+':'+started,asset:checked.asset,
@@ -178,7 +188,7 @@ export function attachCollectiveResult(tasks,session,{
   sourceIds:checked.criticEvidence.map(x=>x.source_id)
  }:null;
  const updated={...target,stage:critic?'REVIEWED':'ANALYST_READY',analyst,
-  critic:critic||target.critic};
+  critic};
  if(!verifyTask(updated,now))return tasks;
  return [updated,...tasks.filter(t=>t.id!==updated.id)]
   .sort((a,b)=>b.detectedAt-a.detectedAt).slice(0,MAX);
@@ -212,6 +222,7 @@ export function summarizeDirectorTasks(tasks){
   analystReady:selected.filter(x=>x.stage==='ANALYST_READY').length,
   reviewed:selected.filter(x=>x.stage==='REVIEWED').length,
   marketOutcomes:selected.filter(x=>x.outcome!==null).length,
+  distinctSessions:new Set(selected.filter(x=>x.analyst).map(x=>x.asset+':'+x.analyst.at)).size,
   modelAccuracy:null,calibratedProbability:null,
   note:'Наблюдаемая цена через H1 не подтверждает правильность текстовых выводов моделей'};
 }

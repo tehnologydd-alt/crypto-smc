@@ -20,6 +20,24 @@ const failureLabels=Object.freeze({
 });
 const failureTitle=(value)=>failureLabels[value]||'ошибка';
 
+/** Descriptive categories from observed native codes, never infer billing. */
+export function classifyAiEvent(state,success=false){
+ if(success===true&&state==='MODEL_OUTPUT')return 'response';
+ if(['MODEL_RESPONSE_TIMEOUT','MODEL_NETWORK_UNAVAILABLE','CLOUD_UNAVAILABLE'].includes(state))return 'connection';
+ if(['MODEL_COMPLETION_TOKEN_LIMIT','EMPTY_MODEL_OUTPUT','BATCH_COMPLETION_TRUNCATED','BATCH_REASONING_WITHOUT_FINAL','BATCH_EMPTY_MODEL_OUTPUT','BATCH_JSON_NOT_PARSEABLE','BATCH_MISSING_ASSET_RESULTS','BATCH_ASSET_MISMATCH','BATCH_INVALID_SUMMARY','BATCH_MISSING_SOURCE_IDS','BATCH_SOURCE_MISMATCH'].includes(state))return 'output';
+ if(state==='MODEL_QUOTA_OR_UNAVAILABLE')return 'provider';
+ return 'unknown';
+}
+export function recentAiDiagnostics(local){
+ if(local?.state!=='LOCAL_AUDIT'||!Array.isArray(local.events))return null;
+ const out={total:0,response:0,connection:0,output:0,provider:0,unknown:0};
+ for(const e of local.events.slice(0,8)){
+  if(!e||!['analyst','critic'].includes(e.role)||typeof e.state!=='string'||known(e.at)===null)continue;
+  out.total++;out[classifyAiEvent(e.state,e.success)]++;
+ }
+ return out;
+}
+
 export function renderTime(ms,{allowFuture=false}={}) {
  const t = known(ms);
  if (!t || t < 1_500_000_000_000 ||
@@ -110,6 +128,7 @@ export function deriveCloudAiView(data = {}) {
   analyst:modelState(local.state==='LOCAL_AUDIT'?local.analyst:null),
   critic:modelState(local.state==='LOCAL_AUDIT'?local.critic:null),
   events:eventItems,
+  diagnostics:recentAiDiagnostics(local),
   localKnown:local.state==='LOCAL_AUDIT',
   note:budgetVerified?
    'Это внутренние лимиты попыток D1, не баланс Neurons и не счёт Cloudflare. Модели подтверждаются только реальными ответами.' :
@@ -225,6 +244,12 @@ export function initCloudAiMonitor({
    else detail='Статус привязки не получен. Проверьте соединение.';
    statusBox.textContent='Cloudflare: '+v.server+' · '+detail;
   }
+  const d=v.diagnostics;
+  text('apex-ai-recent-diagnostics',d?
+   'Последние события: '+d.total+' / 8 · ответы: '+d.response+
+   ' · связь/ожидание: '+d.connection+' · формат/содержимое: '+d.output+
+   ' · поставщик/квота: '+d.provider+' · не классифицировано: '+d.unknown:
+   'Нет доступного журнала Android.');
   const ul=document.getElementById('apex-ai-events');
   const signature=JSON.stringify([v.localKnown,v.events]);
   if(ul&&signature!==lastEventsSignature){

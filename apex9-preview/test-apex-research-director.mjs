@@ -153,3 +153,23 @@ test('source code wires native-only periodic scan, explicit Qwen and Android pac
   'apex-director-refresh','apex-director-summary'])
   assert.ok(html.includes('id="'+name+'"'));
 });
+
+test('director session replay is idempotent and cannot downgrade or overwrite reviewed work',()=>{
+ const source={source_id:'binance:spot:24h:'+asset+':'+now,
+  observed_at:now,text:'Original independently verified spot snapshot'};
+ const session={version:1,asset,stage:'ANALYST_READY',startedAt:now,
+  evidence:[source],sourceIds:[source.source_id],analystText:'A verified historical source is described.'};
+ const rows=discoverResearchTasks(observations(),[asset],{now});
+ const a=attachCollectiveResult(rows,session,{now,selectedId:rows[0].id});
+ const finished={...session,stage:'COMPLETE',criticAt:now+300000,
+  criticText:'Independent review of the historical observations.',criticEvidence:[source]};
+ const b=attachCollectiveResult(a,finished,{now:now+300000});
+ assert.equal(b.length,1);
+ assert.equal(attachCollectiveResult(b,finished,{now:now+300000}),b);
+ assert.equal(attachCollectiveResult(b,session,{now:now+300000,selectedId:b[0].id}),b);
+ assert.equal(attachCollectiveResult(b,{...finished,analystText:'Conflicting replacement of the original.'},{now:now+300000}),b);
+ const c=attachCollectiveResult(b,{...session,startedAt:now+600000},{now:now+600000,selectedId:b[0].id});
+ assert.equal(c.length,2);
+ assert.equal(c.find(x=>x.id===b[0].id).stage,'REVIEWED');
+ assert.equal(summarizeDirectorTasks(c).distinctSessions,2);
+});

@@ -232,3 +232,13 @@ test('failed refresh clears verified quota but retains last successful contact',
   assert.equal(nodes.get('apex-ai-meter').attrs['aria-valuenow'],undefined);
  }finally{controller?.destroy();globalThis.document=original;}
 });
+
+test('recent native diagnostics distinguish response, transport, output and uncertain provider states',async()=>{
+ const {recentAiDiagnostics,classifyAiEvent}=await import('./cloud-ai-monitor.mjs');
+ assert.equal(recentAiDiagnostics({}),null);
+ assert.equal(classifyAiEvent('UNKNOWN',true),'unknown');
+ const at=Date.now(),events=['MODEL_OUTPUT','MODEL_RESPONSE_TIMEOUT','BATCH_JSON_NOT_PARSEABLE','MODEL_QUOTA_OR_UNAVAILABLE','UNKNOWN'].map(state=>({state,at,role:'critic',success:state==='MODEL_OUTPUT'}));
+ assert.deepEqual(recentAiDiagnostics({state:'LOCAL_AUDIT',events}),{total:5,response:1,connection:1,output:1,provider:1,unknown:1});
+ assert.equal(recentAiDiagnostics({state:'LOCAL_AUDIT',events:[]}).total,0);
+ assert.equal(recentAiDiagnostics({state:'LOCAL_AUDIT',events:Array(12).fill(events[0])}).total,8);
+});
