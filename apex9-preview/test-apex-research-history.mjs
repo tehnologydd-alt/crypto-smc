@@ -799,3 +799,21 @@ test('cycle journal keeps validated detailed summaries and reads legacy entries'
  assert.equal(repeated.state,'ALREADY_RECORDED');
  assert.deepEqual(repeated.summary,result.summary);
 });
+
+test('local stability summary separates repeats, waiting, interruptions and measured duration',async()=>{
+ const {summarizeLocalCycles}=await import('./apex-research-history.mjs');
+ const entry=(state,durationMs,reason=null,digest=null)=>({startedAt:now,finishedAt:now+10,durationMs,state,reason,digest});
+ const a='a'.repeat(64),b='b'.repeat(64);
+ const rows=[entry('COMPLETED',10,null,a),entry('ALREADY_RECORDED',20,null,a),
+  entry('COMPLETED',30,null,b),entry('WAITING_DATA',4,'NO_CHECKED_FACTS'),
+  entry('BLOCKED',6,'JOURNAL_FULL'),entry('STOPPED',0),entry('INTERRUPTED',null,'PROCESS_INTERRUPTED')];
+ const r=summarizeLocalCycles(rows);
+ assert.equal(r.attempts,7);
+ assert.deepEqual(r.counts,{COMPLETED:2,ALREADY_RECORDED:1,WAITING_DATA:1,BLOCKED:1,STOPPED:1,INTERRUPTED:1});
+ assert.equal(r.uniqueDigests,2);assert.equal(r.withSummary,0);
+ assert.equal(r.durationSamples,6);assert.equal(r.medianMs,8);assert.equal(r.maxMs,30);
+ assert.deepEqual(r.blockedReasons,[{reason:'JOURNAL_FULL',count:1}]);
+ assert.equal(summarizeLocalCycles([]).medianMs,null);
+ assert.equal(summarizeLocalCycles(null),null);
+ assert.equal(summarizeLocalCycles([{...rows[0],durationMs:-1}]),null);
+});

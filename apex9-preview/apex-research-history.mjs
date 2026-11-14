@@ -917,6 +917,30 @@ export function readCycleJournal(store){
   return data.entries;
  }catch{return null;}
 }
+/**
+ * Descriptive statistics of saved local attempts only. Repeated checks,
+ * waiting for evidence and interrupted runs do not count as new experiments.
+ * Do not sum cumulative archive metrics across runs.
+ */
+export function summarizeLocalCycles(entries){
+ if(!Array.isArray(entries)||!entries.every(validCycleEntry))return null;
+ const counts=Object.fromEntries(CYCLE_STATES.map(state=>[state,0]));
+ const digests=new Set(),durations=[],reasons=new Map();
+ let summaries=0;
+ for(const e of entries){
+  counts[e.state]++;
+  if(e.summary)summaries++;
+  if(e.durationMs!==null)durations.push(e.durationMs);
+  if(e.digest&&['COMPLETED','ALREADY_RECORDED'].includes(e.state))digests.add(e.digest);
+  if(e.reason&&e.state==='BLOCKED')reasons.set(e.reason,(reasons.get(e.reason)||0)+1);
+ }
+ durations.sort((a,b)=>a-b);
+ const n=durations.length,mid=Math.floor(n/2);
+ const median=n?(n%2?durations[mid]:durations[mid-1]/2+durations[mid]/2):null;
+ return {attempts:entries.length,counts,uniqueDigests:digests.size,withSummary:summaries,
+  durationSamples:n,medianMs:median,maxMs:n?durations[n-1]:null,
+  blockedReasons:[...reasons].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([reason,count])=>({reason,count}))};
+}
 /** Presentation only: a cooldown is not an error or a new experiment. */
 export function localCycleReason(reason){
  const labels={COOLDOWN:'Пауза между попытками (до 60 сек)',NO_CHECKED_FACTS:'Нет однозначно сверяемых числовых утверждений моделей',
@@ -1315,6 +1339,25 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
   const count=document.createElement('p');
   count.textContent=journal===null?'Журнал недоступен':journal.length+' / '+CYCLE_POLICY.limit+' попыток';
   cycleHistory.append(count);
+  const stats=summarizeLocalCycles(journal);
+  if(stats){
+   const overview=document.createElement('div'),heading=document.createElement('strong'),p=document.createElement('p');
+   overview.className='apex-cycle-metric';heading.textContent='Стабильность · все сохранённые попытки';
+   p.textContent='Новые эксперименты: '+stats.counts.COMPLETED+' · совпавшие повторы: '+stats.counts.ALREADY_RECORDED+
+    ' · ожидание данных: '+stats.counts.WAITING_DATA+' · блокировки: '+stats.counts.BLOCKED+
+    ' · остановки: '+stats.counts.STOPPED+' · прерванные: '+stats.counts.INTERRUPTED;
+   const timing=document.createElement('p');
+   timing.textContent='Измерений времени: '+stats.durationSamples+' · медиана: '+(stats.medianMs??'—')+
+    ' мс · максимум: '+(stats.maxMs??'—')+' мс';
+   const provenance=document.createElement('p');
+   provenance.textContent='Различных отпечатков успешных расчётов: '+stats.uniqueDigests+
+    ' · записей с подробной сводкой: '+stats.withSummary;
+   overview.append(heading,p,timing,provenance);
+   for(const r of stats.blockedReasons){
+    const note=document.createElement('p');note.textContent=localCycleReason(r.reason)+': '+r.count;overview.append(note);
+   }
+   cycleHistory.append(overview);
+  }
   for(const e of (journal||[]).slice(0,10)){
    const line=document.createElement('p');
    line.textContent=formatCycleTime(e.finishedAt)+' · '+cycleLabels[e.state]+' · '+(e.durationMs===null?'длительность неизвестна':e.durationMs+' мс')+
