@@ -1444,6 +1444,10 @@ function navigate(view,targetId){
  if(view==='ai')void cloudAiMonitor.refresh();
  requestAnimationFrame(()=>{
   if(view==='radar')radarDashboard.open();
+  if(view==='ai'){
+   cloudAiAudit?.sync();cloudAiCollective?.sync();cloudAiBatch?.sync();
+   researchDirector?.render();
+  }
   if(view==='asset'){
    const area=el('view-asset').dataset.assetArea;
    if(area==='chart'){

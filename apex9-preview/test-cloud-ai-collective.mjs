@@ -144,3 +144,14 @@ test('collective critic timeout produces a clear message, preserves GLM session,
   assert.equal(dom.element('apex-ai-collective-review').disabled,false);
  }finally{if(original===undefined)delete globalThis.document;else globalThis.document=original;}
 });
+
+test('local review readiness separates session expiry, selection and authorization',async()=>{
+ const {reviewSessionReadiness}=await import('./cloud-ai-collective.mjs');
+ const session={stage:'ANALYST_READY',startedAt:at};
+ assert.match(reviewSessionReadiness(null,true,at),/Нет текущей/);
+ assert.match(reviewSessionReadiness(session,false,at),/тот же состав/);
+ assert.match(reviewSessionReadiness(session,true,at+5*60000),/50 мин/);
+ assert.match(reviewSessionReadiness(session,true,at+5*60000),/Бюджет/);
+ assert.match(reviewSessionReadiness(session,true,at+55*60000),/устарела/);
+ assert.match(reviewSessionReadiness({...session,stage:'COMPLETE'},true,at),/Оба ответа/);
+});

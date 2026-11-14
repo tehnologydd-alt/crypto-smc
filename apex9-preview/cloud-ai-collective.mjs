@@ -43,6 +43,17 @@ export function mergeResearchEvidence(historical,recent){
  }
  return out;
 }
+/** Local session readiness, not permission to call the server. */
+export function reviewSessionReadiness(session,selectionMatches,now=Date.now()){
+ if(!session)return 'Нет текущей сессии GLM.';
+ if(session.stage==='COMPLETE')return 'Оба ответа сохранены в текущей сессии.';
+ if(!selectionMatches)return 'Выберите тот же состав активов, что и при исследовании GLM.';
+ const left=55*60000-(now-session.startedAt);
+ if(left<=0)return 'Сессия устарела. Нужна новая сессия GLM.';
+ const mins=Math.ceil(left/60000);
+ return 'Ответ GLM сохранён. До окончания сессии: '+mins+
+  ' мин. Бюджет и общая пауза проверяются отдельно перед запросом Qwen.';
+}
 /** Audit coverage is NOT a forecast probability or agreement score. */
 export function collectiveCoverage(session){
  if(!session)return 'Нет проверенного исследования';
@@ -65,6 +76,7 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
  const assetPicker=node('apex-ai-test-asset');
  const begin=node('apex-ai-collective-start'),review=node('apex-ai-collective-review');
  const status=node('apex-ai-collective-status'),coverage=node('apex-ai-collective-coverage');
+ const readiness=node('apex-ai-collective-readiness');
  const analystOutput=node('apex-ai-collective-analyst-output');
  const criticOutput=node('apex-ai-collective-critic-output');
  let busy=false,session=null;
@@ -82,16 +94,22 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
   const enabled=Array.isArray(favorite)&&favorite.includes(current)&&ASSET.test(current);
   begin.disabled=busy||!enabled;
   const pending=session?.stage==='ANALYST_READY'&&session.asset===current&&
-   now()-session.startedAt<=55*60000;
+   now()-session.startedAt<55*60000;
   review.disabled=busy||!enabled||!pending;
   analystOutput.hidden=!session||session.asset!==current;
   criticOutput.hidden=!session||session.asset!==current||session.stage!=='COMPLETE';
-  analystOutput.textContent=!analystOutput.hidden?session.analystText:'';
-  criticOutput.textContent=!criticOutput.hidden?session.criticText:'';
+  const analystText=!analystOutput.hidden?session.analystText:'';
+  const criticText=!criticOutput.hidden?session.criticText:'';
+  if(analystOutput.textContent!==analystText)analystOutput.textContent=analystText;
+  if(criticOutput.textContent!==criticText)criticOutput.textContent=criticText;
+  if(readiness){
+   const value=reviewSessionReadiness(session,enabled&&session?.asset===current,now());
+   if(readiness.textContent!==value)readiness.textContent=value;
+  }
   coverage.textContent=session&&session.asset===current?collectiveCoverage(session):
    'Данные и выводы появятся после успешного ответа GLM';
   if(!busy&&session?.stage==='ANALYST_READY'&&session.asset===current)
-   say(now()-session.startedAt>55*60000?
+   say(now()-session.startedAt>=55*60000?
     'Исследование устарело: начните новый анализ GLM.':
     'GLM готов. После общей паузы запустите независимую проверку Qwen вручную.');
   else if(!busy&&session?.stage==='COMPLETE'&&session.asset===current)
@@ -113,7 +131,7 @@ export function initCloudAiCollective({getFavorites,getHistory,fetchTicker,
   if(busy||!sync())return;
   const asset=assetPicker.value;
   if(role==='critic'&&(!session||session.stage!=='ANALYST_READY'||
-   session.asset!==asset||now()-session.startedAt>55*60000)){
+   session.asset!==asset||now()-session.startedAt>=55*60000)){
    say('Нет актуального ответа GLM для проверки.');return;
   }
   busy=true;sync();say('Проверяем одобрение телефона и общий бюджет GLM/Qwen…');

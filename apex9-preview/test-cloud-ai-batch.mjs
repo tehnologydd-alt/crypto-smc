@@ -46,3 +46,10 @@ test('batch critic uses preserved session order and preserves report scroll',()=
  assert.match(source,/if\(report!==lastOutput\)/);
  assert.match(source,/sameBatchAssets\(selection,session/);
 });
+
+test('AI center synchronizes current batch and collective controls on navigation',()=>{
+ const app=readFileSync(new URL('./app.mjs',import.meta.url),'utf8');
+ const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+ assert.match(app,/if\(view==='ai'\)\{\s*cloudAiAudit\?\.sync\(\);cloudAiCollective\?\.sync\(\);cloudAiBatch\?\.sync\(\);/);
+ for(const id of ['apex-ai-collective-readiness','apex-batch-readiness','apex-history-pair-meters'])assert.equal(html.split('id="'+id+'"').length,2);
+});

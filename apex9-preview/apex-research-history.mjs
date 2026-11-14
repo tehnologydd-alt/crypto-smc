@@ -376,6 +376,29 @@ export function summarizeResearchHistory(rawRows,{asset='',now=Date.now()}={}){
   claimStudies,claimsChecked,claimsMatched,claimsDifferent,claimsUnresolved,
   agreement:null,accuracy:null};
 }
+/** Ratios are descriptive only and never invent denominators. */
+export function researchRatio(numerator,denominator){
+ if(!Number.isSafeInteger(numerator)||!Number.isSafeInteger(denominator)||
+    numerator<0||denominator<=0||numerator>denominator)return null;
+ return Math.round(100*numerator/denominator);
+}
+function researchMeter(label,numerator,denominator){
+ const root=document.createElement('div'),head=document.createElement('div'),
+  title=document.createElement('span'),value=document.createElement('strong'),
+  bar=document.createElement('div'),fill=document.createElement('span');
+ root.className='apex-research-meter';head.className='apex-research-meter-head';
+ const percent=researchRatio(numerator,denominator);
+ title.textContent=label;
+ value.textContent=percent===null?'—':percent+'% · '+numerator+'/'+denominator;
+ bar.className='apex-research-meter-track';
+ bar.dataset.known=String(percent!==null);
+ bar.setAttribute('role','progressbar');bar.setAttribute('aria-label',label);
+ bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');
+ bar.setAttribute('aria-valuetext',percent===null?'Недостаточно данных':value.textContent);
+ if(percent!==null)bar.setAttribute('aria-valuenow',String(percent));
+ fill.style.width=(percent??0)+'%';
+ head.append(title,value);bar.append(fill);root.append(head,bar);return root;
+}
 export function initResearchHistory({store,now=()=>Date.now()}={}){
  if(store===undefined){try{store=globalThis.localStorage;}catch{store=null;}}
  const node=id=>document.getElementById(id);
@@ -458,7 +481,12 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
        '\nУникальных проверенных фактов: '+m.uniqueChecked+
        '\nТолько совпадения: '+m.uniqueExact+' · только различия: '+m.uniqueDifferent+
        ' · смешанные результаты: '+m.uniqueMixed;
-      card.append(name,numbers,coverage,note);modelStats.append(card);
+      card.dataset.role=m.role.toLowerCase();
+      card.append(name,
+       researchMeter('Охват доступных чисел',m.coveredFactOpportunities,m.usableFactOpportunities),
+       researchMeter('Точные числовые совпадения',m.matches,m.checked),
+       numbers,coverage,note);
+      modelStats.append(card);
      }
     }
     if(pairStats){
@@ -468,6 +496,12 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
       '\nОбе модели совпали с источником: '+p.bothExact+
       '\nОдна совпала: '+p.oneExact+'\nОбе отличаются от источника: '+p.bothDifferent:
       'Пока нет парных сверок одного исторического факта.';
+     const distribution=node('apex-history-pair-meters');
+     if(distribution){
+      distribution.replaceChildren();
+      for(const [label,count] of [['Обе совпали',p.bothExact],['Одна совпала',p.oneExact],['Обе отличаются',p.bothDifferent]])
+       distribution.append(researchMeter(label,count,p.compared));
+     }
     }
     statsRows.replaceChildren();
     for(const item of view.perAsset){

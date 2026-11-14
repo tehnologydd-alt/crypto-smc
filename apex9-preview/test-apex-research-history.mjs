@@ -259,3 +259,12 @@ test('empty archive and free prose never produce a fake factual accuracy score',
  assert.equal(s.models[0].exactMatchPercent,null);
  assert.equal(s.models[0].uniqueChecked,0);
 });
+
+test('research visualization ratios distinguish no data from observed zero',async()=>{
+ const {researchRatio}=await import('./apex-research-history.mjs');
+ assert.equal(researchRatio(0,0),null);
+ assert.equal(researchRatio(0,5),0);
+ assert.equal(researchRatio(2,3),67);
+ assert.equal(researchRatio(6,5),null);
+ assert.equal(researchRatio(null,5),null);
+});

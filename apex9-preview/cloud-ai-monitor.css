@@ -186,3 +186,15 @@
 @media(max-width:360px){.apex-ai-jumps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .apex-model-pair-stats{white-space:pre-line;font-size:12px;line-height:1.65;margin:0;padding:10px;border:1px solid #355264;border-radius:10px;background:#0e2434;color:#d5e7ed}
+
+.apex-research-meter{display:grid;gap:6px;margin:10px 0}
+.apex-research-meter-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:11px;line-height:1.45}
+.apex-research-meter-head strong{font-size:11px;font-variant-numeric:tabular-nums;text-align:right;flex-shrink:0}
+.apex-research-meter-track{height:8px;border:1px solid #37566a;border-radius:10px;overflow:hidden;background:#233b4e}
+.apex-research-meter-track>span{display:block;height:100%;background:#52cdb5}
+[data-role="qwen"] .apex-research-meter-track>span{background:#82b9ed}
+.apex-research-meter-track[data-known="false"]{background:repeating-linear-gradient(135deg,#233b4e 0 5px,#304c60 5px 10px)}
+.apex-model-pair-meters{padding:0 10px;border:1px solid #355264;border-radius:10px;background:#0e2434}
+.apex-model-pair-meters .apex-research-meter:nth-child(2) .apex-research-meter-track>span{background:#dbb67c}
+.apex-model-pair-meters .apex-research-meter:nth-child(3) .apex-research-meter-track>span{background:#d58c96}
+.apex-ai-readiness{padding:9px;border:1px solid #37566a;border-radius:8px;background:#112b3b;white-space:normal;overflow-wrap:anywhere}

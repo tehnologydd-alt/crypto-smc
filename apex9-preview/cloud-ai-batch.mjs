@@ -5,7 +5,7 @@
  */
 import {buildCloudAuditEvidence,checkCloudAiLanguageBudget,
  explainCloudAiAuditFailure} from './cloud-ai-manual-audit.mjs';
-import {mergeResearchEvidence} from './cloud-ai-collective.mjs';
+import {mergeResearchEvidence,reviewSessionReadiness} from './cloud-ai-collective.mjs';
 const KEY='apex.ai.batch.v1',MIN=2,MAX=3,HOUR=3600000;
 const symbol=s=>typeof s==='string'&&/^[A-Z0-9]{2,16}USDT$/.test(s);
 const storeDefault=()=>{try{return globalThis.localStorage||null;}catch{return null;}};
@@ -55,7 +55,7 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
  const el=id=>document.getElementById(id);
  const checks=el('apex-batch-options'),start=el('apex-batch-start');
  const review=el('apex-batch-review'),status=el('apex-batch-status');
- const output=el('apex-batch-output');
+ const output=el('apex-batch-output'),readiness=el('apex-batch-readiness');
  let selected=[],busy=false,session=null,available=[],budgetSnapshot=null,lastOutput=null;
  try{const raw=store?.getItem(KEY);
   if(raw)session=validateSavedBatch(JSON.parse(raw),now());
@@ -101,6 +101,10 @@ export function initCloudAiBatch({getFavorites,getPriorityAssets=()=>[],
    now()-session.startedAt<55*60000;
   review.disabled=busy||!stage||
    !sameBatchAssets(selection,session?.items?.map(x=>x.asset));
+  if(readiness){
+   const value=reviewSessionReadiness(session,sameBatchAssets(selection,session?.items?.map(x=>x.asset)),now());
+   if(readiness.textContent!==value)readiness.textContent=value;
+  }
   // Never overwrite the report DOM on an unchanged refresh (scroll stability).
   if(stage&&!busy&&sameBatchAssets(selection,session.items.map(x=>x.asset))){
    const gate=budgetSnapshot?checkCloudAiLanguageBudget(budgetSnapshot,now()):null;

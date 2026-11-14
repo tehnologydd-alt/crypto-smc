@@ -905,6 +905,7 @@
             <button type="button" id="apex-ai-collective-review" class="ghost">2. Проверить · Qwen</button>
           </div>
           <p id="apex-ai-collective-status" role="status" aria-live="polite">Запросов без нажатия не будет.</p>
+          <p id="apex-ai-collective-readiness" class="apex-ai-readiness">Нет текущей сессии GLM.</p>
           <p id="apex-ai-collective-coverage" class="muted">Пока нет накопленных результатов</p>
           <div class="apex-ai-collective-report">
             <strong>Аналитик GLM</strong>
@@ -925,6 +926,7 @@
             <button type="button" class="ghost" id="apex-batch-review">2. Qwen · проверка</button>
           </div>
           <p id="apex-batch-status" role="status" aria-live="polite">Модели запускаются только нажатием кнопки.</p>
+          <p id="apex-batch-readiness" class="apex-ai-readiness">Нет текущего пакета GLM.</p>
           <pre id="apex-batch-output" hidden></pre>
           <small>Один пакет расходует одну разрешённую попытку модели, но вычислительный расход зависит от объёма. Результаты каждого актива проверяются по его источникам.</small>
         </div>
@@ -953,6 +955,7 @@
             <small>Охват — доля доступных числовых наблюдений, которые модель явно указала и которые удалось проверить. Повторное использование одного снимка учитывается отдельно от числа уникальных фактов.</small>
             <h4>Сопоставление GLM и Qwen с одним источником</h4>
             <p id="apex-history-pair-stats" class="apex-model-pair-stats">Архив ещё не проверен.</p>
+            <div id="apex-history-pair-meters" class="apex-model-pair-meters"></div>
             <small>Только совпадение с одним и тем же сохранённым числовым наблюдением. Это не оценка согласия выводов или общего качества модели.</small>
             <small>Доля совпадений относится только к явно указанным числам, которые удалось сопоставить с сохранённым историческим снимком. Это не оценка качества прогнозов, независимости источников или общей точности ИИ. Если проверяемых чисел нет, процент не вычисляется.</small>
             <ul id="apex-history-stats-assets"></ul>
