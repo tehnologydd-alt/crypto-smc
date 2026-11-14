@@ -112,3 +112,11 @@ test('schema 8 carries both bounded lab and rule journals with independent count
  assert.match(read('./app.mjs'),/result.labCount!==archive.lab.entries.length/);
  assert.match(read('./app.mjs'),/result.rulesCount!==archive.rules.reviews.length/);
 });
+
+test('schema 9 includes bounded cycle diagnostics but does not transfer pending state',()=>{
+ assert.match(backup,/schema==5\|\|schema==6\|\|schema==7\|\|schema==8\|\|schema==9/);
+ assert.match(backup,/checkedCycles\(raw.getJSONObject\("cycles"\)\)/);
+ assert.match(backup,/manifest.optInt\("cycleCount",-1\)/);
+ assert.match(read('./app.mjs'),/result.cycleCount!==archive.cycles.entries.length/);
+ assert.match(read('./app.mjs'),/researchHistory.backupReady\(\)/);
+});

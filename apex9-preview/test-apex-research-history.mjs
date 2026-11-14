@@ -817,3 +817,17 @@ test('local stability summary separates repeats, waiting, interruptions and meas
  assert.equal(summarizeLocalCycles(null),null);
  assert.equal(summarizeLocalCycles([{...rows[0],durationMs:-1}]),null);
 });
+
+test('cycle portable journal deduplicates identical attempts and refuses conflicts or overflow',async()=>{
+ const {validatePortableJournal,mergePortableJournal}=await import('./apex-research-history.mjs');
+ const e={startedAt:now,finishedAt:now+10,durationMs:10,state:'COMPLETED',reason:null,digest:'a'.repeat(64)};
+ const a={version:1,entries:[e]};
+ assert.ok(validatePortableJournal('cycles',a));
+ assert.equal(validatePortableJournal('cycles',{version:1,entries:[e,e]}),null);
+ assert.equal(mergePortableJournal('cycles',[e],a).archive.entries.length,1);
+ assert.equal(mergePortableJournal('cycles',[e],{version:1,entries:[{...e,durationMs:11}]}).reason,'CONFLICT_CYCLES');
+ const next={...e,startedAt:now+100,finishedAt:now+110};
+ assert.deepEqual(mergePortableJournal('cycles',[e],{version:1,entries:[next]}).archive.entries,[next,e]);
+ const full=Array.from({length:100},(_,i)=>({...e,startedAt:now-i*100,finishedAt:now-i*100+10}));
+ assert.equal(mergePortableJournal('cycles',full,{version:1,entries:[next]}).reason,'CAPACITY_CYCLES');
+});

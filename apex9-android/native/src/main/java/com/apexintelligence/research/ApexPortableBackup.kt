@@ -51,7 +51,50 @@ object ApexPortableBackup {
     private const val MAX_TRANSCRIPT_BYTES = 2400000
     private const val MAX_TRANSCRIPTS = 400
     private const val MAX_FEEDBACK_BYTES = 180000
-    private const val MAX_PORTABLE_AI_BYTES = 2900000
+    private const val MAX_PORTABLE_AI_BYTES = 3100000
+    private fun checkedCycleSummary(s:JSONObject) {
+        val counts=listOf("records","observations","conflicts","tasks","checked","availableFacts","unresolved","parsedObservations","unknownObservations")
+        val keys=counts+listOf("coverage","modelMetrics")+(if(s.has("candidates"))listOf("candidates") else emptyList())
+        exactKeys(s,*keys.toTypedArray())
+        counts.forEach{safeCount(s,it)}
+        val records=safeCount(s,"records");val checked=safeCount(s,"checked")
+        require(records<=MAX_TRANSCRIPTS)
+        if(s.has("candidates"))require(safeCount(s,"candidates")<=4)
+        val coverage=s.getJSONArray("coverage");val metrics=s.getJSONArray("modelMetrics")
+        require(coverage.length()==2&&metrics.length()==2)
+        var total=0L;var unresolved=0L
+        for(i in 0..1){
+            val role=listOf("GLM","Qwen")[i];val c=coverage.getJSONObject(i);val m=metrics.getJSONObject(i)
+            exactKeys(c,"role","responses","withLines","withChecked","unresolved")
+            exactKeys(m,"role","total","exact","different")
+            require(c.get("role")==role&&m.get("role")==role)
+            val responses=safeCount(c,"responses");val lines=safeCount(c,"withLines")
+            require(safeCount(c,"withChecked")<=lines&&lines<=responses&&responses<=records)
+            val n=safeCount(m,"total")
+            require(n==safeCount(m,"exact")+safeCount(m,"different")&&n<=checked)
+            total+=n;unresolved+=safeCount(c,"unresolved")
+        }
+        require(total<=checked&&unresolved==safeCount(s,"unresolved"))
+    }
+    private fun checkedCycles(raw:JSONObject) {
+        exactKeys(raw,"version","entries")
+        require(safeCount(raw,"version")==1L&&raw.toString().toByteArray(StandardCharsets.UTF_8).size<=180000)
+        val entries=raw.getJSONArray("entries");require(entries.length()<=100)
+        val ids=mutableSetOf<Long>()
+        for(i in 0 until entries.length()){
+            val e=entries.getJSONObject(i)
+            val keys=listOf("startedAt","finishedAt","durationMs","state","reason","digest")+(if(e.has("summary"))listOf("summary") else emptyList())
+            exactKeys(e,*keys.toTypedArray())
+            val start=safeCount(e,"startedAt");val finish=safeCount(e,"finishedAt")
+            require(start in 1..8640000000000000L&&finish in 1..8640000000000000L&&ids.add(start))
+            val state=e.get("state")
+            require(state in setOf("COMPLETED","ALREADY_RECORDED","WAITING_DATA","BLOCKED","STOPPED","INTERRUPTED"))
+            if(state=="INTERRUPTED")require(e.isNull("durationMs")) else safeCount(e,"durationMs")
+            if(!e.isNull("reason")){val reason=e.get("reason");require(reason is String&&reason.matches(Regex("^[A-Z0-9_]{1,64}$")))}
+            if(!e.isNull("digest"))journalDigest(e)
+            if(e.has("summary"))checkedCycleSummary(e.getJSONObject("summary"))
+        }
+    }
     private fun exactKeys(o:JSONObject,vararg keys:String) {
         require(o.keys().asSequence().toSet()==keys.toSet())
     }
@@ -179,6 +222,10 @@ object ApexPortableBackup {
             checkedLab(raw.getJSONObject("lab"))
             checkedRules(raw.getJSONObject("rules"))
         }
+        if(raw.has("cycles")){
+            require(raw.has("lab")&&raw.has("feedback"))
+            checkedCycles(raw.getJSONObject("cycles"))
+        }
         require(rows.length()<=MAX_TRANSCRIPTS)
         val ids=mutableSetOf<String>()
         val now=System.currentTimeMillis()
@@ -220,6 +267,7 @@ object ApexPortableBackup {
             require(row.keys().asSequence().toSet()==allowed)
         }
         require(raw.keys().asSequence().toSet()==when{
+            raw.has("cycles")->setOf("version","rows","feedback","lab","rules","cycles")
             raw.has("lab")->setOf("version","rows","feedback","lab","rules")
             raw.has("feedback")->setOf("version","rows","feedback")
             else->setOf("version","rows")
@@ -350,7 +398,8 @@ object ApexPortableBackup {
                         if(archive!=null)zipText(zip,TRANSCRIPT_ENTRY,archive.toString())
                         zipText(zip,"manifest.json",JSONObject()
                             .put("format",FORMAT)
-                            .put("schemaVersion",if(archive?.has("lab")==true)8 else if(archive?.has("feedback")==true)7 else if(archive!=null)6 else 5)
+                            .put("schemaVersion",if(archive?.has("cycles")==true)9 else if(archive?.has("lab")==true)8 else if(archive?.has("feedback")==true)7 else if(archive!=null)6 else 5)
+                            .put("cycleCount",archive?.optJSONObject("cycles")?.optJSONArray("entries")?.length()?:0)
                             .put("labCount",archive?.optJSONObject("lab")?.optJSONArray("entries")?.length()?:0)
                             .put("rulesCount",archive?.optJSONObject("rules")?.optJSONArray("reviews")?.length()?:0)
                             .put("feedbackCount",archive?.optJSONObject("feedback")?.optJSONArray("reviews")?.length()?:0)
@@ -392,6 +441,7 @@ object ApexPortableBackup {
                 .put("feedbackCount",transcripts?.optJSONObject("feedback")?.optJSONArray("reviews")?.length()?:0)
                 .put("labCount",transcripts?.optJSONObject("lab")?.optJSONArray("entries")?.length()?:0)
                 .put("rulesCount",transcripts?.optJSONObject("rules")?.optJSONArray("reviews")?.length()?:0)
+                .put("cycleCount",transcripts?.optJSONObject("cycles")?.optJSONArray("entries")?.length()?:0)
                 .put("note","Проверьте завершение загрузки в выбранном облаке")
         }finally{encrypted.delete()}
     }
@@ -485,7 +535,7 @@ object ApexPortableBackup {
     private fun verify(zip:ZipFile):Pair<JSONObject,JSONObject> {
         val manifest=JSONObject(textEntry(zip,"manifest.json"))
         val schema=manifest.optInt("schemaVersion")
-        require(schema==5||schema==6||schema==7||schema==8) {"Несовместимая версия архива"}
+        require(schema==5||schema==6||schema==7||schema==8||schema==9) {"Несовместимая версия архива"}
         val allowed=(tableColumns.keys.map{zipName(it)}+
             listOf("settings.json","manifest.json")+
             if(schema>=6)listOf(TRANSCRIPT_ENTRY) else emptyList()).toSet()
@@ -505,7 +555,7 @@ object ApexPortableBackup {
             "Архив содержит неизвестные файлы или неполную структуру"
         }
         require(manifest.optString("format")==FORMAT&&
-            (schema==5||schema==6||schema==7||schema==8)&&
+            (schema==5||schema==6||schema==7||schema==8||schema==9)&&
             manifest.optLong("exportedAt")>0){"Несовместимая версия архива"}
         val counts=manifest.optJSONObject("tableCounts")
             ?:throw IllegalArgumentException("Нет контрольных счётчиков")
@@ -514,9 +564,11 @@ object ApexPortableBackup {
             val history=checkedTranscripts(JSONObject(textEntry(zip,TRANSCRIPT_ENTRY,MAX_PORTABLE_AI_BYTES)))
             require(manifest.optInt("transcriptCount",-1)==history.getJSONArray("rows").length())
             require(history.has("feedback")== (schema>=7))
-            require(history.has("lab")== (schema==8))
+            require(history.has("lab")== (schema>=8))
+            require(history.has("cycles")== (schema==9))
+            if(schema==9)require(manifest.optInt("cycleCount",-1)==history.getJSONObject("cycles").getJSONArray("entries").length())
             if(schema>=7)require(manifest.optInt("feedbackCount",-1)==history.getJSONObject("feedback").getJSONArray("reviews").length())
-            if(schema==8){
+            if(schema>=8){
                 require(manifest.optInt("labCount",-1)==history.getJSONObject("lab").getJSONArray("entries").length())
                 require(manifest.optInt("rulesCount",-1)==history.getJSONObject("rules").getJSONArray("reviews").length())
             }

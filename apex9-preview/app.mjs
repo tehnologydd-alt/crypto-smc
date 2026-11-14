@@ -295,6 +295,10 @@ async function runCloudBackup(mode){
   return;
  }
  const restore=mode==='restore';
+ if(!researchHistory.backupReady()){
+  text('apex-backup-status','Выключите локальную автоматизацию и дождитесь завершения цикла перед переносом.');
+  return;
+ }
  if(restore&&!window.confirm(
   'Восстановить зашифрованный архив APEX? Сохранённые сценарии и свечи '+
   'будут ДОБАВЛЕНЫ к существующим, без удаления данных. '+
@@ -331,7 +335,8 @@ async function runCloudBackup(mode){
    result=await exportMobileCloudBackup(passphrase,ids,hiddenIds,archive);
    if(result?.saved&&(result.transcriptCount!==archive.rows.length||
     result.feedbackCount!==archive.feedback.reviews.length||
-    result.labCount!==archive.lab.entries.length||result.rulesCount!==archive.rules.reviews.length))
+    result.labCount!==archive.lab.entries.length||result.rulesCount!==archive.rules.reviews.length||
+    result.cycleCount!==archive.cycles.entries.length))
     throw Error('Запись архива ИИ или журнала не подтверждена; требуется совместимая Android-сборка.');
   }
   if(result?.cancelled){

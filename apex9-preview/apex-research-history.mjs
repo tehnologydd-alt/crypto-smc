@@ -798,7 +798,9 @@ const journalSpec={
  lab:{field:'entries',key:LAB_JOURNAL_KEY,limit:LAB_LIMIT,bytes:LAB_BYTES,valid:portableLabEntry,
   identity:r=>JSON.stringify([r.digest,r.result.asset,r.result.policy.version])},
  rules:{field:'reviews',key:KNOWLEDGE_REVIEW_KEY,limit:KNOWLEDGE_REVIEW_LIMIT,bytes:KNOWLEDGE_REVIEW_BYTES,valid:validKnowledgeReview,
-  identity:r=>JSON.stringify([r.ruleId,r.ruleVersion,r.role,r.at])}
+  identity:r=>JSON.stringify([r.ruleId,r.ruleVersion,r.role,r.at])},
+ get cycles(){return {field:'entries',key:CYCLE_JOURNAL_KEY,limit:CYCLE_POLICY.limit,bytes:CYCLE_POLICY.bytes,
+  valid:validCycleEntry,identity:r=>String(r.startedAt)};}
 };
 function stableJSON(value){
  if(Array.isArray(value))return '['+value.map(stableJSON).join(',')+']';
@@ -833,7 +835,8 @@ export function mergePortableJournal(kind,previous,incoming){
    if(kind==='lab'&&r.at<old.at)byId.set(id,r);
   }else byId.set(id,r);
  }
- const archive={version:1,[spec.field]:[...byId.values()].sort((a,b)=>b.at-a.at||spec.identity(a).localeCompare(spec.identity(b)))};
+ const archive={version:1,[spec.field]:[...byId.values()].sort((a,b)=>
+  (kind==='cycles'?b.finishedAt-a.finishedAt||b.startedAt-a.startedAt:b.at-a.at)||spec.identity(a).localeCompare(spec.identity(b)))};
  if(!validatePortableJournal(kind,archive))return {ok:false,reason:'CAPACITY_'+kind.toUpperCase()};
  return {ok:true,archive};
 }
@@ -2013,6 +2016,10 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
  limit.addEventListener('click',()=>{visible+=8;render();});
  recover();
  return {ingest,render,getRows:()=>rows.slice(),
+  backupReady:()=>{
+   const pending=readPendingCycle(store);
+   return !cycleBusy&&!cycleToggle?.checked&&pending.ok&&!pending.value;
+  },
   exportArchive:()=>{
    const disk=inspectTranscriptStorage(store,now());
    if(!disk.ok||JSON.stringify(disk.rows)!==JSON.stringify(rows))
@@ -2021,9 +2028,15 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    if(reviews===null)throw Error('Журнал проверок недоступен; экспорт остановлен, данные не изменены.');
    const entries=readLabJournal(store),ruleReviews=readKnowledgeReviews(store);
    const lab={version:1,entries},rules={version:1,reviews:ruleReviews};
+   const cycles={version:1,entries:readCycleJournal(store)};
+   const pending=readPendingCycle(store);
+   if(cycleBusy||cycleToggle?.checked||!pending.ok||pending.value)
+    throw Error('Выключите локальную автоматизацию и дождитесь завершения текущего цикла перед экспортом.');
+   if(!validatePortableJournal('cycles',cycles))
+    throw Error('Журнал автоматизации недоступен; экспорт остановлен.');
    if(!validatePortableJournal('lab',lab)||!validatePortableJournal('rules',rules))
     throw Error('Журналы лаборатории или правил недоступны; экспорт остановлен.');
-   return {version:1,rows:rows.slice(),feedback:{version:1,reviews},lab,rules};
+   return {version:1,rows:rows.slice(),feedback:{version:1,reviews},lab,rules,cycles};
   },
   importArchive:archive=>{
    const disk=inspectTranscriptStorage(store,now());
@@ -2034,9 +2047,14 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
    let feedback=null;
    const extra=[];
    if(Object.hasOwn(archive,'lab')!==Object.hasOwn(archive,'rules'))return {ok:false,reason:'INVALID_JOURNAL_PAIR'};
-   for(const kind of ['lab','rules']){
+   if(Object.hasOwn(archive,'cycles')){
+    const pending=readPendingCycle(store);
+    if(!Object.hasOwn(archive,'lab')||!Object.hasOwn(archive,'feedback'))return {ok:false,reason:'INVALID_CYCLE_ARCHIVE'};
+    if(cycleBusy||cycleToggle?.checked||!pending.ok||pending.value)return {ok:false,reason:'CYCLE_NOT_IDLE'};
+   }
+   for(const kind of ['lab','rules','cycles']){
     if(!Object.hasOwn(archive,kind))continue;
-    const previous=kind==='lab'?readLabJournal(store):readKnowledgeReviews(store);
+    const previous=kind==='lab'?readLabJournal(store):kind==='rules'?readKnowledgeReviews(store):readCycleJournal(store);
     if(previous===null)return {ok:false,reason:'JOURNAL_STORAGE'};
     const result=mergePortableJournal(kind,previous,archive[kind]);
     if(!result.ok)return result;
@@ -2077,9 +2095,16 @@ export function initResearchHistory({store,now=()=>Date.now()}={}){
      if(store.getItem(e.key)!==raw)throw Error('unconfirmed write');
     }catch{render();return {ok:false,reason:'JOURNAL_STORAGE_'+e.kind.toUpperCase(),partial:true};}
    }
+   const restoredCycles=extra.find(e=>e.kind==='cycles');
+   if(restoredCycles){
+    const last=restoredCycles.archive.entries[0];
+    cycleLast=last?{state:last.state,at:last.startedAt,reason:last.reason,summary:last.summary,restored:true}:null;
+    cycleAttempted=null;cycleGate=null;paintCycle();
+   }
    render();
    return {ok:true,count:rows.length,feedbackCount:feedback?.archive.reviews.length??null,
     labCount:extra.find(e=>e.kind==='lab')?.archive.entries.length??null,
-    rulesCount:extra.find(e=>e.kind==='rules')?.archive.reviews.length??null};
+    rulesCount:extra.find(e=>e.kind==='rules')?.archive.reviews.length??null,
+    cycleCount:restoredCycles?.archive.entries.length??null};
   }};
 }
