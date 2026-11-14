@@ -36,7 +36,7 @@ jobs:
           node --test apex-ai-research/edge/test-worker.mjs apex-ai-research/edge/test-budget-governor.mjs apex-ai-research/edge/test-device-auth.mjs
           node --test apex-ai-research/edge/test-batch-audit.mjs apex-ai-research/edge/test-adaptive-budget.mjs apex9-preview/test-cloud-ai-batch.mjs apex9-preview/test-cloud-ai-monitor.mjs
           node --test apex9-preview/test-cloud-ai-collective.mjs apex9-preview/test-cloud-ai-manual-audit.mjs
-          node --test apex-ai-research/edge/test-offline-research-benchmark.mjs apex-ai-research/edge/test-offline-research-report.mjs
+          node --test apex-ai-research/edge/test-offline-research-benchmark.mjs apex-ai-research/edge/test-offline-research-report.mjs apex-ai-research/edge/test-submitted-benchmark.mjs
           node --test apex9-preview/test-apex-research-director.mjs apex9-preview/test-apex-research-history.mjs apex9-preview/test-portable-cloud-backup.mjs
       - name: Generate isolated offline benchmark report
         if: always()

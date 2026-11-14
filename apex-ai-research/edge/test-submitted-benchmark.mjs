@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {scoreSubmittedResponses} from './score-submitted-benchmark.mjs';
+const a={id:'lab-temp-c',role:'GLM',text:'APEX_FACT|lab-temp-c|TEMPERATURE_C|21.125'};
+const b={id:'lab-temp-c',role:'Qwen',text:'No explicit measurement.'};
+test('submitted benchmark separates unverified attribution, missing cases and parser results',()=>{
+ const data={version:1,partition:'holdout',responses:[a,b]};
+ const report=scoreSubmittedResponses(data);
+ assert.equal(report.provenance,'UNVERIFIED_USER_ATTRIBUTION');
+ assert.equal(report.models[0].counts.EXACT,1);
+ assert.equal(report.models[1].counts.MISSING,1);
+ assert.equal(report.models[0].counts.NOT_RUN,3);
+ assert.equal(report.modelAccuracy,null);
+ assert.equal(report.actualModelCalls,0);
+ assert.equal(report.archiveWrites,0);
+ assert.deepEqual(scoreSubmittedResponses({...data,responses:[b,a]}),report);
+ assert.notEqual(scoreSubmittedResponses({...data,responses:[{...a,text:'different'},b]}).inputSha256,report.inputSha256);
+ assert.throws(()=>scoreSubmittedResponses({...data,responses:[a,a]}),/DUPLICATE/);
+ assert.throws(()=>scoreSubmittedResponses({...data,responses:[{...a,text:'x'.repeat(2401)}]}),/INVALID_SUBMISSION/);
+ assert.throws(()=>scoreSubmittedResponses({...data,partition:'development'}),/INVALID_RESPONSE_ID/);
+ assert.throws(()=>scoreSubmittedResponses({...data,extra:1}),/INVALID_SUBMISSION/);
+});
