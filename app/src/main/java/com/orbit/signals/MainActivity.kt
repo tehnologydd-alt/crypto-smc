@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
@@ -53,6 +54,15 @@ class MainActivity : Activity() {
     private var assetError: String? = null
     private var assetRequest = 0
     private var resumed = false
+    private data class Screen(
+        val page: String,
+        val assetSymbol: String?,
+        val market: String,
+        val timeframe: String,
+        val selectedSignalId: String?
+    )
+    private val backStack = ArrayDeque<Screen>()
+    private var systemBackCallback: Any? = null
     private val tick = object : Runnable {
         override fun run() {
             if (!resumed) return
@@ -65,6 +75,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg; window.navigationBarColor = bg
+        if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
+        if (Build.VERSION.SDK_INT >= 33) systemBackCallback = BackApi33.register(this) { goBack() }
         prefs = Preferences(this); store = LocalStore(this)
         applyScreenPreference()
         MonitorJob.schedule(this)
@@ -76,13 +88,52 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); openIntent(intent); show() }
     override fun onResume() { super.onResume(); resumed = true; handler.post(tick) }
     override fun onPause() { resumed = false; handler.removeCallbacks(tick); super.onPause() }
-    override fun onDestroy() { store.close(); super.onDestroy() }
+    override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= 33) systemBackCallback?.let { BackApi33.unregister(this, it) }
+        store.close(); super.onDestroy()
+    }
     @Deprecated("Deprecated in Android")
-    override fun onBackPressed() { if (assetSymbol != null) { assetSymbol = null; page = "market"; show() } else super.onBackPressed() }
+    override fun onBackPressed() { goBack() }
+
+    private fun currentScreen() = Screen(page, assetSymbol, market, timeframe, selectedSignalId)
+
+    private fun navigateToPage(destination: String) {
+        if (assetSymbol == null && page == destination) return
+        backStack.addLast(currentScreen())
+        assetSymbol = null
+        selectedSignalId = null
+        page = destination
+        show()
+    }
+
+    private fun navigateToAsset(symbol: String, selectedMarket: String, selectedFrame: String, signalId: String? = null) {
+        backStack.addLast(currentScreen())
+        assetSymbol = symbol
+        market = selectedMarket
+        timeframe = selectedFrame
+        selectedSignalId = signalId
+        assetBars = emptyList()
+        show()
+        loadAsset()
+    }
+
+    private fun goBack() {
+        if (backStack.isEmpty()) { finish(); return }
+        val previous = backStack.removeLast()
+        page = previous.page
+        assetSymbol = previous.assetSymbol
+        market = previous.market
+        timeframe = previous.timeframe
+        selectedSignalId = previous.selectedSignalId
+        assetBars = emptyList()
+        show()
+        if (assetSymbol != null) loadAsset()
+    }
 
     private fun openIntent(intent: Intent) {
         val id = intent.getStringExtra("signalId") ?: return
         store.signals().firstOrNull { it.id == id }?.let {
+            if (assetSymbol != it.symbol || selectedSignalId != it.id) backStack.addLast(currentScreen())
             assetSymbol = it.symbol; market = it.market; timeframe = it.timeframe; selectedSignalId = it.id
             loadAsset()
         }
@@ -97,6 +148,17 @@ class MainActivity : Activity() {
     }
     private fun show() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            if (Build.VERSION.SDK_INT >= 30) {
+                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            } else {
+                @Suppress("DEPRECATION")
+                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+            }
+            insets
+        }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(18), dp(20), dp(18), dp(15)) }
         if (assetSymbol == null) {
             val brand = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -109,15 +171,27 @@ class MainActivity : Activity() {
             wordmark.addView(text("S I G N A L S", 7, accent, true).apply { setPadding(0, 0, 0, 0) })
             brand.addView(wordmark)
             header.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        } else header.addView(text("←  ${assetSymbol!!.removeSuffix("USDT")} / USDT", 18, accent, true).apply {
-            setOnClickListener { assetSymbol = null; show() }
-        }, LinearLayout.LayoutParams(0, -2, 1f))
+        } else {
+            val back = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                contentDescription = "Назад"
+                setOnClickListener { goBack() }
+            }
+            back.addView(ImageView(this).apply {
+                setImageResource(R.drawable.ic_back)
+                setColorFilter(accent)
+                contentDescription = null
+            }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = dp(8) })
+            back.addView(text("${assetSymbol!!.removeSuffix("USDT")} / USDT", 18, accent, true))
+            header.addView(back, LinearLayout.LayoutParams(0, dp(48), 1f))
+        }
         header.addView(ImageView(this).apply {
             setImageResource(R.drawable.ic_settings); setColorFilter(if (page == "settings" && assetSymbol == null) accent else muted)
             setPadding(dp(10), dp(10), dp(10), dp(10))
             contentDescription = "Настройки"
             background = GradientDrawable().apply { setColor(panel); cornerRadius = dp(11).toFloat(); setStroke(dp(1), if (page == "settings" && assetSymbol == null) accent else line) }
-            setOnClickListener { assetSymbol = null; page = "settings"; show() }
+            setOnClickListener { navigateToPage("settings") }
         }, LinearLayout.LayoutParams(dp(42), dp(42)))
         root.addView(header)
         val scroll = ScrollView(this).apply { isFillViewport = true }
@@ -126,13 +200,14 @@ class MainActivity : Activity() {
         bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(panel); setPadding(dp(4), dp(8), dp(4), dp(8)) }
         for ((name, icon, title) in listOf(Triple("market", R.drawable.ic_market, "Рынок"), Triple("signals", R.drawable.ic_signals, "Сигналы"), Triple("stats", R.drawable.ic_stats, "Статистика"))) {
             val activeColor = if (page == name && assetSymbol == null) accent else muted
-            val item = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setOnClickListener { assetSymbol = null; page = name; show() } }
+            val item = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setOnClickListener { navigateToPage(name) } }
             item.addView(ImageView(this).apply { setImageResource(icon); setColorFilter(activeColor) }, LinearLayout.LayoutParams(dp(23), dp(23)))
             item.addView(text(title, 10, activeColor, true).apply { gravity = Gravity.CENTER; setPadding(0, dp(3), 0, 0) })
             bottom.addView(item, LinearLayout.LayoutParams(0, dp(50), 1f))
         }
         root.addView(bottom)
         setContentView(root)
+        root.requestApplyInsets()
         if (assetSymbol != null) renderAsset() else when (page) {
             "signals" -> renderSignals(); "stats" -> renderStats(); "settings" -> renderSettings(); else -> renderMarket()
         }
@@ -152,7 +227,7 @@ class MainActivity : Activity() {
         for (symbol in prefs.symbols) card(body) {
             addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
             addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent))
-            setOnClickListener { assetSymbol = symbol; market = "spot"; timeframe = "15m"; selectedSignalId = null; assetBars = emptyList(); show(); loadAsset() }
+            setOnClickListener { navigateToAsset(symbol, "spot", "15m") }
         }
         body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted))
     }
@@ -192,7 +267,7 @@ class MainActivity : Activity() {
             addView(text("TP1 ${format(signal.targets[0])}   TP2 ${format(signal.targets[1])}   TP3 ${format(signal.targets[2])}", 11))
             addView(text("${date(signal.detectedAt)}  ·  ${signal.hitTargets}/3 целей", 10, muted))
             action(this, if (signal.id in prefs.selectedIds) "✓ Отмечен · убрать" else "☆ Отметить сигнал") { prefs.toggleSelected(signal.id); show() }
-            setOnClickListener { assetSymbol = signal.symbol; market = signal.market; timeframe = signal.timeframe; selectedSignalId = signal.id; assetBars = emptyList(); show(); loadAsset() }
+            setOnClickListener { navigateToAsset(signal.symbol, signal.market, signal.timeframe, signal.id) }
         }
     }
     private fun renderStats() {
@@ -373,3 +448,4 @@ class MainActivity : Activity() {
     private fun rate(signals: List<Signal>) = if (signals.isEmpty()) 0 else (100.0 * signals.count { it.outcome == 1 } / signals.size).roundToInt()
     private fun stateName(value: String) = mapOf("WAITING" to "Ожидает вход", "OPEN" to "В работе", "STOPPED" to "Стоп", "COMPLETED" to "TP3 достигнут", "CANCELLED" to "Отменён", "EXPIRED" to "Истёк", "UNCERTAIN" to "Проверьте вручную")[value] ?: value
 }
+
