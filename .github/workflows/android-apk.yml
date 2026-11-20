@@ -27,10 +27,7 @@ jobs:
         env:
           ORBIT_SIGNING_BUNDLE: ${{ secrets.ORBIT_SIGNING_BUNDLE }}
         run: |
-          if [ -z "$ORBIT_SIGNING_BUNDLE" ]; then
-            echo 'No stable signing secret yet; this APK uses the temporary runner debug key.'
-            exit 0
-          fi
+          test -n "$ORBIT_SIGNING_BUNDLE" || { echo 'Missing ORBIT_SIGNING_BUNDLE repository secret'; exit 1; }
           mkdir -p app/signing
           printf '%s' "$ORBIT_SIGNING_BUNDLE" | base64 -d > "$RUNNER_TEMP/orbit-signing.json"
           jq -r '.pfx' "$RUNNER_TEMP/orbit-signing.json" | base64 -d > app/signing/orbit-signals.p12

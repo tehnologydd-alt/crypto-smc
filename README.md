@@ -40,7 +40,7 @@ Android может отложить периодическую задачу. К�
 
 ## Сборка APK через GitHub Actions
 
-При отправке изменений в ветку `review/android-apk` workflow `.github/workflows/android-apk.yml` запускает Kotlin-тесты, собирает APK и прикладывает его как `orbit-signals-debug-apk`. После добавления секрета GitHub Actions `ORBIT_SIGNING_BUNDLE` сборка использует постоянный PKCS12-ключ; без секрета APK собирается с временным debug-ключом runner и обновление поверх предыдущей сборки не гарантируется. Номер версии возрастает по `GITHUB_RUN_NUMBER`. APK, собранные ранее с временными debug-ключами GitHub runner, придётся удалить **один раз** перед установкой первой сборки с постоянной подписью. Копия PKCS12 и пароля должна храниться вне репозитория: потеря ключа лишит возможности обновлять установленное приложение.
+При отправке изменений в ветку `review/android-apk` workflow `.github/workflows/android-apk.yml` запускает Kotlin-тесты, собирает APK и прикладывает его как `orbit-signals-debug-apk`. Для сборки обязателен секрет GitHub Actions `ORBIT_SIGNING_BUNDLE` с постоянным PKCS12-ключом. Номер версии возрастает по `GITHUB_RUN_NUMBER`. APK, собранные ранее с временными debug-ключами GitHub runner, придётся удалить **один раз** перед установкой первой сборки с постоянной подписью. Копия PKCS12 и пароля должна храниться вне репозитория: потеря ключа лишит возможности обновлять установленное приложение.
 
 Для локальной сборки нужны JDK 17 и Android SDK 36. Выполните `gradlew.bat testDebugUnitTest assembleDebug`; результат появится в `app/build/outputs/apk/debug/app-debug.apk`.
 
