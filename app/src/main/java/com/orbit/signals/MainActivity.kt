@@ -351,23 +351,23 @@ class MainActivity : Activity() {
                 addView(text("24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}", 11, muted))
             }
         }
-        card(body) {
-            addView(text("Крупные сделки", 16, primaryText, true))
-            addView(text("От 250 000 USDT среди последних 1000 публичных aggTrade. Это частичная выборка и не влияет на сигналы.", 11, muted))
-            val buys = assetTrades.filter { it.side == "buy" }; val sells = assetTrades.filter { it.side == "sell" }
-            addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent))
-            addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger))
-            for (trade in assetTrades.take(4)) addView(text("${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
-        }
-        body.addView(text("Выберите сигнал", 20, primaryText, true))
         val signals = store.signals(market, symbol).take(15)
-        if (signals.isEmpty()) body.addView(text("Сигналов пока нет. Структура и зоны ниже отображаются независимо.", 12, muted))
+        val selected = signals.firstOrNull { it.id == selectedSignalId }
+        body.addView(text("Структура и уровни", 20, primaryText, true))
+        val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); show(); loadAsset() }
+        body.addView(timeTabs)
+        val structure = Strategy.structure(assetBars)
+        body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted))
+        card(body) { addView(ChartView(this@MainActivity).apply { candles = assetBars; this.structure = structure; signal = selected }) }
+        assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
+        body.addView(text("Выберите сигнал", 20, primaryText, true))
+        if (signals.isEmpty()) body.addView(text("Сигналов пока нет. Структура и зоны на графике отображаются независимо.", 12, muted))
         for (signal in signals) card(body) {
             addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
             addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
             setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
         }
-        val selected = signals.firstOrNull { it.id == selectedSignalId }
         if (selected != null) card(body) {
             addView(text("Параметры сигнала", 16, primaryText, true))
             addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
@@ -377,14 +377,14 @@ class MainActivity : Activity() {
             action(this, if (selected.id in prefs.selectedIds) "✓ Убрать из уведомлений" else "Следить за сигналом") { prefs.toggleSelected(selected.id); show() }
             for (event in selected.events.reversed()) addView(text("${event.type} · ${date(event.at)} · ${format(event.price)}", 11, muted))
         }
-        body.addView(text("Структура и уровни", 20, primaryText, true))
-        val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); show(); loadAsset() }
-        body.addView(timeTabs)
-        val structure = Strategy.structure(assetBars)
-        body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted))
-        card(body) { addView(ChartView(this@MainActivity).apply { candles = assetBars; this.structure = structure; signal = selected }) }
-        assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
+        card(body) {
+            addView(text("Крупные сделки", 16, primaryText, true))
+            addView(text("От 250 000 USDT среди последних 1000 публичных aggTrade. Это частичная выборка и не влияет на сигналы.", 11, muted))
+            val buys = assetTrades.filter { it.side == "buy" }; val sells = assetTrades.filter { it.side == "sell" }
+            addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent))
+            addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger))
+            for (trade in assetTrades.take(4)) addView(text("${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
+        }
         body.addView(text("Касание уровней ценой не подтверждает исполнение ордера на счёте.", 11, muted))
     }
     private fun loadAsset() {
