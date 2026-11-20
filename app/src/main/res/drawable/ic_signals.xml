@@ -5,3 +5,4 @@
         android:pathData="M12,3 A9,9 0,1 1,12 21 A9,9 0,1 1,12 3 M12,8 A4,4 0,1 1,12 16 A4,4 0,1 1,12 8 M12,1 L12,4 M12,20 L12,23 M1,12 L4,12 M20,12 L23,12"/>
     <path android:fillColor="#FFFFFFFF" android:pathData="M12,11 A1,1 0,1 1,12 13 A1,1 0,1 1,12 11"/>
 </vector>
+

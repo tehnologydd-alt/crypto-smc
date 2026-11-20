@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css?v=13">
+  <link rel="stylesheet" href="/asset.css?v=14">
+  <title>Обзор актива · Orbit Signals</title>
+</head>
+<body>
+  <main class="app asset-page">
+    <header class="asset-topbar"><a id="backLink" class="back-button" href="/">←</a><div class="brand"><div class="brand-mark">◈</div><div><strong>ORBIT</strong><span>SIGNALS</span></div></div><span class="header-caption">ОБЗОР АКТИВА</span></header>
+    <div id="assetPreview" class="preview-banner hidden">ПРЕДПРОСМОТР · график и цены Binance реальные; пример сигнала и его уровни вымышлены.</div>
+    <div id="assetError" class="notice hidden"></div>
+    <section class="asset-hero"><div class="eyebrow">BINANCE · USDT</div><h1 id="assetTitle">Загрузка…</h1><div class="asset-market-tabs"><button data-market="spot" class="active">Спот</button><button data-market="futures">USDT-M фьючерсы</button></div><div class="asset-main-price"><div><span>ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1</span><strong id="assetPrice">—</strong></div><b id="assetChange">—</b></div><p id="assetUpdated" class="muted">Ожидание данных</p></section>
+    <section class="overview-stats"><div><span>МАКСИМУМ 24 Ч</span><strong id="dayHigh">—</strong></div><div><span>МИНИМУМ 24 Ч</span><strong id="dayLow">—</strong></div><div><span>ОБЪЁМ 24 Ч</span><strong id="dayVolume">—</strong></div><div><span>ОБОРОТ 24 Ч</span><strong id="dayQuote">—</strong></div></section>
+    <section class="large-trades" aria-label="Крупные сделки"><div class="large-trades-head"><div><div class="eyebrow">ПОТОК СДЕЛОК BINANCE</div><h2>Крупные сделки</h2></div><span id="largeTradesStatus">Подключение…</span></div><p>Сделки от 250 000 USDT за последние ~15 минут. Отдельная рыночная информация: не влияет на сигналы, уровни и обучение.</p><div id="largeTradesTotals" class="large-trades-totals">Ожидание сделок…</div><div id="largeTradesList" class="large-trades-list"></div></section>
+    <section class="section-heading asset-signals-title"><div><div class="eyebrow">АНАЛИЗ</div><h2>Выберите сигнал</h2></div></section><div id="assetSignals" class="asset-signals"></div>
+    <section id="selectedSignalPanel" class="selected-signal-panel hidden"></section>
+    <section class="chart-panel"><div class="chart-head"><div><div class="eyebrow">ГРАФИК BINANCE</div><h2>Структура и уровни</h2></div><span class="chart-legend"><i></i> ордер-блок</span></div><div class="chart-tabs"><button data-interval="1m">M1</button><button data-interval="5m">M5</button><button data-interval="15m" class="active">M15</button><button data-interval="30m">M30</button><button data-interval="1h">H1</button><button data-interval="4h">H4</button></div><div id="structureSummary" class="structure-summary">Загрузка структуры…</div><canvas id="priceChart" aria-label="Свечной график со структурой рынка, ордер-блоками и уровнями выбранного сигнала"></canvas><div id="candleInfo" class="candle-info">Наведите на свечу, чтобы увидеть OHLC и объём</div><p class="chart-footnote">SH/SL — подтверждённые локальные максимумы и минимумы. BOS — закрытие за уровнем структуры. Зона OB — последняя свеча противоположного цвета перед пробоем. Это разметка закрытых свечей, а не отдельный торговый сигнал. Вход и цели проверяются по закрытым M1.</p></section>
+    <section class="info"><span class="info-icon">ⓘ</span><p>Касание уровня ценой не подтверждает исполнение ордера на вашем счёте. Сигналы не гарантируют результат.</p></section>
+  </main>
+  <nav class="bottom-nav" aria-label="Разделы приложения"><a class="bottom-item active" data-page="market" aria-current="page" href="/"><span class="nav-icon">▦</span><span>Рынок</span></a><a class="bottom-item" data-page="signals" href="/?page=signals"><span class="nav-icon">◈</span><span>Сигналы</span></a><a class="bottom-item" data-page="stats" href="/?page=stats"><span class="nav-icon">▥</span><span>Статистика</span></a><a class="bottom-item" data-page="settings" href="/?page=settings"><span class="nav-icon">⚙</span><span>Настройки</span></a></nav>
+  <script type="module" src="/asset.js?v=14"></script>
+</body>
+</html>
+

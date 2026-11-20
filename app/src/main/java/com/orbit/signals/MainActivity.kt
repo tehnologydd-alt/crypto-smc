@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -23,6 +24,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -48,11 +50,16 @@ class MainActivity : Activity() {
     private var market = "spot"
     private var timeframe = "15m"
     private var selectedSignalId: String? = null
+    private var assetSignalTab = "waiting"
     private var assetBars: List<Candle> = emptyList()
+    private var chartVisibleCount = 90
+    private var chartOffset = 0
     private var assetTicker: org.json.JSONObject? = null
     private var assetTrades: List<LargeTrade> = emptyList()
     private var assetError: String? = null
     private var assetRequest = 0
+    private var contentScroll: ScrollView? = null
+    private var renderedScreenKey: String? = null
     private var resumed = false
     private data class Screen(
         val page: String,
@@ -112,7 +119,11 @@ class MainActivity : Activity() {
         market = selectedMarket
         timeframe = selectedFrame
         selectedSignalId = signalId
+        assetSignalTab = signalId?.let { id ->
+            store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let { assetBucket(it.state) }
+        } ?: "waiting"
         assetBars = emptyList()
+        chartVisibleCount = 90; chartOffset = 0
         show()
         loadAsset()
     }
@@ -132,9 +143,10 @@ class MainActivity : Activity() {
 
     private fun openIntent(intent: Intent) {
         val id = intent.getStringExtra("signalId") ?: return
-        store.signals().firstOrNull { it.id == id }?.let {
+        store.signals(source = prefs.mode).firstOrNull { it.id == id }?.let {
             if (assetSymbol != it.symbol || selectedSignalId != it.id) backStack.addLast(currentScreen())
             assetSymbol = it.symbol; market = it.market; timeframe = it.timeframe; selectedSignalId = it.id
+            assetSignalTab = assetBucket(it.state)
             loadAsset()
         }
     }
@@ -147,6 +159,8 @@ class MainActivity : Activity() {
         runOnUiThread { if (!isFinishing && !isDestroyed) { if (assetSymbol == null || page == "settings") show(); if (result.contains("ошибок")) android.util.Log.w("Orbit", result) } }
     }
     private fun show() {
+        val screenKey = "$page:${assetSymbol ?: ""}:$market"
+        val restoreY = if (screenKey == renderedScreenKey) contentScroll?.scrollY ?: 0 else 0
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
         root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
@@ -195,6 +209,7 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(dp(42), dp(42)))
         root.addView(header)
         val scroll = ScrollView(this).apply { isFillViewport = true }
+        contentScroll = scroll
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(17), dp(4), dp(17), dp(24)) }
         scroll.addView(body); root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(panel); setPadding(dp(4), dp(8), dp(4), dp(8)) }
@@ -211,17 +226,26 @@ class MainActivity : Activity() {
         if (assetSymbol != null) renderAsset() else when (page) {
             "signals" -> renderSignals(); "stats" -> renderStats(); "settings" -> renderSettings(); else -> renderMarket()
         }
+        renderedScreenKey = screenKey
+        if (restoreY > 0) scroll.post { scroll.scrollTo(0, restoreY) }
     }
     private fun renderMarket() {
         val model = store.model()
+        val remoteModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val samples = if (prefs.mode == "server") remoteModel?.optInt("samples") ?: 0 else model.samples
+        val validation = if (prefs.mode == "server") remoteModel?.optInt("validationSamples") ?: 0 else model.validation.size
+        val level = if (prefs.mode == "server") {
+            if (remoteModel?.optBoolean("trusted") == true) 3 else if (samples >= 50 && validation >= 30) 2 else if (samples >= 30) 1 else 0
+        } else model.level
         card(body) {
             addView(text("АДАПТИВНАЯ ОЦЕНКА", 10, accent, true))
             addView(text("Прогресс обучения", 23, primaryText, true))
-            addView(text("УРОВЕНЬ ${model.level}/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[model.level]}", 12, accent, true))
-            addView(text("Обучающие исходы: ${model.samples.coerceAtMost(30)}/30", 12))
-            addView(text("Проверочные исходы: ${model.validation.size.coerceAtMost(30)}/30", 12))
+            addView(text("УРОВЕНЬ $level/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level]}", 12, accent, true))
+            addView(text("Обучающие исходы: ${samples.coerceAtMost(30)}/30", 12))
+            addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12))
             addView(text("Уровень зависит от завершённых сигналов новой стратегии и качества прогноза.", 11, muted))
         }
+        if (prefs.mode == "server") body.addView(text("Источник: сервер · синхронизация ${if (prefs.serverLastSync == 0L) "ожидается" else date(prefs.serverLastSync)}", 11, accent))
         body.addView(text("Отмечено ${prefs.symbols.size} активов", 20, primaryText, true))
         body.addView(text("Спот и USDT-M фьючерсы · последние закрытые M1", 11, muted))
         for (symbol in prefs.symbols) card(body) {
@@ -237,7 +261,7 @@ class MainActivity : Activity() {
         for ((scope, label) in listOf("all" to "Все", "marked" to "Отмеченные", "finished" to "Завершённые"))
             action(tabs, label, signalScope == scope) { signalScope = scope; show() }
         body.addView(tabs)
-        val signals = store.signals().filter { signal -> when (signalScope) {
+        val signals = store.signals(source = prefs.mode).filter { signal -> when (signalScope) {
             "marked" -> signal.id in prefs.selectedIds
             "finished" -> signal.state in listOf("STOPPED", "COMPLETED", "CANCELLED", "EXPIRED")
             else -> true
@@ -272,7 +296,7 @@ class MainActivity : Activity() {
     }
     private fun renderStats() {
         title("Статистика", "История сигналов и достигнутые уровни")
-        val signals = store.signals(); val types = signals.map { signal -> signal.events.map { it.type }.toSet() }
+        val signals = store.signals(source = prefs.mode); val types = signals.map { signal -> signal.events.map { it.type }.toSet() }
         val entries = types.count { "ENTRY" in it }; val tp1 = types.count { "TP1" in it }; val tp2 = types.count { "TP2" in it }
         val tp3 = types.count { "TP3" in it }; val stops = types.count { "STOP" in it }
         card(body) {
@@ -287,13 +311,16 @@ class MainActivity : Activity() {
             addView(text("Динамика новой стратегии", 16, primaryText, true))
             addView(text("Исходов: ${resolvedNew.size}. ${if (recent.size == 20 && previous.size == 20) "Последние 20: ${rate(recent)}% · предыдущие 20: ${rate(previous)}%" else "Сравнение появится после 40 исходов."}", 12, muted))
             val model = store.model()
-            addView(text("Модель: уровень ${model.level}/3 · проверочных исходов ${model.validation.size}", 12, accent))
+            val serverModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
+            if (prefs.mode == "server") addView(text("Серверная модель: ${serverModel?.optInt("samples") ?: 0} исходов · ${serverModel?.optInt("validationSamples") ?: 0} проверочных", 12, accent))
+            else addView(text("Модель: уровень ${model.level}/3 · проверочных исходов ${model.validation.size}", 12, accent))
             val validation = model.validation
-            if (validation.size >= 40) {
+            if (prefs.mode == "local" && validation.size >= 40) {
                 fun error(rows: List<Triple<Double, Double, Int>>) = rows.map { (it.first - it.third) * (it.first - it.third) }.average()
                 val old = error(validation.dropLast(20).takeLast(20)); val fresh = error(validation.takeLast(20))
                 addView(text("Ошибка прогноза: ${String.format(Locale.US, "%.3f", old)} → ${String.format(Locale.US, "%.3f", fresh)} · ${if (fresh < old) "снижается" else if (fresh > old) "растёт" else "без изменений"}", 11, muted))
-            } else addView(text("Динамика ошибки прогноза появится после 40 проверочных исходов.", 11, muted))
+            } else if (prefs.mode == "local") addView(text("Динамика ошибки прогноза появится после 40 проверочных исходов.", 11, muted))
+            else addView(text("Серверная модель хранит полную историю прогнозов.", 11, muted))
         }
         for (symbol in prefs.symbols) {
             val subset = signals.filter { it.symbol == symbol }
@@ -307,12 +334,60 @@ class MainActivity : Activity() {
     private fun renderSettings() {
         title("Настройки", "Отмеченные активы и уведомления")
         card(body) {
+            addView(text("Источник сигналов", 16, primaryText, true))
+            addView(text(if (prefs.mode == "server") "Сейчас: сервер. Сигналы кэшируются на телефоне." else "Сейчас: телефон. Сигналы и обучение хранятся локально.", 12, accent))
+            action(this, "Работать на телефоне", prefs.mode == "local") {
+                prefs.mode = "local"; show(); updateMarket()
+            }
+            val urlEdit = EditText(this@MainActivity).apply {
+                setSingleLine(true); hint = "https://signals.example.com"
+                setText(prefs.serverUrl); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            }
+            addView(text("HTTPS-адрес сервера", 12, muted))
+            addView(urlEdit)
+            val tokenEdit = EditText(this@MainActivity).apply {
+                setSingleLine(true); hint = "Ключ APP_TOKEN"
+                setText(prefs.serverToken); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+            addView(text("Ключ доступа к вашему серверу", 12, muted))
+            addView(tokenEdit)
+            action(this, "Сохранить и подключить сервер") {
+                runCatching {
+                    prefs.serverUrl = RemoteBackend.validateUrl(urlEdit.text.toString())
+                    prefs.serverToken = tokenEdit.text.toString()
+                    prefs.mode = "server"
+                    show(); updateMarket()
+                }.onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show() }
+            }
+            addView(text("Сервер должен быть доступен по HTTPS. Ключ хранится в Android Keystore.", 11, muted))
+        }
+        card(body) {
+            addView(text("Контроль лимитов", 16, primaryText, true))
+            val count = prefs.symbols.size
+            addView(text("Отмечено: $count/10 · спот и фьючерсы", 12, accent))
+            addView(text("Оценка Node-сервера: ${924 * count} запросов свечей M5–H4 в сутки; M1 идёт по WebSocket.", 11, muted))
+            addView(text("Оценка Cloudflare Worker с REST M1: ${3804 * count} запросов Binance в сутки, пик ${12 * count}/50 внешних запросов за запуск. Нынешний Node-сервер требует отдельной адаптации для Workers.", 11, muted))
+            val limits = prefs.serverLimits?.let { runCatching { JSONObject(it).optJSONObject("binance") }.getOrNull() }
+            for (source in listOf("spot" to "Спот", "futures" to "Фьючерсы")) {
+                limits?.optJSONObject(source.first)?.let { row ->
+                    addView(text("${source.second}: ${row.optInt("minuteWeight")}/${row.optInt("minuteLimit")} вес/мин · ${row.optInt("dayWeight")}/${row.optInt("dayLimit")} вес/сутки", 11, muted))
+                }
+            }
+        }
+        card(body) {
             addView(text("Отмеченные пары", 16, primaryText, true))
             addView(text("Мониторятся только эти пары. При удалении пары её старые сигналы останутся в истории без новых событий.", 11, muted))
             val edit = EditText(this@MainActivity).apply { setSingleLine(false); minLines = 2; setText(prefs.symbols.joinToString(", ")); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f }
             addView(edit)
             action(this, "Сохранить пары") {
-                runCatching { prefs.setSymbols(edit.text.toString().split(Regex("[\\s,;]+")).filter { it.isNotBlank() }) }.onSuccess { show(); updateMarket() }
+                val values = edit.text.toString().split(Regex("[\\s,;]+")).filter { it.isNotBlank() }
+                if (prefs.mode == "server") thread(name = "orbit-symbols") {
+                    val result = runCatching { RemoteBackend.updateSymbols(applicationContext, values) }
+                    runOnUiThread { result.onSuccess { show(); updateMarket() }
+                        .onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show() } }
+                } else runCatching { prefs.setSymbols(values) }.onSuccess { show(); updateMarket() }
                     .onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show() }
             }
         }
@@ -329,8 +404,10 @@ class MainActivity : Activity() {
             addView(text("Выбрано вручную: ${prefs.selectedIds.size}. Отмечайте сигналы в обзоре актива.", 11, muted))
         }
         card(body) {
-            addView(text("Работа без сервера", 16, primaryText, true))
-            addView(text("При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
+            addView(text("Мониторинг", 16, primaryText, true))
+            addView(text(if (prefs.mode == "server")
+                "Сервер отслеживает M1, телефон получает его результаты при синхронизации. В APK без FCM уведомления приходят при следующей проверке: примерно раз в минуту при открытом приложении и с задержкой от 15 минут в фоне."
+                else "При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
             addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent))
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
             action(this, "Проверить сейчас") { updateMarket() }
@@ -341,7 +418,7 @@ class MainActivity : Activity() {
         title("${symbol.removeSuffix("USDT")} / USDT", "Binance · цены и структура рынка")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((value, label) in listOf("spot" to "Спот", "futures" to "Фьючерсы")) action(tabs, label, value == market) {
-            market = value; selectedSignalId = null; assetBars = emptyList(); show(); loadAsset()
+            market = value; selectedSignalId = null; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
         }
         body.addView(tabs)
         card(body) {
@@ -351,22 +428,63 @@ class MainActivity : Activity() {
                 addView(text("24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}", 11, muted))
             }
         }
-        val signals = store.signals(market, symbol).take(15)
+        val signals = store.signals(market, symbol, prefs.mode)
         val selected = signals.firstOrNull { it.id == selectedSignalId }
         body.addView(text("Структура и уровни", 20, primaryText, true))
         val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); show(); loadAsset() }
+        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset() }
         body.addView(timeTabs)
         val structure = Strategy.structure(assetBars)
         body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted))
-        card(body) { addView(ChartView(this@MainActivity).apply { candles = assetBars; this.structure = structure; signal = selected }) }
+        card(body) { addView(ChartView(this@MainActivity).apply {
+            candles = assetBars; this.structure = structure; signal = selected
+            visibleCount = chartVisibleCount; offset = chartOffset
+            onViewportChanged = { count, shift -> chartVisibleCount = count; chartOffset = shift }
+            contentDescription = "График свечей. Разведите пальцы для увеличения, проведите в сторону для просмотра истории."
+        }) }
+        body.addView(text("Разведите пальцы, чтобы увеличить график. Проведите влево или вправо для просмотра свечей.", 11, muted))
         assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
         body.addView(text("Выберите сигнал", 20, primaryText, true))
-        if (signals.isEmpty()) body.addView(text("Сигналов пока нет. Структура и зоны на графике отображаются независимо.", 12, muted))
-        for (signal in signals) card(body) {
-            addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
-            addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
-            setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
+        val statusTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for ((bucket, label) in listOf("waiting" to "Ожидающие", "active" to "Активные", "finished" to "Завершённые"))
+            action(statusTabs, label, assetSignalTab == bucket) { assetSignalTab = bucket; selectedSignalId = null; show() }
+        body.addView(statusTabs)
+        val visibleSignals = signals.filter { assetBucket(it.state) == assetSignalTab }
+        if (visibleSignals.isEmpty()) body.addView(text("В этой группе пока нет сигналов. Структура и зоны на графике отображаются независимо.", 12, muted))
+        else {
+            val signalList = ScrollView(this).apply { isNestedScrollingEnabled = true }
+            var lastY = 0f
+            signalList.setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> lastY = event.y
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        val canScroll = view.canScrollVertically(if (event.y > lastY) -1 else 1)
+                        view.parent?.requestDisallowInterceptTouchEvent(canScroll)
+                        lastY = event.y
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
+            val listContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            for (signal in visibleSignals) card(listContent) {
+                addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
+                addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
+                setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
+            }
+            signalList.addView(listContent)
+            body.addView(signalList, LinearLayout.LayoutParams(-1, dp(minOf(visibleSignals.size, 5) * 88)).apply { topMargin = dp(5) })
+            signalList.post {
+                val height = (0 until minOf(listContent.childCount, 5)).sumOf { index ->
+                    val item = listContent.getChildAt(index)
+                    val margins = item.layoutParams as LinearLayout.LayoutParams
+                    item.height + margins.topMargin + margins.bottomMargin
+                }
+                if (height > 0) {
+                    signalList.layoutParams = signalList.layoutParams.apply { this.height = height }
+                }
+            }
         }
         if (selected != null) card(body) {
             addView(text("Параметры сигнала", 16, primaryText, true))
@@ -459,6 +577,7 @@ class MainActivity : Activity() {
     private fun compact(value: Double): String = when { value >= 1_000_000 -> String.format(Locale.US, "%.2fM", value / 1_000_000); value >= 1_000 -> String.format(Locale.US, "%.1fK", value / 1_000); else -> String.format(Locale.US, "%.0f", value) }
     private fun date(value: Long): String = SimpleDateFormat("dd MMM HH:mm", Locale.forLanguageTag("ru")).format(Date(value))
     private fun rate(signals: List<Signal>) = if (signals.isEmpty()) 0 else (100.0 * signals.count { it.outcome == 1 } / signals.size).roundToInt()
+    private fun assetBucket(state: String) = when (state) { "WAITING" -> "waiting"; "OPEN" -> "active"; else -> "finished" }
     private fun stateName(value: String) = mapOf("WAITING" to "Ожидает вход", "OPEN" to "В работе", "STOPPED" to "Стоп", "COMPLETED" to "TP3 достигнут", "CANCELLED" to "Отменён", "EXPIRED" to "Истёк", "UNCERTAIN" to "Проверьте вручную")[value] ?: value
 }
 

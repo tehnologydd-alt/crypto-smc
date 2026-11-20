@@ -7,3 +7,7 @@ local.properties
 *.apk
 *.aab
 *.log
+app/signing/
+backend/data/
+backend/.env
+

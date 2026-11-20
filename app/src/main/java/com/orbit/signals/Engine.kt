@@ -45,7 +45,9 @@ data class Signal(
             j.getString("id"), j.getString("market"), j.getString("symbol"), j.getString("timeframe"), j.getString("side"),
             j.getLong("detectedAt"), j.getLong("blockTime"), j.getDouble("entryLow"), j.getDouble("entryHigh"),
             j.getDouble("entry"), j.getDouble("stop"), j.getJSONArray("targets").doubles(), j.getDouble("swing"),
-            zoneFromJson(j.getJSONObject("imbalance")), j.getJSONArray("features").doubles(), j.getLong("expiresAt"),
+            j.optJSONObject("imbalance")?.let(::zoneFromJson)
+                ?: Zone(j.getLong("blockTime"), j.getDouble("entryLow"), j.getDouble("entryHigh"), if (j.getString("side") == "LONG") "up" else "down"),
+            j.optJSONArray("features")?.doubles() ?: emptyList(), j.getLong("expiresAt"),
             j.optString("state", "WAITING"), j.optInt("hitTargets"), j.optBoolean("learned"),
             if (j.has("outcome")) j.getInt("outcome") else null,
             j.optJSONObject("quality")?.let(::qualityFromJson),
@@ -57,7 +59,7 @@ data class Signal(
 private fun JSONArray.doubles(): List<Double> = (0 until length()).map { getDouble(it) }
 private fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
 private fun Zone.json() = JSONObject().put("time", time).put("low", low).put("high", high).put("direction", direction).apply { if (filledAt != null) put("filledAt", filledAt) }
-private fun zoneFromJson(j: JSONObject): Zone = Zone(j.getLong("time"), j.getDouble("low"), j.getDouble("high"), j.getString("direction"), if (j.has("filledAt")) j.getLong("filledAt") else null)
+private fun zoneFromJson(j: JSONObject): Zone = Zone(j.getLong("time"), j.getDouble("low"), j.getDouble("high"), j.getString("direction"), if (j.has("filledAt") && !j.isNull("filledAt")) j.getLong("filledAt") else null)
 private fun Quality.json() = JSONObject().put("probability", probability).put("baseline", baseline).put("trainedSamples", trainedSamples).put("trusted", trusted).put("recommended", recommended)
 private fun qualityFromJson(j: JSONObject) = Quality(j.getDouble("probability"), j.getDouble("baseline"), j.getInt("trainedSamples"), j.getBoolean("trusted"), j.getBoolean("recommended"))
 private fun SignalEvent.json() = JSONObject().put("type", type).put("at", at).put("price", price)
@@ -198,3 +200,4 @@ class Model(
         }
     }
 }
+

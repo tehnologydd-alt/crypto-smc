@@ -42,3 +42,4 @@ object Binance {
 }
 
 data class LargeTrade(val at: Long, val price: Double, val usd: Double, val side: String)
+

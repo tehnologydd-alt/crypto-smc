@@ -37,3 +37,4 @@ class EngineTest {
         assertEquals(1, model.samples); assertEquals(0, model.successes)
     }
 }
+

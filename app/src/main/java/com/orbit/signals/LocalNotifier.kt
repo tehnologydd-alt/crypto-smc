@@ -29,3 +29,4 @@ class LocalNotifier(private val context: Context, private val prefs: Preferences
         manager.notify(requestCode, notification)
     }
 }
+

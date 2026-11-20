@@ -23,6 +23,24 @@ jobs:
         run: |
           test -f "$ANDROID_HOME/platforms/android-36/android.jar"
           test -d "$ANDROID_HOME/build-tools/36.0.0"
+      - name: Restore stable Android signing key
+        env:
+          ORBIT_SIGNING_BUNDLE: ${{ secrets.ORBIT_SIGNING_BUNDLE }}
+        run: |
+          if [ -z "$ORBIT_SIGNING_BUNDLE" ]; then
+            echo 'No stable signing secret yet; this APK uses the temporary runner debug key.'
+            exit 0
+          fi
+          mkdir -p app/signing
+          printf '%s' "$ORBIT_SIGNING_BUNDLE" | base64 -d > "$RUNNER_TEMP/orbit-signing.json"
+          jq -r '.pfx' "$RUNNER_TEMP/orbit-signing.json" | base64 -d > app/signing/orbit-signals.p12
+          password=$(jq -r '.password' "$RUNNER_TEMP/orbit-signing.json")
+          echo "::add-mask::$password"
+          alias=$(keytool -list -v -storetype PKCS12 -keystore app/signing/orbit-signals.p12 -storepass "$password" | sed -n 's/^Alias name: //p' | head -n 1)
+          test -n "$alias" || { echo 'Signing key alias not found'; exit 1; }
+          echo "ORBIT_STORE_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "ORBIT_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
+          rm "$RUNNER_TEMP/orbit-signing.json"
       - name: Test and build
         run: bash gradlew --no-daemon testDebugUnitTest assembleDebug
       - name: Verify APK signature
@@ -40,3 +58,4 @@ jobs:
             app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
           retention-days: 30
+

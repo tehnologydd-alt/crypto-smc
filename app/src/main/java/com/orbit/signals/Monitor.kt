@@ -8,6 +8,11 @@ object Monitor {
     fun run(context: Context): String {
         if (!lock.tryLock()) return "Мониторинг уже выполняется"
         try {
+            val mode = Preferences(context)
+            if (mode.mode == "server") return runCatching { RemoteBackend.sync(context) }.getOrElse { error ->
+                mode.lastError = error.message ?: "Нет связи с сервером"
+                "Сервер: ${mode.lastError}"
+            }
             val store = LocalStore(context); val prefs = Preferences(context); val notifier = LocalNotifier(context, prefs)
             val model = store.model(); val errors = mutableListOf<String>()
             var pairs = 0
@@ -81,3 +86,4 @@ object Monitor {
         while (candidateIndex < candidates.size) scan(candidates[candidateIndex++])
     }
 }
+

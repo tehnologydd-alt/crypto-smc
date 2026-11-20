@@ -23,8 +23,15 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience
             put("detected_at", signal.detectedAt); put("json", signal.json().toString())
         }, SQLiteDatabase.CONFLICT_REPLACE)
     }
-    fun signals(market: String? = null, symbol: String? = null): List<Signal> {
+    fun saveRemoteSignal(signal: Signal) {
+        writableDatabase.insertWithOnConflict("signals", null, ContentValues().apply {
+            put("id", "server:${signal.id}"); put("market", signal.market); put("symbol", signal.symbol)
+            put("detected_at", signal.detectedAt); put("json", signal.json().toString())
+        }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+    fun signals(market: String? = null, symbol: String? = null, source: String = "local"): List<Signal> {
         val conditions = mutableListOf<String>(); val args = mutableListOf<String>()
+        conditions += if (source == "server") "id LIKE 'server:%'" else "id NOT LIKE 'server:%'"
         if (market != null) { conditions += "market=?"; args += market }
         if (symbol != null) { conditions += "symbol=?"; args += symbol }
         val where = if (conditions.isEmpty()) "" else " WHERE ${conditions.joinToString(" AND ")}"
@@ -48,6 +55,11 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience
             put("market", market); put("symbol", symbol); put("price", candle.close); put("at", candle.end)
         }, SQLiteDatabase.CONFLICT_REPLACE)
     }
+    fun saveRemotePrice(market: String, symbol: String, price: Double, at: Long) {
+        writableDatabase.insertWithOnConflict("prices", null, ContentValues().apply {
+            put("market", market); put("symbol", symbol); put("price", price); put("at", at)
+        }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
     fun model(): Model = readableDatabase.rawQuery("SELECT json FROM model WHERE id=1", null).use {
         if (it.moveToFirst()) runCatching { Model.fromJson(JSONObject(it.getString(0))) }.getOrElse { Model() } else Model()
     }
@@ -55,3 +67,4 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience
         writableDatabase.insertWithOnConflict("model", null, ContentValues().apply { put("id", 1); put("json", model.json().toString()) }, SQLiteDatabase.CONFLICT_REPLACE)
     }
 }
+

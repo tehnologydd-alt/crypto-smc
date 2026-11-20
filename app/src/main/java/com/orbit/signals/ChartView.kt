@@ -4,14 +4,38 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class ChartView(context: Context) : View(context) {
     var candles: List<Candle> = emptyList(); set(value) { field = value; invalidate() }
     var structure: Structure = Structure(emptyList(), emptyList(), emptyList()); set(value) { field = value; invalidate() }
     var signal: Signal? = null; set(value) { field = value; invalidate() }
+    var visibleCount = 90; set(value) { field = value.coerceIn(20, 150); invalidate() }
+    var offset = 0; set(value) { field = value.coerceIn(0, max(0, candles.size - visibleCount)); invalidate() }
+    var onViewportChanged: ((Int, Int) -> Unit)? = null
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var panPixels = 0f
+    private var panning = false
+    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val next = (visibleCount / detector.scaleFactor).roundToInt().coerceIn(20, min(150, max(20, candles.size)))
+            if (next != visibleCount) {
+                visibleCount = next
+                offset = offset.coerceAtMost(max(0, candles.size - next))
+                onViewportChanged?.invoke(visibleCount, offset)
+            }
+            return true
+        }
+    })
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val green = Color.rgb(120, 228, 180)
     private val red = Color.rgb(244, 145, 160)
@@ -24,7 +48,7 @@ class ChartView(context: Context) : View(context) {
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val bars = candles.takeLast(90)
+        val bars = candles.dropLast(offset).takeLast(visibleCount)
         if (bars.isEmpty()) return
         val left = 7f; val right = width - 64f * resources.displayMetrics.density
         val top = 18f; val bottom = height - 35f * resources.displayMetrics.density
@@ -65,6 +89,56 @@ class ChartView(context: Context) : View(context) {
             }
         }
     }
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        scaleDetector.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTouchX = event.x; lastTouchY = event.y; panPixels = 0f; panning = false
+                return true
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                panning = false
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                val remaining = if (event.actionIndex == 0) 1 else 0
+                lastTouchX = event.getX(remaining)
+                lastTouchY = event.getY(remaining)
+                panPixels = 0f
+                panning = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (event.pointerCount == 1 && !scaleDetector.isInProgress) {
+                    val dx = event.x - lastTouchX
+                    val dy = event.y - lastTouchY
+                    if (!panning && abs(dx) > touchSlop && abs(dx) > abs(dy)) panning = true
+                    if (panning) {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        panPixels += dx
+                        val candleWidth = (width - 64f * resources.displayMetrics.density - 7f) / visibleCount
+                        val steps = (panPixels / max(1f, candleWidth)).toInt()
+                        if (steps != 0) {
+                            offset = (offset + steps).coerceIn(0, max(0, candles.size - visibleCount))
+                            panPixels -= steps * candleWidth
+                            onViewportChanged?.invoke(visibleCount, offset)
+                        }
+                    }
+                    lastTouchX = event.x; lastTouchY = event.y
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!panning && !scaleDetector.isInProgress) performClick()
+                parent?.requestDisallowInterceptTouchEvent(false)
+                panning = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
+                panning = false
+            }
+        }
+        return true
+    }
+    override fun performClick(): Boolean { super.performClick(); return true }
     private fun drawZone(canvas: Canvas, zone: Zone, first: Long, last: Long, right: Float, x: (Long) -> Float, y: (Double) -> Float, color: Int, name: String) {
         if (zone.time > last) return
         paint.color = Color.argb(35, Color.red(color), Color.green(color), Color.blue(color))
@@ -77,3 +151,4 @@ class ChartView(context: Context) : View(context) {
         canvas.drawText(text, x, y, paint)
     }
 }
+
