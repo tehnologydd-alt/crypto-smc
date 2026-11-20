@@ -1,0 +1,58 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main, 'review/android-apk']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Check Android SDK
+        run: |
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -d "$ANDROID_HOME/build-tools/36.0.0"
+      - name: Restore stable Android signing key
+        env:
+          ORBIT_SIGNING_BUNDLE: ${{ secrets.ORBIT_SIGNING_BUNDLE }}
+        run: |
+          test -n "$ORBIT_SIGNING_BUNDLE" || { echo 'Missing ORBIT_SIGNING_BUNDLE repository secret'; exit 1; }
+          mkdir -p app/signing
+          printf '%s' "$ORBIT_SIGNING_BUNDLE" | base64 -d > "$RUNNER_TEMP/orbit-signing.json"
+          jq -r '.pfx' "$RUNNER_TEMP/orbit-signing.json" | base64 -d > app/signing/orbit-signals.p12
+          password=$(jq -r '.password' "$RUNNER_TEMP/orbit-signing.json")
+          echo "::add-mask::$password"
+          alias=$(keytool -list -v -storetype PKCS12 -keystore app/signing/orbit-signals.p12 -storepass "$password" | sed -n 's/^Alias name: //p' | head -n 1)
+          test -n "$alias" || { echo 'Signing key alias not found'; exit 1; }
+          echo "ORBIT_STORE_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "ORBIT_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
+          rm "$RUNNER_TEMP/orbit-signing.json"
+      - name: Test and build
+        run: bash gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: Verify APK signature
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+      - name: Record APK checksum
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/app-debug.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbit-signals-debug-apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
