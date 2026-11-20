@@ -436,6 +436,10 @@ class MainActivity : Activity() {
         if (!header) parent.addView(View(this).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, dp(1)))
     }
     private fun renderSettings() {
+        if (prefs.serverUrl.isBlank() && RemoteBackend.isLanUrl(prefs.externalServerUrl)) {
+            prefs.serverUrl = prefs.externalServerUrl
+            prefs.externalServerUrl = ""
+        }
         title("Настройки", "Отмеченные активы и уведомления")
         card(body) {
             addView(text("Источник сигналов", 16, primaryText, true))
@@ -444,18 +448,18 @@ class MainActivity : Activity() {
                 prefs.mode = "local"; show(); updateMarket()
             }
             val urlEdit = EditText(this@MainActivity).apply {
-                setSingleLine(true); hint = "https://signals.example.com"
+                setSingleLine(true); hint = "https://192.168.1.214:3443"
                 setText(prefs.serverUrl); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             }
-            addView(text("HTTPS-адрес сервера", 12, muted))
+            addView(text("Адрес ПК в домашней сети Wi-Fi", 12, muted))
             addView(urlEdit)
             val externalEdit = EditText(this@MainActivity).apply {
                 setSingleLine(true); hint = "https://orbit-pc.example.ts.net"
                 setText(prefs.externalServerUrl); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             }
-            addView(text("Внешний HTTPS-адрес этого же ПК (необязательно)", 12, muted))
+            addView(text("Адрес вне дома, например Tailscale (необязательно)", 12, muted))
             addView(externalEdit)
             val tokenEdit = EditText(this@MainActivity).apply {
                 setSingleLine(true); hint = "Ключ APP_TOKEN"
@@ -472,8 +476,10 @@ class MainActivity : Activity() {
             addView(text("Отпечаток сертификата для сервера в домашней сети", 12, muted))
             addView(pinEdit)
             fun saveConnection() {
-                val url = urlEdit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { RemoteBackend.validateUrl(it) }.orEmpty()
-                val external = externalEdit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { RemoteBackend.validateUrl(it) }.orEmpty()
+                var url = urlEdit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { RemoteBackend.validateUrl(it) }.orEmpty()
+                var external = externalEdit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { RemoteBackend.validateUrl(it) }.orEmpty()
+                if (url.isEmpty() && RemoteBackend.isLanUrl(external)) { url = external; external = "" }
+                require(external.isEmpty() || !RemoteBackend.isLanUrl(external)) { "Локальный IP укажите в первом поле. Для доступа вне дома нужен адрес Tailscale или публичный HTTPS-домен." }
                 require(url.isNotEmpty() || external.isNotEmpty()) { "Укажите хотя бы один HTTPS-адрес" }
                 val token = tokenEdit.text.toString().trim()
                 require(token.isNotEmpty()) { "Введите ключ APP_TOKEN" }
@@ -494,7 +500,7 @@ class MainActivity : Activity() {
                     show(); updateMarket()
                 }.onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show() }
             }
-            addView(text("В домашней Wi-Fi сети используется локальный адрес с отпечатком сертификата. Вне дома приложение пробует внешний адрес того же API. Ключ хранится в Android Keystore.", 11, muted))
+            addView(text("192.168.x.x работает только дома. Для подключения вне дома нужен отдельный адрес Tailscale или публичный HTTPS-домен того же ПК. Ключ хранится в Android Keystore.", 11, muted))
         }
         card(body) {
             addView(text("Резервная копия памяти", 16, primaryText, true))

@@ -24,9 +24,10 @@ object RemoteBackend {
         val uri = URI(value.trim().trimEnd('/'))
         require(uri.scheme.equals("https", true) && !uri.host.isNullOrBlank() &&
             uri.userInfo == null && uri.rawQuery == null && uri.rawFragment == null &&
-            (uri.path.isNullOrBlank() || uri.path == "/")) { "Нужен HTTPS-адрес сервера без пути, например https://signals.example.com" }
+            (uri.path.isNullOrBlank() || uri.path == "/")) { "Нужен HTTPS-адрес без пути, например https://192.168.1.214:3443" }
         return uri.toString().trimEnd('/')
     }
+    fun isLanUrl(value: String): Boolean = runCatching { lanHost(URI(value).host ?: "") }.getOrDefault(false)
     fun validatePin(value: String): String {
         val normalized = value.trim().replace(":", "").replace(" ", "").uppercase()
         require(normalized.isEmpty() || normalized.matches(Regex("[0-9A-F]{64}"))) { "Нужен SHA-256 отпечаток из 64 символов" }
@@ -75,6 +76,7 @@ object RemoteBackend {
         }
         try {
             val status = connection.responseCode
+            if (status == 401) throw IllegalStateException("Неверный ключ APP_TOKEN")
             if (status !in 200..299) throw IllegalStateException("Сервер вернул HTTP $status")
             val result = StringBuilder()
             connection.inputStream.bufferedReader().use { reader ->
@@ -103,11 +105,13 @@ object RemoteBackend {
         for (route in routes) {
             try {
                 val result = requestTo(prefs, route, method, path, body)
-                prefs.activeServerRoute = if (route == local) "Домашняя сеть" else "Внешняя сеть"
+                prefs.activeServerRoute = if (isLanUrl(route)) "Домашняя сеть" else "Внешняя сеть"
                 return result
             } catch (error: Exception) { failure = error }
         }
         prefs.activeServerRoute = null
+        if (failure is java.net.SocketTimeoutException || failure is java.net.ConnectException || failure is java.net.NoRouteToHostException)
+            throw IllegalStateException("Нет связи с ПК. Проверьте адрес, работу сервера и доступ к порту 3443 в брандмауэре.", failure)
         throw failure ?: IllegalStateException("Нет связи с резервным сервером")
     }
 
