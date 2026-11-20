@@ -33,7 +33,7 @@ class MainActivity : Activity() {
     private val panel = Color.rgb(19, 34, 50)
     private val line = Color.rgb(43, 68, 81)
     private val accent = Color.rgb(123, 233, 182)
-    private val foreground = Color.rgb(232, 242, 245)
+    private val primaryText = Color.rgb(232, 242, 245)
     private val muted = Color.rgb(146, 171, 187)
     private val danger = Color.rgb(249, 153, 170)
     private lateinit var prefs: Preferences
@@ -105,7 +105,7 @@ class MainActivity : Activity() {
                 background = GradientDrawable().apply { setColor(Color.rgb(27, 61, 59)); cornerRadius = dp(11).toFloat(); setStroke(dp(1), accent) }
             }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(9) })
             val wordmark = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            wordmark.addView(text("ORBIT", 15, foreground, true).apply { letterSpacing = .12f; setPadding(0, 0, 0, 0) })
+            wordmark.addView(text("ORBIT", 15, primaryText, true).apply { letterSpacing = .12f; setPadding(0, 0, 0, 0) })
             wordmark.addView(text("S I G N A L S", 7, accent, true).apply { setPadding(0, 0, 0, 0) })
             brand.addView(wordmark)
             header.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
@@ -120,7 +120,7 @@ class MainActivity : Activity() {
             setOnClickListener { assetSymbol = null; page = "settings"; show() }
         }, LinearLayout.LayoutParams(dp(42), dp(42)))
         root.addView(header)
-        val scroll = ScrollView(this).apply { fillViewport = true }
+        val scroll = ScrollView(this).apply { isFillViewport = true }
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(17), dp(4), dp(17), dp(24)) }
         scroll.addView(body); root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(panel); setPadding(dp(4), dp(8), dp(4), dp(8)) }
@@ -141,16 +141,16 @@ class MainActivity : Activity() {
         val model = store.model()
         card(body) {
             addView(text("АДАПТИВНАЯ ОЦЕНКА", 10, accent, true))
-            addView(text("Прогресс обучения", 23, foreground, true))
+            addView(text("Прогресс обучения", 23, primaryText, true))
             addView(text("УРОВЕНЬ ${model.level}/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[model.level]}", 12, accent, true))
             addView(text("Обучающие исходы: ${model.samples.coerceAtMost(30)}/30", 12))
             addView(text("Проверочные исходы: ${model.validation.size.coerceAtMost(30)}/30", 12))
             addView(text("Уровень зависит от завершённых сигналов новой стратегии и качества прогноза.", 11, muted))
         }
-        body.addView(text("Отмечено ${prefs.symbols.size} активов", 20, foreground, true))
+        body.addView(text("Отмечено ${prefs.symbols.size} активов", 20, primaryText, true))
         body.addView(text("Спот и USDT-M фьючерсы · последние закрытые M1", 11, muted))
         for (symbol in prefs.symbols) card(body) {
-            addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, foreground, true))
+            addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
             addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent))
             setOnClickListener { assetSymbol = symbol; market = "spot"; timeframe = "15m"; selectedSignalId = null; assetBars = emptyList(); show(); loadAsset() }
         }
@@ -168,7 +168,7 @@ class MainActivity : Activity() {
             else -> true
         } }
         if (signals.isEmpty()) { card(body) {
-            addView(text("Пока нет сигналов", 15, foreground, true))
+            addView(text("Пока нет сигналов", 15, primaryText, true))
             addView(text(when (signalScope) {
                 "marked" -> "Выберите сигнал в карточке или обзоре актива."
                 "finished" -> "Ожидаем TP3, стоп, отмену или истечение."
@@ -187,7 +187,7 @@ class MainActivity : Activity() {
                 setColor(outcomeColors.first); cornerRadius = dp(14).toFloat(); setStroke(dp(2), outcomeColors.second)
             }
             addView(text("${signal.symbol}  ·  ${if (signal.market == "spot") "СПОТ" else "ФЬЮЧЕРСЫ"}  ·  ${signal.timeframe}", 13, accent, true))
-            addView(text("${signal.side}  ·  ${stateName(signal.state)}", 15, foreground, true))
+            addView(text("${signal.side}  ·  ${stateName(signal.state)}", 15, primaryText, true))
             addView(text("Вход ${format(signal.entry)}    Стоп ${format(signal.stop)}", 11))
             addView(text("TP1 ${format(signal.targets[0])}   TP2 ${format(signal.targets[1])}   TP3 ${format(signal.targets[2])}", 11))
             addView(text("${date(signal.detectedAt)}  ·  ${signal.hitTargets}/3 целей", 10, muted))
@@ -201,7 +201,7 @@ class MainActivity : Activity() {
         val entries = types.count { "ENTRY" in it }; val tp1 = types.count { "TP1" in it }; val tp2 = types.count { "TP2" in it }
         val tp3 = types.count { "TP3" in it }; val stops = types.count { "STOP" in it }
         card(body) {
-            addView(text("Сигналов ${signals.size}    Входов $entries", 16, foreground, true))
+            addView(text("Сигналов ${signals.size}    Входов $entries", 16, primaryText, true))
             addView(text("TP1 $tp1    TP2 $tp2    TP3 $tp3    Стоп $stops", 13, accent, true))
             val resolved = types.count { "ENTRY" in it && ("TP1" in it || "STOP" in it) }
             addView(text("TP1 до стопа: $tp1 из $resolved разрешённых входов", 11, muted))
@@ -209,7 +209,7 @@ class MainActivity : Activity() {
         val resolvedNew = signals.filter { it.learned }.sortedBy { it.detectedAt }
         val recent = resolvedNew.takeLast(20); val previous = resolvedNew.dropLast(20).takeLast(20)
         card(body) {
-            addView(text("Динамика новой стратегии", 16, foreground, true))
+            addView(text("Динамика новой стратегии", 16, primaryText, true))
             addView(text("Исходов: ${resolvedNew.size}. ${if (recent.size == 20 && previous.size == 20) "Последние 20: ${rate(recent)}% · предыдущие 20: ${rate(previous)}%" else "Сравнение появится после 40 исходов."}", 12, muted))
             val model = store.model()
             addView(text("Модель: уровень ${model.level}/3 · проверочных исходов ${model.validation.size}", 12, accent))
@@ -224,7 +224,7 @@ class MainActivity : Activity() {
             val subset = signals.filter { it.symbol == symbol }
             if (subset.isEmpty()) continue
             card(body) {
-                addView(text(symbol, 13, foreground, true))
+                addView(text(symbol, 13, primaryText, true))
                 addView(text("Сигналов ${subset.size} · вход ${subset.count { s -> s.events.any { it.type == "ENTRY" } }} · TP1 ${subset.count { s -> s.events.any { it.type == "TP1" } }} · стоп ${subset.count { s -> s.events.any { it.type == "STOP" } }}", 11, muted))
             }
         }
@@ -232,9 +232,9 @@ class MainActivity : Activity() {
     private fun renderSettings() {
         title("Настройки", "Отмеченные активы и уведомления")
         card(body) {
-            addView(text("Отмеченные пары", 16, foreground, true))
+            addView(text("Отмеченные пары", 16, primaryText, true))
             addView(text("Мониторятся только эти пары. При удалении пары её старые сигналы останутся в истории без новых событий.", 11, muted))
-            val edit = EditText(this@MainActivity).apply { setSingleLine(false); minLines = 2; setText(prefs.symbols.joinToString(", ")); setTextColor(foreground); setHintTextColor(muted); textSize = 13f }
+            val edit = EditText(this@MainActivity).apply { setSingleLine(false); minLines = 2; setText(prefs.symbols.joinToString(", ")); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f }
             addView(edit)
             action(this, "Сохранить пары") {
                 runCatching { prefs.setSymbols(edit.text.toString().split(Regex("[\\s,;]+")).filter { it.isNotBlank() }) }.onSuccess { show(); updateMarket() }
@@ -242,11 +242,11 @@ class MainActivity : Activity() {
             }
         }
         card(body) {
-            addView(text("Экран", 16, foreground, true))
+            addView(text("Экран", 16, primaryText, true))
             toggle(this, "Не гасить во время просмотра", prefs.keepScreenOn) { prefs.keepScreenOn = it; applyScreenPreference() }
         }
         card(body) {
-            addView(text("Уведомления", 16, foreground, true))
+            addView(text("Уведомления", 16, primaryText, true))
             addView(text("Каждое событие: создание, вход, TP1–TP3 и стоп — отдельное уведомление.", 11, muted))
             for ((type, label) in listOf("CREATED" to "Новый сигнал", "ENTRY" to "Вход", "TP1" to "TP1", "TP2" to "TP2", "TP3" to "TP3", "STOP" to "Стоп-лосс", "INVALIDATED" to "Отмена", "EXPIRED" to "Истечение", "DATA_GAP" to "Пробел в данных"))
                 toggle(this, label, prefs.eventEnabled(type)) { prefs.setEvent(type, it) }
@@ -254,7 +254,7 @@ class MainActivity : Activity() {
             addView(text("Выбрано вручную: ${prefs.selectedIds.size}. Отмечайте сигналы в обзоре актива.", 11, muted))
         }
         card(body) {
-            addView(text("Работа без сервера", 16, foreground, true))
+            addView(text("Работа без сервера", 16, primaryText, true))
             addView(text("При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
             addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent))
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
@@ -271,30 +271,30 @@ class MainActivity : Activity() {
         body.addView(tabs)
         card(body) {
             addView(text("ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1", 10, muted, true))
-            addView(text(format(store.price(market, symbol)?.first), 30, foreground, true))
+            addView(text(format(store.price(market, symbol)?.first), 30, primaryText, true))
             assetTicker?.let { ticker ->
                 addView(text("24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}", 11, muted))
             }
         }
         card(body) {
-            addView(text("Крупные сделки", 16, foreground, true))
+            addView(text("Крупные сделки", 16, primaryText, true))
             addView(text("От 250 000 USDT среди последних 1000 публичных aggTrade. Это частичная выборка и не влияет на сигналы.", 11, muted))
             val buys = assetTrades.filter { it.side == "buy" }; val sells = assetTrades.filter { it.side == "sell" }
             addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent))
             addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger))
             for (trade in assetTrades.take(4)) addView(text("${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
         }
-        body.addView(text("Выберите сигнал", 20, foreground, true))
+        body.addView(text("Выберите сигнал", 20, primaryText, true))
         val signals = store.signals(market, symbol).take(15)
         if (signals.isEmpty()) body.addView(text("Сигналов пока нет. Структура и зоны ниже отображаются независимо.", 12, muted))
         for (signal in signals) card(body) {
-            addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else foreground, true))
+            addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
             addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
             setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
         }
         val selected = signals.firstOrNull { it.id == selectedSignalId }
         if (selected != null) card(body) {
-            addView(text("Параметры сигнала", 16, foreground, true))
+            addView(text("Параметры сигнала", 16, primaryText, true))
             addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
             addView(text("Вход ${format(selected.entry)}   Стоп ${format(selected.stop)}", 12))
             addView(text("TP1 ${format(selected.targets[0])}   TP2 ${format(selected.targets[1])}   TP3 ${format(selected.targets[2])}", 12))
@@ -302,7 +302,7 @@ class MainActivity : Activity() {
             action(this, if (selected.id in prefs.selectedIds) "✓ Убрать из уведомлений" else "Следить за сигналом") { prefs.toggleSelected(selected.id); show() }
             for (event in selected.events.reversed()) addView(text("${event.type} · ${date(event.at)} · ${format(event.price)}", 11, muted))
         }
-        body.addView(text("Структура и уровни", 20, foreground, true))
+        body.addView(text("Структура и уровни", 20, primaryText, true))
         val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); show(); loadAsset() }
         body.addView(timeTabs)
@@ -329,14 +329,14 @@ class MainActivity : Activity() {
     }
     private fun title(name: String, sub: String) {
         val icon = mapOf("Сигналы" to R.drawable.ic_signals, "Статистика" to R.drawable.ic_stats, "Настройки" to R.drawable.ic_settings)[name]
-        if (icon == null) body.addView(text(name, 25, foreground, true))
+        if (icon == null) body.addView(text(name, 25, primaryText, true))
         else {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             row.addView(ImageView(this).apply {
                 setImageResource(icon); setColorFilter(accent); setPadding(dp(7), dp(7), dp(7), dp(7))
                 background = GradientDrawable().apply { setColor(Color.rgb(27, 61, 59)); cornerRadius = dp(10).toFloat(); setStroke(dp(1), Color.rgb(59, 107, 99)) }
             }, LinearLayout.LayoutParams(dp(36), dp(36)).apply { marginEnd = dp(10) })
-            row.addView(text(name, 25, foreground, true))
+            row.addView(text(name, 25, primaryText, true))
             body.addView(row)
         }
         body.addView(text(sub, 11, muted).apply { setPadding(if (icon == null) 0 else dp(46), dp(3), 0, dp(3)) })
@@ -349,7 +349,7 @@ class MainActivity : Activity() {
         }
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
     }
-    private fun text(value: String, size: Int, color: Int = foreground, bold: Boolean = false) = TextView(this).apply {
+    private fun text(value: String, size: Int, color: Int = primaryText, bold: Boolean = false) = TextView(this).apply {
         text = value; textSize = size.toFloat(); setTextColor(color); if (bold) typeface = Typeface.DEFAULT_BOLD
         setPadding(0, dp(3), 0, dp(3))
     }
@@ -363,7 +363,7 @@ class MainActivity : Activity() {
         parent.addView(button, LinearLayout.LayoutParams(if (parent.orientation == LinearLayout.HORIZONTAL) 0 else -1, dp(42), if (parent.orientation == LinearLayout.HORIZONTAL) 1f else 0f).apply { topMargin = dp(7); marginEnd = dp(4) })
     }
     private fun toggle(parent: LinearLayout, label: String, checked: Boolean, change: (Boolean) -> Unit) {
-        val toggle = Switch(this).apply { text = label; textSize = 12f; setTextColor(foreground); isChecked = checked; setPadding(0, dp(5), 0, dp(5)); setOnCheckedChangeListener { _, value -> change(value) } }
+        val toggle = Switch(this).apply { text = label; textSize = 12f; setTextColor(primaryText); isChecked = checked; setPadding(0, dp(5), 0, dp(5)); setOnCheckedChangeListener { _, value -> change(value) } }
         parent.addView(toggle)
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
