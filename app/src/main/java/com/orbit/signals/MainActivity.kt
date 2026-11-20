@@ -46,6 +46,7 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var page = "market"
     private var signalScope = "all"
+    private var statsMarket = "all"
     private var assetSymbol: String? = null
     private var market = "spot"
     private var timeframe = "15m"
@@ -295,41 +296,130 @@ class MainActivity : Activity() {
         }
     }
     private fun renderStats() {
-        title("Статистика", "История сигналов и достигнутые уровни")
-        val signals = store.signals(source = prefs.mode); val types = signals.map { signal -> signal.events.map { it.type }.toSet() }
-        val entries = types.count { "ENTRY" in it }; val tp1 = types.count { "TP1" in it }; val tp2 = types.count { "TP2" in it }
-        val tp3 = types.count { "TP3" in it }; val stops = types.count { "STOP" in it }
-        card(body) {
-            addView(text("Сигналов ${signals.size}    Входов $entries", 16, primaryText, true))
-            addView(text("TP1 $tp1    TP2 $tp2    TP3 $tp3    Стоп $stops", 13, accent, true))
-            val resolved = types.count { "ENTRY" in it && ("TP1" in it || "STOP" in it) }
-            addView(text("TP1 до стопа: $tp1 из $resolved разрешённых входов", 11, muted))
+        title("Статистика", "Результаты сигналов и обучение модели")
+        val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for ((value, label) in listOf("all" to "Оба рынка", "spot" to "Спот", "futures" to "Фьючерсы"))
+            action(filters, label, statsMarket == value) { statsMarket = value; show() }
+        body.addView(filters)
+        val signals = store.signals(source = prefs.mode).filter { statsMarket == "all" || it.market == statsMarket }
+        val events = signals.associateWith { signal -> signal.events.map { it.type }.toSet() }
+        fun count(type: String) = events.values.count { type in it }
+        val entries = count("ENTRY")
+        val tp1 = count("TP1")
+        val resolved = signals.count { signal ->
+            val types = events[signal].orEmpty()
+            "ENTRY" in types && ("TP1" in types || "STOP" in types)
         }
-        val resolvedNew = signals.filter { it.learned }.sortedBy { it.detectedAt }
-        val recent = resolvedNew.takeLast(20); val previous = resolvedNew.dropLast(20).takeLast(20)
+        val finished = signals.count { it.state in listOf("STOPPED", "COMPLETED", "CANCELLED", "EXPIRED") }
+        val rateText = if (resolved > 0) "${(100.0 * tp1 / resolved).roundToInt()}%" else "—"
         card(body) {
-            addView(text("Динамика новой стратегии", 16, primaryText, true))
-            addView(text("Исходов: ${resolvedNew.size}. ${if (recent.size == 20 && previous.size == 20) "Последние 20: ${rate(recent)}% · предыдущие 20: ${rate(previous)}%" else "Сравнение появится после 40 исходов."}", 12, muted))
-            val model = store.model()
-            val serverModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
-            if (prefs.mode == "server") addView(text("Серверная модель: ${serverModel?.optInt("samples") ?: 0} исходов · ${serverModel?.optInt("validationSamples") ?: 0} проверочных", 12, accent))
-            else addView(text("Модель: уровень ${model.level}/3 · проверочных исходов ${model.validation.size}", 12, accent))
-            val validation = model.validation
-            if (prefs.mode == "local" && validation.size >= 40) {
+            addView(text("КРАТКО", 10, accent, true))
+            val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            statsMetric(first, "Сигналов", signals.size.toString(), primaryText)
+            statsMetric(first, "Входов", entries.toString(), primaryText)
+            addView(first)
+            val second = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            statsMetric(second, "TP1 до стопа", rateText, accent)
+            statsMetric(second, "Завершено", finished.toString(), primaryText)
+            addView(second)
+            addView(text("TP1 до стопа: $tp1 из $resolved входов с известным исходом.", 11, muted))
+        }
+        card(body) {
+            addView(text("Достигнутые точки", 17, primaryText, true))
+            addView(text("Сколько сигналов достигло каждого уровня", 11, muted))
+            statsProgress(this, "Вход", entries, signals.size, accent)
+            statsProgress(this, "TP1", tp1, entries, accent)
+            statsProgress(this, "TP2", count("TP2"), entries, accent)
+            statsProgress(this, "TP3", count("TP3"), entries, accent)
+            statsProgress(this, "Стоп", count("STOP"), entries, danger)
+            addView(text("TP и стоп считаются отдельно: сигнал мог взять TP1, а затем остановиться по стопу.", 10, muted))
+        }
+        val outcomes = signals.filter { it.learned && it.outcome != null }.sortedBy { it.detectedAt }
+        val recent = outcomes.takeLast(20)
+        val previous = outcomes.dropLast(20).takeLast(20)
+        card(body) {
+            addView(text("Результат по времени", 17, primaryText, true))
+            addView(text("Доля исходов с TP1 до стопа по мере накопления истории", 11, muted))
+            if (outcomes.isEmpty()) addView(text("График появится после первого завершённого входа.", 12, muted))
+            else {
+                addView(OutcomeTrendView(this@MainActivity, outcomes.map { it.outcome ?: 0 }), LinearLayout.LayoutParams(-1, dp(155)))
+                addView(text("${outcomes.size} исходов · сейчас ${rate(outcomes)}%", 12, accent, true))
+                addView(text(if (previous.size == 20 && recent.size == 20)
+                    "Последние 20: ${rate(recent)}% · предыдущие 20: ${rate(previous)}%"
+                    else "Сравнение последних и предыдущих 20 исходов появится после 40.", 11, muted))
+            }
+            if (outcomes.size < 40) addView(text("Выборка пока мала: процент может сильно меняться.", 10, muted))
+        }
+        val model = store.model()
+        val serverModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val samples = if (prefs.mode == "server") serverModel?.optInt("samples") ?: 0 else model.samples
+        val validationCount = if (prefs.mode == "server") serverModel?.optInt("validationSamples") ?: 0 else model.validation.size
+        val modelLevel = if (prefs.mode == "server") {
+            if (serverModel?.optBoolean("trusted") == true) 3 else if (samples >= 50 && validationCount >= 30) 2 else if (samples >= 30) 1 else 0
+        } else model.level
+        card(body) {
+            addView(text("Обучение модели", 17, primaryText, true))
+            addView(text("Уровень $modelLevel из 3", 14, accent, true))
+            statsProgress(this, "Обучающие исходы", samples, 30, accent)
+            statsProgress(this, "Проверочные исходы", validationCount, 30, Color.rgb(125, 173, 234))
+            addView(text("Модель общая для спота и фьючерсов. Уровень растёт после проверки качества прогноза.", 10, muted))
+            if (prefs.mode == "local" && model.validation.size >= 40) {
                 fun error(rows: List<Triple<Double, Double, Int>>) = rows.map { (it.first - it.third) * (it.first - it.third) }.average()
-                val old = error(validation.dropLast(20).takeLast(20)); val fresh = error(validation.takeLast(20))
-                addView(text("Ошибка прогноза: ${String.format(Locale.US, "%.3f", old)} → ${String.format(Locale.US, "%.3f", fresh)} · ${if (fresh < old) "снижается" else if (fresh > old) "растёт" else "без изменений"}", 11, muted))
-            } else if (prefs.mode == "local") addView(text("Динамика ошибки прогноза появится после 40 проверочных исходов.", 11, muted))
-            else addView(text("Серверная модель хранит полную историю прогнозов.", 11, muted))
-        }
-        for (symbol in prefs.symbols) {
-            val subset = signals.filter { it.symbol == symbol }
-            if (subset.isEmpty()) continue
-            card(body) {
-                addView(text(symbol, 13, primaryText, true))
-                addView(text("Сигналов ${subset.size} · вход ${subset.count { s -> s.events.any { it.type == "ENTRY" } }} · TP1 ${subset.count { s -> s.events.any { it.type == "TP1" } }} · стоп ${subset.count { s -> s.events.any { it.type == "STOP" } }}", 11, muted))
+                val old = error(model.validation.dropLast(20).takeLast(20))
+                val fresh = error(model.validation.takeLast(20))
+                addView(text("Ошибка прогноза: ${String.format(Locale.US, "%.3f", old)} → ${String.format(Locale.US, "%.3f", fresh)}", 11, muted))
             }
         }
+        card(body) {
+            addView(text("По активам", 17, primaryText, true))
+            addView(text("Все пары с историей, включая снятые с отметки · USDT", 10, muted))
+            statsTableRow(this, listOf("Пара", "Сигн", "Вход", "TP1/2/3", "Стоп"), true)
+            val groups = signals.groupBy { it.symbol }
+            if (groups.isEmpty()) addView(text("Пока нет данных для таблицы.", 11, muted))
+            for ((symbol, rows) in groups.toList().sortedWith(compareBy({ prefs.symbols.indexOf(it.first).let { index -> if (index < 0) Int.MAX_VALUE else index } }, { it.first }))) {
+                fun reached(type: String) = rows.count { signal -> signal.events.any { it.type == type } }
+                statsTableRow(this, listOf(symbol.removeSuffix("USDT"), rows.size.toString(), reached("ENTRY").toString(),
+                    "${reached("TP1")}/${reached("TP2")}/${reached("TP3")}", reached("STOP").toString()), false)
+            }
+            addView(text("TP1/2/3 — число сигналов, достигших каждой цели.", 10, muted))
+        }
+    }
+    private fun statsMetric(parent: LinearLayout, label: String, value: String, color: Int) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(7), dp(4), dp(7)) }
+        box.addView(text(value, 23, color, true))
+        box.addView(text(label, 11, muted))
+        parent.addView(box, LinearLayout.LayoutParams(0, -2, 1f))
+    }
+    private fun statsProgress(parent: LinearLayout, label: String, value: Int, total: Int, color: Int) {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(7), 0, dp(2)) }
+        row.addView(text(label, 11, primaryText, true), LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(text("$value / $total", 11, color, true))
+        parent.addView(row)
+        val track = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = GradientDrawable().apply { setColor(Color.rgb(37, 57, 72)); cornerRadius = dp(5).toFloat() }
+        }
+        val fraction = if (total > 0) (value.toFloat() / total).coerceIn(0f, 1f) else 0f
+        if (fraction > 0f) track.addView(View(this).apply {
+            background = GradientDrawable().apply { setColor(color); cornerRadius = dp(5).toFloat() }
+        }, LinearLayout.LayoutParams(0, -1, fraction))
+        if (fraction < 1f) track.addView(View(this), LinearLayout.LayoutParams(0, -1, 1f - fraction))
+        parent.addView(track, LinearLayout.LayoutParams(-1, dp(8)).apply { bottomMargin = dp(3) })
+    }
+    private fun statsTableRow(parent: LinearLayout, cells: List<String>, header: Boolean) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(if (header) 11 else 9), 0, dp(if (header) 11 else 9))
+            if (header) setBackgroundColor(Color.rgb(26, 48, 62))
+        }
+        val weights = floatArrayOf(1.15f, .65f, .65f, 1.35f, .65f)
+        for (i in cells.indices) row.addView(text(cells[i], if (header) 9 else 11,
+            if (header) muted else if (i == 3) accent else if (i == 4) danger else primaryText, !header && i == 0).apply {
+            gravity = if (i == 0) Gravity.START else Gravity.CENTER
+            maxLines = 1
+        }, LinearLayout.LayoutParams(0, -2, weights[i]))
+        parent.addView(row)
+        if (!header) parent.addView(View(this).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, dp(1)))
     }
     private fun renderSettings() {
         title("Настройки", "Отмеченные активы и уведомления")
