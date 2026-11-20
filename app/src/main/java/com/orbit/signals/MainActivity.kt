@@ -261,11 +261,11 @@ class MainActivity : Activity() {
             if (outcomeColors != null) background = GradientDrawable().apply {
                 setColor(outcomeColors.first); cornerRadius = dp(14).toFloat(); setStroke(dp(2), outcomeColors.second)
             }
-            addView(text("${signal.symbol}  ·  ${if (signal.market == "spot") "СПОТ" else "ФЬЮЧЕРСЫ"}  ·  ${signal.timeframe}", 13, accent, true))
-            addView(text("${signal.side}  ·  ${stateName(signal.state)}", 15, primaryText, true))
-            addView(text("Вход ${format(signal.entry)}    Стоп ${format(signal.stop)}", 11))
-            addView(text("TP1 ${format(signal.targets[0])}   TP2 ${format(signal.targets[1])}   TP3 ${format(signal.targets[2])}", 11))
-            addView(text("${date(signal.detectedAt)}  ·  ${signal.hitTargets}/3 целей", 10, muted))
+            addView(text("${signal.symbol}  ·  ${if (signal.market == "spot") "СПОТ" else "ФЬЮЧЕРСЫ"}  ·  ${signal.timeframe}", 14, accent, true))
+            addView(text("${signal.side}  ·  ${stateName(signal.state)}", 16, primaryText, true))
+            signalLevelsRow(this, listOf("Вход" to signal.entry, "Стоп" to signal.stop), 16)
+            signalLevelsRow(this, listOf("TP1" to signal.targets[0], "TP2" to signal.targets[1], "TP3" to signal.targets[2]), 14)
+            addView(text("${date(signal.detectedAt)}  ·  ${signal.hitTargets}/3 целей", 12, muted))
             action(this, if (signal.id in prefs.selectedIds) "✓ Отмечен · убрать" else "☆ Отметить сигнал") { prefs.toggleSelected(signal.id); show() }
             setOnClickListener { navigateToAsset(signal.symbol, signal.market, signal.timeframe, signal.id) }
         }
@@ -423,6 +423,19 @@ class MainActivity : Activity() {
             content()
         }
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+    }
+    private fun signalLevelsRow(parent: LinearLayout, levels: List<Pair<String, Double>>, priceSize: Int) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(5), 0, dp(3))
+        }
+        for ((label, price) in levels) {
+            val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            cell.addView(text(label, 11, muted, true))
+            cell.addView(text(format(price), priceSize, primaryText, true).apply { maxLines = 1 })
+            row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        parent.addView(row)
     }
     private fun text(value: String, size: Int, color: Int = primaryText, bold: Boolean = false) = TextView(this).apply {
         text = value; textSize = size.toFloat(); setTextColor(color); if (bold) typeface = Typeface.DEFAULT_BOLD
