@@ -22,9 +22,13 @@ object Monitor {
             }
             store.saveModel(model)
             prefs.lastRun = System.currentTimeMillis()
-            prefs.lastError = errors.take(3).joinToString("; ").ifBlank { null }
             store.close()
-            return "Проверено $pairs пар рынков" + if (errors.isNotEmpty()) "; ошибок ${errors.size}" else ""
+            val backup = if (RemoteBackend.configured(prefs)) runCatching { RemoteBackend.backup(context) } else null
+            val backupError = backup?.exceptionOrNull()?.message?.let { "Резервная копия: $it" }
+            prefs.lastError = (errors.take(3) + listOfNotNull(backupError)).joinToString("; ").ifBlank { null }
+            return "Проверено $pairs пар рынков" +
+                (if (errors.isNotEmpty()) "; ошибок ${errors.size}" else "") +
+                (backup?.getOrNull()?.let { "; передано на сервер $it" } ?: "")
         } finally { lock.unlock() }
     }
     private fun processPair(store: LocalStore, notifier: LocalNotifier, model: Model, market: String, symbol: String) {

@@ -231,6 +231,20 @@ class MainActivity : Activity() {
         if (restoreY > 0) scroll.post { scroll.scrollTo(0, restoreY) }
     }
     private fun renderMarket() {
+        card(body) {
+            val configured = RemoteBackend.configured(prefs)
+            val last = prefs.backupLastSync
+            val connected = configured && last > 0 && System.currentTimeMillis() - last < 20 * 60_000 && prefs.backupError == null
+            val pending = store.pendingUploads(50).size
+            addView(text(when {
+                !configured -> "○  Резервный сервер не настроен"
+                connected -> "●  В сети · ${prefs.activeServerRoute ?: "сервер"}"
+                else -> "○  Нет связи с резервным сервером"
+            }, 14, if (connected) accent else muted, true))
+            addView(text("Синхронизация: ${if (last == 0L) "ожидается" else date(last)} · В очереди: ${if (pending == 50) "50+" else pending}", 11, muted))
+            prefs.backupError?.let { addView(text(it, 11, danger)) }
+            setOnClickListener { navigateToPage("settings") }
+        }
         val model = store.model()
         val remoteModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
         val samples = if (prefs.mode == "server") remoteModel?.optInt("samples") ?: 0 else model.samples
@@ -436,6 +450,13 @@ class MainActivity : Activity() {
             }
             addView(text("HTTPS-адрес сервера", 12, muted))
             addView(urlEdit)
+            val externalEdit = EditText(this@MainActivity).apply {
+                setSingleLine(true); hint = "https://orbit-pc.example.ts.net"
+                setText(prefs.externalServerUrl); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            }
+            addView(text("Внешний HTTPS-адрес этого же ПК (необязательно)", 12, muted))
+            addView(externalEdit)
             val tokenEdit = EditText(this@MainActivity).apply {
                 setSingleLine(true); hint = "Ключ APP_TOKEN"
                 setText(prefs.serverToken); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
@@ -443,15 +464,52 @@ class MainActivity : Activity() {
             }
             addView(text("Ключ доступа к вашему серверу", 12, muted))
             addView(tokenEdit)
+            val pinEdit = EditText(this@MainActivity).apply {
+                setSingleLine(true); hint = "SHA-256 сертификата ПК"
+                setText(prefs.serverCertSha256); setTextColor(primaryText); setHintTextColor(muted); textSize = 13f
+                inputType = InputType.TYPE_CLASS_TEXT
+            }
+            addView(text("Отпечаток сертификата для сервера в домашней сети", 12, muted))
+            addView(pinEdit)
+            fun saveConnection() {
+                val url = urlEdit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { RemoteBackend.validateUrl(it) }.orEmpty()
+                val external = externalEdit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { RemoteBackend.validateUrl(it) }.orEmpty()
+                require(url.isNotEmpty() || external.isNotEmpty()) { "Укажите хотя бы один HTTPS-адрес" }
+                val token = tokenEdit.text.toString().trim()
+                require(token.isNotEmpty()) { "Введите ключ APP_TOKEN" }
+                val pin = RemoteBackend.validatePin(pinEdit.text.toString())
+                prefs.serverUrl = url
+                prefs.externalServerUrl = external
+                prefs.serverToken = token
+                prefs.serverCertSha256 = pin
+            }
+            action(this, "Сохранить для резервной копии") {
+                runCatching { saveConnection() }.onSuccess { show(); updateMarket() }
+                    .onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show() }
+            }
             action(this, "Сохранить и подключить сервер") {
                 runCatching {
-                    prefs.serverUrl = RemoteBackend.validateUrl(urlEdit.text.toString())
-                    prefs.serverToken = tokenEdit.text.toString()
+                    saveConnection()
                     prefs.mode = "server"
                     show(); updateMarket()
                 }.onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show() }
             }
-            addView(text("Сервер должен быть доступен по HTTPS. Ключ хранится в Android Keystore.", 11, muted))
+            addView(text("В домашней Wi-Fi сети используется локальный адрес с отпечатком сертификата. Вне дома приложение пробует внешний адрес того же API. Ключ хранится в Android Keystore.", 11, muted))
+        }
+        card(body) {
+            addView(text("Резервная копия памяти", 16, primaryText, true))
+            val pending = store.pendingUploads(50).size
+            addView(text("Ожидают отправки: ${if (pending == 50) "50+" else pending} сигналов", 12, accent))
+            addView(text("Последняя связь: ${if (prefs.backupLastSync == 0L) "ещё не было" else date(prefs.backupLastSync)}", 11, muted))
+            prefs.backupError?.let { addView(text("Ошибка: $it", 11, danger)) }
+            addView(text("Новые исходы передаются автоматически, когда ПК доступен. Повторная передача не удваивает опыт.", 11, muted))
+            if (RemoteBackend.configured(prefs)) action(this, "Синхронизировать сейчас") {
+                thread(name = "orbit-backup") {
+                    val result = runCatching { RemoteBackend.backup(applicationContext, 20) }
+                    runOnUiThread { result.onSuccess { show() }
+                        .onFailure { AlertDialog.Builder(this@MainActivity).setMessage(it.message).setPositiveButton("OK", null).show(); show() } }
+                }
+            }
         }
         card(body) {
             addView(text("Контроль лимитов", 16, primaryText, true))

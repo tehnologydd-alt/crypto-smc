@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { randomUUID } from 'node:crypto';
 import { newModel, validModel, learnFromOutcome } from './learning.js';
 import { buildStatistics } from './statistics.js';
 
@@ -23,12 +24,20 @@ export function openExperienceStore(path, legacy = {}) {
     );
     CREATE TABLE IF NOT EXISTS model_snapshots (
       version INTEGER PRIMARY KEY, updated_at INTEGER NOT NULL, payload TEXT NOT NULL
-    );`);
+    );
+    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+  const metaRow = db.prepare("SELECT value FROM meta WHERE key='server_id'");
+  let serverId = metaRow.get()?.value;
+  if (!serverId) {
+    serverId = randomUUID();
+    db.prepare("INSERT INTO meta(key,value) VALUES('server_id',?)").run(serverId);
+  }
   const insertSignal = db.prepare('INSERT OR IGNORE INTO signals (id,strategy_version,created_at,updated_at,market,symbol,timeframe,state,payload) VALUES (?,?,?,?,?,?,?,?,?)');
   const upsertSignal = db.prepare(`INSERT INTO signals (id,strategy_version,created_at,updated_at,market,symbol,timeframe,state,payload)
     VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,state=excluded.state,payload=excluded.payload`);
   const insertOutcome = db.prepare('INSERT OR IGNORE INTO outcomes (signal_id,strategy_version,resolved_at,label,market,symbol,timeframe,side,features,prediction,baseline,trained_samples) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
   const selectOutcome = db.prepare('SELECT label FROM outcomes WHERE signal_id=?');
+  const selectSignal = db.prepare('SELECT payload FROM signals WHERE id=?');
   const saveModel = db.prepare('INSERT INTO model_snapshots(version,updated_at,payload) VALUES(?,?,?) ON CONFLICT(version) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload');
   const modelRow = db.prepare('SELECT payload FROM model_snapshots WHERE version=2');
   const signalRows = db.prepare("SELECT payload FROM signals ORDER BY CASE WHEN state IN ('WAITING','OPEN','UNCERTAIN') THEN 0 ELSE 1 END, created_at DESC LIMIT 500");
@@ -56,6 +65,7 @@ export function openExperienceStore(path, legacy = {}) {
   }
 
   return {
+    id: serverId,
     loadSignals() { return signalRows.all().map(row => JSON.parse(row.payload)).sort((a, b) => b.detectedAt - a.detectedAt); },
     model,
     summary() { const row = counts.get(); return { signals: row.signals, outcomes: row.outcomes }; },
@@ -64,6 +74,21 @@ export function openExperienceStore(path, legacy = {}) {
       return statisticsCache;
     },
     saveSignal(signal) { upsertSignal.run(...rowOf(signal)); statisticsCache = null; },
+    importSignal(signal) {
+      const saved = selectSignal.get(signal.id);
+      const existing = saved ? JSON.parse(saved.payload) : null;
+      const newestEvent = item => Math.max(item.detectedAt, item.updatedAt || 0, ...item.events.map(event => event.at));
+      if (existing && (newestEvent(existing) > newestEvent(signal) ||
+          (newestEvent(existing) === newestEvent(signal) && existing.events.length >= signal.events.length)))
+        return { stored: false, learned: false };
+      // Historical phone outcomes train the weights, but are never counted as
+      // independent walk-forward validation of the server's predictions.
+      const replay = { ...signal, learned: false,
+        quality: signal.quality ? { ...signal.quality, trainedSamples: 0 } : null };
+      const learned = !selectOutcome.get(signal.id) && this.recordOutcome(replay);
+      this.saveSignal(learned ? { ...signal, learned: true, outcome: replay.outcome } : signal);
+      return { stored: !existing, learned: Boolean(learned) };
+    },
     recordOutcome(signal) {
       if (!signal.imbalance || signal.learned) return false;
       const existing = selectOutcome.get(signal.id);

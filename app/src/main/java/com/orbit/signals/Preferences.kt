@@ -11,12 +11,30 @@ class Preferences(context: Context) {
     var serverUrl: String
         get() = prefs.getString("serverUrl", "") ?: ""
         set(value) { prefs.edit().putString("serverUrl", value.trim().trimEnd('/')).apply() }
+    var externalServerUrl: String
+        get() = prefs.getString("externalServerUrl", "") ?: ""
+        set(value) { prefs.edit().putString("externalServerUrl", value.trim().trimEnd('/')).apply() }
+    var activeServerRoute: String?
+        get() = prefs.getString("activeServerRoute", null)
+        set(value) { prefs.edit().putString("activeServerRoute", value).apply() }
     var serverToken: String
         get() = tokenStore.get()
         set(value) { tokenStore.set(value.trim()) }
+    var serverCertSha256: String
+        get() = prefs.getString("serverCertSha256", "") ?: ""
+        set(value) { prefs.edit().putString("serverCertSha256", value).apply() }
     var serverLastSync: Long
         get() = prefs.getLong("serverLastSync", 0)
         set(value) { prefs.edit().putLong("serverLastSync", value).apply() }
+    var backupLastSync: Long
+        get() = prefs.getLong("backupLastSync", 0)
+        set(value) { prefs.edit().putLong("backupLastSync", value).apply() }
+    var backupError: String?
+        get() = prefs.getString("backupError", null)
+        set(value) { prefs.edit().putString("backupError", value).apply() }
+    var backupServerId: String?
+        get() = prefs.getString("backupServerId", null)
+        set(value) { prefs.edit().putString("backupServerId", value).apply() }
     var serverModel: String?
         get() = prefs.getString("serverModel", null)
         set(value) { prefs.edit().putString("serverModel", value).apply() }

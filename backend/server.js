@@ -1,4 +1,6 @@
 import http from 'node:http';
+import https from 'node:https';
+import { readFileSync } from 'node:fs';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, resolve, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +12,7 @@ import { normalizePreferences, shouldNotify } from './notifications.js';
 import { openExperienceStore } from './experience.js';
 import { LargeTradeTracker } from './whales.js';
 import { RateBudget, usagePlan } from './limits.js';
+import { validateMobileBatch } from './mobile-sync.js';
 
 const base = resolve(import.meta.dirname);
 const dataDir = resolve(process.env.DATA_DIR || join(base, 'data'));
@@ -17,7 +20,11 @@ const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '127.0.0.1';
 const token = process.env.APP_TOKEN || '';
 const vapidSubject = process.env.VAPID_SUBJECT || '';
+const tlsPfxPath = process.env.TLS_PFX_PATH || '';
+const tlsPfxPassword = process.env.TLS_PFX_PASSWORD || '';
+const lanOnly = process.env.LAN_ONLY === '1';
 if (!['127.0.0.1', 'localhost', '::1'].includes(host) && token.length < 24) throw new Error('Set APP_TOKEN (at least 24 characters) before exposing the server');
+if (lanOnly && (!tlsPfxPath || !tlsPfxPassword)) throw new Error('LAN_ONLY requires a TLS certificate');
 await mkdir(dataDir, { recursive: true });
 const dataPath = join(dataDir, 'state.json');
 let stored = {};
@@ -243,28 +250,61 @@ function connectLargeTrades(market) {
 
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
 function json(res, code, body) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); }
-async function requestBody(req) {
+async function requestBody(req, maxBytes = 32000) {
   let raw = '';
+  let bytes = 0;
   for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > 32000) throw new Error('Request too large');
+    bytes += chunk.length;
+    if (bytes > maxBytes) throw new Error('Request too large');
+    raw += chunk.toString('utf8');
   }
   return JSON.parse(raw || '{}');
 }
 function authorized(req) { return !token || req.headers.authorization === `Bearer ${token}`; }
-const server = http.createServer(async (req, res) => {
+function lanPeer(address) {
+  const value = (address || '').replace(/^::ffff:/, '');
+  const parts = value.split('.').map(Number);
+  return value === '::1' || value === '127.0.0.1' ||
+    (parts.length === 4 && parts.every(part => Number.isInteger(part) && part >= 0 && part <= 255) &&
+      (parts[0] === 10 || parts[0] === 192 && parts[1] === 168 || parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31));
+}
+function mobileState() { return {
+  serverId: experience.id,
+  symbols: state.symbols, signals: state.signals, prices: state.prices,
+  model: modelSummary(state.model), updatedAt: state.updatedAt,
+  limits: { binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length) }
+}; }
+const handleRequest = async (req, res) => {
   try {
+    if (lanOnly && !lanPeer(req.socket.remoteAddress)) return json(res, 403, { error: 'Доступ только из локальной сети' });
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Неверный ключ доступа' });
-      if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, {
-        symbols: state.symbols, signals: state.signals, prices: state.prices,
-        model: modelSummary(state.model), updatedAt: state.updatedAt,
-        limits: { binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length) }
-      });
+      if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, mobileState());
       if (req.method === 'GET' && url.pathname === '/api/limits') return json(res, 200, {
         binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length)
       });
+      if (req.method === 'POST' && url.pathname === '/api/mobile/sync') {
+        let rows, includeState;
+        try {
+          const body = await requestBody(req, 262144);
+          rows = validateMobileBatch(body.signals || []);
+          includeState = body.includeState !== false;
+        }
+        catch (error) { return json(res, 400, { error: error.message }); }
+        let stored = 0, learned = 0;
+        for (const signal of rows) {
+          const result = experience.importSignal(signal);
+          if (result.stored) stored++;
+          if (result.learned) learned++;
+        }
+        state.signals = experience.loadSignals();
+        state.updatedAt = Date.now();
+        persist();
+        const sync = { serverId: experience.id, accepted: rows.map(signal => signal.id), stored, learned,
+          totalOutcomes: experience.summary().outcomes };
+        return json(res, 200, includeState ? { ...mobileState(), sync } : { sync });
+      }
       if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model), experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
       if (req.method === 'GET' && url.pathname.startsWith('/api/large-trades/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/large-trades/'.length)).toUpperCase();
@@ -327,8 +367,10 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': file === 'sw.js' ? 'no-cache' : 'max-age=60', 'X-Content-Type-Options': 'nosniff' });
     res.end(content);
   } catch (error) { json(res, 500, { error: error.message }); }
-});
-server.listen(port, host, () => console.log(`Crypto Signals: http://${host}:${port}`));
+};
+const server = tlsPfxPath ? https.createServer({ pfx: readFileSync(tlsPfxPath), passphrase: tlsPfxPassword }, handleRequest)
+  : http.createServer(handleRequest);
+server.listen(port, host, () => console.log(`Crypto Signals: ${tlsPfxPath ? 'https' : 'http'}://${host}:${port}`));
 for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); }
 setInterval(persist, 30000);
 setInterval(() => {

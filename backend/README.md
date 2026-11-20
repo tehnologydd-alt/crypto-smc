@@ -6,11 +6,12 @@ Node.js 24 server for the optional Android server mode. The server monitors only
 
 For a public installation, use the included Docker Compose and Caddy configuration. Point a domain at the server, copy `.env.example` to `.env`, set `APP_DOMAIN` and a random `APP_TOKEN` of at least 24 characters, then run `docker compose up -d --build`. Keep `.env` and the data volume private. The APK requires the HTTPS domain and `APP_TOKEN` in Settings. `VAPID_SUBJECT` is optional for the native APK; set it only if using browser push in the included PWA.
 
-For local development, use `node --test` then `node server.js`. The default binding is `127.0.0.1:3000`. A phone cannot reach the PC through `127.0.0.1`; use a trusted HTTPS reverse proxy or tunnel when testing the APK.
+For local development, use `node --test` then `node server.js`. The default binding is `127.0.0.1:3000`. On Windows, `./start-pc-backup.ps1` starts a separate LAN HTTPS server on port 3443. It creates a persistent SQLite database, a random access token and a pinned TLS certificate outside the repository. Keep `connection.json` and the PFX private and backed up. The phone needs the PC LAN IP, token and certificate SHA-256 from that file. Open TCP 3443 in Windows Firewall for Private/LocalSubnet only. For remote access to the same process, use Tailscale Serve and enter its HTTPS `.ts.net` URL as the app's external address.
 
 ## API used by Android
 
-- `GET /api/mobile/state`: current marked assets, signals and events, latest prices, model summary and usage counters.
+- `POST /api/mobile/sync`: imports up to 50 changed phone signals, acknowledges their IDs and optionally returns current marked assets, signals and events, prices, model summary and usage counters. A stable database ID lets Android resend its history after server restoration. Imports train once, without counting historical outcomes as independent validation.
+- `GET /api/mobile/state`: legacy read-only state route.
 - `PUT /api/symbols`: set the 1–10 marked assets.
 - `GET /api/limits`: usage counters and capacity estimate.
 
