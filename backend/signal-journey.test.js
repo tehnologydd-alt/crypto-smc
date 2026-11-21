@@ -4,6 +4,7 @@ import { journey, isFinished, bucket, levelSegments } from './public/signal-jour
 
 const sample = (side='LONG', state='OPEN') => ({
   id:'spot:BTCUSDT:1h:1:LONG', side, state, detectedAt:1000,
+  entry:100,stop:98,targets:[102,104,106],
   hitTargets:0,events:[{type:'CREATED',at:1000,price:103},{type:'ENTRY',at:2000,price:100}]
 });
 test('only terminal states leave the current signals tab',()=>{
