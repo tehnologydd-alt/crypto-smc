@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RULES, RULE_KEYS } from './strategy-rules.js';
-import { parseBookSnapshot, depthGate } from './order-book.js';
+import { depthGate } from './order-book.js';
 import { detectResearchSignals } from './strategy.js';
-
 const HOUR=3600000;
 function bullish(period=HOUR,start=0,count=40) {
   return Array.from({length:count},(_,i)=>{
@@ -15,58 +14,58 @@ function bullish(period=HOUR,start=0,count=40) {
     return candle;
   });
 }
-function parentFor(bars) {const last=bars.at(-1).end;return bullish(4*HOUR,last-20*4*HOUR+1,20);}
-function book(closedAt,bidQty=2,askQty=1) {
-  const raw={lastUpdateId:99121,
-    bids:Array.from({length:100},(_,i)=>[(106-i*.001).toFixed(4),String(bidQty)]),
-    asks:Array.from({length:100},(_,i)=>[(106.01+i*.001).toFixed(4),String(askQty)])};
-  return parseBookSnapshot(raw,{market:'spot',symbol:'BTCUSDT',capturedAt:closedAt+2000});
+function parentFor(bars) {
+  const last=bars.at(-1).end;
+  return bullish(4*HOUR,last-20*4*HOUR+1,20);
 }
-test('research categories keep old volume and sweep IDs as archived not active',()=>{
-  assert.deepEqual(RULES.map(r=>r.key),['v0.1','v0.2-D1','v0.3-D1']);
+function book(closedAt,extra={}) {
+  return {source:'binance_ws_depth',status:'live',market:'spot',symbol:'BTCUSDT',
+    capturedAt:closedAt+2000,lastUpdateId:99121,
+    levels:100,bestBid:105.99,bestAsk:106.01,spreadPct:.019,
+    bidUsdt:200000,askUsdt:100000,imbalance:2/3,averageImbalance:.65,
+    observedSince:closedAt-30000,observationMs:32000,observations:15,updates:50,
+    bids:[],asks:[],...extra};
+}
+test('research revisions use D2 synchronized orderbook and keep D1 REST archived',()=>{
+  assert.deepEqual(RULES.map(r=>r.key),['v0.1','v0.2-D2','v0.3-D2']);
+  assert.ok(RULE_KEYS.includes('v0.2-D1'));
+  assert.ok(RULE_KEYS.includes('v0.3-D1'));
   assert.ok(RULE_KEYS.includes('v0.2'));
-  assert.ok(RULE_KEYS.includes('v0.3-L1'));
-  assert.equal(RULES[1].bookLevels,100);
-  assert.equal(RULES[2].htf,true);
+  assert.ok(RULE_KEYS.includes('v0.2-L1'));
 });
-test('measured L2 book totals are price x quantity (USDT) on both sides',()=>{
-  const b=book(12345);
-  assert.ok(b);
-  assert.equal(b.levels,100);
-  assert.equal(b.lastUpdateId,99121);
-  assert.ok(b.bidUsdt>20000 && b.askUsdt>10000);
-  assert.ok(b.imbalance>0.6 && b.imbalance<0.7);
-  assert.equal(b.source,'binance_rest_depth');
-  assert.equal(parseBookSnapshot({lastUpdateId:5,bids:[],asks:[]},
-    {market:'spot',symbol:'BTCUSDT',capturedAt:12345}),null);
+test('live order-book filter demands observed stable depth not a REST picture',()=>{
+  const close=5000000,s=book(close);
+  const options={market:'spot',symbol:'BTCUSDT',side:'LONG',closedAt:close,observedAt:close+3000};
+  assert.equal(depthGate(s,options).allowed,true);
+  assert.equal(depthGate({...s,source:'binance_rest_depth'},options).allowed,false);
+  assert.equal(depthGate({...s,observations:1},options).allowed,false);
+  assert.equal(depthGate({...s,observationMs:1000},options).allowed,false);
+  assert.equal(depthGate({...s,averageImbalance:.42},options).allowed,false);
+  assert.equal(depthGate({...s,capturedAt:close-2000},options).allowed,false);
+  assert.equal(depthGate(s,{...options,observedAt:close+20000}).allowed,false);
+  assert.equal(depthGate(s,{...options,market:'futures'}).allowed,false);
+  assert.equal(depthGate(s,{...options,side:'SHORT'}).allowed,false);
 });
-test('depth gate rejects stale, future, mismatched and weak or invalid snapshots',()=>{
-  const closedAt=5000000,s=book(closedAt);
-  assert.equal(depthGate(s,{market:'spot',symbol:'BTCUSDT',side:'LONG',closedAt,observedAt:closedAt+3000}).allowed,true);
-  assert.equal(depthGate(s,{market:'spot',symbol:'BTCUSDT',side:'SHORT',closedAt,observedAt:closedAt+3000}).allowed,false);
-  assert.equal(depthGate(s,{market:'futures',symbol:'BTCUSDT',side:'LONG',closedAt,observedAt:closedAt+3000}).allowed,false);
-  assert.equal(depthGate(s,{market:'spot',symbol:'BTCUSDT',side:'LONG',closedAt,observedAt:closedAt+30000}).allowed,false);
-  assert.equal(depthGate(s,{market:'spot',symbol:'BTCUSDT',side:'LONG',closedAt:closedAt+5000,observedAt:closedAt+7000}).allowed,false);
-  assert.equal(depthGate({...s,spreadPct:1},{market:'spot',symbol:'BTCUSDT',side:'LONG',closedAt,observedAt:closedAt+3000}).allowed,false);
+test('three independent research arms only appear for a live sequenced book',()=>{
+  const bars=bullish(),at=bars.at(-1).end;
+  const live=book(at),parent=parentFor(bars);
+  assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,
+    null,at+3000).map(s=>s.ruleVersion),['v0.1']);
+  const found=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,live,at+3000);
+  assert.deepEqual(found.map(s=>s.ruleVersion),RULES.map(r=>r.key));
+  assert.equal(new Set(found.map(s=>s.id)).size,3);
+  assert.equal(found[1].ruleSnapshot.book.lastUpdateId,99121);
+  assert.equal(found[1].detectedAt,live.capturedAt);
+  assert.equal(found[1].events[0].at,live.capturedAt);
+  assert.notEqual(found[0].events,found[1].events);
+  assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',null,live,at+3000)
+    .map(s=>s.ruleVersion),['v0.1','v0.2-D2']);
+  assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,
+    {...live,source:'binance_rest_depth'},at+3000).map(s=>s.ruleVersion),['v0.1']);
 });
-test('parallel strategies use only a matched real book snapshot at publication time',()=>{
-  const bars=bullish(),closedAt=bars.at(-1).end,s=book(closedAt);
-  const parent=parentFor(bars);
-  const without=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,null,closedAt+3000);
-  assert.deepEqual(without.map(x=>x.ruleVersion),['v0.1']);
-  const accepted=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,s,closedAt+3000);
-  assert.deepEqual(accepted.map(x=>x.ruleVersion),RULES.map(x=>x.key));
-  assert.equal(new Set(accepted.map(x=>x.id)).size,3);
-  assert.ok(accepted[1].ruleSnapshot.book.bidUsdt>accepted[1].ruleSnapshot.book.askUsdt);
-  assert.equal(accepted[1].detectedAt,s.capturedAt);
-  assert.equal(accepted[1].events[0].at,s.capturedAt);
-  assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',null,s,closedAt+3000).map(x=>x.ruleVersion),
-    ['v0.1','v0.2-D1']);
-  const late=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,s,closedAt+20000);
-  assert.deepEqual(late.map(x=>x.ruleVersion),['v0.1']);
-});
-test('candle traded volume never substitutes for book depth',()=>{
-  const bars=bullish(),closedAt=bars.at(-1).end;
+test('candle volume cannot count as orderbook depth',()=>{
+  const bars=bullish(),at=bars.at(-1).end;
   bars.at(-1).volume=1e10;
-  assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',parentFor(bars),null,closedAt+3000).map(x=>x.ruleVersion),['v0.1']);
+  assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',parentFor(bars),
+    null,at+3000).map(s=>s.ruleVersion),['v0.1']);
 });
