@@ -2,14 +2,16 @@
 export const RULES=Object.freeze([
   Object.freeze({key:'v0.1',category:'v0.1',title:'Структура + OB/FVG',liquidity:false,htf:false,
     description:'BOS/CHoCH + активные OB/FVG'}),
-  Object.freeze({key:'v0.2-D1',category:'v0.2',title:'Структура + OB/FVG + стакан Binance',
+  Object.freeze({key:'v0.2-D2',category:'v0.2',title:'Структура + OB/FVG + стакан Binance',
     liquidity:true,htf:false,bookLevels:100,minImbalance:0.55,maxSnapshotLagMs:120000,
     description:'v0.1 + подтверждённый объём заявок bid/ask из depth Binance'}),
-  Object.freeze({key:'v0.3-D1',category:'v0.3',title:'Стакан Binance + старший TF',
+  Object.freeze({key:'v0.3-D2',category:'v0.3',title:'Стакан Binance + старший TF',
     liquidity:true,htf:true,bookLevels:100,minImbalance:0.55,maxSnapshotLagMs:120000,
-    description:'v0.2-D1 + согласованность последнего закрытого старшего TF'})
+    description:'v0.2-D2 + согласованность последнего закрытого старшего TF'})
 ]);
 export const ARCHIVED_RULES=Object.freeze([
+  Object.freeze({key:'v0.2-D1',category:'v0.2',title:'Архив: одиночный REST-снимок стакана'}),
+  Object.freeze({key:'v0.3-D1',category:'v0.3',title:'Архив: REST-снимок + старший TF'}),
   Object.freeze({key:'v0.2',category:'v0.2',title:'Архив: объём свечи'}),
   Object.freeze({key:'v0.3',category:'v0.3',title:'Архив: объём свечи + HTF'}),
   Object.freeze({key:'v0.2-L1',category:'v0.2',title:'Архив: структура ликвидности'}),
