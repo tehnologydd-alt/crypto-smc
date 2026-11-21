@@ -50,9 +50,10 @@ test('futures requires matching pu; out-of-sequence diff causes resync',async()=
     fetchSnapshot:async()=>generateBook(version)});
   book.receive(msg('ETHUSDT',99,101,98));await flush();
   assert.equal(book.snapshot().status,'live');
-  book.receive(msg('ETHUSDT',101,102,999));
+  version=200;
+  book.receive(msg('ETHUSDT',102,103,999));
   assert.equal(book.snapshot().status,'syncing');
-  version=200;await flush();
+  await flush();
   book.receive(msg('ETHUSDT',199,201,198));
   assert.equal(book.snapshot().status,'live');
   book.receive(msg('ETHUSDT',202,204,201));
