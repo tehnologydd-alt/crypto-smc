@@ -75,7 +75,7 @@ object Monitor {
                 .filter { it.end <= candidate.candle.end }
             val signal = Strategy.detect(candidate.bars, market, symbol, candidate.timeframe, parent)
             if (signal != null && !store.signalExists(signal.id) && signals.none {
-                    it.timeframe == candidate.timeframe && it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
+                    it.timeframe == candidate.timeframe && it.strategyVersion == 3 && it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
                 }) {
                 signal.quality = model.score(signal.features)
                 store.saveSignal(signal); signals += signal; signal.events.forEach { notifier.send(signal, it) }
