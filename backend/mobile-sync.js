@@ -6,7 +6,8 @@ const eventTypes = new Set(['CREATED', 'ENTRY', 'TP1', 'TP2', 'TP3', 'STOP', 'IN
 const positive = value => Number.isFinite(value) && value > 0;
 const timestamp = value => Number.isSafeInteger(value) && value > 0;
 const validDepthEvidence = s => {
-  if(!s?.ruleVersion?.endsWith('-D1')&&!s?.ruleVersion?.endsWith('-D2'))return true;
+  const rule=s?.ruleVersion||'';
+  if(!/-D[12]$|-B5$/.test(rule))return true;
   const b=s.bookEvidence;
   const base=b?.market===s.market&&b.symbol===s.symbol&&b.levels===100&&
     Number.isSafeInteger(b.lastUpdateId)&&b.lastUpdateId>0&&
@@ -16,16 +17,23 @@ const validDepthEvidence = s => {
     Number.isFinite(b.imbalance)&&b.imbalance>=0&&b.imbalance<=1&&
     Number.isFinite(b.spreadPct)&&b.spreadPct>=0&&b.spreadPct<=0.2;
   if(!base)return false;
-  if(s.ruleVersion.endsWith('-D1'))
-    return b.source==='binance_rest_depth' &&
-      (s.side==='LONG'?b.imbalance:1-b.imbalance)>=0.55;
-  const side=s.side==='LONG'?b.imbalance:1-b.imbalance;
+  const share=s.side==='LONG'?b.imbalance:1-b.imbalance;
+  if(rule.endsWith('-D1'))
+    return b.source==='binance_rest_depth'&&share>=.55;
   const average=s.side==='LONG'?b.averageImbalance:1-b.averageImbalance;
-  return b.source==='binance_ws_depth'&&b.status==='live'&&
-    Number.isFinite(b.observationMs)&&b.observationMs>=10000&&
-    Number.isInteger(b.observations)&&b.observations>=4&&
+  const continuous=b.source==='binance_ws_depth'&&b.status==='live'&&
+    Number.isFinite(b.observationMs)&&Number.isInteger(b.observations)&&
     Number.isInteger(b.updates)&&b.updates>=5&&
-    Number.isFinite(average)&&side>=.55&&average>=.53;
+    Number.isFinite(average)&&share>=.55&&average>=.53;
+  if(!continuous)return false;
+  if(rule.endsWith('-B5'))
+    return timestamp(s.originClosedAt)&&s.originClosedAt<s.detectedAt&&
+      s.detectedAt-s.originClosedAt<=26*60000&&
+      timestamp(b.observedSince)&&b.observedSince>s.originClosedAt&&
+      b.observationMs>=240000&&b.observations>=12&&
+      b.capturedAt-b.observedSince>=240000&&
+      s.detectedAt-b.capturedAt<=15000;
+  return b.observationMs>=10000&&b.observations>=4;
 };
 
 export function validateMobileBatch(rows) {
