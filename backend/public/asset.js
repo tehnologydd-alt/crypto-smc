@@ -108,7 +108,7 @@ function render() {
   $('#assetSignals').innerHTML = asset.signals.length ? asset.signals.slice(0, 15).map(signalCard).join('') : '<div class="asset-empty">По этому рынку пока нет сигналов. Структура, ордер-блоки и имбалансы ниже отображаются по закрытым свечам даже без торгового сигнала.</div>';
   renderSelectedSignal();
   const structure = asset.structure || { swings: [], breaks: [], imbalances: [] };
-  $('#structureSummary').textContent = `Swing: ${structure.swings.length} · BOS: ${structure.breaks.length} · CHoCH: ${structure.breaks.filter(item => item.type === 'CHoCH').length} · OB: ${structure.breaks.filter(item => item.block).length} · FVG: ${structure.imbalances.length} за последние ${asset.candles.length} свечей`;
+  $('#structureSummary').textContent = `Swing: ${structure.swings.length} · BOS: ${structure.breaks.filter(item => item.type !== 'CHoCH').length} · CHoCH: ${structure.breaks.filter(item => item.type === 'CHoCH').length} · OB: ${structure.breaks.filter(item => item.block).length} · FVG: ${structure.imbalances.length} за последние ${asset.candles.length} свечей`;
   drawChart();
 }
 function signalCard(s) {
@@ -125,7 +125,7 @@ function renderSelectedSignal() {
   const followed = getPreferences().selectedIds.includes(signal.id);
   panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
     <div class="selected-levels"><div><span>ЗОНА OB</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
-    <p>${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}BOS ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}</p>
+    <p>${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || "BOS"} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}</p>
     <button id="followSignal" class="primary-button ${followed ? 'outline' : ''}" type="button">${followed ? '✓ Уведомления выбраны · отменить' : 'Следить за сигналом'}</button><small id="followHelp">${preview ? 'Демо-сигнал: уведомления по нему не отправляются.' : followed ? 'Режим «только выбранные» включён для этого устройства.' : 'Включит режим «только выбранные» и добавит этот сигнал.'}</small>`;
 }
 function drawChart() {
@@ -169,7 +169,7 @@ function drawChart() {
   }
   ctx.font = '10px system-ui'; ctx.textAlign = 'left';
   recentGaps.forEach(gap => zone(gap.low, gap.high, gap.time, '#eab87a16', '#d5ac6d', 'FVG ' + (gap.status || 'active'), gap.filledAt || lastTime));
-  recentBlocks.forEach(item => zone(item.block.low, item.block.high, item.block.time, item.direction === 'up' ? '#65dfa51f' : '#e77d951f', item.direction === 'up' ? '#67dca9' : '#e18c9e', 'OB'));
+  recentBlocks.forEach(item => zone(item.block.low, item.block.high, item.block.time, item.direction === 'up' ? '#65dfa51f' : '#e77d951f', item.direction === 'up' ? '#67dca9' : '#e18c9e', 'OB ' + (item.block.status || 'active')));
   if (signal) {
     zone(signal.entryLow, signal.entryHigh, signal.blockTime || firstTime, '#75edba32', '#8ae8c4', 'OB · ВХОД');
     if (signal.imbalance) zone(signal.imbalance.low, signal.imbalance.high, signal.imbalance.time, '#eab87a2b', '#efc686', 'FVG СИГНАЛА');
