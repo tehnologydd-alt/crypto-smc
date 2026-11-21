@@ -1,6 +1,6 @@
 import { getPreferences, savePreferences, syncPreferences } from './notification-settings.js';
 import { initWakeLock } from './wake.js';
-import { journey, isFinished } from './signal-journey.js';
+import { journey, isFinished, levelSegments } from './signal-journey.js';
 const $ = selector => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
 const symbol = (params.get('symbol') || '').toUpperCase();
@@ -216,8 +216,13 @@ function drawChart() {
   const recentGaps = structure.imbalances.slice(-2);
   let min = Math.min(...chartBars.map(c => c.low)), max = Math.max(...chartBars.map(c => c.high));
   if (signal) {
-    const visiblePrices = (signal.events || []).filter(e => Number.isFinite(e.price) && e.price > 0 &&
+    const visibleEvents = (signal.events || []).filter(e => Number.isFinite(e.price) && e.price > 0 &&
       chartBars.some(bar => e.at >= bar.time && e.at <= bar.end)).map(e => e.price);
+    const segments = levelSegments(signal, chartBars.at(-1).end);
+    const visibleLevels = segments.filter(level => level.startAt <= chartBars.at(-1).end &&
+      level.endAt >= chartBars[0].time && Number.isFinite(level.price) && level.price > 0)
+      .map(level => level.price);
+    const visiblePrices = [...visibleEvents, ...visibleLevels];
     if (visiblePrices.length) { min = Math.min(min, ...visiblePrices); max = Math.max(max, ...visiblePrices); }
   }
   for (const zone of [...recentBlocks.map(item => item.block), ...recentGaps]) {
@@ -277,6 +282,39 @@ function drawChart() {
     ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 9px system-ui'; ctx.fillText((item.type === 'CHoCH' ? 'CHoCH' : 'BOS') + (item.direction === 'up' ? ' ↑' : ' ↓'), Math.max(left, to - 28), Math.max(top + 9, yy - 4));
   }
   if (signal) {
+    // Show each ENTRY/SL/TP level only for the recorded lifetime of the scenario.
+    // A touched line ends at that level's last registered touch; unreached levels
+    // remain dashed until the last observed candle or terminal event.
+    const lastEnd = chartBars.at(-1).end;
+    const levelColors = { ENTRY: '#83eac0', SL: '#ff93a9',
+      TP1: '#e9dc91', TP2: '#e9dc91', TP3: '#e9dc91' };
+    for (const segment of levelSegments(signal, lastEnd)) {
+      if (segment.startAt > lastEnd || segment.endAt < firstTime ||
+          !Number.isFinite(segment.price) || segment.price <= 0) continue;
+      const yy = y(segment.price);
+      if (yy < top || yy > priceBottom) continue;
+      const from = segment.startAt < firstTime ? left :
+        Math.max(left, Math.min(left + plotWidth, x(segment.startAt)));
+      const to = segment.endAt >= lastEnd ? left + plotWidth :
+        Math.max(left, Math.min(left + plotWidth, x(segment.endAt)));
+      if (to < from) continue;
+      const color = levelColors[segment.name] || '#e9dc91';
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = segment.touched ? .95 : .58;
+      ctx.setLineDash(segment.touched ? [] : [5, 4]);
+      ctx.lineWidth = segment.touched ? 1.7 : 1.1;
+      ctx.beginPath();ctx.moveTo(from, yy);ctx.lineTo(Math.max(to, from+1), yy);ctx.stroke();
+      ctx.setLineDash([]);ctx.globalAlpha = 1;
+      ctx.font = 'bold 9px system-ui';ctx.textAlign='left';
+      const tw = ctx.measureText(segment.name).width + 8;
+      const labelX = Math.min(Math.max(left, from + 4), left + plotWidth - tw);
+      const labelY = Math.max(top + 12, Math.min(priceBottom - 2, yy - 4));
+      ctx.fillStyle = '#0d192c';
+      ctx.fillRect(labelX-2,labelY-10,tw+2,13);
+      ctx.fillStyle = color;ctx.fillText(segment.name,labelX+2,labelY);
+      ctx.restore();
+    }
     const trace = journey(signal);
     const events = trace.events.filter(e => Number.isFinite(e.at) && Number.isFinite(e.price) && e.price > 0);
     const indexOf = at => chartBars.findIndex(bar => at >= bar.time && at <= bar.end);
