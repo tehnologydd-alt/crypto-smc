@@ -5,6 +5,20 @@ const states = new Set(['WAITING', 'OPEN', 'STOPPED', 'COMPLETED', 'CANCELLED', 
 const eventTypes = new Set(['CREATED', 'ENTRY', 'TP1', 'TP2', 'TP3', 'STOP', 'INVALIDATED', 'EXPIRED', 'DATA_GAP', 'ACKNOWLEDGED']);
 const positive = value => Number.isFinite(value) && value > 0;
 const timestamp = value => Number.isSafeInteger(value) && value > 0;
+const validDepthEvidence = s => {
+  if(!s?.ruleVersion?.endsWith('-D1'))return true;
+  const b=s.bookEvidence;
+  return b?.source==='binance_rest_depth' && b.market===s.market &&
+    b.symbol===s.symbol && b.levels===100 &&
+    Number.isSafeInteger(b.lastUpdateId) && b.lastUpdateId>0 &&
+    timestamp(b.capturedAt) && b.capturedAt>=s.detectedAt-120000 &&
+    b.capturedAt<=s.detectedAt &&
+    Number.isFinite(b.bidUsdt) && b.bidUsdt>0 &&
+    Number.isFinite(b.askUsdt) && b.askUsdt>0 &&
+    Number.isFinite(b.imbalance) && b.imbalance>=0 && b.imbalance<=1 &&
+    Number.isFinite(b.spreadPct) && b.spreadPct>=0 && b.spreadPct<=0.2 &&
+    (s.side==='LONG'?b.imbalance:1-b.imbalance)>=0.55;
+};
 
 export function validateMobileBatch(rows) {
   if (!Array.isArray(rows) || rows.length > 50) throw new Error('Ожидается до 50 сигналов');
@@ -22,6 +36,7 @@ export function validateMobileBatch(rows) {
           typeof signal.ruleSpec !== 'string' || signal.ruleSpec.length < 10 ||
           signal.ruleSpec.length > 256)) ||
         (signal.volumeRatio != null && (!Number.isFinite(signal.volumeRatio) || signal.volumeRatio < 0)) ||
+        !validDepthEvidence(signal) ||
         !states.has(signal.state) || !timestamp(signal.detectedAt) || !timestamp(signal.blockTime) ||
         !timestamp(signal.expiresAt) || !Number.isInteger(signal.hitTargets) || signal.hitTargets < 0 || signal.hitTargets > 3 ||
         ![signal.entryLow, signal.entryHigh, signal.entry, signal.stop, signal.swing].every(positive) ||
