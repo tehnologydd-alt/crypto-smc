@@ -6,18 +6,26 @@ const eventTypes = new Set(['CREATED', 'ENTRY', 'TP1', 'TP2', 'TP3', 'STOP', 'IN
 const positive = value => Number.isFinite(value) && value > 0;
 const timestamp = value => Number.isSafeInteger(value) && value > 0;
 const validDepthEvidence = s => {
-  if(!s?.ruleVersion?.endsWith('-D1'))return true;
+  if(!s?.ruleVersion?.endsWith('-D1')&&!s?.ruleVersion?.endsWith('-D2'))return true;
   const b=s.bookEvidence;
-  return b?.source==='binance_rest_depth' && b.market===s.market &&
-    b.symbol===s.symbol && b.levels===100 &&
-    Number.isSafeInteger(b.lastUpdateId) && b.lastUpdateId>0 &&
-    timestamp(b.capturedAt) && b.capturedAt>=s.detectedAt-120000 &&
-    b.capturedAt<=s.detectedAt &&
-    Number.isFinite(b.bidUsdt) && b.bidUsdt>0 &&
-    Number.isFinite(b.askUsdt) && b.askUsdt>0 &&
-    Number.isFinite(b.imbalance) && b.imbalance>=0 && b.imbalance<=1 &&
-    Number.isFinite(b.spreadPct) && b.spreadPct>=0 && b.spreadPct<=0.2 &&
-    (s.side==='LONG'?b.imbalance:1-b.imbalance)>=0.55;
+  const base=b?.market===s.market&&b.symbol===s.symbol&&b.levels===100&&
+    Number.isSafeInteger(b.lastUpdateId)&&b.lastUpdateId>0&&
+    timestamp(b.capturedAt)&&b.capturedAt>=s.detectedAt-120000&&
+    b.capturedAt<=s.detectedAt&&Number.isFinite(b.bidUsdt)&&b.bidUsdt>0&&
+    Number.isFinite(b.askUsdt)&&b.askUsdt>0&&
+    Number.isFinite(b.imbalance)&&b.imbalance>=0&&b.imbalance<=1&&
+    Number.isFinite(b.spreadPct)&&b.spreadPct>=0&&b.spreadPct<=0.2;
+  if(!base)return false;
+  if(s.ruleVersion.endsWith('-D1'))
+    return b.source==='binance_rest_depth' &&
+      (s.side==='LONG'?b.imbalance:1-b.imbalance)>=0.55;
+  const side=s.side==='LONG'?b.imbalance:1-b.imbalance;
+  const average=s.side==='LONG'?b.averageImbalance:1-b.averageImbalance;
+  return b.source==='binance_ws_depth'&&b.status==='live'&&
+    Number.isFinite(b.observationMs)&&b.observationMs>=10000&&
+    Number.isInteger(b.observations)&&b.observations>=4&&
+    Number.isInteger(b.updates)&&b.updates>=5&&
+    Number.isFinite(average)&&side>=.55&&average>=.53;
 };
 
 export function validateMobileBatch(rows) {
