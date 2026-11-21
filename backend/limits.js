@@ -12,7 +12,8 @@ export function usagePlan(symbolCount) {
   const peakRequestsPerCron = symbols * markets * (1 + Object.keys(TIMEFRAMES).length);
   return {
     symbols, markets,
-    node: { websocketConnections: 6, timeframeRestRequestsPerDay: timeframeRequestsPerDay,\n      depthBootstrapRequestsOnStart: depthBootstrapMinRequests, depthBootstrapPerReconnect: depthBootstrapMinRequests },
+    node: { websocketConnections: 6, timeframeRestRequestsPerDay: timeframeRequestsPerDay,
+      depthBootstrapRequestsOnStart: depthBootstrapMinRequests, depthBootstrapPerReconnect: depthBootstrapMinRequests },
     cloudflareFree: {
       cronInvocationsPerDay: 1440,
       estimatedBinanceSubrequestsPerDay: cloudflareM1RequestsPerDay + timeframeRequestsPerDay,
