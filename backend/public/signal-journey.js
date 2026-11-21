@@ -27,3 +27,28 @@ export function journey(signal) {
   return { createdAt:signal.detectedAt, createdPrice:created?.price ?? null, entry, exit,
     reached, percent, result, finished:isFinished(signal), events };
 }
+
+/**
+ * Plot each reference level from signal creation up to its last recorded touch.
+ * Untouched levels are projected only through the latest known closed candle;
+ * closed/uncertain signals never extend beyond their terminal observation.
+ * Price-level segments do not imply exchange order execution.
+ */
+export function levelSegments(signal, latestCandleEnd) {
+  const events = [...(signal.events || [])].sort((a, b) => a.at - b.at);
+  const terminalType = { STOPPED: 'STOP', COMPLETED: 'TP3', CANCELLED: 'INVALIDATED',
+    EXPIRED: 'EXPIRED', UNCERTAIN: 'DATA_GAP' }[signal.state];
+  const terminal = terminalType
+    ? [...events].reverse().find(e => e.type === terminalType) ||
+      events.at(-1)
+    : null;
+  const start = Number(signal.detectedAt);
+  const end = Math.max(start, Number(terminal?.at ?? latestCandleEnd ?? start));
+  const levels = [['ENTRY', signal.entry], ['SL', signal.stop],
+    ...(signal.targets || []).slice(0, 3).map((price, i) => [`TP${i + 1}`, price])];
+  return levels.map(([name, price]) => {
+    const event = [...events].reverse().find(e => e.type === (name === 'SL' ? 'STOP' : name));
+    return { name, price, startAt: start, endAt: Math.max(start, Math.min(end, Number(event?.at ?? end))),
+      touched: Boolean(event) };
+  });
+}
