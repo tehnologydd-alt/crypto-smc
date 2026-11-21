@@ -1,5 +1,6 @@
 // Orbit Signals SMC v3 — deterministic closed-candle research engines.
-import { RULES, liquiditySweepGate } from './strategy-rules.js';
+import { RULES } from './strategy-rules.js';
+import { depthGate } from './order-book.js';
 const EPS = 1e-12;
 export const TF_MINUTES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440 });
 export const PARENT_TF = Object.freeze({ '5m': '1h', '15m': '1h', '30m': '1h', '1h': '4h', '4h': '1d' });
@@ -172,17 +173,21 @@ export function detectV3(bars,market,symbol,timeframe,parentBars,options={}) {
  * These are parallel *research* signal streams with unique ids and histories.
  * The pre-existing SMC v3 stream is left untouched.
  */
-export function detectRuleVariants(bars,market,symbol,timeframe,parentBars) {
+export function detectRuleVariants(bars,market,symbol,timeframe,parentBars,bookSnapshot=null,observedAt=Date.now()) {
   const candidate=detectV3(bars,market,symbol,timeframe,parentBars,{requireHtf:false});
   if(!candidate)return [];
   const event=candidate.structureEvent;
-  const breakIndex=bars.findIndex(c=>c.end===event.occurredAt);
-  const liquidity=liquiditySweepGate(bars,breakIndex,event.direction);
+  const depth=depthGate(bookSnapshot,{market,symbol,side:candidate.side,
+    closedAt:candidate.detectedAt,observedAt});
   const htf=ContextRegimeFilter.evaluate(event,bars,parentBars,timeframe);
-  return RULES.filter(rule=>(!rule.liquidity || liquidity.allowed) && (!rule.htf || htf.allowed))
-    .map(rule=>({
-      ...candidate,id:candidate.id+':'+rule.key,ruleVersion:rule.key,
-      ruleSnapshot:{...rule,liquidityEvidence:liquidity.allowed?liquidity:null,
-        htfRegime:htf.regime||null,evaluatedAt:candidate.detectedAt}
-    }));
+  return RULES.filter(rule=>(!rule.liquidity || depth.allowed) && (!rule.htf || htf.allowed))
+    .map(rule=>{
+      const observed=rule.liquidity ? bookSnapshot.capturedAt : candidate.detectedAt;
+      return {...candidate,id:candidate.id+':'+rule.key,ruleVersion:rule.key,
+        detectedAt:observed,events:[{type:'CREATED',at:observed,price:bars.at(-1).close}],
+        expiresAt:observed+12*TF_MINUTES[timeframe]*60000,
+        ruleSnapshot:{...rule,book:rule.liquidity?{...bookSnapshot}:null,
+          htfRegime:htf.regime||null,evaluatedAt:observed}
+      };
+    });
 }
