@@ -68,7 +68,7 @@ class ChartView(context: Context) : View(context) {
             label(canvas, String.format("%.3f", price), right + 4, y(price) + 4, muted, 9f)
         }
         for (zone in structure.breaks.mapNotNull { it.block }.takeLast(2)) drawZone(canvas, zone, first, last, right, x, y, green, "OB")
-        for (zone in structure.imbalances.filter { it.filledAt == null }.takeLast(2)) drawZone(canvas, zone, first, last, right, x, y, blue, "FVG")
+        for (zone in structure.imbalances.takeLast(2)) drawZone(canvas, zone, first, last, right, x, y, blue, "FVG")
         for ((index, bar) in bars.withIndex()) {
             val cx = left + (index + .5f) * step
             paint.color = if (bar.close >= bar.open) green else red
