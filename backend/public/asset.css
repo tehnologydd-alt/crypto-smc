@@ -78,3 +78,10 @@
 .book-level.ask span{color:#f5a1ab}
 .book-note{font-size:9px!important;margin:11px 0 0!important}
 @media(max-width:400px){.order-books-grid{grid-template-columns:1fr}.book-level{font-size:10px}.book-level strong{font-size:10px}}
+
+/* Mirrored exchange-depth bars: shared USD normalization for both sides. */
+.book-level{position:relative;isolation:isolate;min-height:27px;align-items:center;overflow:hidden;border-radius:3px;padding:4px}
+.book-level::before{content:"";position:absolute;z-index:-1;top:2px;bottom:2px;width:var(--depth-width,0%);opacity:.88;transition:width .35s ease}
+.book-level.bid::before{right:0;left:auto;background:linear-gradient(90deg,#1a463e,#24624c)}
+.book-level.ask::before{left:0;right:auto;background:linear-gradient(90deg,#653447,#3a2637)}
+.book-level>span,.book-level>strong{position:relative;z-index:1}
