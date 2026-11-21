@@ -41,6 +41,20 @@ const state = {
   prices: {}, feeds: { spot: 'connecting', futures: 'connecting' },
   errors: {}, updatedAt: Date.now()
 };
+function archiveSpotSignals() {
+  let changed = false;
+  for (const signal of state.signals) {
+    if (signal.market !== 'spot' || !['WAITING', 'OPEN'].includes(signal.state)) continue;
+    const waiting = signal.state === 'WAITING';
+    signal.state = waiting ? 'EXPIRED' : 'UNCERTAIN';
+    signal.events ||= [];
+    signal.events.push({ type: waiting ? 'EXPIRED' : 'DATA_GAP', at: Date.now(), price: 0 });
+    experience.saveSignal(signal);
+    changed = true;
+  }
+  return changed;
+}
+archiveSpotSignals();
 const vapid = loadVapidKeys(join(dataDir, 'vapid.json'));
 const sockets = new Map();
 const reconnectTimers = new Map();
@@ -64,7 +78,7 @@ function persist() {
   }, 250);
 }
 function label(signal, event) {
-  const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.ruleVersion || 'SMC v3'}`;
+    const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.strategyKey || signal.ruleVersion || 'SMC'}`;
   const names = { CREATED: 'Новый сигнал', ENTRY: 'Цена вошла в зону входа', TP1: 'Достигнут TP1', TP2: 'Достигнут TP2', TP3: 'Достигнут TP3', STOP: 'Достигнут стоп', INVALIDATED: 'Сигнал отменён', EXPIRED: 'Сигнал истёк', DATA_GAP: 'Пробел в данных' };
   const url = `/asset.html?symbol=${encodeURIComponent(signal.symbol)}&market=${encodeURIComponent(signal.market)}&interval=${encodeURIComponent(signal.timeframe || '1h')}&signal=${encodeURIComponent(signal.id)}`;
   return { title: `${prefix}: ${names[event.type] || event.type}`, body: `Цена: ${formatPrice(event.price)} USDT`, id: signal.id, url };
@@ -383,6 +397,7 @@ const handleRequest = async (req, res) => {
           if (result.learned) learned++;
         }
         state.signals = experience.loadSignals();
+        archiveSpotSignals();
         state.updatedAt = Date.now();
         persist();
         const sync = { serverId: experience.id, accepted: rows.map(signal => signal.id), stored, learned,
@@ -395,15 +410,15 @@ const handleRequest = async (req, res) => {
     experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
       if (req.method === 'GET' && url.pathname.startsWith('/api/large-trades/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/large-trades/'.length)).toUpperCase();
-        const market = url.searchParams.get('market') || 'spot';
+        const market = url.searchParams.get('market') || 'futures';
         if (!state.symbols.includes(symbol) || !MARKETS.includes(market)) return json(res, 400, { error: 'Неверная пара или рынок' });
         return json(res, 200, { status: largeTradeFeeds[market], ...largeTrades.summary(market, symbol) });
       }
       if (req.method === 'GET' && url.pathname.startsWith('/api/asset/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/asset/'.length)).toUpperCase();
-        const market = url.searchParams.get('market') || 'spot';
+        const market = url.searchParams.get('market') || 'futures';
         const interval = url.searchParams.get('interval') || '15m';
-        if (!state.symbols.includes(symbol) || !MARKETS.includes(market) || !['1m', ...Object.keys(TIMEFRAMES)].includes(interval)) return json(res, 400, { error: 'Неверная пара, рынок или таймфрейм' });
+        if (!state.symbols.includes(symbol) || !['spot', 'futures'].includes(market) || !['1m', ...Object.keys(TIMEFRAMES)].includes(interval)) return json(res, 400, { error: 'Неверная пара, рынок или таймфрейм' });
         const rawStart = url.searchParams.get('startTime');
         const startTime = rawStart === null ? null : Number(rawStart);
         if (rawStart !== null && (!/^\d{12,13}$/.test(rawStart) ||

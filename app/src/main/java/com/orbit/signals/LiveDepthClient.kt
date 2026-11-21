@@ -207,7 +207,7 @@ object LiveDepthClient {
         synchronized(guard) {
             val combined=(listOfNotNull(backgroundPair?.second)+foregroundSymbols)
                 .distinct().take(10)
-            val markets=if(foregroundSymbols.isNotEmpty())listOf("spot","futures")
+            val markets=if(foregroundSymbols.isNotEmpty())listOf("futures")
                 else listOfNotNull(backgroundPair?.first)
             if(combined==favorites&&markets==connectedMarkets&&running)return
             generation++;next=generation

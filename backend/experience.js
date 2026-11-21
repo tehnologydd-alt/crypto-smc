@@ -49,19 +49,19 @@ export function openExperienceStore(path, legacy = {}) {
   const signalRows = db.prepare("SELECT payload FROM signals ORDER BY CASE WHEN state IN ('WAITING','OPEN','UNCERTAIN') THEN 0 ELSE 1 END, created_at DESC LIMIT 500");
   const counts = db.prepare('SELECT (SELECT COUNT(*) FROM signals) AS signals, (SELECT COUNT(*) FROM outcomes) AS outcomes');
   const allSignals = db.prepare('SELECT payload FROM signals');
-  const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes WHERE strategy_version=3 ORDER BY resolved_at');
+  const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes WHERE strategy_version IN (3,4) ORDER BY resolved_at');
   let statisticsCache = null;
   const versionOf = signal => signal.strategyVersion || (signal.imbalance ? 2 : 1);
   const rowOf = signal => [signal.id, versionOf(signal), signal.detectedAt, signal.updatedAt || signal.events?.at(-1)?.at || signal.detectedAt,
     signal.market, signal.symbol, signal.timeframe || '1h', signal.state, JSON.stringify(signal)];
-  const outcomeOf = signal => [signal.id, 3, signal.updatedAt || signal.events?.at(-1)?.at || Date.now(), signal.outcome,
+  const outcomeOf = signal => [signal.id, versionOf(signal), signal.updatedAt || signal.events?.at(-1)?.at || Date.now(), signal.outcome,
     signal.market, signal.symbol, signal.timeframe, signal.side, JSON.stringify(signal.features),
     signal.quality.probability, signal.quality.baseline, signal.quality.trainedSamples];
 
   for (const signal of legacy.signals || []) {
     if (typeof signal.id !== 'string' || !signal.events) continue;
     insertSignal.run(...rowOf(signal));
-    if (versionOf(signal) === 3 && signal.learned && [0, 1].includes(signal.outcome) && signal.quality) insertOutcome.run(...outcomeOf(signal));
+    if ([3,4].includes(versionOf(signal)) && signal.learned && [0, 1].includes(signal.outcome) && signal.quality) insertOutcome.run(...outcomeOf(signal));
   }
   let model;
   try { model = JSON.parse(modelRow.get()?.payload || 'null'); } catch { model = null; }
@@ -109,7 +109,7 @@ export function openExperienceStore(path, legacy = {}) {
       return { stored: !existing, learned: Boolean(learned) };
     },
     recordOutcome(signal) {
-      if (versionOf(signal) !== 3 || signal.learned) return false;
+      if (![3,4].includes(versionOf(signal)) || signal.learned) return false;
       const existing = selectOutcome.get(signal.id);
       if (existing) { signal.learned = true; signal.outcome = existing.label; return false; }
       const ruleKey = signal.ruleVersion || null;
