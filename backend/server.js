@@ -6,6 +6,7 @@ import { join, resolve, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectResearchSignals, advanceSignalWithCandle } from './strategy.js';
 import { scoreSignal, modelSummary } from './learning.js';
+import { parseBookSnapshot } from './order-book.js';
 import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
 import { normalizePreferences, shouldNotify } from './notifications.js';
@@ -135,6 +136,29 @@ async function fetchTicker(market, symbol) {
   const raw = await response.json();
   return { changePercent: Number(raw.priceChangePercent), high: Number(raw.highPrice), low: Number(raw.lowPrice), volume: Number(raw.volume), quoteVolume: Number(raw.quoteVolume) };
 }
+// Fetch only on confirmed base signals; a time-bound snapshot is evidence,
+// never an interpolation of historical book state.
+const recentBooks=new Map();
+async function fetchDepthSnapshot(market,symbol,closedAt) {
+  const cacheKey=market+':'+symbol;
+  const cached=recentBooks.get(cacheKey);
+  if(cached && cached.capturedAt>=closedAt && Date.now()-cached.capturedAt<=10000)
+    return cached;
+  const base=market==='spot'?'https://data-api.binance.vision/api/v3/depth':
+    'https://fapi.binance.com/fapi/v1/depth';
+  const url=new URL(base);
+  url.searchParams.set('symbol',symbol);
+  url.searchParams.set('limit','100');
+  rateBudget.reserve(market,5); // conservative weight for 100 displayed levels
+  const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
+  rateBudget.observe(market,response);
+  if(!response.ok) throw new Error('Binance depth '+response.status);
+  const raw=await response.json();
+  const snapshot=parseBookSnapshot(raw,{market,symbol,capturedAt:Date.now()});
+  if(!snapshot)throw new Error('Invalid or insufficient Binance L2 depth');
+  recentBooks.set(cacheKey,snapshot);
+  return snapshot;
+}
 async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
   const errorKey = `${key(market, symbol)}:${timeframe}`;
   try {
@@ -154,7 +178,21 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
     } catch (error) {
       state.errors[errorKey+':htf'] = 'Старший таймфрейм недоступен: '+error.message;
     }
-    const candidates = detectResearchSignals(candles, market, symbol, timeframe, parentBars);
+    const base = detectResearchSignals(candles,market,symbol,timeframe,parentBars,null,Date.now());
+    // No book requests when the structural strategy has no new candidate.
+    if (!base.length) { delete state.errors[errorKey+':depth']; delete state.errors[errorKey]; return; }
+    let bookSnapshot = null;
+    // Historical backfill has no matching book snapshot; never substitute the current book.
+    if(Date.now()-expectedEnd<=120000) {
+      try {
+        bookSnapshot=await fetchDepthSnapshot(market,symbol,expectedEnd);
+        delete state.errors[errorKey+':depth'];
+      } catch(error) {
+        state.errors[errorKey+':depth']='Стакан: '+error.message;
+      }
+    } else state.errors[errorKey+':depth']='Нельзя подтвердить исторический стакан';
+    const candidates=detectResearchSignals(candles,market,symbol,timeframe,parentBars,
+      bookSnapshot,Date.now());
     for (const signal of candidates) {
       const activeVersion = state.signals.some(s => s.market === market &&
         s.symbol === symbol && (s.timeframe || '1h') === timeframe &&
