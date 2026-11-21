@@ -23,32 +23,32 @@ export function replayWalkForward(raw) {
   const {market,symbol,timeframe,bars,parentBars,m1}=validate(raw);
   const signalList=[]; const partitions=['development','validation','holdout'];
   const groups=Object.fromEntries(partitions.map(x=>[x,{created:0,entered:0,settled:0,tp1:0,stopped:0,expired:0,open:0}]));
-  // The generator sees only candles already closed at each historical instant.
-  for(let i=35;i<bars.length;i++){
-    const candle=bars[i],sample=bars.slice(0,i+1);
-    const parent=parentBars.filter(c=>c.end<=candle.end);
-    const signal=detectSignal(sample,market,symbol,timeframe,parent);
-    if(!signal)continue;
-    // Keep the same no-overlap-per-asset/TF rule as production, per partition.
-    if(signalList.some(r=>r.signal.state==='WAITING'||r.signal.state==='OPEN'?r.signal.detectedAt<=signal.detectedAt &&
-      r.lastProcessed < signal.detectedAt:false))continue;
-    const group=partition(i,bars.length);groups[group].created++;
-    const outcome={signal,group,lastProcessed:signal.detectedAt};
-    // M1 replay never consumes a bar at or before published signal timestamp.
-    for(const c of m1) {
-      if(c.end<=signal.detectedAt)continue;
-      if(c.end>bars.at(-1).end)break;
-      if(['STOPPED','COMPLETED','EXPIRED','CANCELLED','UNCERTAIN'].includes(signal.state))break;
-      advanceSignalWithCandle(signal,c);
-      outcome.lastProcessed=c.end;
+  let minuteIndex=0;
+  // Progress strictly chronologically: update only signals published before this M1.
+  function advanceThrough(timestamp){
+    while(minuteIndex<m1.length && m1[minuteIndex].end<=timestamp){
+      const candle=m1[minuteIndex++];
+      for(const {signal} of signalList)if(candle.end>signal.detectedAt &&
+        ['WAITING','OPEN'].includes(signal.state))advanceSignalWithCandle(signal,candle);
     }
+  }
+  for(let i=35;i<bars.length;i++){
+    const candle=bars[i];
+    advanceThrough(candle.end);
+    if(signalList.some(({signal})=>['WAITING','OPEN','UNCERTAIN'].includes(signal.state)))continue;
+    const signal=detectSignal(bars.slice(0,i+1),market,symbol,timeframe,
+      parentBars.filter(c=>c.end<=candle.end));
+    if(signal)signalList.push({signal,group:partition(i,bars.length)});
+  }
+  advanceThrough(m1.at(-1).end);
+  for(const {signal,group} of signalList){
+    groups[group].created++;
     if(signal.events.some(e=>e.type==='ENTRY'))groups[group].entered++;
     if(signal.events.some(e=>e.type==='TP1'))groups[group].tp1++;
     if(signal.events.some(e=>e.type==='STOP'))groups[group].stopped++;
     if(signal.state==='EXPIRED')groups[group].expired++;
-    if(signal.state==='OPEN'||signal.state==='WAITING')groups[group].open++;
-    if(signal.state==='STOPPED'||signal.state==='COMPLETED')groups[group].settled++;
-    signalList.push(outcome);
+    if(['OPEN','WAITING','UNCERTAIN'].includes(signal.state))groups[group].open++;
+    if(['STOPPED','COMPLETED'].includes(signal.state))groups[group].settled++;
   }
   return {strategyVersion:3,config:{market,symbol,timeframe,development:60,validation:20,holdout:20,
     optimization:'disabled',source:'user-provided real historical closed candles'},
