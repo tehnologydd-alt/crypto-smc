@@ -16,7 +16,48 @@ data class SignalPath(
     val finished: Boolean
 )
 
+data class SignalLevelSegment(
+    val name: String,
+    val price: Double,
+    val startAt: Long,
+    val endAt: Long,
+    val touched: Boolean
+)
+
 object SignalJourney {
+    /** Level lines are bounded by signal creation and the last recorded touch.
+     * An untouched level remains a dashed reference until the last observed candle,
+     * or the terminal event if the scenario is already over.
+     */
+    fun levelSegments(signal: Signal, latestCandleEnd: Long): List<SignalLevelSegment> {
+        val ordered = signal.events.sortedBy { it.at }
+        val terminalType = when (signal.state) {
+            "STOPPED" -> "STOP"
+            "COMPLETED" -> "TP3"
+            "CANCELLED" -> "INVALIDATED"
+            "EXPIRED" -> "EXPIRED"
+            else -> null
+        }
+        val stopAt = when {
+            signal.state == "UNCERTAIN" ->
+                ordered.lastOrNull { it.type == "DATA_GAP" }?.at ?: ordered.lastOrNull()?.at
+            terminalType != null ->
+                ordered.lastOrNull { it.type == terminalType }?.at ?: ordered.lastOrNull()?.at
+            else -> null
+        }
+        val latest = if (stopAt != null) stopAt else latestCandleEnd
+        val end = maxOf(signal.detectedAt, latest)
+        val levels = listOf("ENTRY" to signal.entry, "SL" to signal.stop) +
+            signal.targets.take(3).mapIndexed { index, price -> "TP${index + 1}" to price }
+        return levels.map { (name, price) ->
+            val touchType = if (name == "SL") "STOP" else name
+            val touch = ordered.lastOrNull { it.type == touchType }
+            SignalLevelSegment(name, price, signal.detectedAt,
+                (touch?.at ?: end).coerceIn(signal.detectedAt, end),
+                touch != null)
+        }
+    }
+
     private val terminalStates = setOf("COMPLETED", "STOPPED", "CANCELLED", "EXPIRED")
     fun isFinished(state: String) = state in terminalStates
     fun bucket(state: String) = when (state) {
