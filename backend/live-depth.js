@@ -1,6 +1,12 @@
 // Strict sequence-synchronized Binance L2 depth for spot and USDT-M futures.
 // REST is ONLY bootstrap / recovery; all subsequent changes are WebSocket diffs.
 // Stream and REST book are indexed by update ID; never splice historical/candle data.
+export function depthStreamUrl(market,streams) {
+  if(market==='spot') return 'wss://stream.binance.com:9443/stream?streams='+streams;
+  // Binance high-frequency diff depth goes to /public, not /market.
+  if(market==='futures') return 'wss://fstream.binance.com/public/stream?streams='+streams;
+  throw new Error('Unknown market');
+}
 const MAX_EVENTS=2000, INTERVAL_MS=2000, HISTORY_MS=120000, MAX_LEVELS=100;
 const finitePositive=n=>Number.isFinite(Number(n))&&Number(n)>0;
 const validLevels=rows=>Array.isArray(rows)&&rows.every(x=>Array.isArray(x)&&x.length>=2&&
