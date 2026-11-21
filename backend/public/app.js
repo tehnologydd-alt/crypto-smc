@@ -76,11 +76,13 @@ function card(signal) {
   const positive = signal.state === 'COMPLETED' || signal.hitTargets > 0;
   const step = signal.state === 'WAITING' ? 'РЕТЕСТ ЗОНЫ' : signal.state === 'OPEN' ? `${signal.hitTargets}/3 ЦЕЛИ` : statusName[signal.state]?.toUpperCase();
   const version = signal.ruleVersion ? `Правила ${safe(signal.ruleVersion)} · ` : 'Прежние правила · ';
+  const book = signal.ruleSnapshot?.book || signal.bookEvidence;
+  const bookNote = book ? `<div class="quality">Стакан bid ${num(book.bidUsdt)} / ask ${num(book.askUsdt)} USDT · bid ${Math.round(book.imbalance*100)}% · ${time(book.capturedAt)}</div>` : '';
   const quality = signal.quality?.trusted ? `<div class="quality ${signal.quality.recommended ? 'good' : 'weak'}">Оценка модели: ${Math.round(signal.quality.probability * 100)}% · ${signal.quality.recommended ? 'приоритетный' : 'низкий приоритет'}</div>` : `<div class="quality">Модель собирает результаты</div>`;
   return `<button class="signal-card ${safe(signal.state.toLowerCase())} ${outcome(signal)}" data-id="${safe(signal.id)}">
     <div class="card-top"><div class="pair-icon">${safe(signal.symbol.slice(0, 1))}</div><div class="pair"><strong>${safe(signal.symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${signal.market === 'spot' ? 'Спот' : 'USDT-M фьючерсы'} · ${safe(tfName[signal.timeframe] || 'H1')} · ${time(signal.detectedAt)}</span><span>${version}${safe(statusName[signal.state] || signal.state)}</span></div><span class="side ${signal.side.toLowerCase()}">${signal.side === 'LONG' ? '↗ LONG' : '↘ SHORT'}</span></div>
     <div class="card-values"><div><span>Вход</span><strong>${num(signal.entry)}</strong></div><div><span>M1 close</span><strong>${current ? num(current.price) : '—'}</strong></div><div><span>Стоп</span><strong>${num(signal.stop)}</strong></div></div>
-    <div class="card-bottom"><span class="status ${positive ? 'positive' : ''}"><i></i>${safe(statusName[signal.state] || signal.state)}</span><span>${safe(step)} →</span></div>${quality}
+    <div class="card-bottom"><span class="status ${positive ? 'positive' : ''}"><i></i>${safe(statusName[signal.state] || signal.state)}</span><span>${safe(step)} →</span></div>${quality}${bookNote}
   </button>`;
 }
 function renderStatistics(stats) {
@@ -128,7 +130,7 @@ function renderStatistics(stats) {
         <small>${r.resolved < 30 ? `Предварительная выборка: ${r.resolved}/30` : 'Выборка достигла порога предварительной оценки'}</small>
       </article>`;
     }).join('')}</div>
-    <p class="muted">Фильтр ликвидности v0.2/v0.3 — относительный объём закрытых свечей (≥1,20× среднего 20 предыдущих), не глубина стакана. Метрики наблюдательные, без торговых комиссий.</p>
+    <p class="muted">D1 проверяет реальный стакан Binance Spot / USDT-M Futures: объёмы 100 верхних уровней bid и ask, в USDT (цена × количество). Для подтверждения направленная сторона должна содержать ≥55% видимого объёма. Снимок фиксируется после закрытия свечи, до создания сигнала. Версии фильтра объёма свечей хранятся как архив. Метрики наблюдательные, без комиссий.</p>
   ` : '<p class="muted">Сравнение появится после начала накопления сигналов новых версий.</p>';
   const pct = value => value == null ? '—' : `${Math.round(value * 100)}%`;
   $('#statSignals').textContent = totals.signals;
