@@ -217,7 +217,7 @@ object LiveDepthClient {
             favorites.joinToString("/") { it.lowercase()+"@depth" }
         }
         val base=if(market=="spot")"wss://stream.binance.com:9443/stream?streams="
-            else "wss://fstream.binance.com/market/stream?streams="
+            else "wss://fstream.binance.com/public/stream?streams="
         val url=base+streams
         val listener=object:WebSocketListener() {
             override fun onMessage(webSocket:WebSocket,text:String) {
