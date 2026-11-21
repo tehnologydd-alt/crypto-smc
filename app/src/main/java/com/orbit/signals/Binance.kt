@@ -25,6 +25,12 @@ object Binance {
                 row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble()) }.getOrNull()
         }.filter { it.end < now && listOf(it.open, it.high, it.low, it.close, it.volume).all(Double::isFinite) }
     }
+    fun orderBook(market:String,symbol:String):OrderBookSnapshot {
+        require(market in listOf("spot","futures") && symbol.matches(Regex("[A-Z0-9]{2,16}USDT")))
+        val raw=JSONObject(get("${base(market)}/depth?symbol=$symbol&limit=${BookDepth.LEVELS}"))
+        return BookDepth.parse(raw,market,symbol,System.currentTimeMillis())
+            ?: throw IllegalStateException("Стакан Binance неполный или некорректный")
+    }
     fun ticker(market: String, symbol: String): JSONObject = JSONObject(get("${base(market)}/ticker/24hr?symbol=$symbol"))
     fun largeTrades(market: String, symbol: String): List<LargeTrade> {
         val path = if (market == "spot") "aggTrades" else "aggTrades"
