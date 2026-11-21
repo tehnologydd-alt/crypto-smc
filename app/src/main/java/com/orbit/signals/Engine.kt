@@ -37,7 +37,8 @@ data class Signal(
     var state: String = "WAITING", var hitTargets: Int = 0, var learned: Boolean = false,
     var outcome: Int? = null, var quality: Quality? = null,
     val events: MutableList<SignalEvent> = mutableListOf(),
-    val strategyVersion: Int = 2, val breakType: String = "BOS"
+    val strategyVersion: Int = 2, val breakType: String = "BOS",
+    val ruleVersion: String = "", val volumeRatio: Double? = null
 ) {
     fun json(): JSONObject = JSONObject().apply {
         put("id", id); put("market", market); put("symbol", symbol); put("timeframe", timeframe); put("side", side)
@@ -46,6 +47,8 @@ data class Signal(
         put("imbalance", imbalance.json()); put("features", JSONArray(features)); put("expiresAt", expiresAt)
         put("state", state); put("hitTargets", hitTargets); put("learned", learned)
         put("strategyVersion", strategyVersion); put("breakType", breakType)
+        if (ruleVersion.isNotBlank()) put("ruleVersion", ruleVersion)
+        if (volumeRatio != null && volumeRatio.isFinite()) put("volumeRatio", volumeRatio)
         if (outcome != null) put("outcome", outcome)
         quality?.let { put("quality", it.json()) }
         put("events", JSONArray().apply { events.forEach { put(it.json()) } })
@@ -62,7 +65,9 @@ data class Signal(
             if (j.has("outcome")) j.getInt("outcome") else null,
             j.optJSONObject("quality")?.let(::qualityFromJson),
             j.getJSONArray("events").objects().map { SignalEvent(it.getString("type"), it.getLong("at"), it.getDouble("price")) }.toMutableList(),
-            j.optInt("strategyVersion", 2), j.optString("breakType", "BOS")
+            j.optInt("strategyVersion", 2), j.optString("breakType", "BOS"),
+            j.optString("ruleVersion", ""),
+            if (j.has("volumeRatio") && !j.isNull("volumeRatio")) j.optDouble("volumeRatio").takeIf { it.isFinite() } else null
         )
     }
 }
@@ -97,6 +102,8 @@ object Strategy {
     fun structure(bars:List<Candle>)=SmcV3.structure(bars)
     fun detect(bars:List<Candle>,market:String,symbol:String,timeframe:String,
         parentBars:List<Candle>?=null)=SmcV3.detect(bars,market,symbol,timeframe,parentBars)
+    fun detectVariants(bars:List<Candle>,market:String,symbol:String,timeframe:String,
+        parentBars:List<Candle>?=null)=SmcV3.detectVariants(bars,market,symbol,timeframe,parentBars)
     fun advance(signal: Signal, candle: Candle): List<SignalEvent> {
         val before = signal.events.size
         fun event(type: String, price: Double) { signal.events += SignalEvent(type, candle.end, price) }
