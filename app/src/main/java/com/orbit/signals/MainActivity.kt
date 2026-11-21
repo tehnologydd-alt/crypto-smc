@@ -641,7 +641,7 @@ class MainActivity : Activity() {
             onViewportChanged = { count, shift -> chartVisibleCount = count; chartOffset = shift }
             contentDescription = "График свечей. Разведите пальцы для увеличения, проведите в сторону для просмотра истории."
         }) }
-        body.addView(text("Цветные точки: старт, вход, TP1–TP3 и выход. Линия показывает движение по закрытиям свечей между входом и финалом. Масштабируйте жестами; кнопками открывайте нужный момент.", 11, muted))
+        body.addView(text("Точки: старт, вход, TP1–TP3 и выход. Уровни начинаются от старта сигнала: сплошные — до последнего касания, пунктирные — ещё не достигнутые. Линия отражает движение по закрытиям свечей.", 11, muted))
         assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
         body.addView(text("Выберите сигнал", 20, primaryText, true))
         val statusTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
