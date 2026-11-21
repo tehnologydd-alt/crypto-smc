@@ -566,6 +566,16 @@ class MainActivity : Activity() {
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
             action(this, "Проверить сейчас") { updateMarket() }
         }
+        card(body) {
+            addView(text("О программе", 16, primaryText, true))
+            addView(text("Orbit Signals", 14, accent, true))
+            addView(text("Исследование криптовалютного рынка: поиск сигналов по структуре BOS/CHoCH, зонам OB/FVG и подтверждению старших таймфреймов. Отслеживание сценариев, статистика и адаптивная оценка результатов без автоматической торговли.", 11, muted))
+            val installedVersion = runCatching {
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }.getOrNull().orEmpty().ifBlank { "не определена" }
+            addView(text("Версия приложения: $installedVersion", 12, primaryText))
+            addView(text("Алгоритм: SMC v3", 11, muted))
+        }
     }
     private fun renderAsset() {
         val symbol = assetSymbol ?: return
