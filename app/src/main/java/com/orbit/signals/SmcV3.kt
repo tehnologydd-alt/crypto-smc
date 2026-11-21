@@ -131,7 +131,7 @@ object SmcV3 {
         return Structure(s.swings.takeLast(14),s.breaks.takeLast(8).map{it.copy(block=blocks[it.id])},
             z.gaps.takeLast(12),s.regime)
     }
-    fun detect(b:List<Candle>,market:String,symbol:String,tf:String,parent:List<Candle>?):Signal?{
+    fun detect(b:List<Candle>,market:String,symbol:String,tf:String,parent:List<Candle>?,requireHtf:Boolean=true):Signal?{
         if(b.size<35||market !in listOf("spot","futures")||tf !in PARENTS||
             b.any{!valid(it)}||b.zipWithNext().any{it.first.time>=it.second.time})return null
         val s=MarketStructureEngine.analyze(b);val e=s.breaks.lastOrNull()?:return null
@@ -147,7 +147,25 @@ object SmcV3 {
         val ob=z.blocks.firstOrNull{it.originEventId==e.id&&it.status=="active"}?:return null
         val fvg=z.gaps.lastOrNull{it.originIndex>=e.index-3&&it.originIndex<=e.index&&
             it.direction==e.direction&&it.status=="active"}?:return null
-        if(!ContextRegimeFilter.evaluate(e,b,parent,tf).allowed)return null
+        if(requireHtf && !ContextRegimeFilter.evaluate(e,b,parent,tf).allowed)return null
         return ExecutionRiskManager.create(b,market,symbol,tf,e,ob,fvg)
     }
+    /** Each strategy sees the same confirmed BOS/CHoCH and OB/FVG candidate.
+     * The second gate uses a prior-20-candle relative volume proxy; the third
+     * additionally checks the most recent CLOSED higher-timeframe regime.
+     */
+    fun detectVariants(b:List<Candle>,market:String,symbol:String,tf:String,parent:List<Candle>?):List<Signal> {
+        val candidate=detect(b,market,symbol,tf,parent,requireHtf=false) ?: return emptyList()
+        val breaking=MarketStructureEngine.analyze(b).breaks.lastOrNull() ?: return emptyList()
+        val liquidityRatio=ResearchRules.volumeRatio(b,breaking.index)
+        val liquid=liquidityRatio != null && liquidityRatio >= 1.2
+        val htf=if(liquid) ContextRegimeFilter.evaluate(breaking,b,parent,tf).allowed else false
+        return ResearchRules.all.filter { rule ->
+            (!rule.useVolume || liquid) && (!rule.useHtf || htf)
+        }.map { rule ->
+            candidate.copy(id=candidate.id+":"+rule.key,ruleVersion=rule.key,
+                volumeRatio=liquidityRatio)
+        }
+    }
+
 }
