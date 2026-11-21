@@ -75,9 +75,10 @@ function card(signal) {
   const current = priceFor(signal);
   const positive = signal.state === 'COMPLETED' || signal.hitTargets > 0;
   const step = signal.state === 'WAITING' ? 'РЕТЕСТ ЗОНЫ' : signal.state === 'OPEN' ? `${signal.hitTargets}/3 ЦЕЛИ` : statusName[signal.state]?.toUpperCase();
+  const version = signal.ruleVersion ? `Правила ${safe(signal.ruleVersion)} · ` : 'Прежние правила · ';
   const quality = signal.quality?.trusted ? `<div class="quality ${signal.quality.recommended ? 'good' : 'weak'}">Оценка модели: ${Math.round(signal.quality.probability * 100)}% · ${signal.quality.recommended ? 'приоритетный' : 'низкий приоритет'}</div>` : `<div class="quality">Модель собирает результаты</div>`;
   return `<button class="signal-card ${safe(signal.state.toLowerCase())} ${outcome(signal)}" data-id="${safe(signal.id)}">
-    <div class="card-top"><div class="pair-icon">${safe(signal.symbol.slice(0, 1))}</div><div class="pair"><strong>${safe(signal.symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${signal.market === 'spot' ? 'Спот' : 'USDT-M фьючерсы'} · ${safe(tfName[signal.timeframe] || 'H1')} · ${time(signal.detectedAt)}</span></div><span class="side ${signal.side.toLowerCase()}">${signal.side === 'LONG' ? '↗ LONG' : '↘ SHORT'}</span></div>
+    <div class="card-top"><div class="pair-icon">${safe(signal.symbol.slice(0, 1))}</div><div class="pair"><strong>${safe(signal.symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${signal.market === 'spot' ? 'Спот' : 'USDT-M фьючерсы'} · ${safe(tfName[signal.timeframe] || 'H1')} · ${time(signal.detectedAt)}</span><span>${version}${safe(statusName[signal.state] || signal.state)}</span></div><span class="side ${signal.side.toLowerCase()}">${signal.side === 'LONG' ? '↗ LONG' : '↘ SHORT'}</span></div>
     <div class="card-values"><div><span>Вход</span><strong>${num(signal.entry)}</strong></div><div><span>M1 close</span><strong>${current ? num(current.price) : '—'}</strong></div><div><span>Стоп</span><strong>${num(signal.stop)}</strong></div></div>
     <div class="card-bottom"><span class="status ${positive ? 'positive' : ''}"><i></i>${safe(statusName[signal.state] || signal.state)}</span><span>${safe(step)} →</span></div>${quality}
   </button>`;
@@ -85,6 +86,50 @@ function card(signal) {
 function renderStatistics(stats) {
   if (!stats) return;
   const { totals, newStrategy } = stats;
+  const variants = stats.ruleComparisons?.versions || [];
+  const allComparable = variants.length === 3 && variants.every(row => row.resolved >= 30);
+  const maxObserved = allComparable ? variants.reduce((best,row)=>
+    row.successRate > best.successRate ? row : best,variants[0]) : null;
+  const percent = value => value == null ? '—' : (100 * value).toFixed(1) + '%';
+  const fraction = (n,d) => d > 0 ? Math.round(n / d * 100) : 0;
+  $('#ruleComparison').innerHTML = variants.length ? `
+    <div class="rule-comparison-chart">
+      ${variants.map(r=>`<div class="rule-compare-row">
+        <strong>${safe(r.key)}</strong>
+        <div class="rule-track"><i style="width:${fraction(r.successful,r.resolved)}%"></i></div>
+        <b>${percent(r.successRate)}</b><small>${r.successful}/${r.resolved}</small>
+      </div>`).join('')}
+    </div>
+    <p class="muted">${allComparable
+      ? `Наибольшая наблюдаемая доля TP1: ${safe(maxObserved.key)}. Фильтры выбирают разные сигналы: это ещё не доказательство преимущества.`
+      : 'До предварительного сравнения нужно не менее 30 разрешённых входов каждой версии. Лидера пока не определяем.'}</p>
+    <div class="rule-grid">${variants.map(r=>{
+      const model = data?.ruleModels?.[r.key] || {};
+      const brier = r.modelBrier == null ? '—' : Number(r.modelBrier).toFixed(3);
+      const base = r.baselineBrier == null ? '—' : Number(r.baselineBrier).toFixed(3);
+      const val = model.validationSamples || 0, samples = model.samples || 0;
+      return `<article class="rule-stat">
+        <div class="rule-name"><b>${safe(r.key)}</b><strong>${safe(r.title)}</strong></div>
+        <div class="rule-facts">
+          <div><span>Сигналов</span><strong>${r.signals}</strong></div>
+          <div><span>Входов</span><strong>${r.entered}</strong></div>
+          <div><span>Исходов</span><strong>${r.resolved}</strong></div>
+          <div><span>TP1</span><strong>${r.tp1}</strong></div>
+          <div><span>TP2</span><strong>${r.tp2}</strong></div>
+          <div><span>TP3</span><strong>${r.tp3}</strong></div>
+          <div><span>Стопов</span><strong>${r.stopped}</strong></div>
+          <div><span>Успех TP1</span><strong>${percent(r.successRate)}</strong></div>
+        </div>
+        <div class="rule-model">
+          <div><span>Обучение</span><b>${samples} исходов</b></div>
+          <div><span>Проверка</span><b>${val} исходов</b></div>
+          <div><span>Brier модели / база</span><b>${brier} / ${base}</b></div>
+        </div>
+        <small>${r.resolved < 30 ? `Предварительная выборка: ${r.resolved}/30` : 'Выборка достигла порога предварительной оценки'}</small>
+      </article>`;
+    }).join('')}</div>
+    <p class="muted">Фильтр ликвидности v0.2/v0.3 — относительный объём закрытых свечей (≥1,20× среднего 20 предыдущих), не глубина стакана. Метрики наблюдательные, без торговых комиссий.</p>
+  ` : '<p class="muted">Сравнение появится после начала накопления сигналов новых версий.</p>';
   const pct = value => value == null ? '—' : `${Math.round(value * 100)}%`;
   $('#statSignals').textContent = totals.signals;
   $('#statEntries').textContent = totals.entered;
@@ -154,7 +199,7 @@ function showDetail(id, open = true) {
     <div><span>Изменение цены</span><strong>${trace.percent == null ? '—' : (trace.percent>=0 ? '+' : '') + trace.percent.toFixed(2) + '%'}</strong></div>
   </div>`;
   const events = s.events.map(e => `<div class="timeline-row"><div class="timeline-dot"></div><div><strong>${safe(eventName[e.type] || e.type)}</strong><span>${time(e.at)} · ${num(e.price)} USDT</span></div></div>`).reverse().join('');
-  $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
+  $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')} · ${s.ruleVersion ? 'Правила ' + safe(s.ruleVersion) : 'SMC v3 (архив)'}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
     <div class="detail-grid"><div><span>Зона входа</span><strong>${num(s.entryLow)} – ${num(s.entryHigh)}</strong></div><div><span>Расчётный вход</span><strong>${num(s.entry)}</strong></div><div><span>Стоп</span><strong>${num(s.stop)}</strong></div><div><span>Риск на единицу</span><strong>${num(Math.abs(s.entry - s.stop))}</strong></div></div>
     <div class="targets">${s.targets.map((tp, i) => `<div class="target ${i < s.hitTargets ? 'reached' : ''}"><span>TP${i + 1} <small>${i + 1}R</small></span><strong>${num(tp)}</strong><b>${i < s.hitTargets ? '✓' : '○'}</b></div>`).join('')}</div>
     <p class="detail-quality">${s.quality?.trusted ? `Оценка модели при создании: ${Math.round(s.quality.probability * 100)}%. ${s.quality.recommended ? 'Приоритетный сигнал.' : 'Низкий приоритет; уведомления приглушены.'}` : 'Оценка модели пока обучается. Сигнал создан базовыми правилами.'}</p>
