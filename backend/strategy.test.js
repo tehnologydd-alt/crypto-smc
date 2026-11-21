@@ -42,7 +42,7 @@ test('break requires close, emits typed BOS once and does not repaint',()=>{
 test('FVG has minimum size, direction and explicit fill states',()=>{
   const bars=bullish();
   const zones=ZonesDetector.scan(bars);
-  const gap=zones.gaps.find(z=>z.time===bars.at(-1).time && z.direction==='up');
+  const gap=zones.fvg.find(z=>z.time===bars.at(-1).time && z.direction==='up');
   assert.ok(gap);assert.equal(gap.status,'active');
   assert.deepEqual([gap.low,gap.high],[101,102.5]);
   const touch={...bars.at(-1),time:bars.at(-1).end+1,end:bars.at(-1).end+HOUR,open:105,high:106,low:102,close:105};
@@ -53,8 +53,8 @@ test('FVG has minimum size, direction and explicit fill states',()=>{
 });
 test('OB is linked to displacement event and kept distinct from FVG',()=>{
   const b=bullish(),s=MarketStructureEngine.analyze(b),zones=ZonesDetector.scan(b,s);
-  assert.equal(zones.blocks.at(-1).originEventId,s.breaks.at(-1).id);
-  assert.equal(zones.blocks.at(-1).time,b[38].time);
+  assert.equal(zones.ob.at(-1).originEventId,s.breaks.at(-1).id);
+  assert.equal(zones.ob.at(-1).time,b[38].time);
   assert.ok(previousAtr(b,39)>0);
 });
 test('HTF must be present, closed and in matching trend',()=>{
