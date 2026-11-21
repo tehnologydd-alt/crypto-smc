@@ -17,7 +17,7 @@ export class LiveDepthBook {
   reset(status='syncing') {
     this.epoch++;this.status=status;this.lastUpdateId=0;this.lastAt=0;
     this.bids=new Map();this.asks=new Map();this.queue=[];this.initializing=false;
-    this.samples=[];this.published=null;this.observedSince=0;this.updateCount=0;
+    this.samples=[];this.published=null;this.observedSince=0;this.updateCount=0;this.snapshotReady=false;
     this.lastSampleAt=0;
   }
   close() {this.reset('offline');}
@@ -35,7 +35,8 @@ export class LiveDepthBook {
     }
     this.queue.push(event);
     if(this.queue.length>MAX_EVENTS){this.reset('syncing');return;}
-    if(!this.initializing && this.status!=='offline')this.beginBootstrap();
+    if(this.snapshotReady)this.drain();
+    else if(!this.initializing && this.status!=='offline')this.beginBootstrap();
   }
   async beginBootstrap() {
     if(this.initializing||this.status==='offline')return;
@@ -51,7 +52,7 @@ export class LiveDepthBook {
       this.asks=new Map(raw.asks.map(([p,q])=>[Number(p),Number(q)]).filter(x=>x[1]>0));
       this.lastUpdateId=id;
       this.observedSince=0;
-      this.status='syncing';this.initializing=false;
+      this.status='syncing';this.initializing=false;this.snapshotReady=true;
       this.drain();
     }catch(error){
       if(epoch!==this.epoch)return;
