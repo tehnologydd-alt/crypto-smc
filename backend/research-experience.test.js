@@ -28,14 +28,14 @@ test('models and recorded statistics survive restart and never cross-learn',()=>
     assert.equal(store.recordOutcome(a),true);
     assert.equal(store.recordOutcome(a),false);
     assert.equal(store.ruleModels['v0.1'].samples,1);
-    assert.equal(store.ruleModels['v0.2-D1'].samples,0);
-    assert.equal(store.ruleModels['v0.3-D1'].samples,0);
+    assert.equal(store.ruleModels['v0.2-D2'].samples,0);
+    assert.equal(store.ruleModels['v0.3-D2'].samples,0);
     assert.equal(store.model.samples,0);
-    const b=make('v0.2-D1',2000000,'STOPPED',1);
-    b.quality=scoreSignal(store.ruleModels['v0.2-D1'],b.features);
+    const b=make('v0.2-D2',2000000,'STOPPED',1);
+    b.quality=scoreSignal(store.ruleModels['v0.2-D2'],b.features);
     assert.equal(store.recordOutcome(b),true);
-    const c=make('v0.3-D1',3000000,'COMPLETED',3);
-    c.quality=scoreSignal(store.ruleModels['v0.3-D1'],c.features);
+    const c=make('v0.3-D2',3000000,'COMPLETED',3);
+    c.quality=scoreSignal(store.ruleModels['v0.3-D2'],c.features);
     assert.equal(store.recordOutcome(c),true);
     let versions=store.statistics().ruleComparisons.versions;
     assert.deepEqual(versions.map(v=>v.resolved),[1,1,1]);
@@ -43,18 +43,20 @@ test('models and recorded statistics survive restart and never cross-learn',()=>
     assert.deepEqual(versions.map(v=>v.tp3),[0,0,1]);
     store.close();
     store=openExperienceStore(path);
-    assert.deepEqual(['v0.1','v0.2-D1','v0.3-D1'].map(key=>store.ruleModels[key].samples),[1,1,1]);
+    assert.deepEqual(['v0.1','v0.2-D2','v0.3-D2'].map(key=>store.ruleModels[key].samples),[1,1,1]);
     assert.equal(store.model.samples,0);
     versions=store.statistics().ruleComparisons.versions;
     assert.deepEqual(versions.map(v=>v.resolved),[1,1,1]);
     store.close();
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
-test('archived v0.2 volume rules do not silently count as v0.2-D1',()=>{
+test('old candle-volume and REST-D1 results are never mixed with live WS-D2',()=>{
   const old=make('v0.2',5000000);
-  const next=make('v0.2-D1',6000000);
-  const stats=buildStatistics([old,next],[]);
+  const rest=make('v0.2-D1',5500000);
+  const next=make('v0.2-D2',6000000);
+  const stats=buildStatistics([old,rest,next],[]);
   assert.deepEqual(stats.ruleComparisons.versions.map(x=>x.signals),[0,1,0]);
+  assert.ok(stats.ruleComparisons.archivedVersions.some(v=>v.key==='v0.2-D1' && v.signals===1));
 });
 test('legacy SMC3 signal never gets assigned a research rule',()=>{
   const old=make('v0.1',1000000);
