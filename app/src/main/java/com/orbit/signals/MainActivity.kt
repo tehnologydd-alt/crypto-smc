@@ -573,6 +573,20 @@ class MainActivity : Activity() {
             "100 верхних уровней каждой стороны, цена × количество = USDT. " +
             "Снимок делается после закрытия свечи; прежние исследования объёма свечей сохранены в архиве. " +
             "Результат наблюдательный и не учитывает комиссии.", 10, muted))
+        val archived = signals.filter { it.ruleVersion in ResearchRules.archivedKeys }
+        if (archived.isNotEmpty()) card(body) {
+            addView(text("АРХИВ ПРЕЖНИХ ПРАВИЛ", 10, muted, true))
+            addView(text("Старые исходы не смешиваются с вариантами стакана D1.", 11, muted))
+            for ((key, rows) in archived.groupBy { it.ruleVersion }.toSortedMap()) {
+                val settledRows = rows.filter { row -> row.events.any { it.type == "ENTRY" } &&
+                    row.events.any { it.type == "TP1" || it.type == "STOP" } }
+                val success=settledRows.count { row -> row.events.any { it.type == "TP1" } }
+                val rate=if(settledRows.isNotEmpty())
+                    "${(success * 100.0 / settledRows.size).roundToInt()}%" else "—"
+                addView(text("$key · ${rows.size} сигналов · ${settledRows.size} исходов · TP1 $rate",
+                    11, muted))
+            }
+        }
         body.addView(text("Общая историческая статистика (включая прежнюю SMC v3)", 17, primaryText, true))
         val events = signals.associateWith { signal -> signal.events.map { it.type }.toSet() }
         fun count(type: String) = events.values.count { type in it }
