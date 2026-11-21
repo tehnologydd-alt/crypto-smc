@@ -15,7 +15,7 @@ test('counts each reached level once per signal across the full history', () => 
 });
 
 test('compares separate recent windows for strategy and model forecasts', () => {
-  const outcomes = Array.from({ length: 40 }, (_, i) => ({ strategy_version: 2, resolved_at: i + 1,
+  const outcomes = Array.from({ length: 40 }, (_, i) => ({ strategy_version: 3, resolved_at: i + 1,
     label: i >= 20 ? 1 : 0, prediction: i >= 20 ? .8 : .5, trained_samples: 30 + i }));
   const stats = buildStatistics([], outcomes);
   assert.equal(stats.newStrategy.resolved, 40);
