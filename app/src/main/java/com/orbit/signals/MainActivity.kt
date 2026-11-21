@@ -400,6 +400,52 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Update just the five TextViews per book; keep chart, scroll and tabs intact. */
+    private fun refreshDepthViews() {
+        fun change(value:Double?):String = if(value==null||!value.isFinite())"—"
+            else String.format(Locale.US,"%+.1f%%",value)
+        for ((key,label) in marketDepthViews) {
+            val pair=key.split(":")
+            if(pair.size!=2)continue
+            val data=LiveDepthClient.current(pair[0],pair[1])
+            val book=data.book
+            val title=if(pair[0]=="spot")"СПОТ" else "ФЬЮЧЕРСЫ"
+            val value=if(book!=null)
+                "$title · BID ${compact(book.bidUsdt)} / ASK ${compact(book.askUsdt)} USDT" +
+                    " · ${(book.imbalance*100).roundToInt()}% bid · WS ${(data.ageMs?:0)/1000}с"
+                else "$title · стакан: ${when(data.status) {
+                    "stale"->"устарел";"offline"->"нет связи";else->"синхронизация"
+                }}"
+            if(label.text.toString()!=value)label.text=value
+        }
+        for ((marketType,views) in assetDepthViews) {
+            val symbol=assetSymbol?:continue
+            val data=LiveDepthClient.current(marketType,symbol)
+            val book=data.book
+            val current=if(book!=null)
+                "● WS · ${(data.ageMs?:0)/1000}с · обновление №${book.lastUpdateId}" else
+                when(data.status){"stale"->"Устарел";"offline"->"Нет связи";else->"Синхронизация…"}
+            if(views.state.text.toString()!=current)views.state.text=current
+            views.state.setTextColor(if(book!=null)accent else danger)
+            val totals=if(book!=null)
+                "BID ${compact(book.bidUsdt)} USDT (${(book.imbalance*100).roundToInt()}%)" +
+                    "     ASK ${compact(book.askUsdt)} USDT (${((1-book.imbalance)*100).roundToInt()}%)" +
+                    "\nСпред ${String.format(Locale.US,"%.3f",book.spreadPct)}%" else
+                "Актуальных синхронизированных данных нет"
+            if(views.values.text.toString()!=totals)views.values.text=totals
+            val changes=if(book!=null)
+                "Δ30с: bid ${change(book.bidChangePct)} · ask ${change(book.askChangePct)}" +
+                    " · ${book.observations} наблюдений · ${book.updates} обновлений" else
+                "При разрыве WS значения исключаются из фильтра D2"
+            if(views.change.text.toString()!=changes)views.change.text=changes
+            fun levels(rows:List<BookLevel>)=if(book==null)"—"
+                else rows.joinToString("\n") { "${format(it.price)}   ${compact(it.usdt)}" }
+            val bid=levels(book?.bids?:emptyList()),ask=levels(book?.asks?:emptyList())
+            if(views.bids.text.toString()!=bid)views.bids.text=bid
+            if(views.asks.text.toString()!=ask)views.asks.text=ask
+        }
+    }
+
     private fun renderMarket() {
         card(body) {
             val configured = RemoteBackend.configured(prefs)
