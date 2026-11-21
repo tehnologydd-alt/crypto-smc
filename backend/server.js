@@ -6,7 +6,7 @@ import { join, resolve, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectResearchSignals, advanceSignalWithCandle } from './strategy.js';
 import { scoreSignal, modelSummary } from './learning.js';
-import { parseBookSnapshot } from './order-book.js';
+import { LiveDepthRegistry } from './live-depth.js';
 import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
 import { normalizePreferences, shouldNotify } from './notifications.js';
@@ -136,28 +136,49 @@ async function fetchTicker(market, symbol) {
   const raw = await response.json();
   return { changePercent: Number(raw.priceChangePercent), high: Number(raw.highPrice), low: Number(raw.lowPrice), volume: Number(raw.volume), quoteVolume: Number(raw.quoteVolume) };
 }
-// Fetch only on confirmed base signals; a time-bound snapshot is evidence,
-// never an interpolation of historical book state.
-const recentBooks=new Map();
-async function fetchDepthSnapshot(market,symbol,closedAt) {
-  const cacheKey=market+':'+symbol;
-  const cached=recentBooks.get(cacheKey);
-  if(cached && cached.capturedAt>=closedAt && Date.now()-cached.capturedAt<=10000)
-    return cached;
+// REST initializes/rebuilds sequence-checked WebSocket books; it does not
+// produce signal evidence directly. Retain enough levels for live top-100 changes.
+async function fetchDepthBootstrap(market,symbol) {
   const base=market==='spot'?'https://data-api.binance.vision/api/v3/depth':
     'https://fapi.binance.com/fapi/v1/depth';
   const url=new URL(base);
-  url.searchParams.set('symbol',symbol);
-  url.searchParams.set('limit','100');
-  rateBudget.reserve(market,5); // conservative weight for 100 displayed levels
+  url.searchParams.set('symbol',symbol);url.searchParams.set('limit','1000');
+  rateBudget.reserve(market,20);
   const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
   rateBudget.observe(market,response);
-  if(!response.ok) throw new Error('Binance depth '+response.status);
-  const raw=await response.json();
-  const snapshot=parseBookSnapshot(raw,{market,symbol,capturedAt:Date.now()});
-  if(!snapshot)throw new Error('Invalid or insufficient Binance L2 depth');
-  recentBooks.set(cacheKey,snapshot);
-  return snapshot;
+  if(!response.ok)throw Error('Binance depth bootstrap HTTP '+response.status);
+  return response.json();
+}
+const depthRegistry=new LiveDepthRegistry({fetchSnapshot:fetchDepthBootstrap});
+const depthSockets=new Map(),depthTimers=new Map();
+const depthGenerations={spot:0,futures:0};
+const depthFeeds={spot:'connecting',futures:'connecting'};
+function connectDepth(market) {
+  const generation=++depthGenerations[market];
+  clearTimeout(depthTimers.get(market));
+  depthSockets.get(market)?.close();
+  depthRegistry.reconnect(market);
+  depthFeeds[market]='connecting';
+  const streams=state.symbols.map(symbol=>symbol.toLowerCase()+'@depth').join('/');
+  const ws=new WebSocket(endpoints[market].ws+streams);
+  depthSockets.set(market,ws);
+  ws.addEventListener('open',()=>{if(depthSockets.get(market)===ws)
+    depthFeeds[market]='live';});
+  ws.addEventListener('message',event=>{
+    if(depthSockets.get(market)!==ws||depthGenerations[market]!==generation)return;
+    try{
+      const update=JSON.parse(event.data).data;
+      if(update?.e==='depthUpdate'&&state.symbols.includes(update.s))
+        depthRegistry.ingest(market,update);
+    }catch(error){state.errors['depth:'+market]='Depth WS: '+error.message;}
+  });
+  ws.addEventListener('error',()=>{if(depthSockets.get(market)===ws)
+    depthFeeds[market]='offline';});
+  ws.addEventListener('close',()=>{
+    if(depthSockets.get(market)!==ws||depthGenerations[market]!==generation)return;
+    depthFeeds[market]='offline';depthRegistry.invalidate(market);
+    depthTimers.set(market,setTimeout(()=>connectDepth(market),5000));
+  });
 }
 async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
   const errorKey = `${key(market, symbol)}:${timeframe}`;
@@ -181,16 +202,11 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
     const base = detectResearchSignals(candles,market,symbol,timeframe,parentBars,null,Date.now());
     // No book requests when the structural strategy has no new candidate.
     if (!base.length) { delete state.errors[errorKey+':depth']; delete state.errors[errorKey]; return; }
-    let bookSnapshot = null;
-    // Historical backfill has no matching book snapshot; never substitute the current book.
-    if(Date.now()-expectedEnd<=120000) {
-      try {
-        bookSnapshot=await fetchDepthSnapshot(market,symbol,expectedEnd);
-        delete state.errors[errorKey+':depth'];
-      } catch(error) {
-        state.errors[errorKey+':depth']='Стакан: '+error.message;
-      }
-    } else state.errors[errorKey+':depth']='Нельзя подтвердить исторический стакан';
+    // Historic REST cannot substitute for missing live depth updates.
+    const live=depthRegistry.snapshot(market,symbol);
+    const bookSnapshot=live.status==='live' ? live:null;
+    if(!bookSnapshot)state.errors[errorKey+':depth']='WebSocket-стакан: '+live.status;
+    else delete state.errors[errorKey+':depth'];
     const candidates=detectResearchSignals(candles,market,symbol,timeframe,parentBars,
       bookSnapshot,Date.now());
     for (const signal of candidates) {
@@ -326,6 +342,7 @@ function lanPeer(address) {
 function mobileState() { return {
   serverId: experience.id,
   symbols: state.symbols, signals: state.signals, prices: state.prices,
+  orderBooks: depthRegistry.list(state.symbols), depthFeeds,
   model: modelSummary(state.model),
   ruleModels: Object.fromEntries(Object.entries(experience.ruleModels).map(([key, model]) =>
     [key, modelSummary(model)])),
@@ -340,6 +357,12 @@ const handleRequest = async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Неверный ключ доступа' });
       if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, mobileState());
+      if (req.method === 'GET' && url.pathname.startsWith('/api/order-book/')) {
+        const symbol=decodeURIComponent(url.pathname.slice('/api/order-book/'.length)).toUpperCase();
+        if(!state.symbols.includes(symbol))return json(res,400,{error:'Неизвестный актив'});
+        return json(res,200,{symbol,spot:depthRegistry.snapshot('spot',symbol),
+          futures:depthRegistry.snapshot('futures',symbol),depthFeeds});
+      }
       if (req.method === 'GET' && url.pathname === '/api/limits') return json(res, 200, {
         binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length)
       });
@@ -364,7 +387,7 @@ const handleRequest = async (req, res) => {
           totalOutcomes: experience.summary().outcomes };
         return json(res, 200, includeState ? { ...mobileState(), sync } : { sync });
       }
-      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model),
+      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, orderBooks:depthRegistry.list(state.symbols), depthFeeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model),
     ruleModels: Object.fromEntries(Object.entries(experience.ruleModels).map(([key, model]) =>
       [key, modelSummary(model)])),
     experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
@@ -392,6 +415,7 @@ const handleRequest = async (req, res) => {
           structure: analyzeStructure(candlesResult.value),
           ticker: tickerResult.status === 'fulfilled' ? tickerResult.value : null,
           lastM1: state.prices[key(market, symbol)] || null,
+          orderBooks: {spot:depthRegistry.snapshot('spot',symbol),futures:depthRegistry.snapshot('futures',symbol)},
           signals: state.signals.filter(s => s.market === market && s.symbol === symbol),
           warning: tickerResult.status === 'rejected' ? tickerResult.reason.message : null });
       }
@@ -400,7 +424,8 @@ const handleRequest = async (req, res) => {
         const symbols = [...new Set((body.symbols || []).map(s => String(s).trim().toUpperCase()))];
         if (!symbols.length || symbols.length > 10 || symbols.some(s => !/^[A-Z0-9]{2,16}USDT$/.test(s))) return json(res, 400, { error: 'Укажите от 1 до 10 разных пар к USDT' });
         state.symbols = symbols; persist();
-        for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); }
+        for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
+        depthRegistry.prune(symbols);
         return json(res, 200, { symbols });
       }
       if (req.method === 'POST' && url.pathname === '/api/subscription') {
@@ -440,7 +465,7 @@ const handleRequest = async (req, res) => {
 const server = tlsPfxPath ? https.createServer({ pfx: readFileSync(tlsPfxPath), passphrase: tlsPfxPassword }, handleRequest)
   : http.createServer(handleRequest);
 server.listen(port, host, () => console.log(`Crypto Signals: ${tlsPfxPath ? 'https' : 'http'}://${host}:${port}`));
-for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); }
+for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
 setInterval(persist, 30000);
 setInterval(() => {
   for (const market of MARKETS) {
