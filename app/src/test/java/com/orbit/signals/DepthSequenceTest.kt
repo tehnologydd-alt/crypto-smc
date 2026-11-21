@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DepthSequenceTest {
+    @Test fun futuresDepthGoesToPublicNotMarketRoute() {
+        assertEquals(
+            "wss://fstream.binance.com/public/stream?streams=xrpusdt@depth",
+            DepthSequence.depthStreamUrl("futures","xrpusdt@depth"))
+        assertEquals(
+            "wss://stream.binance.com:9443/stream?streams=xrpusdt@depth",
+            DepthSequence.depthStreamUrl("spot","xrpusdt@depth"))
+    }
     @Test fun spotBootstrapBridgesNextUpdate() {
         assertTrue(DepthSequence.bridge("spot",100,99,101))
         assertTrue(DepthSequence.bridge("spot",100,101,102))
