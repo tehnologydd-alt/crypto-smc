@@ -1,3 +1,4 @@
+import { MarketStructureEngine, ZonesDetector, detectV3 } from './smc-v3.js';
 export const MARKETS = ['spot', 'futures'];
 export const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'LTCUSDT'];
 export const TIMEFRAMES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240 });
@@ -28,97 +29,29 @@ function pivots(candles, end, span = 2) {
 }
 
 export function findImbalances(candles) {
-  const gaps = [];
-  for (let i = 2; i < candles.length; i++) {
-    const first = candles[i - 2], third = candles[i];
-    if (first.high < third.low) gaps.push({ time: third.time, firstTime: first.time, direction: 'up', low: first.high, high: third.low,
-      filledAt: candles.slice(i + 1).find(c => c.low <= first.high)?.time || null });
-    if (first.low > third.high) gaps.push({ time: third.time, firstTime: first.time, direction: 'down', low: third.high, high: first.low,
-      filledAt: candles.slice(i + 1).find(c => c.high >= first.low)?.time || null });
-  }
-  return gaps;
+  return ZonesDetector.fvg(candles).map(z=>({
+    time:z.time, firstTime:z.firstTime, direction:z.direction, low:z.low, high:z.high,
+    status:z.status, filledAt:z.filledAt, mitigatedAt:z.mitigatedAt,
+    invalidatedAt:z.invalidatedAt, expiresAt:z.expiresAt
+  }));
 }
 
-// Chart annotations use the same confirmed two-candle pivots and opposite-candle
-// block definition as signal detection. A chart BOS alone is not a trade signal.
+// The chart and generator share the same SMC v3 definitions.
 export function analyzeStructure(candles) {
-  const swings = [], breaks = [];
-  let lastHigh = null, lastLow = null;
-  for (let i = 5; i < candles.length; i++) {
-    const j = i - 3;
-    const candidate = candles[j];
-    if (candles.slice(j - 2, j).every(c => candidate.high > c.high) && candles.slice(j + 1, j + 3).every(c => candidate.high > c.high)) {
-      lastHigh = { time: candidate.time, price: candidate.high, kind: 'high' };
-      swings.push(lastHigh);
-    }
-    if (candles.slice(j - 2, j).every(c => candidate.low < c.low) && candles.slice(j + 1, j + 3).every(c => candidate.low < c.low)) {
-      lastLow = { time: candidate.time, price: candidate.low, kind: 'low' };
-      swings.push(lastLow);
-    }
-    const current = candles[i], previous = candles[i - 1];
-    const direction = lastHigh && previous.close <= lastHigh.price && current.close > lastHigh.price ? 'up'
-      : lastLow && previous.close >= lastLow.price && current.close < lastLow.price ? 'down' : null;
-    if (!direction) continue;
-    let block = null;
-    for (let k = i - 1; k >= Math.max(0, i - 8); k--) {
-      const c = candles[k];
-      if (direction === 'up' ? c.close < c.open : c.close > c.open) { block = c; break; }
-    }
-    breaks.push({ time: current.time, direction, level: direction === 'up' ? lastHigh.price : lastLow.price,
-      swingTime: direction === 'up' ? lastHigh.time : lastLow.time,
-      block: block ? { time: block.time, low: block.low, high: block.high } : null });
-  }
-  return { swings: swings.slice(-14), breaks: breaks.slice(-8), imbalances: findImbalances(candles).slice(-12) };
+  const structure=MarketStructureEngine.analyze(candles);
+  const zones=ZonesDetector.scan(candles,structure);
+  const blocks=new Map(zones.ob.map(z=>[z.originEventId,z]));
+  return { regime:structure.regime, swings:structure.swings.slice(-14),
+    breaks:structure.breaks.slice(-8).map(e=>({
+      ...e, block:blocks.get(e.id) || null
+    })),
+    imbalances:zones.fvg.slice(-12), zones:{
+      ob:zones.ob.slice(-20), fvg:zones.fvg.slice(-20)
+    } };
 }
 
-// A deliberately mechanical SMC/OB interpretation. Only closed candles are used.
-export function detectSignal(candles, market, symbol, timeframe = '1h') {
-  if (candles.length < 35 || !MARKETS.includes(market) || !TIMEFRAMES[timeframe]) return null;
-  const i = candles.length - 1, current = candles[i], previous = candles[i - 1];
-  const volatility = atr(candles, i);
-  if (!volatility || volatility <= 0 || Math.abs(current.close - current.open) < 1.2 * volatility) return null;
-  const swings = pivots(candles, i - 1);
-  const high = swings.highs.at(-1), low = swings.lows.at(-1);
-  let side;
-  if (high && current.close > high.price && previous.close <= high.price && current.close > current.open) side = 'LONG';
-  else if (market === 'futures' && low && current.close < low.price && previous.close >= low.price && current.close < current.open) side = 'SHORT';
-  else return null;
-
-  // The opposite candle nearest the displacement is the candidate order block.
-  let block;
-  for (let j = i - 1; j >= Math.max(0, i - 8); j--) {
-    const c = candles[j];
-    if ((side === 'LONG' && c.close < c.open) || (side === 'SHORT' && c.close > c.open)) { block = c; break; }
-  }
-  if (!block) return null;
-  const imbalance = findImbalances(candles.slice(Math.max(0, i - 6), i + 1)).reverse()
-    .find(gap => !gap.filledAt && gap.direction === (side === 'LONG' ? 'up' : 'down') &&
-      gap.high - gap.low >= 0.05 * volatility &&
-      (side === 'LONG' ? current.low > gap.low : current.high < gap.high));
-  if (!imbalance) return null;
-  const entryLow = block.low, entryHigh = block.high;
-  const entry = (entryLow + entryHigh) / 2;
-  const stop = side === 'LONG' ? entryLow - 0.1 * volatility : entryHigh + 0.1 * volatility;
-  const risk = Math.abs(entry - stop);
-  if (risk <= 0 || (entryHigh - entryLow) > 2 * volatility) return null;
-  // A pending retest must be ahead of price when the signal is created.
-  if (side === 'LONG' ? current.close <= entryHigh : current.close >= entryLow) return null;
-  const sign = side === 'LONG' ? 1 : -1;
-  return {
-    id: `${market}:${symbol}:${timeframe}:${current.time}:${side}`, market, symbol, side, timeframe,
-    detectedAt: current.end, blockTime: block.time, entryLow, entryHigh, entry, stop, imbalance,
-    targets: [1, 2, 3].map(n => entry + sign * n * risk),
-    swing: side === 'LONG' ? high.price : low.price,
-    features: [1,
-      Math.min(3, Math.abs(current.close - current.open) / volatility),
-      Math.min(3, (entryHigh - entryLow) / volatility),
-      Math.min(3, Math.abs(current.close - (side === 'LONG' ? high.price : low.price)) / volatility),
-      Math.min(3, Math.abs(current.close - entry) / volatility),
-      market === 'futures' ? 1 : 0, side === 'SHORT' ? 1 : 0,
-      Math.log(TIMEFRAMES[timeframe] / 5) / Math.log(48)],
-    state: 'WAITING', hitTargets: 0, events: [{ type: 'CREATED', at: current.end, price: current.close }],
-    expiresAt: current.end + 12 * TIMEFRAMES[timeframe] * 60000
-  };
+export function detectSignal(candles,market,symbol,timeframe='1h',parentBars) {
+  return detectV3(candles,market,symbol,timeframe,parentBars);
 }
 
 function hit(signal, type, price, at) {
