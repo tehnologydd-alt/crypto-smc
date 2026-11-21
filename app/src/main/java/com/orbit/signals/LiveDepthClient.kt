@@ -18,14 +18,17 @@ import java.util.concurrent.TimeUnit
 object LiveDepthClient {
     private val guard=Any()
     private val client=OkHttpClient.Builder().pingInterval(20,TimeUnit.SECONDS).build()
-    private val worker=Executors.newFixedThreadPool(2)
+    // Separate executor pools: slow or blocked Spot REST must never starve Futures.
+    private val workers=mapOf("spot" to Executors.newFixedThreadPool(2),
+        "futures" to Executors.newFixedThreadPool(2))
     private val scheduler=Executors.newSingleThreadScheduledExecutor()
     private val sockets=mutableMapOf<String,WebSocket>()
     private val books=mutableMapOf<String,State>()
     private var running=false
     private var generation=0
     private var favorites:List<String> = emptyList()
-    data class View(val book:OrderBookSnapshot?,val status:String,val ageMs:Long?)
+    data class View(val book:OrderBookSnapshot?,val status:String,val ageMs:Long?,
+        val error:String?=null)
     private data class Delta(
         val first:Long,val last:Long,val previous:Long?,
         val bid:List<BookLevel>,val ask:List<BookLevel>
@@ -37,12 +40,23 @@ object LiveDepthClient {
         var updateId=0L;var updatedAt=0L;var firstAt=0L;var updates=0
         var snapshot:OrderBookSnapshot?=null
         var lastPublish=0L
+        var lastError:String?=null
+        var nextRetryAt=0L
+        var failures=0
+        var connectionStarted=System.currentTimeMillis()
         val bids=mutableMapOf<Double,Double>();val asks=mutableMapOf<Double,Double>()
         val queued=ArrayDeque<Delta>();val history=ArrayDeque<Observation>()
         fun reset(newStatus:String="syncing") {
             epoch++;status=newStatus;ready=false;initializing=false
             updateId=0;updatedAt=0;firstAt=0;updates=0;lastPublish=0
             bids.clear();asks.clear();queued.clear();history.clear();snapshot=null
+        }
+        fun fail(message:String) {
+            reset("error")
+            lastError=message.take(110)
+            failures=(failures+1).coerceAtMost(5)
+            nextRetryAt=System.currentTimeMillis()+
+                (1000L shl failures).coerceAtMost(20000L)
         }
         fun read(rows:JSONArray?):List<BookLevel>? {
             if(rows==null)return null
@@ -67,15 +81,18 @@ object LiveDepthClient {
             if(status=="live") {
                 if(last<=updateId)return false
                 if(first>updateId+1 || market=="futures"&&previous!=updateId) {
-                    reset();queued.addLast(delta);initializing=true;return true
+                    fail("Пропуск последовательности depth ${updateId} / ${delta.previous}")
+                    queued.addLast(delta);return false
                 }
                 apply(delta);return false
             }
             if(status=="offline")return false
-            if(queued.size>=2000){reset();return false}
+            if(queued.size>=512){fail("Переполнение очереди стакана");return false}
             queued.addLast(delta)
             if(ready)drain()
-            if(!ready&&!initializing){initializing=true;return true}
+            if(!ready&&!initializing && System.currentTimeMillis()>=nextRetryAt) {
+                status="syncing";initializing=true;return true
+            }
             return false
         }
         fun accept(raw:JSONObject,expectedEpoch:Int):Boolean {
@@ -84,7 +101,7 @@ object LiveDepthClient {
             val b=read(raw.optJSONArray("bids"))
             val a=read(raw.optJSONArray("asks"))
             if(id<=0||b==null||a==null||b.size<100||a.size<100) {
-                reset();return false
+                fail("Неполный REST-снимок стакана");return false
             }
             bids.clear();asks.clear()
             for(row in b)if(row.quantity>0)bids[row.price]=row.quantity
@@ -100,15 +117,17 @@ object LiveDepthClient {
                     else e.first<=updateId&&e.last>=updateId
                 if(status!="live"&&!firstMatch) {
                     if(e.first>updateId+1) {
-                        reset();queued.addLast(e);return
+                        fail("Снимок Binance отстаёт от WebSocket")
+                        queued.addLast(e);return
                     }
                     continue
                 }
                 if(status=="live"&&(e.first>updateId+1 ||
                     market=="futures"&&e.previous!=updateId)) {
-                    reset();queued.addLast(e);return
+                    fail("Нарушена последовательность WebSocket")
+                    queued.addLast(e);return
                 }
-                status="live";apply(e)
+                status="live";lastError=null;failures=0;nextRetryAt=0;apply(e)
             }
         }
         fun apply(delta:Delta) {
@@ -148,7 +167,12 @@ object LiveDepthClient {
             val age=if(updatedAt>0)now-updatedAt else null
             return if(status=="live"&&snapshot!=null&&age!=null&&age in 0..10000)
                 View(snapshot,status,age)
-            else View(null,if(status=="live")"stale" else status,age)
+            else {
+                val disconnected=updatedAt==0L &&
+                    now-connectionStarted>15000L && status=="connecting"
+                View(null,if(status=="live")"stale" else if(disconnected)"error" else status,
+                    age,if(disconnected)"Нет обновлений WS более 15 секунд" else lastError)
+            }
         }
     }
 
@@ -179,12 +203,12 @@ object LiveDepthClient {
     fun snapshot(market:String,symbol:String):OrderBookSnapshot?=current(market,symbol).book
 
     private fun bootstrap(market:String,symbol:String,state:State,epoch:Int,connection:Int) {
-        worker.execute {
+        workers.getValue(market).execute {
             val result=runCatching{Binance.depthRaw(market,symbol,1000)}
             synchronized(guard) {
                 if(!running||connection!=generation||state.epoch!=epoch)return@synchronized
                 result.onSuccess { state.accept(it,epoch) }
-                    .onFailure { state.reset("syncing") }
+                    .onFailure { state.fail("REST ${market}: ${it.message ?: it.javaClass.simpleName}") }
             }
         }
     }
@@ -222,7 +246,9 @@ object LiveDepthClient {
         synchronized(guard){
             if(!running||generation!=connection||sockets[market]!==socket)return
             sockets.remove(market)
-            books.values.filter{it.market==market}.forEach{it.reset("offline")}
+            books.values.filter{it.market==market}.forEach{it.reset("offline").also {
+                it.lastError="WebSocket закрыт; повторное подключение"
+            }}
         }
         scheduler.schedule({
             synchronized(guard){
