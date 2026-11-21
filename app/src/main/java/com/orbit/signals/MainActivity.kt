@@ -483,6 +483,20 @@ class MainActivity : Activity() {
             addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12).also { marketValidationView = it })
             addView(text("Уровень зависит от завершённых сигналов новой стратегии и качества прогноза.", 11, muted))
         }
+        if(prefs.mode=="local") {
+            card(body) {
+                addView(text("ФОНОВОЕ ПОДТВЕРЖДЕНИЕ · B5", 10, accent, true))
+                addView(text("WebSocket до 5 минут после кандидата · отдельная статистика", 12, primaryText, true))
+                val recent=store.recentDepthRuns(3)
+                if(recent.isEmpty())addView(text("Ожидаются структурные кандидаты", 11, muted))
+                else for(item in recent) {
+                    val tone=when(item.status){"CONFIRMED"->accent
+                        "OBSERVING"->accent;"PENDING"->muted;else->danger}
+                    addView(text("${item.market.uppercase()} ${item.symbol} ${item.timeframe} · ${item.status} · ${item.samples} замеров",11,tone))
+                    item.reason?.let { addView(text(it,10,muted)) }
+                }
+            }
+        }
         if (prefs.mode == "server") body.addView(text("Источник: сервер · синхронизация ${if (prefs.serverLastSync == 0L) "ожидается" else date(prefs.serverLastSync)}", 11, accent))
         body.addView(text("Отмечено ${prefs.symbols.size} активов", 20, primaryText, true))
         body.addView(text("Спот и USDT-M фьючерсы · последние закрытые M1", 11, muted))
@@ -610,9 +624,9 @@ class MainActivity : Activity() {
                 remote?.optDouble("baselineBrier", Double.NaN)?.takeIf { it.isFinite() } ?: baseline)
         }
         card(body) {
-            addView(text("СРАВНЕНИЕ ТРЁХ ВЕРСИЙ", 10, accent, true))
+            addView(text("СРАВНЕНИЕ ПЯТИ ВЕРСИЙ", 10, accent, true))
             addView(text("Какие фильтры улучшают результат?", 18, primaryText, true))
-            addView(text("Все варианты запускаются параллельно. В статистике учитываются только входы с известным TP1 или стопом.", 11, muted))
+            addView(text("D2 проверяет стакан при закрытии свечи; B5 — отдельное пятиминутное исследование после закрытия. В статистике только входы с известным TP1 или стопом.", 11, muted))
             for (item in variants) {
                 val rate = if (item.settled > 0)
                     "${(item.successful * 100.0 / item.settled).roundToInt()}%" else "—"
@@ -632,7 +646,10 @@ class MainActivity : Activity() {
             addView(text(when (item.rule.key) {
                 "v0.1" -> "Базовая структура BOS/CHoCH + активные OB/FVG"
                 "v0.2-D2" -> "v0.1 + 100 синхронизированных уровней bid/ask (USDT), доля стороны ≥55% и ≥10с наблюдения"
-                else -> "v0.2-D2 + подтверждение последнего закрытого старшего таймфрейма"
+                "v0.3-D2" -> "v0.2-D2 + закрытый старший таймфрейм"
+                "v0.2-B5" -> "5-мин. наблюдение после свечи; не вход задним числом"
+                "v0.3-B5" -> "5-мин. наблюдение после свечи + закрытый старший таймфрейм"
+                else -> "Новая исследовательская ревизия"
             }, 11, muted))
             val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
             statsMetric(first, "Сигналы", item.detected.toString(), primaryText)
@@ -652,10 +669,9 @@ class MainActivity : Activity() {
                 "Недостаточно исходов для предварительного вывода (${item.settled}/30)."
                 else "Предварительная выборка набрана; проверяйте устойчивость на новых данных.", 11, muted))
         }
-        body.addView(text("В версиях D2 используются синхронизированные WebSocket объёмы заявок из Binance Spot/Futures: " +
-            "100 верхних уровней каждой стороны, цена × количество = USDT. " +
-            "История заявок собирается до закрытия свечи; REST — только для синхронизации. Прежние ревизии сохранены. " +
-            "Результат наблюдательный и не учитывает комиссии.", 10, muted))
+        body.addView(text("D2: синхронизированный стакан при закрытии свечи. B5: до 5 минут фонового WebSocket после кандидата, отдельная выборка, прерванные проверки не считаются сигналами. " +
+            "Объёмы по 100 уровням в USDT; REST только для синхронизации. Прежние ревизии сохранены. " +
+            "Результат исследовательский и не учитывает комиссии.", 10, muted))
         val archived = signals.filter { it.ruleVersion in ResearchRules.archivedKeys }
         if (archived.isNotEmpty()) card(body) {
             addView(text("АРХИВ ПРЕЖНИХ ПРАВИЛ", 10, muted, true))
@@ -919,6 +935,13 @@ class MainActivity : Activity() {
                 else "При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
             addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent).also { settingsLastCheckView = it })
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
+            if(prefs.mode=="local"){
+                addView(text("Фоновый B5: после структурного кандидата JobScheduler наблюдает стакан до пяти минут. Android может прервать или задержать задание.", 11, muted))
+                for(check in store.recentDepthRuns(3)) {
+                    addView(text("${check.market} ${check.symbol} · ${check.status} · ${check.samples} замеров" +
+                        (check.reason?.let{" · $it"}?:""), 10, if(check.status=="CONFIRMED")accent else muted))
+                }
+            }
             action(this, "Проверить сейчас") { updateMarket() }
         }
         card(body) {
