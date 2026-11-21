@@ -33,6 +33,7 @@ export class LiveDepthBook {
       }
       this.apply(event);return;
     }
+    if(this.status==='connecting')this.status='syncing';
     this.queue.push(event);
     if(this.queue.length>MAX_EVENTS){this.reset('syncing');return;}
     if(this.snapshotReady)this.drain();
@@ -71,7 +72,11 @@ export class LiveDepthBook {
         ? e.U<=this.lastUpdateId+1 && e.u>=this.lastUpdateId+1
         : e.U<=this.lastUpdateId && e.u>=this.lastUpdateId;
       if(first&&!firstMatch){
-        if(e.U>this.lastUpdateId+1){this.reset('syncing');this.queue.push(e);this.beginBootstrap();}
+        if(e.U>this.lastUpdateId+1) {
+          // REST may lag the first diff; retry only on the NEXT WS event.
+          // Immediate re-bootstrap here can cause an unbounded request loop.
+          this.reset('syncing');return;
+        }
         continue;
       }
       if(!first && (e.U>this.lastUpdateId+1 ||
