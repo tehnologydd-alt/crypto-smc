@@ -243,9 +243,10 @@ object LiveDepthClient {
         synchronized(guard){
             if(!running||generation!=connection||sockets[market]!==socket)return
             sockets.remove(market)
-            books.values.filter{it.market==market}.forEach{it.reset("offline").also {
-                it.lastError="WebSocket закрыт; повторное подключение"
-            }}
+            books.values.filter{it.market==market}.forEach { book ->
+                book.reset("offline")
+                book.lastError="WebSocket закрыт; повторное подключение"
+            }
         }
         scheduler.schedule({
             synchronized(guard){
