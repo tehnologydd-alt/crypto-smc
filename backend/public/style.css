@@ -101,3 +101,27 @@ dialog { color: #e9f1f7; border: 1px solid #33435a; background: #121b2b; box-sha
 .follow-detail + .detail-chart-link { margin-top: 8px; }
 @media (min-width: 700px) { .app { padding-top: 30px; }.sheet { left: 50%; right: auto; transform: translateX(-50%); width: 620px; border-radius: 20px 20px 0 0; } }
 
+
+/* Parallel research comparisons, tied to saved per-rule outcomes. */
+.rule-comparison-chart { display:grid; gap:12px; margin:16px 0 13px; }
+.rule-compare-row { display:grid; grid-template-columns:46px minmax(0,1fr) 48px 40px; gap:8px; align-items:center; font-size:11px; }
+.rule-compare-row>strong { color:#9debc7; font-size:12px; }
+.rule-compare-row>b { color:#d7eadc; text-align:right; }
+.rule-compare-row>small { color:#8195a7; text-align:right; }
+.rule-track { height:10px; background:#263849; border-radius:20px; overflow:hidden; }
+.rule-track i { display:block; height:100%; border-radius:20px; background:linear-gradient(90deg,#347c76,#88eabf); }
+.rule-grid { display:grid; gap:11px; margin:18px 0 14px; }
+.rule-stat { border:1px solid #314a50; border-radius:13px; padding:13px; background:#13252f; }
+.rule-name { display:flex; align-items:center; gap:9px; margin-bottom:11px; }
+.rule-name>b { border:1px solid #529a7b; border-radius:6px; background:#234c41; color:#a4f3d1; padding:5px 7px; font-size:12px; }
+.rule-name>strong { font-size:12px; font-weight:600; color:#d9e8ed; }
+.rule-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.rule-facts>div { min-width:0; border-radius:8px; background:#1a3040; padding:9px 5px; }
+.rule-facts span,.rule-facts strong { display:block; text-align:center; }
+.rule-facts span { font-size:9px; color:#93abb6; }
+.rule-facts strong { font-size:16px; margin-top:5px; color:#e4f1ef; }
+.rule-model { margin:12px 0 9px; display:grid; gap:5px; padding:10px; background:#0e1e29; border-radius:9px; }
+.rule-model div { display:flex; justify-content:space-between; gap:10px; align-items:center; font-size:10px; }
+.rule-model span { color:#8da8b0; }.rule-model b { color:#d1ece0; }
+.rule-stat>small { color:#91bcae; font-size:10px; }
+@media (max-width:400px) { .rule-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } .rule-compare-row { gap:5px; } }
