@@ -150,21 +150,24 @@ object SmcV3 {
         if(requireHtf && !ContextRegimeFilter.evaluate(e,b,parent,tf).allowed)return null
         return ExecutionRiskManager.create(b,market,symbol,tf,e,ob,fvg)
     }
-    /** Each strategy sees the same confirmed BOS/CHoCH and OB/FVG candidate.
-     * The second gate uses a prior-20-candle relative volume proxy; the third
-     * additionally checks the most recent CLOSED higher-timeframe regime.
-     */
-    fun detectVariants(b:List<Candle>,market:String,symbol:String,tf:String,parent:List<Candle>?):List<Signal> {
+    /** A separate, auditable L2 snapshot gates D1 variants; the base is unaffected. */
+    fun detectVariants(b:List<Candle>,market:String,symbol:String,tf:String,
+        parent:List<Candle>?,book:OrderBookSnapshot?=null,observedAt:Long=System.currentTimeMillis()):List<Signal> {
         val candidate=detect(b,market,symbol,tf,parent,requireHtf=false) ?: return emptyList()
         val breaking=MarketStructureEngine.analyze(b).breaks.lastOrNull() ?: return emptyList()
-        val liquidityRatio=ResearchRules.volumeRatio(b,breaking.index)
-        val liquid=liquidityRatio != null && liquidityRatio >= 1.2
-        val htf=if(liquid) ContextRegimeFilter.evaluate(breaking,b,parent,tf).allowed else false
+        val depth=BookDepth.gate(book,market,symbol,candidate.side,candidate.detectedAt,observedAt)
+        val htf=if(depth.allowed) ContextRegimeFilter.evaluate(breaking,b,parent,tf).allowed else false
         return ResearchRules.all.filter { rule ->
-            (!rule.useVolume || liquid) && (!rule.useHtf || htf)
+            (!rule.useLiquidity || depth.allowed) && (!rule.useHtf || htf)
         }.map { rule ->
+            val observed=if(rule.useLiquidity) book!!.capturedAt else candidate.detectedAt
             candidate.copy(id=candidate.id+":"+rule.key,ruleVersion=rule.key,
-                volumeRatio=liquidityRatio,ruleSpec=ResearchRules.signature(rule))
+                ruleSpec=ResearchRules.signature(rule),
+                bookEvidence=if(rule.useLiquidity) book else null,
+                detectedAt=observed,
+                expiresAt=observed+12L*TIMEFRAMES.getValue(tf)*60000L,
+                // Mutable state MUST be independent between concurrent rule arms.
+                events=mutableListOf(SignalEvent("CREATED",observed,b.last().close)))
         }
     }
 
