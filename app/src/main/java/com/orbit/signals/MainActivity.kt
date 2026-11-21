@@ -618,8 +618,8 @@ class MainActivity : Activity() {
             addView(text("${item.rule.key} · ${item.rule.title}", 16, primaryText, true))
             addView(text(when (item.rule.key) {
                 "v0.1" -> "Базовая структура BOS/CHoCH + активные OB/FVG"
-                "v0.2-D1" -> "v0.1 + объём заявок из стакана Binance: 100 уровней bid/ask; доля направленной стороны ≥55%"
-                else -> "v0.2-D1 + подтверждение последнего закрытого старшего таймфрейма"
+                "v0.2-D2" -> "v0.1 + 100 синхронизированных уровней bid/ask (USDT), доля стороны ≥55% и ≥10с наблюдения"
+                else -> "v0.2-D2 + подтверждение последнего закрытого старшего таймфрейма"
             }, 11, muted))
             val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
             statsMetric(first, "Сигналы", item.detected.toString(), primaryText)
@@ -639,9 +639,9 @@ class MainActivity : Activity() {
                 "Недостаточно исходов для предварительного вывода (${item.settled}/30)."
                 else "Предварительная выборка набрана; проверяйте устойчивость на новых данных.", 11, muted))
         }
-        body.addView(text("В версиях D1 берутся реальные объёмы заявок из Binance Spot/Futures: " +
+        body.addView(text("В версиях D2 используются синхронизированные WebSocket объёмы заявок из Binance Spot/Futures: " +
             "100 верхних уровней каждой стороны, цена × количество = USDT. " +
-            "Снимок делается после закрытия свечи; прежние исследования объёма свечей сохранены в архиве. " +
+            "История заявок собирается до закрытия свечи; REST — только для синхронизации. Прежние ревизии сохранены. " +
             "Результат наблюдательный и не учитывает комиссии.", 10, muted))
         val archived = signals.filter { it.ruleVersion in ResearchRules.archivedKeys }
         if (archived.isNotEmpty()) card(body) {
