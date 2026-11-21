@@ -63,7 +63,7 @@ function persist() {
   }, 250);
 }
 function label(signal, event) {
-  const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side}`;
+  const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.ruleVersion || 'SMC v3'}`;
   const names = { CREATED: 'Новый сигнал', ENTRY: 'Цена вошла в зону входа', TP1: 'Достигнут TP1', TP2: 'Достигнут TP2', TP3: 'Достигнут TP3', STOP: 'Достигнут стоп', INVALIDATED: 'Сигнал отменён', EXPIRED: 'Сигнал истёк', DATA_GAP: 'Пробел в данных' };
   const url = `/asset.html?symbol=${encodeURIComponent(signal.symbol)}&market=${encodeURIComponent(signal.market)}&interval=${encodeURIComponent(signal.timeframe || '1h')}&signal=${encodeURIComponent(signal.id)}`;
   return { title: `${prefix}: ${names[event.type] || event.type}`, body: `Цена: ${formatPrice(event.price)} USDT`, id: signal.id, url };
