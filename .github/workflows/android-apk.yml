@@ -38,6 +38,11 @@ jobs:
           echo "ORBIT_STORE_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "ORBIT_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
           rm "$RUNNER_TEMP/orbit-signing.json"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Node strategy and backend tests
+        run: cd backend && npm test
       - name: Test and build
         run: bash gradlew --no-daemon testDebugUnitTest assembleDebug
       - name: Verify APK signature
