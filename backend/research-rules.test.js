@@ -27,7 +27,7 @@ function book(closedAt,extra={}) {
     bids:[],asks:[],...extra};
 }
 test('research revisions use D2 synchronized orderbook and keep D1 REST archived',()=>{
-  assert.deepEqual(RULES.map(r=>r.key),['v0.1','v0.2-D2','v0.3-D2']);
+  assert.deepEqual(RULES.map(r=>r.key),['v0.1','v0.2-D2','v0.3-D2','v0.2-B5','v0.3-B5']);
   assert.ok(RULE_KEYS.includes('v0.2-D1'));
   assert.ok(RULE_KEYS.includes('v0.3-D1'));
   assert.ok(RULE_KEYS.includes('v0.2'));
@@ -52,7 +52,7 @@ test('three independent research arms only appear for a live sequenced book',()=
   assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,
     null,at+3000).map(s=>s.ruleVersion),['v0.1']);
   const found=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,live,at+3000);
-  assert.deepEqual(found.map(s=>s.ruleVersion),RULES.map(r=>r.key));
+  assert.deepEqual(found.map(s=>s.ruleVersion),RULES.filter(r=>!r.background).map(r=>r.key));
   assert.equal(new Set(found.map(s=>s.id)).size,3);
   assert.equal(found[1].ruleSnapshot.book.lastUpdateId,99121);
   assert.equal(found[1].detectedAt,live.capturedAt);
