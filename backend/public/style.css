@@ -125,3 +125,13 @@ dialog { color: #e9f1f7; border: 1px solid #33435a; background: #121b2b; box-sha
 .rule-model span { color:#8da8b0; }.rule-model b { color:#d1ece0; }
 .rule-stat>small { color:#91bcae; font-size:10px; }
 @media (max-width:400px) { .rule-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } .rule-compare-row { gap:5px; } }
+
+/* Live L2 book miniatures inside asset cards; no data is painted when stale. */
+.asset-book-preview { border-top: 1px solid #2e4254; margin-top: 8px; padding-top: 7px; display: grid; gap: 6px; }
+.asset-book-foot { display: grid; gap: 2px; min-width: 0; }
+.asset-book-foot b { color: #90adb8; font-size: 9px; font-weight: 700; }
+.asset-book-foot span { color: #b8d5dc; font-size: 9px; overflow-wrap: anywhere; line-height: 1.4; }
+.asset-book-foot small { color: #7797a1; font-size: 8px; }
+.asset-book-foot em { color: #78dcad; font-style: normal; }
+.asset-book-foot i { color: #f1a0aa; font-style: normal; }
+.asset-book-foot.offline span { color: #e1ac85; }
