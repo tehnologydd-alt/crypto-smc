@@ -22,13 +22,15 @@ function validate(input) {
   }
   if (input.bookSnapshots !== undefined && (!Array.isArray(input.bookSnapshots) ||
       input.bookSnapshots.some(book => !book ||
-        book.source!=='binance_rest_depth' || book.market!==input.market ||
+        book.source!=='binance_ws_depth' || book.status!=='live' ||
+        book.observationMs<10000 || book.observations<4 || book.updates<5 ||
+        !Number.isFinite(book.averageImbalance) || book.market!==input.market ||
         book.symbol!==input.symbol || !Number.isSafeInteger(book.capturedAt) ||
         !Number.isSafeInteger(book.lastUpdateId) || book.lastUpdateId<=0 ||
         book.levels!==100 || !(book.bidUsdt>0) || !(book.askUsdt>0) ||
         !Number.isFinite(book.imbalance) || !Number.isFinite(book.spreadPct)) ||
       input.bookSnapshots.some((book,i)=>i>0 && book.capturedAt<=input.bookSnapshots[i-1].capturedAt)))
-    throw new Error('Historical D1 replay requires chronologically captured authentic order book snapshots');
+    throw new Error('Historical D2 replay requires pre-recorded sequentially synchronized WebSocket depth snapshots');
   return input;
 }
 const groupFor=(index,total)=>index<Math.floor(total*0.6)?'development':
@@ -103,7 +105,7 @@ export function compareRuleVersions(input) {
     provenance:'User-supplied OHLCV; origin and authenticity not independently verified',
     settings:{market,symbol,timeframe,development:60,validation:20,holdout:20,
       bookSnapshotsProvided:books.length,matchedClosedBarSnapshots:depthEligible,
-      note:'D1 versions require captured historical L2 snapshots; OHLCV alone cannot reconstruct them'},
+      note:'D2 needs pre-recorded synchronized WS L2 evidence with continuity metadata; OHLCV alone cannot reconstruct history'},
     versions,signals:signals.map(row=>({id:row.signal.id,ruleVersion:row.signal.ruleVersion,
       window:row.group,state:row.signal.state,detectedAt:row.signal.detectedAt,
       entryAt:row.signal.events.find(e=>e.type==='ENTRY')?.at||null,
