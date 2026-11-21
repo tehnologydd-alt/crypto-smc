@@ -1,4 +1,5 @@
 // Orbit Signals SMC v3 — deterministic closed-candle research engines.
+import { RULES, volumeGate } from './strategy-rules.js';
 const EPS = 1e-12;
 export const TF_MINUTES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440 });
 export const PARENT_TF = Object.freeze({ '5m': '1h', '15m': '1h', '30m': '1h', '1h': '4h', '4h': '1d' });
@@ -142,7 +143,7 @@ export class ExecutionRiskManager {
   }
 }
 
-export function detectV3(bars,market,symbol,timeframe,parentBars) {
+export function detectV3(bars,market,symbol,timeframe,parentBars,options={}) {
   if(!Array.isArray(bars) || bars.length<35 || !['spot','futures'].includes(market) || !PARENT_TF[timeframe] ||
      bars.some((c,i)=>!valid(c) || i>0 && c.time<=bars[i-1].time))return null;
   const structure=MarketStructureEngine.analyze(bars);
@@ -159,7 +160,29 @@ export function detectV3(bars,market,symbol,timeframe,parentBars) {
   const fvg=zones.fvg.findLast(z=>z.originIndex>=event.index-3 && z.originIndex<=event.index &&
       z.direction===event.direction && z.status==='active');
   if(!ob || !fvg)return null;
-  const htf=ContextRegimeFilter.evaluate(event,bars,parentBars,timeframe);
-  if(!htf.allowed)return null;
+  if (options.requireHtf !== false) {
+    const htf=ContextRegimeFilter.evaluate(event,bars,parentBars,timeframe);
+    if(!htf.allowed)return null;
+  }
   return ExecutionRiskManager.create({bars,market,symbol,timeframe,event,ob,fvg});
+}
+
+/**
+ * Run one closed-candle base candidate through three immutable nested gates.
+ * These are parallel *research* signal streams with unique ids and histories.
+ * The pre-existing SMC v3 stream is left untouched.
+ */
+export function detectRuleVariants(bars,market,symbol,timeframe,parentBars) {
+  const candidate=detectV3(bars,market,symbol,timeframe,parentBars,{requireHtf:false});
+  if(!candidate)return [];
+  const structureEvent=candidate.structureEvent;
+  const breakIndex=bars.findIndex(c=>c.end===structureEvent.occurredAt);
+  const volume=volumeGate(bars,breakIndex);
+  const parent=ContextRegimeFilter.evaluate(structureEvent,bars,parentBars,timeframe);
+  return RULES.filter(rule=>(!rule.liquidity || volume.allowed) && (!rule.htf || parent.allowed))
+    .map(rule=>({
+      ...candidate,id:candidate.id+':'+rule.key,ruleVersion:rule.key,
+      ruleSnapshot:{ ...rule, volumeRatio:volume.ratio, htfRegime:parent.regime || null,
+        evaluatedAt:candidate.detectedAt }
+    }));
 }
