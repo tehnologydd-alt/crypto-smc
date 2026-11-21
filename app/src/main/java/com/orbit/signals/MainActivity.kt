@@ -440,7 +440,8 @@ class MainActivity : Activity() {
             if(views.change.text.toString()!=changes)views.change.text=changes
             fun levels(rows:List<BookLevel>)=if(book==null)"—"
                 else rows.joinToString("\n") { "${format(it.price)}   ${compact(it.usdt)}" }
-            val bid=levels(book?.bids?:emptyList()),ask=levels(book?.asks?:emptyList())
+            val bid=levels(book?.bids?:emptyList())
+            val ask=levels(book?.asks?:emptyList())
             if(views.bids.text.toString()!=bid)views.bids.text=bid
             if(views.asks.text.toString()!=ask)views.asks.text=ask
         }
