@@ -47,7 +47,9 @@ export class DepthCollector extends DurableObject {
     // Spot @depth defaults to 1000ms; Futures @depth@500ms is the
     // slowest documented synchronized diff-depth interval.
     const suffix=market==='spot'?'@depth':'@depth@500ms';
-    return depthStreamUrl(market,SYMBOLS.map(s=>s.toLowerCase()+suffix).join('/'));
+    const streams=SYMBOLS.map(s=>s.toLowerCase()+suffix).join('/');
+    return market==='spot'?'wss://data-stream.binance.vision/stream?streams='+streams:
+      depthStreamUrl(market,streams);
   }
   connect(market) {
     if(!this.quota()||this.sockets.has(market)||(this.nextAttempt.get(market)||0)>Date.now())return;
@@ -86,7 +88,12 @@ export class DepthCollector extends DurableObject {
       if(!this.errors.has(market))this.errors.set(market,'WebSocket disconnected; waiting to retry');
     };
     ws.addEventListener('close',disconnect);
-    ws.addEventListener('error',()=>{this.errors.set(market,'WebSocket transport error');disconnect();});
+    ws.addEventListener('error',event=>{
+      const detail=event?.error?.message || event?.message || event?.reason ||
+        'transport error (no details from runtime)';
+      this.errors.set(market,'WebSocket: '+String(detail).slice(0,180));
+      disconnect();
+    });
   }
   store(book) {
     if(book.source!=='binance_ws_depth')return;
@@ -111,6 +118,31 @@ export class DepthCollector extends DurableObject {
       }
       if(!this.sockets.has(market))this.connect(market);
     }
+  }
+  async probe() {
+    const result={};
+    for(const market of MARKETS) {
+      const rest=market==='spot'?'https://data-api.binance.vision/api/v3/time':
+        'https://fapi.binance.com/fapi/v1/time';
+      const status={};
+      try {
+        const response=await fetch(rest,{signal:AbortSignal.timeout(7000)});
+        status.restHttp=response.status;
+      }catch(e){status.restError=String(e.message||e).slice(0,180);}
+      try {
+        const url=this.streamUrl(market).replace(/^wss:/,'https:');
+        const response=await fetch(url,{headers:{Upgrade:'websocket'},
+          signal:AbortSignal.timeout(8000)});
+        status.upgradeHttp=response.status;
+        status.hasWebSocket=Boolean(response.webSocket);
+        if(response.webSocket) {
+          response.webSocket.accept();
+          response.webSocket.close(1000,'diagnostic');
+        }
+      }catch(e){status.upgradeError=String(e.message||e).slice(0,180);}
+      result[market]=status;
+    }
+    return result;
   }
   health() {
     const streams={};
@@ -143,7 +175,8 @@ export class DepthCollector extends DurableObject {
       return reply({ok:true,streams:this.health().streams});
     }
     this.ensure();
-    if(url.pathname==='/health')return reply(this.health());
+    if(url.pathname==='/health')return reply(url.searchParams.get('probe')==='1'?
+      {...this.health(),probe:await this.probe()}:this.health());
     if(url.pathname==='/api/order-books'){
       const orderBooks={};
       for(const symbol of SYMBOLS)for(const market of MARKETS)
