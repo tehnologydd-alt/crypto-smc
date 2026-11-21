@@ -43,7 +43,7 @@ export function openExperienceStore(path, legacy = {}) {
   const signalRows = db.prepare("SELECT payload FROM signals ORDER BY CASE WHEN state IN ('WAITING','OPEN','UNCERTAIN') THEN 0 ELSE 1 END, created_at DESC LIMIT 500");
   const counts = db.prepare('SELECT (SELECT COUNT(*) FROM signals) AS signals, (SELECT COUNT(*) FROM outcomes) AS outcomes');
   const allSignals = db.prepare('SELECT payload FROM signals');
-  const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes ORDER BY resolved_at');
+  const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes WHERE strategy_version=3 ORDER BY resolved_at');
   let statisticsCache = null;
   const versionOf = signal => signal.strategyVersion || (signal.imbalance ? 2 : 1);
   const rowOf = signal => [signal.id, versionOf(signal), signal.detectedAt, signal.updatedAt || signal.events?.at(-1)?.at || signal.detectedAt,
@@ -61,7 +61,7 @@ export function openExperienceStore(path, legacy = {}) {
   try { model = JSON.parse(modelRow.get()?.payload || 'null'); } catch { model = null; }
   if (!validModel(model)) {
     model = validModel(legacy.model) ? legacy.model : newModel();
-    saveModel.run(2, Date.now(), JSON.stringify(model));
+    saveModel.run(3, Date.now(), JSON.stringify(model));
   }
 
   return {
@@ -101,7 +101,7 @@ export function openExperienceStore(path, legacy = {}) {
         upsertSignal.run(...rowOf(recorded));
         const result = insertOutcome.run(...outcomeOf(recorded));
         if (result.changes !== 1) { db.exec('ROLLBACK'); return false; }
-        saveModel.run(2, Date.now(), JSON.stringify(nextModel));
+        saveModel.run(3, Date.now(), JSON.stringify(nextModel));
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       Object.assign(model, nextModel);
