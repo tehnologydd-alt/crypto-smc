@@ -9,6 +9,13 @@ object ResearchRules {
         ResearchRule("v0.3", "Структура + OB/FVG + объём + HTF", true, true)
     )
     val keys = all.map { it.key }
+    // Frozen in each signal's permanent record. A changed rule requires a NEW key.
+    fun signature(rule: ResearchRule): String = when (rule.key) {
+        "v0.1" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
+        "v0.2" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|VOLUME_BREAK_GE_1.20_AVG20_PREV|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
+        "v0.3" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|VOLUME_BREAK_GE_1.20_AVG20_PREV|PARENT_CLOSED_TF_REGIME|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
+        else -> error("Unknown research rule")
+    }
     /** Only closed historical candles. Volume is a liquidity proxy, not order book depth. */
     fun volumeRatio(bars: List<Candle>, index:Int, lookback:Int=20):Double? {
         if (index < lookback || index >= bars.size) return null
