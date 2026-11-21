@@ -1,30 +1,46 @@
 package com.orbit.signals
 
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
 class ResearchRulesTest {
-    private fun candles(lastVolume: Double = 2.0): List<Candle> =
-        (0 until 40).map { i ->
-            val start = i * 60_000L
-            Candle(start,start+59_999L,100.0,101.0,99.0,100.0,
-                if (i == 39) lastVolume else 1.0)
-        }
-    @Test fun frozenRulesAreNestedAndDistinct() {
-        assertEquals(listOf("v0.1","v0.2","v0.3"),ResearchRules.keys)
+    private fun rawDepth(bidsQty:Double=2.0,asksQty:Double=1.0)=JSONObject().apply {
+        put("lastUpdateId",1122334L)
+        put("bids",JSONArray().apply {
+            for(i in 0 until 100)put(JSONArray(listOf(106.0-i*0.001,bidsQty)))
+        })
+        put("asks",JSONArray().apply {
+            for(i in 0 until 100)put(JSONArray(listOf(106.01+i*0.001,asksQty)))
+        })
+    }
+    @Test fun frozenRulesKeepOldVersionsAsArchive() {
+        assertEquals(listOf("v0.1","v0.2-D1","v0.3-D1"),ResearchRules.all.map{it.key})
+        assertTrue("v0.2" in ResearchRules.keys)
+        assertTrue("v0.3-L1" in ResearchRules.keys)
         assertEquals(3,ResearchRules.all.map { ResearchRules.signature(it) }.toSet().size)
-        assertFalse(ResearchRules.all[0].useVolume)
-        assertTrue(ResearchRules.all[1].useVolume)
+        assertFalse(ResearchRules.all[0].useLiquidity)
+        assertTrue(ResearchRules.all[1].useLiquidity)
         assertFalse(ResearchRules.all[1].useHtf)
         assertTrue(ResearchRules.all[2].useHtf)
     }
-    @Test fun relativeVolumeReadsOnlyClosedPriorTwentyCandles() {
-        val history = candles()
-        assertEquals(2.0,ResearchRules.volumeRatio(history,39)!!,1e-9)
-        assertTrue(ResearchRules.passesVolume(history,39))
-        assertFalse(ResearchRules.passesVolume(candles(1.0),39))
-        assertNull(ResearchRules.volumeRatio(history,10))
-        val future = history + Candle(40*60_000L,41*60_000L-1,100.0,101.0,99.0,100.0,9999.0)
-        assertEquals(2.0,ResearchRules.volumeRatio(future,39)!!,1e-9)
+    @Test fun realDepthUsesNotionalFromOneHundredLevelsEachSide() {
+        val book=BookDepth.parse(rawDepth(),"spot","BTCUSDT",5002000L)
+        assertNotNull(book)
+        assertEquals(100,book!!.levels)
+        assertEquals(1122334L,book.lastUpdateId)
+        assertTrue(book.bidUsdt>20000)
+        assertTrue(book.askUsdt>10000)
+        assertTrue(book.imbalance>0.6)
+        assertEquals(book.bidUsdt,OrderBookSnapshot.fromJson(book.json())!!.bidUsdt,0.00001)
+    }
+    @Test fun snapshotMustBeCapturedAfterCloseAndBeforeSignal() {
+        val book=BookDepth.parse(rawDepth(),"spot","BTCUSDT",5002000L)!!
+        assertTrue(BookDepth.gate(book,"spot","BTCUSDT","LONG",5000000L,5003000L).allowed)
+        assertFalse(BookDepth.gate(book,"spot","BTCUSDT","SHORT",5000000L,5003000L).allowed)
+        assertFalse(BookDepth.gate(book,"futures","BTCUSDT","LONG",5000000L,5003000L).allowed)
+        assertFalse(BookDepth.gate(book,"spot","BTCUSDT","LONG",5005000L,5007000L).allowed)
+        assertFalse(BookDepth.gate(book,"spot","BTCUSDT","LONG",5000000L,5030000L).allowed)
     }
 }
