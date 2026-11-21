@@ -48,6 +48,12 @@
     <section id="statsScreen" class="screen hidden">
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-stats"/></svg></span><h1>Статистика</h1></div><p>История сигналов и достигнутые уровни</p></div>
       <div class="stats-overview"><div><span>СИГНАЛОВ</span><strong id="statSignals">0</strong></div><div><span>ВХОДОВ</span><strong id="statEntries">0</strong></div><div><span>СТОПОВ</span><strong id="statStops">0</strong></div></div>
+      <section class="stats-card">
+        <h2>Сравнение версий правил</h2>
+        <p>Три параллельные исследовательские стратегии: v0.1 — структура + OB/FVG, v0.2 — фильтр относительного объёма, v0.3 — также подтверждение старшего TF.</p>
+        <div id="ruleComparison" class="rule-comparison"><p class="muted">Ожидание первых наблюдений…</p></div>
+      </section>
+      <div class="preference-title">ОБЩАЯ ИСТОРИЯ, ВКЛЮЧАЯ ПРЕЖНЮЮ SMC V3</div>
       <section class="stats-card"><h2>Достигнутые точки</h2><p>Количество сигналов, дошедших до каждой точки. Один сигнал считается один раз на каждом уровне.</p><div id="levelStats" class="level-stats"></div></section>
       <section class="stats-card"><h2>Успешность новой стратегии</h2><p>Успех — TP1 раньше стопа после входа. В расчёт входят только исходы сигналов с FVG.</p><div id="strategyStats"></div><div id="strategySeries" class="strategy-series"></div></section>
       <section class="stats-card"><h2>Качество прогноза модели</h2><p>Ошибка прогноза Brier: чем меньше, тем лучше. Сравнение только на результатах, которых модель ещё не видела при создании сигнала.</p><div id="forecastStats"></div></section>
@@ -71,7 +77,7 @@
   </main>
   <nav class="bottom-nav" aria-label="Разделы приложения"><button class="bottom-item active" data-page="market" aria-current="page"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-market"/></svg><span>Рынок</span></button><button class="bottom-item" data-page="signals"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-signals"/></svg><span>Сигналы</span></button><button class="bottom-item" data-page="stats"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-stats"/></svg><span>Статистика</span></button></nav>
   <dialog id="detailDialog" class="detail-dialog"><form method="dialog"><button class="icon-button close-detail" aria-label="Закрыть">✕</button></form><div id="detailContent"></div></dialog>
-  <script type="module" src="/app.js?v=16"></script>
+  <script type="module" src="/app.js?v=17"></script>
 </body>
 </html>
 
