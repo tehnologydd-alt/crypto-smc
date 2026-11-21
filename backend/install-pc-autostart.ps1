@@ -20,8 +20,8 @@ $starter = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'start-pc-backup.ps1'
 $runner = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 if (-not (Test-Path $starter)) { throw 'start-pc-backup.ps1 not found.' }
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -NodePath "{1}" -Port {2}' -f $starter,$node,$Port
-$action = New-ScheduledTaskAction -Execute $runner -Argument $args -WorkingDirectory $PSScriptRoot
+$taskArgs = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -NodePath "{1}" -Port {2}' -f $starter,$node,$Port
+$action = New-ScheduledTaskAction -Execute $runner -Argument $taskArgs -WorkingDirectory $PSScriptRoot
 $logon = New-ScheduledTaskTrigger -AtLogOn -User $user
 $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
     -RepetitionInterval (New-TimeSpan -Minutes $CheckMinutes) `
