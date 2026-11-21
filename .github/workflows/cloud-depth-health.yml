@@ -1,6 +1,8 @@
 name: Cloudflare depth collector smoke check
 
 on:
+  pull_request:
+    branches: ['review/android-apk']
   workflow_dispatch:
   push:
     branches: ['feature/market-structure-v3']
