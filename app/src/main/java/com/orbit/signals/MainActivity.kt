@@ -273,20 +273,23 @@ class MainActivity : Activity() {
     private fun renderSignals() {
         title("Сигналы", "M5–H4 · вход, TP и стоп по M1")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for ((scope, label) in listOf("all" to "Все", "marked" to "Отмеченные", "finished" to "Завершённые"))
+        for ((scope, label) in listOf("all" to "Актуальные", "marked" to "Отмеченные", "finished" to "Завершённые"))
             action(tabs, label, signalScope == scope) { signalScope = scope; show() }
         body.addView(tabs)
-        val signals = store.signals(source = prefs.mode).filter { signal -> when (signalScope) {
+        val allSignals = store.signals(source = prefs.mode)
+        val finishedCount = allSignals.count { SignalJourney.isFinished(it.state) }
+        body.addView(text("Актуальные: ${allSignals.size - finishedCount}  ·  Завершённые: $finishedCount", 12, muted))
+        val signals = allSignals.filter { signal -> when (signalScope) {
             "marked" -> signal.id in prefs.selectedIds
-            "finished" -> signal.state in listOf("STOPPED", "COMPLETED", "CANCELLED", "EXPIRED")
-            else -> true
+            "finished" -> SignalJourney.isFinished(signal.state)
+            else -> !SignalJourney.isFinished(signal.state)
         } }
         if (signals.isEmpty()) { card(body) {
             addView(text("Пока нет сигналов", 15, primaryText, true))
             addView(text(when (signalScope) {
                 "marked" -> "Выберите сигнал в карточке или обзоре актива."
                 "finished" -> "Ожидаем TP3, стоп, отмену или истечение."
-                else -> "Базовые правила ждут совпадения BOS, OB и FVG."
+                else -> "Актуальных сигналов нет. Отработавшие сценарии находятся во вкладке «Завершённые»."
             }, 12, muted))
         }; return }
         for (signal in signals.take(100)) card(body) {
@@ -305,6 +308,7 @@ class MainActivity : Activity() {
             signalLevelsRow(this, listOf("Вход" to signal.entry, "Стоп" to signal.stop), 16)
             signalLevelsRow(this, listOf("TP1" to signal.targets[0], "TP2" to signal.targets[1], "TP3" to signal.targets[2]), 14)
             addView(text("${date(signal.detectedAt)}  ·  ${signal.hitTargets}/3 целей", 12, muted))
+            addSignalJourney(this, signal, compact = true)
             action(this, if (signal.id in prefs.selectedIds) "✓ Отмечен · убрать" else "☆ Отметить сигнал") { prefs.toggleSelected(signal.id); show() }
             setOnClickListener { navigateToAsset(signal.symbol, signal.market, signal.timeframe, signal.id) }
         }
@@ -635,6 +639,7 @@ class MainActivity : Activity() {
             for (signal in visibleSignals) card(listContent) {
                 addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
                 addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
+                addSignalJourney(this, signal, compact = true)
                 setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
             }
             signalList.addView(listContent)
@@ -655,9 +660,12 @@ class MainActivity : Activity() {
             addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
             addView(text("Вход ${format(selected.entry)}   Стоп ${format(selected.stop)}", 12))
             addView(text("TP1 ${format(selected.targets[0])}   TP2 ${format(selected.targets[1])}   TP3 ${format(selected.targets[2])}", 12))
-            addView(text("FVG ${format(selected.imbalance.low)}–${format(selected.imbalance.high)} · BOS ${format(selected.swing)}", 11, accent))
+            addView(text("FVG ${format(selected.imbalance.low)}–${format(selected.imbalance.high)} · ${selected.breakType} ${format(selected.swing)}", 11, accent))
+            addView(text("История движения", 15, primaryText, true))
+            addSignalJourney(this, selected, compact = false)
             action(this, if (selected.id in prefs.selectedIds) "✓ Убрать из уведомлений" else "Следить за сигналом") { prefs.toggleSelected(selected.id); show() }
-            for (event in selected.events.reversed()) addView(text("${event.type} · ${date(event.at)} · ${format(event.price)}", 11, muted))
+            for (event in selected.events.sortedBy { it.at })
+                addView(text("${eventName(event.type)} · ${date(event.at)} · ${format(event.price)}", 11, muted))
         }
         card(body) {
             addView(text("Крупные сделки", 16, primaryText, true))
@@ -741,7 +749,51 @@ class MainActivity : Activity() {
     private fun compact(value: Double): String = when { value >= 1_000_000 -> String.format(Locale.US, "%.2fM", value / 1_000_000); value >= 1_000 -> String.format(Locale.US, "%.1fK", value / 1_000); else -> String.format(Locale.US, "%.0f", value) }
     private fun date(value: Long): String = SimpleDateFormat("dd MMM HH:mm", Locale.forLanguageTag("ru")).format(Date(value))
     private fun rate(signals: List<Signal>) = if (signals.isEmpty()) 0 else (100.0 * signals.count { it.outcome == 1 } / signals.size).roundToInt()
-    private fun assetBucket(state: String) = when (state) { "WAITING" -> "waiting"; "OPEN" -> "active"; else -> "finished" }
+    private fun eventName(type: String) = when(type) {
+        "CREATED" -> "Начало сигнала"
+        "ENTRY" -> "Вход в позицию"
+        "TP1", "TP2", "TP3" -> "Достигнут $type"
+        "STOP" -> "Завершение: стоп"
+        "INVALIDATED" -> "Отменён до входа"
+        "EXPIRED" -> "Истёк до входа"
+        "DATA_GAP" -> "Пробел в данных"
+        "ACKNOWLEDGED" -> "Отмечен после проверки"
+        else -> type
+    }
+    private fun addSignalJourney(parent: LinearLayout, signal: Signal, compact: Boolean) {
+        val trace = SignalJourney.trace(signal)
+        val font = if (compact) 10 else 12
+        val started = "Начало: ${date(trace.createdAt)}" +
+            (trace.createdPrice?.let { " · ${format(it)}" } ?: "")
+        parent.addView(text(started, font, muted))
+        val entry = trace.entry
+        parent.addView(text(if (entry != null) "Вход: ${date(entry.at)} · ${format(entry.price)}"
+            else "Вход: ${if (trace.finished) "не состоялся" else "ожидается"}", font, if (entry != null) accent else muted))
+        val exit = trace.exit
+        if (exit != null) {
+            parent.addView(text("Финиш: ${eventName(exit.type)} · ${date(exit.at)} · ${format(exit.price)}", font, muted))
+        } else if (trace.finished) {
+            parent.addView(text("Финиш: ${trace.result} · подробности события отсутствуют в журнале", font, muted))
+        } else if (signal.state == "OPEN") {
+            parent.addView(text("Финиш: движение продолжается · достигнуто TP ${trace.lastTarget}/3", font, muted))
+        } else if (signal.state == "UNCERTAIN") {
+            parent.addView(text("Исход требует проверки данных", font, danger))
+        }
+        val change = trace.priceMovePercent
+        if (trace.finished && change != null) {
+            val sign = if (change >= 0) "+" else ""
+            val result = String.format(Locale.US, "%.2f", change)
+            parent.addView(text("${trace.result} · $sign$result% по цене" +
+                (if (trace.lastTarget in 1..2) " · ранее TP${trace.lastTarget}" else ""),
+                font, if (change >= 0) accent else danger, true))
+        } else if (trace.finished) {
+            parent.addView(text(trace.result, font, muted))
+        }
+        if (!compact) parent.addView(text(
+            "Отметки соответствуют касаниям уровней по данным M1, а не исполненным биржевым сделкам.",
+            10, muted))
+    }
+    private fun assetBucket(state: String) = SignalJourney.bucket(state)
     private fun stateName(value: String) = mapOf("WAITING" to "Ожидает вход", "OPEN" to "В работе", "STOPPED" to "Стоп", "COMPLETED" to "TP3 достигнут", "CANCELLED" to "Отменён", "EXPIRED" to "Истёк", "UNCERTAIN" to "Проверьте вручную")[value] ?: value
 }
 
