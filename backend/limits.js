@@ -7,11 +7,12 @@ export function usagePlan(symbolCount) {
   const markets = 2;
   const timeframeRequestsPerDay = symbols * markets * Object.values(TIMEFRAMES)
     .reduce((sum, minutes) => sum + 1440 / minutes, 0);
+  const depthBootstrapMinRequests = symbols * markets;
   const cloudflareM1RequestsPerDay = symbols * markets * 1440;
   const peakRequestsPerCron = symbols * markets * (1 + Object.keys(TIMEFRAMES).length);
   return {
     symbols, markets,
-    node: { websocketConnections: 4, timeframeRestRequestsPerDay: timeframeRequestsPerDay },
+    node: { websocketConnections: 6, timeframeRestRequestsPerDay: timeframeRequestsPerDay,\n      depthBootstrapRequestsOnStart: depthBootstrapMinRequests, depthBootstrapPerReconnect: depthBootstrapMinRequests },
     cloudflareFree: {
       cronInvocationsPerDay: 1440,
       estimatedBinanceSubrequestsPerDay: cloudflareM1RequestsPerDay + timeframeRequestsPerDay,
