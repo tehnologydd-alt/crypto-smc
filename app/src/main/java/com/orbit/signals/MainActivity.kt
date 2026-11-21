@@ -63,6 +63,24 @@ class MainActivity : Activity() {
     private var assetRequest = 0
     private var contentScroll: ScrollView? = null
     private var renderedScreenKey: String? = null
+    // Keep visible controls alive across background polls. Recreate the page only
+    // for user navigation or a real change in signal lifecycle, never for each M1 tick.
+    private var displayedSignalStamp: String? = null
+    private val marketPriceViews = mutableMapOf<String, TextView>()
+    private var marketLastUpdateView: TextView? = null
+    private var marketLearningLevelView: TextView? = null
+    private var marketTrainingView: TextView? = null
+    private var marketValidationView: TextView? = null
+    private var settingsLastCheckView: TextView? = null
+    private var assetLastPriceView: TextView? = null
+    private var assetTickerView: TextView? = null
+    private var assetWindowView: TextView? = null
+    private var assetStructureView: TextView? = null
+    private var assetErrorView: TextView? = null
+    private var assetChartView: ChartView? = null
+    private var assetBuyView: TextView? = null
+    private var assetSellView: TextView? = null
+    private var assetRecentTradesView: LinearLayout? = null
     private var resumed = false
     private data class Screen(
         val page: String,
@@ -172,11 +190,16 @@ class MainActivity : Activity() {
     }
     private fun updateMarket() = thread(name = "orbit-market") {
         val result = runCatching { Monitor.run(applicationContext) }.getOrElse { it.message ?: "Ошибка мониторинга" }
-        runOnUiThread { if (!isFinishing && !isDestroyed) { if (assetSymbol == null || page == "settings") show(); if (result.contains("ошибок")) android.util.Log.w("Orbit", result) } }
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            refreshVisibleData()
+            if (result.contains("ошибок")) android.util.Log.w("Orbit", result)
+        }
     }
     private fun show() {
         val screenKey = "$page:${assetSymbol ?: ""}:$market"
         val restoreY = if (screenKey == renderedScreenKey) contentScroll?.scrollY ?: 0 else 0
+        resetLiveViews()
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
         root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
@@ -243,8 +266,121 @@ class MainActivity : Activity() {
             "signals" -> renderSignals(); "stats" -> renderStats(); "settings" -> renderSettings(); else -> renderMarket()
         }
         renderedScreenKey = screenKey
+        displayedSignalStamp = signalsStamp()
         if (restoreY > 0) scroll.post { scroll.scrollTo(0, restoreY) }
     }
+    private fun resetLiveViews() {
+        marketPriceViews.clear()
+        marketLastUpdateView = null; marketLearningLevelView = null
+        marketTrainingView = null; marketValidationView = null
+        settingsLastCheckView = null
+        assetLastPriceView = null; assetTickerView = null
+        assetWindowView = null; assetStructureView = null
+        assetErrorView = null; assetChartView = null
+        assetBuyView = null; assetSellView = null; assetRecentTradesView = null
+    }
+
+    private fun signalsStamp(): String {
+        val source = prefs.mode
+        val signals = if (assetSymbol != null) store.signals(market, assetSymbol, source)
+            else if (page == "signals" || page == "stats") store.signals(source = source)
+            else return ""
+        return signals.joinToString("|") { signal ->
+            "${signal.id}:${signal.state}:${signal.hitTargets}:${signal.events.size}"
+        }
+    }
+
+    private fun refreshVisibleData() {
+        val stamp = signalsStamp()
+        // Finished/created/updated signals are uncommon; these are the only
+        // background events that can change the set or content of signal cards.
+        if (stamp != displayedSignalStamp && (assetSymbol != null ||
+                    page == "signals" || page == "stats")) {
+            assetSymbol?.let { symbol ->
+                selectedSignalId?.let { id ->
+                    store.signals(market, symbol, prefs.mode).firstOrNull { it.id == id }?.let {
+                        assetSignalTab = assetBucket(it.state)
+                    }
+                }
+            }
+            show()
+            return
+        }
+        if (assetSymbol != null) refreshAssetLiveViews()
+        else when (page) {
+            "market" -> refreshMarketLiveViews()
+            "settings" -> settingsLastCheckView?.text =
+                "Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}"
+        }
+    }
+
+    private fun refreshMarketLiveViews() {
+        for ((symbol, label) in marketPriceViews) {
+            label.text = "СПОТ  ${format(store.price("spot", symbol)?.first)}      " +
+                "ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}"
+        }
+        marketLastUpdateView?.text =
+            "Обновлено: ${if (prefs.lastRun == 0L) "ожидание" else date(prefs.lastRun)}"
+        if (marketLearningLevelView != null) {
+            val localModel = store.model()
+            val remoteModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
+            val samples = if (prefs.mode == "server") remoteModel?.optInt("samples") ?: 0 else localModel.samples
+            val validation = if (prefs.mode == "server") remoteModel?.optInt("validationSamples") ?: 0 else localModel.validation.size
+            val level = if (prefs.mode == "server") {
+                if (remoteModel?.optBoolean("trusted") == true) 3
+                else if (samples >= 50 && validation >= 30) 2
+                else if (samples >= 30) 1 else 0
+            } else localModel.level
+            marketLearningLevelView?.text = "УРОВЕНЬ $level/3  ·  " +
+                listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level.coerceIn(0, 3)]
+            marketTrainingView?.text = "Обучающие исходы: ${samples.coerceAtMost(30)}/30"
+            marketValidationView?.text = "Проверочные исходы: ${validation.coerceAtMost(30)}/30"
+        }
+    }
+
+    private fun refreshAssetLiveViews() {
+        val symbol = assetSymbol ?: return
+        assetLastPriceView?.text = format(store.price(market, symbol)?.first)
+        assetTickerView?.text = assetTicker?.let {
+            "24 ч: ${it.optString("priceChangePercent", "—")}%  ·  H " +
+                "${it.optString("highPrice", "—")}  L ${it.optString("lowPrice", "—")}"
+        } ?: "Данные 24 ч загружаются"
+        assetWindowView?.text = if (chartAnchorAt == null) "Текущие свечи" else
+            "История сигнала: окно вокруг ${date(chartAnchorAt!!)}"
+        assetErrorView?.apply {
+            val error = assetError
+            visibility = if (error == null) View.GONE else View.VISIBLE
+            text = error?.let { "Данные Binance: $it" } ?: ""
+        }
+        val structure = Strategy.structure(assetBars)
+        assetStructureView?.text = "SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · " +
+            "OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}"
+        assetChartView?.apply {
+            candles = assetBars
+            this.structure = structure
+            signal = store.signals(market, symbol, prefs.mode).firstOrNull { it.id == selectedSignalId }
+            visibleCount = chartVisibleCount
+            offset = chartOffset
+        }
+        val buys = assetTrades.filter { it.side == "buy" }
+        val sells = assetTrades.filter { it.side == "sell" }
+        assetBuyView?.text = "Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT"
+        assetSellView?.text = "Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT"
+        assetRecentTradesView?.let { list ->
+            val rows = assetTrades.take(4).map { trade ->
+                "${if (trade.side == "buy") "Покупка" else "Продажа"} " +
+                    "${compact(trade.usd)} · ${date(trade.at)}"
+            }
+            // Reuse TextViews; never replace the ScrollView or the chart.
+            while (list.childCount > rows.size) list.removeViewAt(list.childCount - 1)
+            rows.forEachIndexed { index, value ->
+                val row = if (index < list.childCount) list.getChildAt(index) as TextView
+                    else text("", 11, muted).also { list.addView(it) }
+                if (row.text.toString() != value) row.text = value
+            }
+        }
+    }
+
     private fun renderMarket() {
         card(body) {
             val configured = RemoteBackend.configured(prefs)
