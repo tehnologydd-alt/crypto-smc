@@ -458,6 +458,10 @@ class MainActivity : Activity() {
             addView(text(if (signal.ruleVersion.isNotBlank())
                 "Правила ${signal.ruleVersion} · ${ResearchRules.all.firstOrNull { it.key == signal.ruleVersion }?.title ?: "версия"}"
                 else "Прежняя версия SMC v3", 10, muted))
+            signal.bookEvidence?.let { book ->
+                addView(text("Стакан: bid ${compact(book.bidUsdt)} / ask ${compact(book.askUsdt)} USDT · " +
+                    "bid ${(book.imbalance * 100).roundToInt()}% · ${date(book.capturedAt)}", 11, muted))
+            }
             addView(text("${signal.side}  ·  ${stateName(signal.state)}", 16, primaryText, true))
             signalLevelsRow(this, listOf("Вход" to signal.entry, "Стоп" to signal.stop), 16)
             signalLevelsRow(this, listOf("TP1" to signal.targets[0], "TP2" to signal.targets[1], "TP3" to signal.targets[2]), 14)
@@ -544,8 +548,8 @@ class MainActivity : Activity() {
             addView(text("${item.rule.key} · ${item.rule.title}", 16, primaryText, true))
             addView(text(when (item.rule.key) {
                 "v0.1" -> "Базовая структура BOS/CHoCH + активные OB/FVG"
-                "v0.2" -> "v0.1 + объём пробоя ≥ 1,20× среднего за предыдущие 20 свечей"
-                else -> "v0.2 + подтверждение последнего закрытого старшего таймфрейма"
+                "v0.2-D1" -> "v0.1 + объём заявок из стакана Binance: 100 уровней bid/ask; доля направленной стороны ≥55%"
+                else -> "v0.2-D1 + подтверждение последнего закрытого старшего таймфрейма"
             }, 11, muted))
             val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
             statsMetric(first, "Сигналы", item.detected.toString(), primaryText)
@@ -565,8 +569,10 @@ class MainActivity : Activity() {
                 "Недостаточно исходов для предварительного вывода (${item.settled}/30)."
                 else "Предварительная выборка набрана; проверяйте устойчивость на новых данных.", 11, muted))
         }
-        body.addView(text("Ликвидность v0.2/v0.3 здесь означает относительный объём закрытых свечей, " +
-            "а не глубину стакана. Сравнение наблюдательное и не учитывает комиссии.", 10, muted))
+        body.addView(text("В версиях D1 берутся реальные объёмы заявок из Binance Spot/Futures: " +
+            "100 верхних уровней каждой стороны, цена × количество = USDT. " +
+            "Снимок делается после закрытия свечи; прежние исследования объёма свечей сохранены в архиве. " +
+            "Результат наблюдательный и не учитывает комиссии.", 10, muted))
         body.addView(text("Общая историческая статистика (включая прежнюю SMC v3)", 17, primaryText, true))
         val events = signals.associateWith { signal -> signal.events.map { it.type }.toSet() }
         fun count(type: String) = events.values.count { type in it }
@@ -934,6 +940,11 @@ class MainActivity : Activity() {
             addView(text("Параметры сигнала", 16, primaryText, true))
             addView(text(if (selected.ruleVersion.isNotBlank()) "Правила ${selected.ruleVersion}"
                 else "Прежняя версия SMC v3", 11, accent, true))
+            selected.bookEvidence?.let { book ->
+                addView(text("Стакан Binance · 100 уровней · снимок ${date(book.capturedAt)}", 11, accent, true))
+                addView(text("Bid ${compact(book.bidUsdt)} USDT · Ask ${compact(book.askUsdt)} USDT · " +
+                    "Bid ${(book.imbalance * 100).roundToInt()}%", 11, muted))
+            }
             addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
             addView(text("Вход ${format(selected.entry)}   Стоп ${format(selected.stop)}", 12))
             addView(text("TP1 ${format(selected.targets[0])}   TP2 ${format(selected.targets[1])}   TP3 ${format(selected.targets[2])}", 12))
