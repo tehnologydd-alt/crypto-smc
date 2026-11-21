@@ -1,5 +1,6 @@
 import { getPreferences, savePreferences, syncPreferences } from './notification-settings.js';
 import { initWakeLock, keepScreenOn, setKeepScreenOn } from './wake.js';
+import { journey, isFinished } from './signal-journey.js';
 const $ = selector => document.querySelector(selector);
 let data = null, filter = 'all', scope = 'all', tfFilter = 'all', activeDetail = null;
 let demoSignalPrices = {};
@@ -125,9 +126,9 @@ function render() {
   $('#experienceText').textContent = `Реальная база опыта: ${data.experience?.signals || 0} сигналов, ${data.experience?.outcomes || 0} исходов для модели. Записи сохраняются после перезапуска.`;
   $('#assetsGrid').innerHTML = data.symbols.map(assetCard).join('');
   const selectedIds = new Set(getPreferences().selectedIds);
-  const signals = data.signals.filter(s => (filter === 'all' || s.market === filter) && (tfFilter === 'all' || (s.timeframe || '1h') === tfFilter) && (scope === 'all' || (scope === 'marked' ? selectedIds.has(s.id) : finishedStates.has(s.state))));
-  $('#signalsCount').textContent = data.signals.length;
-  const emptyText = scope === 'marked' ? 'Выберите сигнал в его карточке или обзоре актива, чтобы он появился здесь.' : scope === 'finished' ? 'Завершённые сигналы появятся после TP3, стопа, отмены или истечения.' : `Сервер проверяет закрытые свечи M5–H4 для ${data.symbols.length} активов. Выполнение отслеживается по M1.`;
+  const signals = data.signals.filter(s => (filter === 'all' || s.market === filter) && (tfFilter === 'all' || (s.timeframe || '1h') === tfFilter) && (scope === 'all' ? !isFinished(s) : scope === 'marked' ? selectedIds.has(s.id) : isFinished(s)));
+  $('#signalsCount').textContent = data.signals.filter(s => !isFinished(s)).length;
+  const emptyText = scope === 'marked' ? 'Выберите сигнал в его карточке или обзоре актива, чтобы он появился здесь.' : scope === 'finished' ? 'Завершённые сигналы появятся после TP3, стопа, отмены или истечения.' : `Актуальных сигналов нет. Завершённые сценарии находятся во вкладке «Завершённые».`;
   $('#signals').innerHTML = signals.length ? signals.map(card).join('') : `<div class="empty"><div class="empty-orbit">◌</div><strong>Пока нет сигналов</strong><p>${emptyText}</p></div>`;
   renderStatistics(data.statistics);
   if (document.activeElement !== $('#symbolsInput')) $('#symbolsInput').value = data.symbols.join(', ');
@@ -145,6 +146,13 @@ function showDetail(id, open = true) {
   const s = data?.signals.find(x => x.id === id);
   if (!s) return;
   activeDetail = id;
+  const trace = journey(s);
+  const pathSummary = `<div class="detail-grid">
+    <div><span>Начало сигнала</span><strong>${time(s.detectedAt)}</strong></div>
+    <div><span>Точка входа</span><strong>${trace.entry ? time(trace.entry.at) + ' · ' + num(trace.entry.price) : 'не было'}</strong></div>
+    <div><span>Завершение</span><strong>${trace.exit ? time(trace.exit.at) + ' · ' + num(trace.exit.price) : trace.result}</strong></div>
+    <div><span>Изменение цены</span><strong>${trace.percent == null ? '—' : (trace.percent>=0 ? '+' : '') + trace.percent.toFixed(2) + '%'}</strong></div>
+  </div>`;
   const events = s.events.map(e => `<div class="timeline-row"><div class="timeline-dot"></div><div><strong>${safe(eventName[e.type] || e.type)}</strong><span>${time(e.at)} · ${num(e.price)} USDT</span></div></div>`).reverse().join('');
   $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
     <div class="detail-grid"><div><span>Зона входа</span><strong>${num(s.entryLow)} – ${num(s.entryHigh)}</strong></div><div><span>Расчётный вход</span><strong>${num(s.entry)}</strong></div><div><span>Стоп</span><strong>${num(s.stop)}</strong></div><div><span>Риск на единицу</span><strong>${num(Math.abs(s.entry - s.stop))}</strong></div></div>
@@ -152,7 +160,7 @@ function showDetail(id, open = true) {
     <p class="detail-quality">${s.quality?.trusted ? `Оценка модели при создании: ${Math.round(s.quality.probability * 100)}%. ${s.quality.recommended ? 'Приоритетный сигнал.' : 'Низкий приоритет; уведомления приглушены.'}` : 'Оценка модели пока обучается. Сигнал создан базовыми правилами.'}</p>
     <button class="primary-button outline follow-detail" type="button" data-follow="${safe(s.id)}">${getPreferences().selectedIds.includes(s.id) ? '✓ Отмечен · убрать' : '☆ Отметить сигнал'}</button>
     <a class="primary-button detail-chart-link" href="/asset.html?symbol=${encodeURIComponent(s.symbol)}&market=${encodeURIComponent(s.market)}&interval=${encodeURIComponent(s.timeframe)}&signal=${encodeURIComponent(s.id)}${previewMode ? '&preview=1' : ''}">Показать на графике актива</a>
-    <div class="timeline"><h3>История сигнала</h3>${events}</div>${s.state === 'UNCERTAIN' ? `<button class="primary-button archive-button" data-archive="${safe(s.id)}">Архивировать после проверки</button>` : ''}<p class="detail-note">Уровни рассчитаны по свече ордер-блока и ATR. Касание цены не подтверждает исполнение биржевого ордера.</p>`;
+    ${pathSummary}<div class="timeline"><h3>История сигнала</h3>${events}</div>${s.state === 'UNCERTAIN' ? `<button class="primary-button archive-button" data-archive="${safe(s.id)}">Архивировать после проверки</button>` : ''}<p class="detail-note">Уровни рассчитаны по свече ордер-блока и ATR. Касание цены не подтверждает исполнение биржевого ордера.</p>`;
   if (open) $('#detailDialog').showModal();
 }
 async function refresh() {
