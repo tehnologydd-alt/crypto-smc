@@ -7,6 +7,12 @@ package com.orbit.signals
  * These are intentionally independent to avoid rejecting legitimate futures batches.
  */
 object DepthSequence {
+    fun depthStreamUrl(market:String,streams:String):String = when(market) {
+        "spot" -> "wss://stream.binance.com:9443/stream?streams=$streams"
+        // Binance relocated depth to public high-frequency streams in 2026.
+        "futures" -> "wss://fstream.binance.com/public/stream?streams=$streams"
+        else -> error("Unknown Binance market")
+    }
     fun bridge(market:String,snapshot:Long,first:Long,last:Long):Boolean {
         if(snapshot<=0||first<=0||last<first)return false
         return when(market) {
