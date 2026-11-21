@@ -9,17 +9,19 @@ import java.security.MessageDigest
 
 data class PendingUpload(val signal: Signal, val digest: String)
 
-class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience.db", null, 2) {
+class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE signals(id TEXT PRIMARY KEY, market TEXT NOT NULL, symbol TEXT NOT NULL, detected_at INTEGER NOT NULL, json TEXT NOT NULL)")
         db.execSQL("CREATE INDEX signal_pair ON signals(market, symbol, detected_at)")
         db.execSQL("CREATE TABLE cursors(kind TEXT NOT NULL, market TEXT NOT NULL, symbol TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(kind,market,symbol))")
         db.execSQL("CREATE TABLE model(id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL)")
+        db.execSQL("CREATE TABLE rule_models(rule_key TEXT PRIMARY KEY, json TEXT NOT NULL)")
         db.execSQL("CREATE TABLE prices(market TEXT NOT NULL, symbol TEXT NOT NULL, price REAL NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(market,symbol))")
         db.execSQL("CREATE TABLE uploaded_signals(id TEXT PRIMARY KEY, digest TEXT NOT NULL, uploaded_at INTEGER NOT NULL)")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) db.execSQL("CREATE TABLE uploaded_signals(id TEXT PRIMARY KEY, digest TEXT NOT NULL, uploaded_at INTEGER NOT NULL)")
+        if (oldVersion < 3) db.execSQL("CREATE TABLE rule_models(rule_key TEXT PRIMARY KEY, json TEXT NOT NULL)")
     }
 
     fun signalExists(id: String): Boolean = readableDatabase.rawQuery("SELECT 1 FROM signals WHERE id=? LIMIT 1", arrayOf(id)).use { it.moveToFirst() }
@@ -90,5 +92,19 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience
     fun saveModel(model: Model) {
         writableDatabase.insertWithOnConflict("model", null, ContentValues().apply { put("id", 1); put("json", model.json().toString()) }, SQLiteDatabase.CONFLICT_REPLACE)
     }
+    fun ruleModel(key: String): Model {
+        require(key in ResearchRules.keys)
+        return readableDatabase.rawQuery("SELECT json FROM rule_models WHERE rule_key=?", arrayOf(key)).use {
+            if (it.moveToFirst()) runCatching { Model.fromJson(JSONObject(it.getString(0))) }
+                .getOrElse { Model() } else Model()
+        }
+    }
+    fun saveRuleModel(key: String, model: Model) {
+        require(key in ResearchRules.keys)
+        writableDatabase.insertWithOnConflict("rule_models", null, ContentValues().apply {
+            put("rule_key", key); put("json", model.json().toString())
+        }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
 }
 
