@@ -57,7 +57,8 @@ object LiveDepthClient {
         }
         /** Must be called under guard. Returns true only when a bootstrap is required. */
         fun receive(raw:JSONObject):Boolean {
-            val first=raw.optLong("U",-1),last=raw.optLong("u",-1)
+            val first=raw.optLong("U",-1)
+            val last=raw.optLong("u",-1)
             if(first<=0||last<first)return false
             val bid=read(raw.optJSONArray("b"))?:return false
             val ask=read(raw.optJSONArray("a"))?:return false
