@@ -148,7 +148,7 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
     const parentBars = (await fetchKlines(market, symbol, parentTf, { limit: 120 }))
       .filter(bar => bar.end <= expectedEnd);
     const signal = detectSignal(candles, market, symbol, timeframe, parentBars);
-    if (signal && !state.signals.some(s => s.id === signal.id) && !state.signals.some(s => s.market === market && s.symbol === symbol && (s.timeframe || '1h') === timeframe && ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state))) {
+    if (signal && !state.signals.some(s => s.id === signal.id) && !state.signals.some(s => s.market === market && s.symbol === symbol && (s.timeframe || '1h') === timeframe && s.strategyVersion === 3 && ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state))) {
       signal.quality = scoreSignal(state.model, signal.features);
       experience.saveSignal(signal);
       state.signals.unshift(signal);
