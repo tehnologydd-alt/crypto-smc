@@ -55,6 +55,7 @@ class MainActivity : Activity() {
     private var assetBars: List<Candle> = emptyList()
     private var chartVisibleCount = 90
     private var chartOffset = 0
+    private var chartAnchorAt: Long? = null // null: latest; timestamp: historical event window
     private var assetTicker: org.json.JSONObject? = null
     private var assetTrades: List<LargeTrade> = emptyList()
     private var assetError: String? = null
@@ -110,6 +111,7 @@ class MainActivity : Activity() {
         backStack.addLast(currentScreen())
         assetSymbol = null
         selectedSignalId = null
+        chartAnchorAt = null
         page = destination
         show()
     }
@@ -120,6 +122,9 @@ class MainActivity : Activity() {
         market = selectedMarket
         timeframe = selectedFrame
         selectedSignalId = signalId
+        chartAnchorAt = signalId?.let { id ->
+            store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let(::signalAnchor)
+        }
         assetSignalTab = signalId?.let { id ->
             store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let { assetBucket(it.state) }
         } ?: "waiting"
@@ -137,6 +142,11 @@ class MainActivity : Activity() {
         market = previous.market
         timeframe = previous.timeframe
         selectedSignalId = previous.selectedSignalId
+        chartAnchorAt = previous.selectedSignalId?.let { id ->
+            previous.assetSymbol?.let { symbol ->
+                store.signals(previous.market, symbol, prefs.mode).firstOrNull { it.id == id }?.let(::signalAnchor)
+            }
+        }
         assetBars = emptyList()
         show()
         if (assetSymbol != null) loadAsset()
@@ -147,6 +157,7 @@ class MainActivity : Activity() {
         store.signals(source = prefs.mode).firstOrNull { it.id == id }?.let {
             if (assetSymbol != it.symbol || selectedSignalId != it.id) backStack.addLast(currentScreen())
             assetSymbol = it.symbol; market = it.market; timeframe = it.timeframe; selectedSignalId = it.id
+            chartAnchorAt = signalAnchor(it)
             assetSignalTab = assetBucket(it.state)
             loadAsset()
         }
@@ -586,7 +597,7 @@ class MainActivity : Activity() {
         title("${symbol.removeSuffix("USDT")} / USDT", "Binance · цены и структура рынка")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((value, label) in listOf("spot" to "Спот", "futures" to "Фьючерсы")) action(tabs, label, value == market) {
-            market = value; selectedSignalId = null; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
+            market = value; selectedSignalId = null; chartAnchorAt = null; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
         }
         body.addView(tabs)
         card(body) {
@@ -602,6 +613,18 @@ class MainActivity : Activity() {
         val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset() }
         body.addView(timeTabs)
+        if (selected != null) {
+            val entry = SignalJourney.trace(selected).entry
+            val exit = SignalJourney.trace(selected).exit
+            val navigation = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            action(navigation, "К старту") { chartAnchorAt = selected.detectedAt; chartOffset = 0; loadAsset() }
+            if (entry != null) action(navigation, "К входу") { chartAnchorAt = entry.at; chartOffset = 0; loadAsset() }
+            if (exit != null) action(navigation, "К выходу") { chartAnchorAt = exit.at; chartOffset = 0; loadAsset() }
+            action(navigation, "Сейчас") { chartAnchorAt = null; chartOffset = 0; loadAsset() }
+            body.addView(navigation)
+            body.addView(text(if (chartAnchorAt == null) "Текущие свечи"
+                else "История сигнала: окно вокруг ${date(chartAnchorAt!!)}", 11, accent))
+        }
         val structure = Strategy.structure(assetBars)
         body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted))
         card(body) { addView(ChartView(this@MainActivity).apply {
@@ -610,7 +633,7 @@ class MainActivity : Activity() {
             onViewportChanged = { count, shift -> chartVisibleCount = count; chartOffset = shift }
             contentDescription = "График свечей. Разведите пальцы для увеличения, проведите в сторону для просмотра истории."
         }) }
-        body.addView(text("Разведите пальцы, чтобы увеличить график. Проведите влево или вправо для просмотра свечей.", 11, muted))
+        body.addView(text("Цветные точки: старт, вход, TP1–TP3 и выход. Линия показывает движение по закрытиям свечей между входом и финалом. Масштабируйте жестами; кнопками открывайте нужный момент.", 11, muted))
         assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
         body.addView(text("Выберите сигнал", 20, primaryText, true))
         val statusTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -640,7 +663,13 @@ class MainActivity : Activity() {
                 addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
                 addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
                 addSignalJourney(this, signal, compact = true)
-                setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
+                setOnClickListener {
+                    selectedSignalId = signal.id; timeframe = signal.timeframe
+                    assetSignalTab = assetBucket(signal.state)
+                    chartAnchorAt = signalAnchor(signal)
+                    chartVisibleCount = 90; chartOffset = 0
+                    show(); loadAsset()
+                }
             }
             signalList.addView(listContent)
             body.addView(signalList, LinearLayout.LayoutParams(-1, dp(minOf(visibleSignals.size, 5) * 88)).apply { topMargin = dp(5) })
@@ -680,12 +709,21 @@ class MainActivity : Activity() {
     private fun loadAsset() {
         val symbol = assetSymbol ?: return
         val selectedMarket = market; val selectedFrame = timeframe; val request = ++assetRequest
+        val anchor = chartAnchorAt; val signalId = selectedSignalId
+        val minutes = when (selectedFrame) {
+            "1m" -> 1L; "5m" -> 5L; "15m" -> 15L
+            "30m" -> 30L; "1h" -> 60L; "4h" -> 240L
+            else -> 15L
+        }
+        // Fetch closed historical candles around the recorded event, not only the latest 150.
+        val historicalStart = anchor?.let { (it - minutes * 60000L * 40L).coerceAtLeast(1L) }
         thread(name = "orbit-asset") {
-            val result = runCatching { Binance.candles(selectedMarket, symbol, selectedFrame, 150) }
+            val result = runCatching { Binance.candles(selectedMarket, symbol, selectedFrame, 150, historicalStart) }
             val ticker = runCatching { Binance.ticker(selectedMarket, symbol) }.getOrNull()
             val trades = runCatching { Binance.largeTrades(selectedMarket, symbol) }.getOrDefault(emptyList())
             runOnUiThread {
-                if (request != assetRequest || symbol != assetSymbol || selectedMarket != market || selectedFrame != timeframe || isFinishing) return@runOnUiThread
+                if (request != assetRequest || symbol != assetSymbol || selectedMarket != market ||
+                    selectedFrame != timeframe || signalId != selectedSignalId || anchor != chartAnchorAt || isFinishing) return@runOnUiThread
                 result.onSuccess { assetBars = it; assetTicker = ticker; assetTrades = trades; assetError = null }
                     .onFailure { assetError = it.message }
                 show()
@@ -749,6 +787,8 @@ class MainActivity : Activity() {
     private fun compact(value: Double): String = when { value >= 1_000_000 -> String.format(Locale.US, "%.2fM", value / 1_000_000); value >= 1_000 -> String.format(Locale.US, "%.1fK", value / 1_000); else -> String.format(Locale.US, "%.0f", value) }
     private fun date(value: Long): String = SimpleDateFormat("dd MMM HH:mm", Locale.forLanguageTag("ru")).format(Date(value))
     private fun rate(signals: List<Signal>) = if (signals.isEmpty()) 0 else (100.0 * signals.count { it.outcome == 1 } / signals.size).roundToInt()
+    private fun signalAnchor(signal: Signal): Long =
+        SignalJourney.trace(signal).entry?.at ?: signal.detectedAt
     private fun eventName(type: String) = when(type) {
         "CREATED" -> "Начало сигнала"
         "ENTRY" -> "Вход в позицию"
