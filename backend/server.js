@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, resolve, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectSignal, advanceSignalWithCandle } from './strategy.js';
+import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectResearchSignals, advanceSignalWithCandle } from './strategy.js';
 import { scoreSignal, modelSummary } from './learning.js';
 import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
@@ -147,13 +147,19 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
     const parentTf = { '5m':'1h', '15m':'1h', '30m':'1h', '1h':'4h', '4h':'1d' }[timeframe];
     const parentBars = (await fetchKlines(market, symbol, parentTf, { limit: 120 }))
       .filter(bar => bar.end <= expectedEnd);
-    const signal = detectSignal(candles, market, symbol, timeframe, parentBars);
-    if (signal && !state.signals.some(s => s.id === signal.id) && !state.signals.some(s => s.market === market && s.symbol === symbol && (s.timeframe || '1h') === timeframe && s.strategyVersion === 3 && ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state))) {
-      signal.quality = scoreSignal(state.model, signal.features);
+    const candidates = detectResearchSignals(candles, market, symbol, timeframe, parentBars);
+    for (const signal of candidates) {
+      const activeVersion = state.signals.some(s => s.market === market &&
+        s.symbol === symbol && (s.timeframe || '1h') === timeframe &&
+        s.ruleVersion === signal.ruleVersion &&
+        ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
+      if (activeVersion || state.signals.some(s => s.id === signal.id)) continue;
+      signal.quality = scoreSignal(experience.ruleModels[signal.ruleVersion], signal.features);
       experience.saveSignal(signal);
       state.signals.unshift(signal);
       if (state.signals.length > 500) {
-        const oldestClosed = state.signals.findLastIndex(s => !['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
+        const oldestClosed = state.signals.findLastIndex(s =>
+          !['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
         if (oldestClosed >= 0) state.signals.splice(oldestClosed, 1);
       }
       persist(); void notifyEvents(signal, 0);
@@ -275,7 +281,11 @@ function lanPeer(address) {
 function mobileState() { return {
   serverId: experience.id,
   symbols: state.symbols, signals: state.signals, prices: state.prices,
-  model: modelSummary(state.model), updatedAt: state.updatedAt,
+  model: modelSummary(state.model),
+  ruleModels: Object.fromEntries(Object.entries(experience.ruleModels).map(([key, model]) =>
+    [key, modelSummary(model)])),
+  ruleStatistics: experience.statistics().ruleComparisons,
+  updatedAt: state.updatedAt,
   limits: { binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length) }
 }; }
 const handleRequest = async (req, res) => {
@@ -309,7 +319,10 @@ const handleRequest = async (req, res) => {
           totalOutcomes: experience.summary().outcomes };
         return json(res, 200, includeState ? { ...mobileState(), sync } : { sync });
       }
-      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model), experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
+      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model),
+    ruleModels: Object.fromEntries(Object.entries(experience.ruleModels).map(([key, model]) =>
+      [key, modelSummary(model)])),
+    experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
       if (req.method === 'GET' && url.pathname.startsWith('/api/large-trades/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/large-trades/'.length)).toUpperCase();
         const market = url.searchParams.get('market') || 'spot';
