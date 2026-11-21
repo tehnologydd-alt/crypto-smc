@@ -89,6 +89,7 @@ function renderStatistics(stats) {
   if (!stats) return;
   const { totals, newStrategy } = stats;
   const variants = stats.ruleComparisons?.versions || [];
+  const archived = (stats.ruleComparisons?.archivedVersions || []).filter(r=>r.signals>0);
   const allComparable = variants.length === 3 && variants.every(row => row.resolved >= 30);
   const maxObserved = allComparable ? variants.reduce((best,row)=>
     row.successRate > best.successRate ? row : best,variants[0]) : null;
@@ -131,6 +132,10 @@ function renderStatistics(stats) {
       </article>`;
     }).join('')}</div>
     <p class="muted">D1 проверяет реальный стакан Binance Spot / USDT-M Futures: объёмы 100 верхних уровней bid и ask, в USDT (цена × количество). Для подтверждения направленная сторона должна содержать ≥55% видимого объёма. Снимок фиксируется после закрытия свечи, до создания сигнала. Версии фильтра объёма свечей хранятся как архив. Метрики наблюдательные, без комиссий.</p>
+    ${archived.length ? `<details class="rule-archive"><summary>Архив прежних правил (${archived.reduce((n,r)=>n+r.signals,0)} сигналов)</summary>
+      ${archived.map(r=>`<div class="asset-stat-row"><strong>${safe(r.key)} · ${safe(r.title)}</strong>
+       <span>${r.signals} сигналов · ${r.resolved} исходов · TP1 ${percent(r.successRate)}</span></div>`).join('')}
+      </details>` : ''}
   ` : '<p class="muted">Сравнение появится после начала накопления сигналов новых версий.</p>';
   const pct = value => value == null ? '—' : `${Math.round(value * 100)}%`;
   $('#statSignals').textContent = totals.signals;
