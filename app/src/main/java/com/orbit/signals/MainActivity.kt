@@ -68,8 +68,9 @@ class MainActivity : Activity() {
     private var displayedSignalStamp: String? = null
     private val marketPriceViews = mutableMapOf<String, TextView>()
     private val marketDepthViews = mutableMapOf<String,TextView>()
+    private val marketDepthBars=mutableMapOf<String,DepthBalanceView>()
     private data class BookViews(val state:TextView,val values:TextView,
-        val change:TextView,val bids:TextView,val asks:TextView)
+        val change:TextView,val ladder:DepthLadderView,val balance:DepthBalanceView)
     private val assetDepthViews=mutableMapOf<String,BookViews>()
     private var marketLastUpdateView: TextView? = null
     private var marketLearningLevelView: TextView? = null
@@ -289,7 +290,7 @@ class MainActivity : Activity() {
         if (restoreY > 0) scroll.post { scroll.scrollTo(0, restoreY) }
     }
     private fun resetLiveViews() {
-        marketPriceViews.clear();marketDepthViews.clear();assetDepthViews.clear()
+        marketPriceViews.clear();marketDepthViews.clear();marketDepthBars.clear();assetDepthViews.clear()
         marketLastUpdateView = null; marketLearningLevelView = null
         marketTrainingView = null; marketValidationView = null
         settingsLastCheckView = null
@@ -417,6 +418,7 @@ class MainActivity : Activity() {
                     "stale"->"устарел";"offline"->"нет связи";else->"синхронизация"
                 }}"
             if(label.text.toString()!=value)label.text=value
+            marketDepthBars[key]?.share=book?.imbalance
         }
         for ((marketType,views) in assetDepthViews) {
             val symbol=assetSymbol?:continue
@@ -424,7 +426,12 @@ class MainActivity : Activity() {
             val book=data.book
             val current=if(book!=null)
                 "● WS · ${(data.ageMs?:0)/1000}с · обновление №${book.lastUpdateId}" else
-                when(data.status){"stale"->"Устарел";"offline"->"Нет связи";else->"Синхронизация…"}
+                when(data.status){
+                    "stale"->"Нет свежих обновлений"
+                    "offline"->"Нет связи WS"
+                    "error"->"Ошибка: ${data.error ?: "нет ответа Binance"}"
+                    else->"Синхронизация…"
+                }
             if(views.state.text.toString()!=current)views.state.text=current
             views.state.setTextColor(if(book!=null)accent else danger)
             val totals=if(book!=null)
@@ -438,12 +445,8 @@ class MainActivity : Activity() {
                     " · ${book.observations} наблюдений · ${book.updates} обновлений" else
                 "При разрыве WS значения исключаются из фильтра D2"
             if(views.change.text.toString()!=changes)views.change.text=changes
-            fun levels(rows:List<BookLevel>)=if(book==null)"—"
-                else rows.joinToString("\n") { "${format(it.price)}   ${compact(it.usdt)}" }
-            val bid=levels(book?.bids?:emptyList())
-            val ask=levels(book?.asks?:emptyList())
-            if(views.bids.text.toString()!=bid)views.bids.text=bid
-            if(views.asks.text.toString()!=ask)views.asks.text=ask
+            views.ladder.snapshot=book
+            views.balance.share=book?.imbalance
         }
     }
 
@@ -484,10 +487,16 @@ class MainActivity : Activity() {
             addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
             addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent).also { marketPriceViews[symbol] = it })
             addView(text("Стаканы · 100 уровней bid/ask · WebSocket", 10, muted))
-            for ((kind,label) in listOf("spot" to "СПОТ","futures" to "ФЬЮЧЕРСЫ"))
+            for ((kind,label) in listOf("spot" to "СПОТ","futures" to "ФЬЮЧЕРСЫ")) {
                 addView(text("$label · синхронизация", 10, muted).also {
                     marketDepthViews["$kind:$symbol"]=it
                 })
+                val strip=DepthBalanceView(this@MainActivity)
+                addView(strip,LinearLayout.LayoutParams(-1,dp(8)).apply {
+                    bottomMargin=dp(5)
+                })
+                marketDepthBars["$kind:$symbol"]=strip
+            }
             setOnClickListener { navigateToAsset(symbol, "spot", "15m") }
         }
         body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted).also { marketLastUpdateView = it })
@@ -946,28 +955,16 @@ class MainActivity : Activity() {
                     .also { addView(it) }
                 val changes=text("История изменений собирается после синхронизации", 10, muted)
                     .also { addView(it) }
-                val head=LinearLayout(this@MainActivity).apply {
-                    orientation=LinearLayout.HORIZONTAL
-                }
-                val buy=LinearLayout(this@MainActivity).apply {
-                    orientation=LinearLayout.VERTICAL
-                    addView(text("BID · ПОКУПКИ", 10, accent, true))
-                }
-                val sell=LinearLayout(this@MainActivity).apply {
-                    orientation=LinearLayout.VERTICAL
-                    addView(text("ASK · ПРОДАЖИ", 10, danger, true))
-                }
-                val bidLevels=text("—", 10, accent).apply {
-                    typeface=Typeface.MONOSPACE;minLines=6
-                }
-                val askLevels=text("—", 10, danger).apply {
-                    typeface=Typeface.MONOSPACE;minLines=6
-                }
-                buy.addView(bidLevels);sell.addView(askLevels)
-                head.addView(buy,LinearLayout.LayoutParams(0,-2,1f))
-                head.addView(sell,LinearLayout.LayoutParams(0,-2,1f))
-                addView(head)
-                assetDepthViews[marketType]=BookViews(state,values,changes,bidLevels,askLevels)
+                val balance=DepthBalanceView(this@MainActivity)
+                addView(balance,LinearLayout.LayoutParams(-1,dp(9)).apply {
+                    topMargin=dp(10);bottomMargin=dp(8)
+                })
+                addView(text("Ближайшие 6 уровней · зелёная/красная полоса = объём USDT на уровне", 10, muted))
+                val ladder=DepthLadderView(this@MainActivity)
+                addView(ladder,LinearLayout.LayoutParams(-1,dp(243)))
+                addView(text("Длина полос сравнивается по единому масштабу BID и ASK; " +
+                    "суммы выше — по 100 уровням каждой стороны.", 10, muted))
+                assetDepthViews[marketType]=BookViews(state,values,changes,ladder,balance)
             }
         }
         val signals = store.signals(market, symbol, prefs.mode)
