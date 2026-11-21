@@ -118,8 +118,8 @@ test('adaptive model learns only from resolved entered signals', () => {
 });
 test('new FVG strategy rejects the previous model version', () => {
   const current = newModel();
-  assert.equal(current.version, 2);
-  assert.equal(validModel({ ...current, version: 1 }), false);
+  assert.equal(current.version, 3);
+  assert.equal(validModel({ ...current, version: 2 }), false);
 });
 test('adaptive alert filtering requires positive walk-forward evidence', () => {
   const model = newModel(); model.samples = 80; model.successes = 40; model.weights[0] = -2;
