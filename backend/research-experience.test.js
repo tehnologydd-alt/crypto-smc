@@ -38,15 +38,15 @@ test('models and recorded statistics survive restart and never cross-learn',()=>
     c.quality=scoreSignal(store.ruleModels['v0.3-D2'],c.features);
     assert.equal(store.recordOutcome(c),true);
     let versions=store.statistics().ruleComparisons.versions;
-    assert.deepEqual(versions.map(v=>v.resolved),[1,1,1]);
-    assert.deepEqual(versions.map(v=>v.successful),[0,1,1]);
-    assert.deepEqual(versions.map(v=>v.tp3),[0,0,1]);
+    assert.deepEqual(versions.map(v=>v.resolved),[1,1,1,0,0]);
+    assert.deepEqual(versions.map(v=>v.successful),[0,1,1,0,0]);
+    assert.deepEqual(versions.map(v=>v.tp3),[0,0,1,0,0]);
     store.close();
     store=openExperienceStore(path);
     assert.deepEqual(['v0.1','v0.2-D2','v0.3-D2'].map(key=>store.ruleModels[key].samples),[1,1,1]);
     assert.equal(store.model.samples,0);
     versions=store.statistics().ruleComparisons.versions;
-    assert.deepEqual(versions.map(v=>v.resolved),[1,1,1]);
+    assert.deepEqual(versions.map(v=>v.resolved),[1,1,1,0,0]);
     store.close();
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
@@ -55,7 +55,7 @@ test('old candle-volume and REST-D1 results are never mixed with live WS-D2',()=
   const rest=make('v0.2-D1',5500000);
   const next=make('v0.2-D2',6000000);
   const stats=buildStatistics([old,rest,next],[]);
-  assert.deepEqual(stats.ruleComparisons.versions.map(x=>x.signals),[0,1,0]);
+  assert.deepEqual(stats.ruleComparisons.versions.map(x=>x.signals),[0,1,0,0,0]);
   assert.ok(stats.ruleComparisons.archivedVersions.some(v=>v.key==='v0.2-D1' && v.signals===1));
 });
 test('legacy SMC3 signal never gets assigned a research rule',()=>{
@@ -65,5 +65,5 @@ test('legacy SMC3 signal never gets assigned a research rule',()=>{
   const current=make('v0.1',2000000);
   const result=buildStatistics([old,current],[]);
   assert.equal(result.totals.signals,2);
-  assert.deepEqual(result.ruleComparisons.versions.map(x=>x.signals),[1,0,0]);
+  assert.deepEqual(result.ruleComparisons.versions.map(x=>x.signals),[1,0,0,0,0]);
 });
