@@ -67,6 +67,10 @@ class MainActivity : Activity() {
     // for user navigation or a real change in signal lifecycle, never for each M1 tick.
     private var displayedSignalStamp: String? = null
     private val marketPriceViews = mutableMapOf<String, TextView>()
+    private val marketDepthViews = mutableMapOf<String,TextView>()
+    private data class BookViews(val state:TextView,val values:TextView,
+        val change:TextView,val bids:TextView,val asks:TextView)
+    private val assetDepthViews=mutableMapOf<String,BookViews>()
     private var marketLastUpdateView: TextView? = null
     private var marketLearningLevelView: TextView? = null
     private var marketTrainingView: TextView? = null
@@ -114,8 +118,23 @@ class MainActivity : Activity() {
         show()
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); openIntent(intent); show() }
-    override fun onResume() { super.onResume(); resumed = true; handler.post(tick) }
-    override fun onPause() { resumed = false; handler.removeCallbacks(tick); super.onPause() }
+    private val depthTick = object:Runnable {
+        override fun run() {
+            if(!resumed)return
+            refreshDepthViews()
+            handler.postDelayed(this,2500)
+        }
+    }
+    override fun onResume() {
+        super.onResume();resumed=true
+        LiveDepthClient.start(prefs.symbols)
+        handler.post(tick);handler.post(depthTick)
+    }
+    override fun onPause() {
+        resumed=false;handler.removeCallbacks(tick);handler.removeCallbacks(depthTick)
+        LiveDepthClient.stop()
+        super.onPause()
+    }
     override fun onDestroy() {
         if (Build.VERSION.SDK_INT >= 33) systemBackCallback?.let { BackApi33.unregister(this, it) }
         store.close(); super.onDestroy()
@@ -270,7 +289,7 @@ class MainActivity : Activity() {
         if (restoreY > 0) scroll.post { scroll.scrollTo(0, restoreY) }
     }
     private fun resetLiveViews() {
-        marketPriceViews.clear()
+        marketPriceViews.clear();marketDepthViews.clear();assetDepthViews.clear()
         marketLastUpdateView = null; marketLearningLevelView = null
         marketTrainingView = null; marketValidationView = null
         settingsLastCheckView = null
