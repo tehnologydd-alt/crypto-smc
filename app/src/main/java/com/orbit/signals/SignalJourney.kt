@@ -41,8 +41,10 @@ object SignalJourney {
             signal.state in setOf("STOPPED", "COMPLETED") && entry.price > 0.0 &&
             entry.price.isFinite() && exit.price.isFinite()
         val percent = if (validMove) {
+            val from = entry!!.price
+            val to = exit!!.price
             val direction = if (signal.side == "LONG") 1.0 else -1.0
-            (exit!!.price - entry!!.price) / entry.price * direction * 100.0
+            (to - from) / from * direction * 100.0
         } else null
         val result = when {
             signal.state == "UNCERTAIN" -> "Исход не определён: требуется проверка"
