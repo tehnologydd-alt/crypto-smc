@@ -44,7 +44,9 @@ function renderBook(marketType,book) {
   const change=$('#'+prefix+'Change');
   const live=book?.status==='live' && (book.ageMs??Infinity)<=10000;
   if(!live){
-    status.textContent=book?.status==='stale'?'Устарел':book?.status==='offline'?'Нет связи':'Синхронизация…';
+    status.textContent=book?.status==='stale'?'Устарел':
+      book?.status==='offline'?'Нет связи':
+      book?.error?'Ошибка: '+String(book.error).slice(0,70):'Синхронизация…';
     status.classList.remove('active');
     totals.textContent='Нет актуального синхронизированного стакана';
     change.textContent='Сигналы D2 не подтверждаются без непрерывных данных';
@@ -62,8 +64,14 @@ function renderBook(marketType,book) {
   $('#'+prefix+'AskBar').style.width=(100-pct)+'%';
   const ch=n=>n==null?'—':`${n>=0?'+':''}${n.toFixed(1)}%`;
   change.textContent=`Δ30с: bid ${ch(book.bidChangePct)} · ask ${ch(book.askChangePct)} · ${book.observations} наблюдений · ${book.updates} обновлений`;
-  const levels=(rows,cls)=>(rows||[]).slice(0,6).map(level=>`
-    <div class="book-level ${cls}"><span>${number(level.price)}</span><strong>${compact(level.usdt)}</strong></div>`).join('');
+  // One common USD scale across BOTH columns: large orders visibly extend farther.
+  const visible=[...(book.bids||[]),...(book.asks||[])].slice(0,16);
+  const peak=Math.max(1,...visible.map(row=>Number(row.usdt)||0));
+  const levels=(rows,cls)=>(rows||[]).slice(0,6).map(level=>{
+    const width=Math.max(0,Math.min(100,100*Number(level.usdt)/peak));
+    return `<div class="book-level ${cls}" style="--depth-width:${width.toFixed(2)}%">
+      <span>${number(level.price)}</span><strong>${compact(level.usdt)} $</strong></div>`;
+  }).join('');
   bids.innerHTML=levels(book.bids,'bid');
   asks.innerHTML=levels(book.asks,'ask');
 }
