@@ -35,24 +35,38 @@ export function parseBookSnapshot(raw,{market,symbol,capturedAt,source='binance_
     askRangePct:(Number(asks.at(-1)[0])-bestAsk)/mid*100};
 }
 
-/** An auditable directional bid/ask volume hypothesis, NOT guaranteed future liquidity. */
+/**
+ * D2 is a continuously sequence-verified WebSocket book, never a REST sample.
+ * Require sufficient observed updates and 30-second rolling persistence.
+ * This is displayed L2 notional; spoofed/cancelled orders remain possible.
+ */
 export function depthGate(snapshot,{market,symbol,side,closedAt,observedAt,
-  minSideShare=.55,maxCloseLagMs=BOOK_CLOSE_LAG_MS,maxAgeMs=BOOK_FRESH_MS}={}) {
-  if (!snapshot || snapshot.source!=='binance_rest_depth' || snapshot.market!==market ||
-      snapshot.symbol!==symbol || snapshot.levels!==BOOK_LEVELS ||
-      !Number.isSafeInteger(snapshot.capturedAt) || !Number.isSafeInteger(closedAt) ||
-      !Number.isSafeInteger(observedAt) || observedAt<closedAt ||
-      snapshot.capturedAt<closedAt || snapshot.capturedAt>observedAt ||
-      snapshot.capturedAt-closedAt>maxCloseLagMs || observedAt-snapshot.capturedAt>maxAgeMs)
-    return {allowed:false,reason:'NO_FRESH_BOOK_SNAPSHOT'};
+  minSideShare=.55,maxCloseLagMs=BOOK_CLOSE_LAG_MS,maxAgeMs=10000}={}) {
+  if (!snapshot || snapshot.source!=='binance_ws_depth'||snapshot.status!=='live' ||
+      snapshot.market!==market||snapshot.symbol!==symbol||
+      snapshot.levels!==BOOK_LEVELS||
+      !Number.isSafeInteger(snapshot.capturedAt)||!Number.isSafeInteger(closedAt)||
+      !Number.isSafeInteger(observedAt)||observedAt<closedAt||
+      snapshot.capturedAt<closedAt||snapshot.capturedAt>observedAt||
+      snapshot.capturedAt-closedAt>maxCloseLagMs||
+      observedAt-snapshot.capturedAt>maxAgeMs)
+    return {allowed:false,reason:'NO_SYNCHRONIZED_LIVE_DEPTH'};
   if (!(snapshot.bidUsdt>0) || !(snapshot.askUsdt>0) ||
-    !Number.isFinite(snapshot.imbalance) || snapshot.imbalance<0 || snapshot.imbalance>1 ||
-    !Number.isFinite(snapshot.spreadPct) || snapshot.spreadPct<0 || snapshot.spreadPct>0.2)
+      !Number.isFinite(snapshot.imbalance)||snapshot.imbalance<0||snapshot.imbalance>1||
+      !Number.isFinite(snapshot.averageImbalance)||
+      !Number.isFinite(snapshot.spreadPct)||snapshot.spreadPct<0||snapshot.spreadPct>0.2||
+      !Number.isSafeInteger(snapshot.lastUpdateId)||snapshot.lastUpdateId<=0)
     return {allowed:false,reason:'INVALID_BOOK_DEPTH'};
+  if (!(snapshot.observationMs>=10000)||!(snapshot.observations>=4)||
+      !(snapshot.updates>=5))
+    return {allowed:false,reason:'INSUFFICIENT_LIQUIDITY_HISTORY'};
   const share=side==='LONG'?snapshot.imbalance:side==='SHORT'?1-snapshot.imbalance:null;
-  if(share===null)return {allowed:false,reason:'UNKNOWN_SIDE'};
-  return {allowed:share>=minSideShare,reason:share>=minSideShare?'BOOK_SIDE_CONFIRMED':'BOOK_IMBALANCE_WEAK',
-    sideShare:share,bidUsdt:snapshot.bidUsdt,askUsdt:snapshot.askUsdt,
-    capturedAt:snapshot.capturedAt,lastUpdateId:snapshot.lastUpdateId,
-    spreadPct:snapshot.spreadPct,levels:snapshot.levels};
+  const average=side==='LONG'?snapshot.averageImbalance:side==='SHORT'?1-snapshot.averageImbalance:null;
+  if(share==null)return {allowed:false,reason:'UNKNOWN_SIDE'};
+  const allowed=share>=minSideShare&&average>=.53;
+  return {allowed,reason:allowed?'LIVE_DEPTH_PERSISTENT':'BOOK_IMBALANCE_UNSTABLE',
+    sideShare:share,averageSideShare:average,bidUsdt:snapshot.bidUsdt,
+    askUsdt:snapshot.askUsdt,capturedAt:snapshot.capturedAt,
+    lastUpdateId:snapshot.lastUpdateId,observationMs:snapshot.observationMs,
+    updates:snapshot.updates,spreadPct:snapshot.spreadPct,levels:snapshot.levels};
 }
