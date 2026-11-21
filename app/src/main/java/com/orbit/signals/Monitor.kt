@@ -14,13 +14,16 @@ object Monitor {
                 "Сервер: ${mode.lastError}"
             }
             val store = LocalStore(context); val prefs = Preferences(context); val notifier = LocalNotifier(context, prefs)
-            val model = store.model(); val errors = mutableListOf<String>()
+            val model = store.model()
+            val ruleModels = ResearchRules.keys.associateWith { store.ruleModel(it) }
+            val errors = mutableListOf<String>()
             var pairs = 0
             for (market in listOf("spot", "futures")) for (symbol in prefs.symbols) {
-                try { processPair(store, notifier, model, market, symbol); pairs++ }
+                try { processPair(store, notifier, model, ruleModels, market, symbol); pairs++ }
                 catch (error: Exception) { errors += "$market $symbol: ${error.message}" }
             }
             store.saveModel(model)
+            for ((key, versionModel) in ruleModels) store.saveRuleModel(key, versionModel)
             prefs.lastRun = System.currentTimeMillis()
             store.close()
             val backup = if (RemoteBackend.configured(prefs)) runCatching { RemoteBackend.backup(context) } else null
@@ -31,7 +34,8 @@ object Monitor {
                 (backup?.getOrNull()?.let { "; передано на сервер $it" } ?: "")
         } finally { lock.unlock() }
     }
-    private fun processPair(store: LocalStore, notifier: LocalNotifier, model: Model, market: String, symbol: String) {
+    private fun processPair(store: LocalStore, notifier: LocalNotifier, model: Model,
+        ruleModels: Map<String, Model>, market: String, symbol: String) {
         val lastM1 = store.cursor("1m", market, symbol)
         val now = System.currentTimeMillis()
         val gap = lastM1 > 0 && now - lastM1 > 990 * 60_000L
@@ -71,14 +75,20 @@ object Monitor {
                 "4h" -> "1d"
                 else -> error("Неизвестный таймфрейм")
             }
-            val parent = parentCache.getOrPut(parentTf) { Binance.candles(market, symbol, parentTf, 120) }
-                .filter { it.end <= candidate.candle.end }
-            val signal = Strategy.detect(candidate.bars, market, symbol, candidate.timeframe, parent)
-            if (signal != null && !store.signalExists(signal.id) && signals.none {
-                    it.timeframe == candidate.timeframe && it.strategyVersion == 3 && it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
-                }) {
-                signal.quality = model.score(signal.features)
-                store.saveSignal(signal); signals += signal; signal.events.forEach { notifier.send(signal, it) }
+            // A parent-TF outage cannot suppress the baseline v0.1 and v0.2 research arms.
+            val parent = parentCache.getOrPut(parentTf) {
+                runCatching { Binance.candles(market, symbol, parentTf, 120) }.getOrDefault(emptyList())
+            }.filter { it.end <= candidate.candle.end }
+            val candidates = Strategy.detectVariants(candidate.bars, market, symbol, candidate.timeframe, parent)
+            for (signal in candidates) {
+                if (store.signalExists(signal.id) || signals.any {
+                    it.timeframe == candidate.timeframe && it.ruleVersion == signal.ruleVersion &&
+                        it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
+                }) continue
+                val versionModel = ruleModels[signal.ruleVersion] ?: continue
+                signal.quality = versionModel.score(signal.features)
+                store.saveSignal(signal); signals += signal
+                signal.events.forEach { notifier.send(signal, it) }
             }
             store.setCursor(candidate.timeframe, market, symbol, candidate.candle.end)
         }
@@ -87,7 +97,8 @@ object Monitor {
                 if (bar.end <= signal.detectedAt || bar.end <= (signal.events.lastOrNull()?.at ?: 0)) continue
                 val events = Strategy.advance(signal, bar)
                 if (events.isNotEmpty()) {
-                    model.learn(signal)
+                    if (signal.ruleVersion.isNotBlank()) ruleModels[signal.ruleVersion]?.learn(signal)
+                    else model.learn(signal)
                     store.saveSignal(signal)
                     events.forEach { notifier.send(signal, it) }
                 }
