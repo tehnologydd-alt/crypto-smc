@@ -1,24 +1,22 @@
-// Active research arms: three categories with immutable identifiers for each rule revision.
-// v0.2/v0.3 (relative-volume experiments) are ARCHIVED and never silently relabelled.
-// L1 is a closed-candle SMC stop-pool sweep hypothesis, not proven order-book liquidity.
-export const RULES = Object.freeze([
-  Object.freeze({ key:'v0.1', category:'v0.1', title:'Структура + OB/FVG',
-    liquidity:false, htf:false, description:'BOS/CHoCH + активные OB/FVG' }),
-  Object.freeze({ key:'v0.2-L1', category:'v0.2', title:'Структура + OB/FVG + вынос ликвидности',
-    liquidity:true, htf:false, sweepLookback:48, sweepWindow:12, pivotSpan:2,
-    poolToleranceAtr:0.20, sweepDepthAtr:0.05,
-    description:'v0.1 + подтверждённые равные экстремумы, вынос и возврат за уровень' }),
-  Object.freeze({ key:'v0.3-L1', category:'v0.3', title:'Вынос ликвидности + старший TF',
-    liquidity:true, htf:true, sweepLookback:48, sweepWindow:12, pivotSpan:2,
-    poolToleranceAtr:0.20, sweepDepthAtr:0.05,
-    description:'v0.2-L1 + согласованный режим последнего закрытого старшего TF' })
+// Immutable research revisions. Older volume and swing-sweep versions remain archived.
+export const RULES=Object.freeze([
+  Object.freeze({key:'v0.1',category:'v0.1',title:'Структура + OB/FVG',liquidity:false,htf:false,
+    description:'BOS/CHoCH + активные OB/FVG'}),
+  Object.freeze({key:'v0.2-D1',category:'v0.2',title:'Структура + OB/FVG + стакан Binance',
+    liquidity:true,htf:false,bookLevels:100,minImbalance:0.55,maxSnapshotLagMs:120000,
+    description:'v0.1 + подтверждённый объём заявок bid/ask из depth Binance'}),
+  Object.freeze({key:'v0.3-D1',category:'v0.3',title:'Стакан Binance + старший TF',
+    liquidity:true,htf:true,bookLevels:100,minImbalance:0.55,maxSnapshotLagMs:120000,
+    description:'v0.2-D1 + согласованность последнего закрытого старшего TF'})
 ]);
-export const ARCHIVED_RULES = Object.freeze([
-  Object.freeze({key:'v0.2', category:'v0.2', title:'Архив: фильтр относительного объёма'}),
-  Object.freeze({key:'v0.3', category:'v0.3', title:'Архив: объём + старший TF'})
+export const ARCHIVED_RULES=Object.freeze([
+  Object.freeze({key:'v0.2',category:'v0.2',title:'Архив: объём свечи'}),
+  Object.freeze({key:'v0.3',category:'v0.3',title:'Архив: объём свечи + HTF'}),
+  Object.freeze({key:'v0.2-L1',category:'v0.2',title:'Архив: структура ликвидности'}),
+  Object.freeze({key:'v0.3-L1',category:'v0.3',title:'Архив: структура ликвидности + HTF'})
 ]);
-export const RULE_KEYS = Object.freeze([...RULES.map(rule=>rule.key),...ARCHIVED_RULES.map(rule=>rule.key)]);
-export const ruleFor = key => [...RULES,...ARCHIVED_RULES].find(rule=>rule.key===key) || null;
+export const RULE_KEYS=Object.freeze([...RULES,...ARCHIVED_RULES].map(r=>r.key));
+export const ruleFor=key=>[...RULES,...ARCHIVED_RULES].find(r=>r.key===key)||null;
 
 function averageTrueRangeBefore(bars, i, periods=14) {
   if(i<periods)return null;
