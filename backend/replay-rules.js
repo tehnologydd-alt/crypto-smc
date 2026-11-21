@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { detectResearchSignals, advanceSignalWithCandle, TIMEFRAMES } from './strategy.js';
 import { RULES } from './strategy-rules.js';
+import { BOOK_CLOSE_LAG_MS } from './order-book.js';
 import { newModel, scoreSignal, learnFromOutcome } from './learning.js';
 
 const validBar = c => c && [c.time,c.end,c.open,c.high,c.low,c.close,c.volume]
@@ -19,6 +20,15 @@ function validate(input) {
       !rows.every(validBar) || rows.some((c,i)=>i>0 && c.time<=rows[i-1].time ||
       i>0 && rows[i-1].end>=c.time)) throw new Error('Input must contain sorted closed non-overlapping OHLCV: '+key);
   }
+  if (input.bookSnapshots !== undefined && (!Array.isArray(input.bookSnapshots) ||
+      input.bookSnapshots.some(book => !book ||
+        book.source!=='binance_rest_depth' || book.market!==input.market ||
+        book.symbol!==input.symbol || !Number.isSafeInteger(book.capturedAt) ||
+        !Number.isSafeInteger(book.lastUpdateId) || book.lastUpdateId<=0 ||
+        book.levels!==100 || !(book.bidUsdt>0) || !(book.askUsdt>0) ||
+        !Number.isFinite(book.imbalance) || !Number.isFinite(book.spreadPct)) ||
+      input.bookSnapshots.some((book,i)=>i>0 && book.capturedAt<=input.bookSnapshots[i-1].capturedAt)))
+    throw new Error('Historical D1 replay requires chronologically captured authentic order book snapshots');
   return input;
 }
 const groupFor=(index,total)=>index<Math.floor(total*0.6)?'development':
@@ -26,6 +36,9 @@ const groupFor=(index,total)=>index<Math.floor(total*0.6)?'development':
 
 export function compareRuleVersions(input) {
   const {market,symbol,timeframe,bars,parentBars,m1}=validate(input);
+  const books=input.bookSnapshots || [];
+  let bookIndex=0;
+  let depthEligible=0;
   const models=Object.fromEntries(RULES.map(rule=>[rule.key,newModel()]));
   const signals=[];
   let minute=0;
@@ -47,8 +60,14 @@ export function compareRuleVersions(input) {
   for (let i=35;i<bars.length;i++) {
     const candle=bars[i];
     advanceThrough(candle.end);
+    while(bookIndex<books.length && books[bookIndex].capturedAt<candle.end)bookIndex++;
+    const selected=books[bookIndex];
+    // A current order book must NEVER be inferred from historical OHLCV.
+    const book=selected && selected.capturedAt>=candle.end &&
+      selected.capturedAt-candle.end<=BOOK_CLOSE_LAG_MS ? selected:null;
+    if(book)depthEligible++;
     const possible=detectResearchSignals(bars.slice(0,i+1),market,symbol,timeframe,
-      parentBars.filter(c=>c.end<=candle.end));
+      parentBars.filter(c=>c.end<=candle.end),book,book?.capturedAt||candle.end);
     for (const signal of possible) {
       if (signals.some(row=>row.signal.ruleVersion===signal.ruleVersion &&
           ['WAITING','OPEN','UNCERTAIN'].includes(row.signal.state))) continue;
@@ -82,7 +101,9 @@ export function compareRuleVersions(input) {
   });
   return {method:'chronological fixed-rule research; frozen training after 60%; never includes future candles',
     provenance:'User-supplied OHLCV; origin and authenticity not independently verified',
-    settings:{market,symbol,timeframe,development:60,validation:20,holdout:20},
+    settings:{market,symbol,timeframe,development:60,validation:20,holdout:20,
+      bookSnapshotsProvided:books.length,matchedClosedBarSnapshots:depthEligible,
+      note:'D1 versions require captured historical L2 snapshots; OHLCV alone cannot reconstruct them'},
     versions,signals:signals.map(row=>({id:row.signal.id,ruleVersion:row.signal.ruleVersion,
       window:row.group,state:row.signal.state,detectedAt:row.signal.detectedAt,
       entryAt:row.signal.events.find(e=>e.type==='ENTRY')?.at||null,
