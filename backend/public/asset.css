@@ -45,3 +45,36 @@
 .signal-path-summary .path-result { font-size: 12px; }
 .signal-path-summary .path-result.positive { color: #83eac0; }
 .signal-path-summary .path-result.negative { color: #ff93a9; }
+
+/* Two compact, independently refreshed live L2 order books on the asset page. */
+.order-books-panel {background:linear-gradient(130deg,#142431,#101b2b);border:1px solid #304959;border-radius:16px;padding:14px;margin:0 0 22px}
+.order-books-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.order-books-heading h2{font-size:18px;margin:5px 0 0}
+.order-books-heading>span{color:#91b8be;font-size:9px;white-space:nowrap}
+.order-books-panel>p{font-size:10px;line-height:1.55;color:#90a8b8;margin:9px 0 13px}
+.order-books-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.order-book-card{min-width:0;border:1px solid #344858;background:#121e2b;border-radius:11px;padding:10px 8px}
+.book-market-label{display:flex;justify-content:space-between;gap:5px;align-items:flex-start;flex-wrap:wrap;margin-bottom:9px}
+.book-market-label strong{font-size:10px;color:#dfefea}
+.book-market-label small{font-size:9px;color:#e4a884;overflow-wrap:anywhere}
+.book-market-label small.active{color:#7de3b6}
+.book-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;min-height:38px;font-size:10px;color:#99adb9}
+.book-totals>div:last-child:nth-child(3){grid-column:span 2}
+.book-totals small,.book-totals strong{display:block}
+.book-totals small{font-size:9px;color:#8c9fa9}
+.book-totals strong{font-size:12px;color:#edf7ee;overflow-wrap:anywhere}
+.book-totals>div:first-child strong{color:#7fe5b9}
+.book-totals>div:nth-child(2) strong{color:#f6a3ad}
+.book-imbalance{height:6px;border-radius:8px;overflow:hidden;display:flex;background:#3a4856;margin:9px 0}
+.book-imbalance i{background:#53c998;transition:width .4s;display:block}
+.book-imbalance b{background:#ec8293;transition:width .4s;display:block}
+.book-change{font-size:9px;min-height:32px;color:#93adbc;line-height:1.5}
+.book-level-head,.book-level-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.book-level-head{color:#7d98a8;font-size:8px;letter-spacing:.015em;margin:10px 0 5px}
+.book-level{display:flex;justify-content:space-between;gap:4px;font-size:9px;padding:5px 2px;border-bottom:1px solid #223444;font-variant-numeric:tabular-nums}
+.book-level span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.book-level strong{color:#c4d9df;font-size:9px;white-space:nowrap}
+.book-level.bid span{color:#74dbae}
+.book-level.ask span{color:#f5a1ab}
+.book-note{font-size:9px!important;margin:11px 0 0!important}
+@media(max-width:400px){.order-books-grid{grid-template-columns:1fr}.book-level{font-size:10px}.book-level strong{font-size:10px}}
