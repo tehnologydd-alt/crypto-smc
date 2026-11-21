@@ -19,7 +19,7 @@ object Monitor {
             val errors = mutableListOf<String>()
             var pairs = 0
             for (market in listOf("spot", "futures")) for (symbol in prefs.symbols) {
-                try { processPair(store, notifier, model, ruleModels, market, symbol); pairs++ }
+                try { processPair(store, notifier, model, ruleModels, market, symbol, errors); pairs++ }
                 catch (error: Exception) { errors += "$market $symbol: ${error.message}" }
             }
             store.saveModel(model)
@@ -35,7 +35,8 @@ object Monitor {
         } finally { lock.unlock() }
     }
     private fun processPair(store: LocalStore, notifier: LocalNotifier, model: Model,
-        ruleModels: Map<String, Model>, market: String, symbol: String) {
+        ruleModels: Map<String, Model>, market: String, symbol: String,
+        errors: MutableList<String>) {
         val lastM1 = store.cursor("1m", market, symbol)
         val now = System.currentTimeMillis()
         val gap = lastM1 > 0 && now - lastM1 > 990 * 60_000L
@@ -68,6 +69,7 @@ object Monitor {
         var candidateIndex = 0
         val signals = store.signals(market, symbol).toMutableList()
         val parentCache = mutableMapOf<String, List<Candle>>()
+        var cachedBook: OrderBookSnapshot? = null
         fun scan(candidate: Candidate) {
             val parentTf = when (candidate.timeframe) {
                 "5m", "15m", "30m" -> "1h"
@@ -79,7 +81,26 @@ object Monitor {
             val parent = parentCache.getOrPut(parentTf) {
                 runCatching { Binance.candles(market, symbol, parentTf, 120) }.getOrDefault(emptyList())
             }.filter { it.end <= candidate.candle.end }
-            val candidates = Strategy.detectVariants(candidate.bars, market, symbol, candidate.timeframe, parent)
+            // Only confirmed base candidates justify a depth request.
+            val baseCandidates = Strategy.detectVariants(candidate.bars,market,symbol,candidate.timeframe,parent)
+            if (baseCandidates.isEmpty()) {
+                store.setCursor(candidate.timeframe,market,symbol,candidate.candle.end)
+                return
+            }
+            var book: OrderBookSnapshot? = null
+            val observedAt=System.currentTimeMillis()
+            if (observedAt-candidate.candle.end in 0..120_000L) {
+                try {
+                    val cached = cachedBook
+                    book = if(cached != null && cached.capturedAt>=candidate.candle.end &&
+                        observedAt-cached.capturedAt<=10_000L) cached
+                    else Binance.orderBook(market,symbol).also { cachedBook = it }
+                } catch(error:Exception) {
+                    errors += "$market $symbol: стакан Binance: ${error.message}"
+                }
+            }
+            val candidates = Strategy.detectVariants(candidate.bars,market,symbol,
+                candidate.timeframe,parent,book,System.currentTimeMillis())
             for (signal in candidates) {
                 if (store.signalExists(signal.id) || signals.any {
                     it.timeframe == candidate.timeframe && it.ruleVersion == signal.ruleVersion &&
