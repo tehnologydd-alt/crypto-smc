@@ -55,8 +55,7 @@ object LiveDepthClient {
             reset("error")
             lastError=message.take(110)
             failures=(failures+1).coerceAtMost(5)
-            nextRetryAt=System.currentTimeMillis()+
-                (1000L shl failures).coerceAtMost(20000L)
+            nextRetryAt=System.currentTimeMillis()+DepthSequence.retryDelayMs(failures)
         }
         fun read(rows:JSONArray?):List<BookLevel>? {
             if(rows==null)return null
@@ -80,7 +79,7 @@ object LiveDepthClient {
             val delta=Delta(first,last,previous,bid,ask)
             if(status=="live") {
                 if(last<=updateId)return false
-                if(first>updateId+1 || market=="futures"&&previous!=updateId) {
+                if(!DepthSequence.continuous(market,updateId,first,last,previous)) {
                     fail("Пропуск последовательности depth ${updateId} / ${delta.previous}")
                     queued.addLast(delta);return false
                 }
@@ -112,18 +111,18 @@ object LiveDepthClient {
         fun drain() {
             while(ready&&queued.isNotEmpty()) {
                 val e=queued.removeFirst()
-                if(e.last<=updateId)continue
-                val firstMatch=if(market=="spot")e.first<=updateId+1&&e.last>=updateId+1
-                    else e.first<=updateId&&e.last>=updateId
+                if(e.last<updateId ||
+                    e.last==updateId&&(market=="spot"||status=="live"))continue
+                val firstMatch=DepthSequence.bridge(market,updateId,e.first,e.last)
                 if(status!="live"&&!firstMatch) {
-                    if(e.first>updateId+1) {
+                    if(e.first>updateId+(if(market=="spot")1 else 0)) {
                         fail("Снимок Binance отстаёт от WebSocket")
                         queued.addLast(e);return
                     }
                     continue
                 }
-                if(status=="live"&&(e.first>updateId+1 ||
-                    market=="futures"&&e.previous!=updateId)) {
+                if(status=="live"&&!DepthSequence.continuous(
+                        market,updateId,e.first,e.last,e.previous)) {
                     fail("Нарушена последовательность WebSocket")
                     queued.addLast(e);return
                 }
