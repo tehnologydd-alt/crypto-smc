@@ -78,7 +78,7 @@ class ChartView(context: Context) : View(context) {
             canvas.drawRect(cx - max(1.2f, step * .28f), bodyTop, cx + max(1.2f, step * .28f), max(bodyTop + 1.5f, bodyBottom), paint)
         }
         for (swing in structure.swings.takeLast(8)) if (swing.time in first..last) label(canvas, if (swing.kind == "high") "SH" else "SL", x(swing.time), y(swing.price), yellow, 8f)
-        for (breakPoint in structure.breaks.takeLast(4)) if (breakPoint.time in first..last) label(canvas, "BOS", x(breakPoint.time), y(breakPoint.level), blue, 8f)
+        for (breakPoint in structure.breaks.takeLast(4)) if (breakPoint.time in first..last) label(canvas, breakPoint.type, x(breakPoint.time), y(breakPoint.level), blue, 8f)
         signal?.let { selected ->
             val lines = listOf(Triple("ENTRY", selected.entry, green), Triple("SL", selected.stop, red)) + selected.targets.mapIndexed { i, target -> Triple("TP${i + 1}", target, yellow) }
             for ((name, price, color) in lines) {
@@ -144,7 +144,7 @@ class ChartView(context: Context) : View(context) {
         paint.color = Color.argb(35, Color.red(color), Color.green(color), Color.blue(color))
         val from = if (zone.time < first) 7f else x(zone.time)
         canvas.drawRect(from, y(zone.high), right, y(zone.low), paint)
-        label(canvas, name, from + 3, y(zone.high) - 3, color, 8f)
+        label(canvas, name + " · " + zone.status, from + 3, y(zone.high) - 3, color, 8f)
     }
     private fun label(canvas: Canvas, text: String, x: Float, y: Float, color: Int, size: Float) {
         paint.color = color; paint.textSize = size * resources.displayMetrics.scaledDensity; paint.strokeWidth = 1f
