@@ -123,7 +123,7 @@ export class LiveDepthBook {
   snapshot() {
     const age=this.now()-this.lastAt;
     if(!this.published||this.status!=='live'||age<0||age>10000)
-      return {market:this.market,symbol:this.symbol,status:age>10000?'stale':this.status,
+      return {market:this.market,symbol:this.symbol,status:this.status==='live'&&age>10000?'stale':this.status,
         updatedAt:this.lastAt||null,error:this.error||null};
     return {...this.published,ageMs:age};
   }
