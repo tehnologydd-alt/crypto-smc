@@ -180,7 +180,7 @@ export function detectRuleVariants(bars,market,symbol,timeframe,parentBars,bookS
   const depth=depthGate(bookSnapshot,{market,symbol,side:candidate.side,
     closedAt:candidate.detectedAt,observedAt});
   const htf=ContextRegimeFilter.evaluate(event,bars,parentBars,timeframe);
-  return RULES.filter(rule=>(!rule.liquidity || depth.allowed) && (!rule.htf || htf.allowed))
+  return RULES.filter(rule=>!rule.background && (!rule.liquidity || depth.allowed) && (!rule.htf || htf.allowed))
     .map(rule=>{
       const observed=rule.liquidity ? bookSnapshot.capturedAt : candidate.detectedAt;
       return {...candidate,id:candidate.id+':'+rule.key,ruleVersion:rule.key,
