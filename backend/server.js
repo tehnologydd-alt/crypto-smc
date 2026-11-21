@@ -160,7 +160,11 @@ function connectDepth(market) {
   depthRegistry.reconnect(market);
   depthFeeds[market]='connecting';
   const streams=state.symbols.map(symbol=>symbol.toLowerCase()+'@depth').join('/');
-  const ws=new WebSocket(endpoints[market].ws+streams);
+  // Binance 2026 migration: high-frequency depth belongs to /public,
+  // while ordinary futures candles and aggTrades remain on /market.
+  const depthUrl=market==='futures' ?
+    'wss://fstream.binance.com/public/stream?streams=' : endpoints.spot.ws;
+  const ws=new WebSocket(depthUrl+streams);
   depthSockets.set(market,ws);
   ws.addEventListener('open',()=>{if(depthSockets.get(market)===ws)
     depthFeeds[market]='live';});
