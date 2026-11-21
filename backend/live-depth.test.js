@@ -56,7 +56,9 @@ test('futures requires matching pu; out-of-sequence diff causes resync',async()=
   await flush();
   book.receive(msg('ETHUSDT',199,201,198));
   assert.equal(book.snapshot().status,'live');
+  now+=2000;
   book.receive(msg('ETHUSDT',202,204,201));
+  assert.equal(book.lastUpdateId,204);
   assert.equal(book.snapshot().lastUpdateId,204);
 });
 test('D2 filter only accepts fresh synchronized 10s depth and persistent imbalance',async()=>{
