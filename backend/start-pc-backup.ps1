@@ -51,7 +51,7 @@ if (Test-Path -LiteralPath $pidPath) {
     if ($oldPid -gt 0) {
         $existing = Get-CimInstance Win32_Process -Filter "ProcessId=$oldPid" -ErrorAction SilentlyContinue
         if ($existing -and $existing.Name -ieq 'node.exe' -and
-            $existing.CommandLine -match 'server\\.js') {
+            $existing.CommandLine -match 'server\.js') {
             Write-Output "Orbit backup already running (PID $oldPid)."
             return
         }
