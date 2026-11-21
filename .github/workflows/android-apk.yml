@@ -3,6 +3,8 @@ name: Android APK
 on:
   push:
     branches: [main, 'review/android-apk', 'feature/market-structure-v3']
+  pull_request:
+    branches: ['review/android-apk']
   workflow_dispatch:
 
 permissions:
