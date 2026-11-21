@@ -406,9 +406,9 @@ class MainActivity : Activity() {
         card(body) {
             addView(text("АДАПТИВНАЯ ОЦЕНКА", 10, accent, true))
             addView(text("Прогресс обучения", 23, primaryText, true))
-            addView(text("УРОВЕНЬ $level/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level]}", 12, accent, true))
-            addView(text("Обучающие исходы: ${samples.coerceAtMost(30)}/30", 12))
-            addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12))
+            addView(text("УРОВЕНЬ $level/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level]}", 12, accent, true).also { marketLearningLevelView = it })
+            addView(text("Обучающие исходы: ${samples.coerceAtMost(30)}/30", 12).also { marketTrainingView = it })
+            addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12).also { marketValidationView = it })
             addView(text("Уровень зависит от завершённых сигналов новой стратегии и качества прогноза.", 11, muted))
         }
         if (prefs.mode == "server") body.addView(text("Источник: сервер · синхронизация ${if (prefs.serverLastSync == 0L) "ожидается" else date(prefs.serverLastSync)}", 11, accent))
@@ -416,10 +416,10 @@ class MainActivity : Activity() {
         body.addView(text("Спот и USDT-M фьючерсы · последние закрытые M1", 11, muted))
         for (symbol in prefs.symbols) card(body) {
             addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
-            addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent))
+            addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent).also { marketPriceViews[symbol] = it })
             setOnClickListener { navigateToAsset(symbol, "spot", "15m") }
         }
-        body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted))
+        body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted).also { marketLastUpdateView = it })
     }
     private fun renderSignals() {
         title("Сигналы", "M5–H4 · вход, TP и стоп по M1")
@@ -717,7 +717,7 @@ class MainActivity : Activity() {
             addView(text(if (prefs.mode == "server")
                 "Сервер отслеживает M1, телефон получает его результаты при синхронизации. В APK без FCM уведомления приходят при следующей проверке: примерно раз в минуту при открытом приложении и с задержкой от 15 минут в фоне."
                 else "При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
-            addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent))
+            addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent).also { settingsLastCheckView = it })
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
             action(this, "Проверить сейчас") { updateMarket() }
         }
@@ -742,10 +742,10 @@ class MainActivity : Activity() {
         body.addView(tabs)
         card(body) {
             addView(text("ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1", 10, muted, true))
-            addView(text(format(store.price(market, symbol)?.first), 30, primaryText, true))
-            assetTicker?.let { ticker ->
-                addView(text("24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}", 11, muted))
-            }
+            addView(text(format(store.price(market, symbol)?.first), 30, primaryText, true).also { assetLastPriceView = it })
+            addView(text(assetTicker?.let { ticker ->
+                "24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}"
+            } ?: "Данные 24 ч загружаются", 11, muted).also { assetTickerView = it })
         }
         val signals = store.signals(market, symbol, prefs.mode)
         val selected = signals.firstOrNull { it.id == selectedSignalId }
@@ -767,18 +767,21 @@ class MainActivity : Activity() {
             controls.addView(secondRow)
             body.addView(controls)
             body.addView(text(if (chartAnchorAt == null) "Текущие свечи"
-                else "История сигнала: окно вокруг ${date(chartAnchorAt!!)}", 11, accent))
+                else "История сигнала: окно вокруг ${date(chartAnchorAt!!)}", 11, accent).also { assetWindowView = it })
         }
         val structure = Strategy.structure(assetBars)
-        body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted))
+        body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted).also { assetStructureView = it })
         card(body) { addView(ChartView(this@MainActivity).apply {
             candles = assetBars; this.structure = structure; signal = selected
             visibleCount = chartVisibleCount; offset = chartOffset
             onViewportChanged = { count, shift -> chartVisibleCount = count; chartOffset = shift }
             contentDescription = "График свечей. Разведите пальцы для увеличения, проведите в сторону для просмотра истории."
-        }) }
+        }.also { assetChartView = it }) }
         body.addView(text("Точки: старт, вход, TP1–TP3 и выход. Уровни начинаются от старта сигнала: сплошные — до последнего касания, пунктирные — ещё не достигнутые. Линия отражает движение по закрытиям свечей.", 11, muted))
-        assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
+        body.addView(text(assetError?.let { "Данные Binance: $it" } ?: "", 11, danger).apply {
+            visibility = if (assetError == null) View.GONE else View.VISIBLE
+            assetErrorView = this
+        })
         body.addView(text("Выберите сигнал", 20, primaryText, true))
         val statusTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((bucket, label) in listOf("waiting" to "Ожидающие", "active" to "Активные", "finished" to "Завершённые"))
@@ -845,9 +848,13 @@ class MainActivity : Activity() {
             addView(text("Крупные сделки", 16, primaryText, true))
             addView(text("От 250 000 USDT среди последних 1000 публичных aggTrade. Это частичная выборка и не влияет на сигналы.", 11, muted))
             val buys = assetTrades.filter { it.side == "buy" }; val sells = assetTrades.filter { it.side == "sell" }
-            addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent))
-            addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger))
-            for (trade in assetTrades.take(4)) addView(text("${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
+            addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent).also { assetBuyView = it })
+            addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger).also { assetSellView = it })
+            val recent = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+            for (trade in assetTrades.take(4)) recent.addView(text(
+                "${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
+            addView(recent)
+            assetRecentTradesView = recent
         }
         body.addView(text("Касание уровней ценой не подтверждает исполнение ордера на счёте.", 11, muted))
     }
@@ -883,7 +890,7 @@ class MainActivity : Activity() {
                     }
                 }
                     .onFailure { assetError = it.message }
-                show()
+                refreshVisibleData()
             }
         }
     }
