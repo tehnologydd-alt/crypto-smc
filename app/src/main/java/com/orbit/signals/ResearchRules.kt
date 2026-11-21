@@ -13,16 +13,16 @@ data class LiquidityEvidence(
 object ResearchRules {
     val all = listOf(
         ResearchRule("v0.1","Структура + OB/FVG",false,false),
-        ResearchRule("v0.2-D1","Структура + OB/FVG + стакан Binance",true,false),
-        ResearchRule("v0.3-D1","Стакан Binance + старший TF",true,true)
+        ResearchRule("v0.2-D2","Структура + OB/FVG + стакан Binance",true,false),
+        ResearchRule("v0.3-D2","Стакан Binance + старший TF",true,true)
     )
     // Previous experimental revisions kept for their durable snapshots and models.
-    val archivedKeys = listOf("v0.2","v0.3","v0.2-L1","v0.3-L1")
+    val archivedKeys = listOf("v0.2","v0.3","v0.2-L1","v0.3-L1","v0.2-D1","v0.3-D1")
     val keys = all.map { it.key } + archivedKeys
     fun signature(rule:ResearchRule):String = when(rule.key) {
         "v0.1" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
-        "v0.2-D1" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|BINANCE_DEPTH_100L_USDT_SIDE_SHARE_GE_0.55_FRESH_120S|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
-        "v0.3-D1" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|BINANCE_DEPTH_100L_USDT_SIDE_SHARE_GE_0.55_FRESH_120S|PARENT_CLOSED_TF_REGIME|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
+        "v0.2-D2" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|BINANCE_WS_DIFF_SYNC_100L_USDT_SIDE_SHARE_GE_0.55_OBSERVE_10S_4SAMPLES|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
+        "v0.3-D2" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|BINANCE_WS_DIFF_SYNC_100L_USDT_SIDE_SHARE_GE_0.55_OBSERVE_10S_4SAMPLES|PARENT_CLOSED_TF_REGIME|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
         else -> error("Unknown research rule")
     }
     private fun atrBefore(b:List<Candle>,index:Int):Double? {
