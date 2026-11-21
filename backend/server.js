@@ -357,6 +357,8 @@ const handleRequest = async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Неверный ключ доступа' });
       if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, mobileState());
+      if (req.method === 'GET' && url.pathname === '/api/order-books')
+        return json(res,200,{orderBooks:depthRegistry.list(state.symbols),updatedAt:Date.now()});
       if (req.method === 'GET' && url.pathname.startsWith('/api/order-book/')) {
         const symbol=decodeURIComponent(url.pathname.slice('/api/order-book/'.length)).toUpperCase();
         if(!state.symbols.includes(symbol))return json(res,400,{error:'Неизвестный актив'});
