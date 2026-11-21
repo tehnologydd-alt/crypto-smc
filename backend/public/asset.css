@@ -29,3 +29,19 @@
 .large-trade-row strong { margin-left: auto; }.large-trade-row small { color: #829aa9; width: 100%; }
 .large-trade-empty { color: #849cab; font-size: 11px; padding: 8px 1px; }
 
+
+/* Scenario-specific event navigation: separate from global market levels. */
+.asset-signal-scopes { margin: -2px 0 12px; }
+.asset-signal-scopes .tab { flex: 1; }
+.chart-event-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin: 9px 0 4px; }
+.chart-event-actions button { border: 1px solid #355167; background: #1b2b3d; color: #b5d1db; border-radius: 8px; padding: 9px 3px; font-size: 10px; font-weight: 600; }
+.chart-event-actions button.active { background: #235147; border-color: #7ae7be; color: #c0ffe2; }
+.chart-event-actions button:disabled { opacity: .36; cursor: default; }
+.chart-window-note { color: #86a9b2; font-size: 10px; padding: 3px 5px 5px; }
+.signal-path-summary { margin: 12px 0; padding: 11px; border: 1px solid #416958; border-radius: 11px; background: #112a2c; display: grid; gap: 9px; }
+.signal-path-summary div { display: grid; gap: 3px; }
+.signal-path-summary b { color: #83cdb3; font-size: 9px; letter-spacing: .05em; }
+.signal-path-summary span { color: #ebf3ee; font-size: 12px; }
+.signal-path-summary .path-result { font-size: 12px; }
+.signal-path-summary .path-result.positive { color: #83eac0; }
+.signal-path-summary .path-result.negative { color: #ff93a9; }
