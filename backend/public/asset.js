@@ -158,7 +158,7 @@ function signalCard(s) {
     : 'Вход ещё не зафиксирован';
   return `<button type="button" class="asset-signal ${selectedId === s.id ? 'selected' : ''}"
     data-signal="${escapeHtml(s.id)}">
-    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)}</strong>
+    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)} · ${s.ruleVersion ? escapeHtml(s.ruleVersion) : 'SMC v3'}</strong>
     <small>${escapeHtml(stateName[s.state] || s.state)}</small></div>
     <p>Сигнал ${date(s.detectedAt)} · ${timeline} · ${result}</p>
     <div class="asset-signal-levels"><span>Вход ${number(s.entry)}</span><span>SL ${number(s.stop)}</span>
@@ -180,7 +180,7 @@ function renderSelectedSignal() {
     : trace.finished ? trace.result : 'движение не завершено';
   const percentText = trace.percent == null ? '' :
     `<strong class="path-result ${trace.percent >= 0 ? 'positive' : 'negative'}">${trace.percent >= 0 ? '+' : ''}${trace.percent.toFixed(2)}% по цене от входа до финиша</strong>`;
-  panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
+  panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${signal.ruleVersion ? escapeHtml(signal.ruleVersion) : 'SMC v3'} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
     <div class="selected-levels"><div><span>ЗОНА OB</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
     <p>${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || "BOS"} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}</p>
     <div class="signal-path-summary">
