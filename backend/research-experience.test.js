@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openExperienceStore } from './experience.js';
-import { scoreSignal } from './learning.js';
+import { newModel, scoreSignal } from './learning.js';
 import { buildStatistics } from './statistics.js';
 
 function make(ruleVersion, idAt, state='STOPPED', hitTargets=0) {
@@ -85,4 +86,33 @@ test('new SMC and breakout outcomes train separate models',()=>{
     assert.deepEqual(store.statistics().ruleComparisons.versions.map(v=>v.resolved),[1,1]);
     store.close();
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('migrated phone outcome restores its strategy model without duplicate learning',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'orbit-recover-'));
+  const path=join(dir,'exp.db');
+  try {
+    const signal=make('breakout',9000000,'STOPPED',1);
+    signal.market='futures';
+    signal.id='futures:BTCUSDT:1h:9000000:LONG:breakout';
+    signal.strategyVersion=4;
+    signal.strategyKey='breakout';
+    signal.quality=scoreSignal(newModel(),signal.features);
+    signal.learned=true;
+    signal.outcome=1;
+    let store=openExperienceStore(path,{signals:[signal]});
+    assert.equal(store.ruleModels.breakout.samples,1);
+    assert.equal(store.ruleModels.smc.samples,0);
+    store.close();
+    const oldDb=new DatabaseSync(path);
+    oldDb.prepare('UPDATE outcomes SET strategy_version=2 WHERE signal_id=?').run(signal.id);
+    oldDb.prepare('UPDATE signals SET strategy_version=2 WHERE id=?').run(signal.id);
+    oldDb.prepare('UPDATE rule_model_snapshots SET payload=? WHERE rule_key=?')
+      .run(JSON.stringify(newModel()),'breakout');
+    oldDb.close();
+    store=openExperienceStore(path,{signals:[signal]});
+    assert.equal(store.ruleModels.breakout.samples,1);
+    assert.equal(store.summary().outcomes,1);
+    assert.equal(store.statistics().newStrategy.resolved,1);
+    store.close();
+  } finally {rmSync(dir,{recursive:true,force:true});}
 });
