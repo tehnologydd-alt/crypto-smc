@@ -616,12 +616,16 @@ class MainActivity : Activity() {
         if (selected != null) {
             val entry = SignalJourney.trace(selected).entry
             val exit = SignalJourney.trace(selected).exit
-            val navigation = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            action(navigation, "К старту") { chartAnchorAt = selected.detectedAt; chartOffset = 0; loadAsset() }
-            if (entry != null) action(navigation, "К входу") { chartAnchorAt = entry.at; chartOffset = 0; loadAsset() }
-            if (exit != null) action(navigation, "К выходу") { chartAnchorAt = exit.at; chartOffset = 0; loadAsset() }
-            action(navigation, "Сейчас") { chartAnchorAt = null; chartOffset = 0; loadAsset() }
-            body.addView(navigation)
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val firstRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val secondRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            action(firstRow, "К старту") { chartAnchorAt = selected.detectedAt; chartOffset = 0; loadAsset() }
+            if (entry != null) action(firstRow, "К входу") { chartAnchorAt = entry.at; chartOffset = 0; loadAsset() }
+            if (exit != null) action(secondRow, "К выходу") { chartAnchorAt = exit.at; chartOffset = 0; loadAsset() }
+            action(secondRow, "Сейчас") { chartAnchorAt = null; chartOffset = 0; loadAsset() }
+            controls.addView(firstRow)
+            controls.addView(secondRow)
+            body.addView(controls)
             body.addView(text(if (chartAnchorAt == null) "Текущие свечи"
                 else "История сигнала: окно вокруг ${date(chartAnchorAt!!)}", 11, accent))
         }
