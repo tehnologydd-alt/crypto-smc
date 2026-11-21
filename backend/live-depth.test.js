@@ -60,6 +60,22 @@ test('futures requires matching pu; out-of-sequence diff causes resync',async()=
   book.receive(msg('ETHUSDT',202,204,201));
   assert.equal(book.lastUpdateId,204);
   assert.equal(book.snapshot().lastUpdateId,204);
+  // Futures pu verifies continuity even if U is not contiguous numerically.
+  now+=2000;
+  book.receive(msg('ETHUSDT',210,212,204));
+  assert.equal(book.lastUpdateId,212);
+  assert.equal(book.snapshot().status,'live');
+});
+test('futures bootstrap accepts diff ending exactly at REST lastUpdateId',async()=>{
+  let now=420000;
+  const book=new LiveDepthBook({market:'futures',symbol:'XRPUSDT',now:()=>now,
+    fetchSnapshot:async()=>generateBook(100)});
+  book.receive(msg('XRPUSDT',99,100,98));await flush();
+  assert.equal(book.snapshot().status,'live');
+  now+=2000;
+  book.receive(msg('XRPUSDT',110,115,100));
+  assert.equal(book.lastUpdateId,115);
+  assert.equal(book.snapshot().status,'live');
 });
 test('D2 filter only accepts fresh synchronized 10s depth and persistent imbalance',async()=>{
   let now=100000;
