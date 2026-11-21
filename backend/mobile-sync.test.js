@@ -10,7 +10,7 @@ function phoneSignal(model) {
     id: 'spot:BTCUSDT:15m:1000:LONG', market: 'spot', symbol: 'BTCUSDT', timeframe: '15m', side: 'LONG',
     detectedAt: 1000, blockTime: 700, entryLow: 99, entryHigh: 101, entry: 100, stop: 98,
     targets: [102, 104, 106], swing: 101, imbalance: { time: 900, low: 100, high: 101, direction: 'up' },
-    features, expiresAt: 2000, state: 'STOPPED', hitTargets: 1, learned: true, outcome: 1,
+    strategyVersion: 3, features, expiresAt: 2000, state: 'STOPPED', hitTargets: 1, learned: true, outcome: 1,
     quality: scoreSignal(model, features),
     events: [
       { type: 'CREATED', at: 1000, price: 103 }, { type: 'ENTRY', at: 1100, price: 100 },
