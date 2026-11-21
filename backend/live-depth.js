@@ -27,8 +27,8 @@ export class LiveDepthBook {
       event.U<=0||event.u<event.U||!validLevels(event.b)||!validLevels(event.a))return;
     if(this.status==='live') {
       if(event.u<=this.lastUpdateId)return;
-      if(event.U>this.lastUpdateId+1 ||
-        this.market==='futures' && event.pu!==this.lastUpdateId) {
+      if(this.market==='futures' ? event.pu!==this.lastUpdateId :
+        event.U>this.lastUpdateId+1) {
         this.reset('syncing');this.queue.push(event);this.beginBootstrap();return;
       }
       this.apply(event);return;
@@ -64,7 +64,8 @@ export class LiveDepthBook {
   drain() {
     while(this.queue.length){
       const e=this.queue.shift();
-      if(e.u<=this.lastUpdateId)continue;
+      if(e.u<this.lastUpdateId ||
+        e.u===this.lastUpdateId && (this.market==='spot'||this.status==='live'))continue;
       // Binance spot first interval must cover snapshot.lastUpdateId+1;
       // futures first U<=snapshot.lastUpdateId<=u, thereafter pu===previous u.
       const first=this.status!=='live';
@@ -72,15 +73,15 @@ export class LiveDepthBook {
         ? e.U<=this.lastUpdateId+1 && e.u>=this.lastUpdateId+1
         : e.U<=this.lastUpdateId && e.u>=this.lastUpdateId;
       if(first&&!firstMatch){
-        if(e.U>this.lastUpdateId+1) {
+        if(e.U>this.lastUpdateId+(this.market==='spot'?1:0)) {
           // REST may lag the first diff; retry only on the NEXT WS event.
           // Immediate re-bootstrap here can cause an unbounded request loop.
           this.reset('syncing');return;
         }
         continue;
       }
-      if(!first && (e.U>this.lastUpdateId+1 ||
-        this.market==='futures'&&e.pu!==this.lastUpdateId)){
+      if(!first && (this.market==='futures'?e.pu!==this.lastUpdateId:
+        e.U>this.lastUpdateId+1)){
         this.reset('syncing');this.queue.push(e);this.beginBootstrap();return;
       }
       this.status='live';this.apply(e);
