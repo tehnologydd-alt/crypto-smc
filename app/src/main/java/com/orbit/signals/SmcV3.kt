@@ -164,7 +164,7 @@ object SmcV3 {
             (!rule.useVolume || liquid) && (!rule.useHtf || htf)
         }.map { rule ->
             candidate.copy(id=candidate.id+":"+rule.key,ruleVersion=rule.key,
-                volumeRatio=liquidityRatio)
+                volumeRatio=liquidityRatio,ruleSpec=ResearchRules.signature(rule))
         }
     }
 
