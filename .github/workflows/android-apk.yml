@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    branches: [main, 'review/android-apk']
+    branches: [main, 'review/android-apk', 'feature/market-structure-v3']
   workflow_dispatch:
 
 permissions:
