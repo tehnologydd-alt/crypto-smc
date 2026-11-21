@@ -157,7 +157,9 @@ object SmcV3 {
         val breaking=MarketStructureEngine.analyze(b).breaks.lastOrNull() ?: return emptyList()
         val depth=BookDepth.gate(book,market,symbol,candidate.side,candidate.detectedAt,observedAt)
         val htf=if(depth.allowed) ContextRegimeFilter.evaluate(breaking,b,parent,tf).allowed else false
+        // B5 is a later background experiment; do not create it using the D2 snapshot.
         return ResearchRules.all.filter { rule ->
+            !rule.key.endsWith("-B5") &&
             (!rule.useLiquidity || depth.allowed) && (!rule.useHtf || htf)
         }.map { rule ->
             val observed=if(rule.useLiquidity) book!!.capturedAt else candidate.detectedAt
