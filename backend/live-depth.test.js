@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LiveDepthBook, LiveDepthRegistry } from './live-depth.js';
+import { LiveDepthBook, LiveDepthRegistry, depthStreamUrl } from './live-depth.js';
 import { depthGate } from './order-book.js';
 
 const generateBook=(id=100,bidQty=2,askQty=1)=>({
@@ -13,6 +13,12 @@ const msg=(symbol,first,last,pu=null,b=[],a=[])=>({
   ...(pu==null?{}:{pu}),b,a
 });
 const flush=async()=>{await new Promise(resolve=>setImmediate(resolve));};
+test('high-frequency futures depth must use /public after 2026 route migration',()=>{
+  assert.equal(depthStreamUrl('futures','xrpusdt@depth'),
+    'wss://fstream.binance.com/public/stream?streams=xrpusdt@depth');
+  assert.equal(depthStreamUrl('spot','xrpusdt@depth'),
+    'wss://stream.binance.com:9443/stream?streams=xrpusdt@depth');
+});
 test('spot buffers WS deltas until the REST update ID; updates/zero removals are applied',async()=>{
   let now=100000;
   let complete;
