@@ -48,7 +48,7 @@ test('futures requires matching pu; out-of-sequence diff causes resync',async()=
   let now=300000,version=100;
   const book=new LiveDepthBook({market:'futures',symbol:'ETHUSDT',now:()=>now,
     fetchSnapshot:async()=>generateBook(version)});
-  book.receive(msg('ETHUSDT',99,100,98));await flush();
+  book.receive(msg('ETHUSDT',99,101,98));await flush();
   assert.equal(book.snapshot().status,'live');
   book.receive(msg('ETHUSDT',101,102,999));
   assert.equal(book.snapshot().status,'syncing');
