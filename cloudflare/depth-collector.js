@@ -7,6 +7,10 @@ import { LiveDepthRegistry, depthStreamUrl } from './live-depth.js';
 // reduces incoming WebSocket messages 20:1. Budget stops instead of charging.
 const SYMBOLS=['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT'];
 const MARKETS=['spot','futures'],DAY=86400000,MAX_MESSAGES=1690000;
+// Deployment diagnostic (21 Nov 2026): Binance responded HTTP 403 from
+// Cloudflare egress on both REST APIs and the futures WS endpoint. Disable
+// automatic retries rather than pretend that unsynchronized depth is usable.
+const COLLECTION_ENABLED=false;
 const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{
   'content-type':'application/json; charset=utf-8','cache-control':'no-store',
   'access-control-allow-origin':'*'}});
@@ -106,6 +110,17 @@ export class DepthCollector extends DurableObject {
     }catch(e){this.errors.set('storage',String(e.message||e).slice(0,100));}
   }
   ensure() {
+    if(!COLLECTION_ENABLED) {
+      for(const market of MARKETS) {
+        const ws=this.sockets.get(market);
+        if(ws)try{ws.close(1000,'upstream HTTP 403');}catch{}
+        this.sockets.delete(market);
+        this.connectedAt.delete(market);
+        this.registry.invalidate(market);
+        this.errors.set(market,'Binance HTTP 403 from Cloudflare; collecting suspended');
+      }
+      return;
+    }
     this.quota();
     for(const market of MARKETS){
       const ws=this.sockets.get(market);
@@ -157,6 +172,7 @@ export class DepthCollector extends DurableObject {
       };
     }
     return {service:'orbit-signals-depth',version:'pilot-1',nodeServer:false,
+      collectorStatus:COLLECTION_ENABLED?'enabled':'blocked_upstream_http_403',
       updatedAt:Date.now(),symbols:SYMBOLS,streams,
       quota:{messagesToday:this.meter.events,maxMessages:MAX_MESSAGES,
         estimatedBilledRequests:Math.ceil(this.meter.events/20),paused:!this.quota()},
