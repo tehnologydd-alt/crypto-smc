@@ -26,6 +26,8 @@ object ResearchRules {
         if (!current.isFinite() || current < 0.0 || average <= 0.0) return null
         return current/average
     }
-    fun passesVolume(bars:List<Candle>, index:Int):Boolean =
-        (volumeRatio(bars,index) ?: return false) >= 1.2
+    fun passesVolume(bars:List<Candle>, index:Int):Boolean {
+        val ratio = volumeRatio(bars,index) ?: return false
+        return ratio >= 1.2
+    }
 }
