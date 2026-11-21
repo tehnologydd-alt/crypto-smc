@@ -51,4 +51,34 @@ class SignalJourneyTest {
         val path=SignalJourney.trace(s)
         assertFalse(path.finished);assertNull(path.exit);assertNull(path.priceMovePercent)
     }
+    @Test fun historicalLinesEndAtEachLevelLastTouch() {
+        val s=signal(state="STOPPED")
+        s.events.add(SignalEvent("TP1",3000L,102.0))
+        s.events.add(SignalEvent("TP1",3500L,102.0))
+        s.events.add(SignalEvent("STOP",5000L,98.0))
+        val lines=SignalJourney.levelSegments(s,9000L)
+        assertEquals(listOf("ENTRY","SL","TP1","TP2","TP3"),lines.map{it.name})
+        assertTrue(lines.all{it.startAt==1000L})
+        assertEquals(2000L, lines.first{it.name=="ENTRY"}.endAt)
+        assertEquals(5000L, lines.first{it.name=="SL"}.endAt)
+        assertEquals(3500L, lines.first{it.name=="TP1"}.endAt)
+        assertTrue(lines.first{it.name=="TP1"}.touched)
+        assertEquals(5000L, lines.first{it.name=="TP2"}.endAt)
+        assertFalse(lines.first{it.name=="TP2"}.touched)
+    }
+    @Test fun pendingUnreachedLevelsContinueOnlyThroughLatestClosedCandle() {
+        val levels=SignalJourney.levelSegments(signal(state="OPEN"),9000L)
+        assertEquals(2000L,levels.first{it.name=="ENTRY"}.endAt)
+        assertEquals(9000L,levels.first{it.name=="TP1"}.endAt)
+        assertEquals(9000L,levels.first{it.name=="SL"}.endAt)
+    }
+    @Test fun cancelledExpiredAndUncertainLevelsNeverProjectAfterFinalEvent() {
+        for ((status,eventType) in listOf("CANCELLED" to "INVALIDATED",
+            "EXPIRED" to "EXPIRED","UNCERTAIN" to "DATA_GAP")) {
+            val s=signal(state=status)
+            s.events.add(SignalEvent(eventType,5000L,99.0))
+            assertTrue(SignalJourney.levelSegments(s,10000L).all { it.endAt <= 5000L })
+        }
+    }
+
 }
