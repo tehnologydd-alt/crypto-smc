@@ -13,6 +13,9 @@ button { cursor: pointer; }
 .app { max-width: 620px; margin: auto; padding: max(18px, env(safe-area-inset-top)) 20px calc(104px + env(safe-area-inset-bottom)); }
 .topbar, .brand, .feed-row, .section-heading, .card-top, .card-bottom, .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .topbar { margin-bottom: 25px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.lab-link { color: #8cf4c8; text-decoration: none; font-size: 10px; font-weight: 700; border: 1px solid #376b5b; border-radius: 10px; padding: 12px 10px; white-space: nowrap; }
+.lab-link:hover { background: #1b3d3b; }
 .brand { justify-content: flex-start; gap: 11px; }
 .brand-mark { width: 40px; height: 40px; border: 1px solid #61dcb2; color: #9affd3; background: linear-gradient(145deg, #214c4b, #102a36); border-radius: 12px; display: grid; place-items: center; box-shadow: inset 0 0 15px #75f7c421, 0 0 14px #5af0bd24; }
 .brand-icon { width: 32px; height: 32px; stroke-width: 1.9; }

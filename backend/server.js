@@ -15,6 +15,8 @@ import { LargeTradeTracker } from './whales.js';
 import { RateBudget, usagePlan } from './limits.js';
 import { validateMobileBatch } from './mobile-sync.js';
 import { ownMachineRequest } from './local-browser-auth.js';
+import { assessCandidate, buildResearchLab } from './research-lab.js';
+import { runHistoricalResearch } from './historical-research.js';
 
 const base = resolve(import.meta.dirname);
 const dataDir = resolve(process.env.DATA_DIR || join(base, 'data'));
@@ -42,6 +44,7 @@ const state = {
   prices: {}, feeds: { spot: 'connecting', futures: 'connecting' },
   errors: {}, updatedAt: Date.now()
 };
+const replayRuns = new Map();
 function archiveSpotSignals() {
   let changed = false;
   for (const signal of state.signals) {
@@ -105,6 +108,7 @@ function processCandle(market, symbol, candle, shouldScan = true) {
   if (!state.symbols.includes(symbol)) return;
   const pair = key(market, symbol);
   if (candle.end <= (state.lastCandle[pair] || 0) || ![candle.high, candle.low, candle.close].every(Number.isFinite)) return;
+  if (market === 'futures') experience.recordCandles(market, symbol, '1m', [candle]);
   state.prices[pair] = { price: candle.close, at: candle.end };
   state.lastCandle[pair] = candle.end;
   state.updatedAt = Date.now();
@@ -139,7 +143,9 @@ async function fetchKlines(market, symbol, interval, options = {}) {
   const response = await fetch(u, { signal: AbortSignal.timeout(12000) });
   rateBudget.observe(market, response);
   if (!response.ok) throw new Error(`${market} ${symbol}: Binance HTTP ${response.status}`);
-  return parseKlines(await response.json());
+  const candles = parseKlines(await response.json());
+  if (market === 'futures') experience.recordCandles(market, symbol, interval, candles);
+  return candles;
 }
 async function fetchTicker(market, symbol) {
   const u = new URL(endpoints[market].ticker);
@@ -231,6 +237,7 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
         ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
       if (activeVersion || state.signals.some(s => s.id === signal.id)) continue;
       signal.quality = scoreSignal(experience.ruleModels[signal.ruleVersion], signal.features);
+      signal.researchV5 = assessCandidate(signal);
       experience.saveSignal(signal);
       state.signals.unshift(signal);
       if (state.signals.length > 500) {
@@ -293,7 +300,7 @@ async function connectMarket(market) {
       const k = JSON.parse(event.data).data?.k;
       if (!k?.x || !k.s) return;
       lastWsCandle[market] = Date.now();
-      const candle = { time: Number(k.t), end: Number(k.T), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c) };
+      const candle = { time: Number(k.t), end: Number(k.T), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
       const previous = queues.get(k.s) || Promise.resolve();
       const next = previous.then(async () => {
         const last = state.lastCandle[key(market, k.s)] || 0;
@@ -375,6 +382,28 @@ const handleRequest = async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Неверный ключ доступа' });
       if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, mobileState());
+      if (req.method === 'GET' && url.pathname === '/api/research/lab')
+        return json(res, 200, { ...buildResearchLab(experience.researchSignals(), experience.candleCoverage()),
+          feed: state.feeds.futures, monitored: state.symbols.length, symbols: state.symbols,
+          errors: Object.keys(state.errors).length });
+      if (req.method === 'POST' && url.pathname === '/api/research/replay') {
+        let input;
+        try { input = await requestBody(req, 2048); }
+        catch { return json(res, 400, { error: 'Неверные параметры исследования' }); }
+        if (!state.symbols.includes(input.symbol) || !['5m','15m','30m'].includes(input.timeframe) ||
+            ![3,7].includes(input.days))
+          return json(res, 400, { error: 'Выберите отмеченный актив, M5/M15/M30 и окно 3 или 7 дней' });
+        const cacheKey = `${input.symbol}:${input.timeframe}:${input.days}`;
+        let cached = replayRuns.get(cacheKey);
+        if (!cached || cached.expiresAt < Date.now()) {
+          const promise = runHistoricalResearch(input, fetchKlines);
+          cached = { promise, expiresAt: Date.now() + 30 * 60000 };
+          replayRuns.set(cacheKey, cached);
+          promise.catch(() => { if (replayRuns.get(cacheKey) === cached) replayRuns.delete(cacheKey); });
+        }
+        try { return json(res, 200, await cached.promise); }
+        catch (error) { return json(res, 422, { error: error.message }); }
+      }
       if (req.method === 'GET' && url.pathname === '/api/order-books')
         return json(res,200,{orderBooks:depthRegistry.list(state.symbols),updatedAt:Date.now()});
       if (req.method === 'GET' && url.pathname.startsWith('/api/order-book/')) {
@@ -477,7 +506,7 @@ const handleRequest = async (req, res) => {
     }
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
     const file = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
-    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'signal-journey.js', 'style.css', 'asset.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
+    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'signal-journey.js', 'style.css', 'asset.css', 'lab.html', 'lab.js', 'lab.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
     const content = await readFile(join(base, 'public', file));
     res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': file === 'sw.js' ? 'no-cache' : 'max-age=60', 'X-Content-Type-Options': 'nosniff' });
     res.end(content);

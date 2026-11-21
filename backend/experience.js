@@ -30,6 +30,15 @@ export function openExperienceStore(path, legacy = {}) {
       rule_key TEXT PRIMARY KEY, updated_at INTEGER NOT NULL, payload TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+  db.exec(`CREATE TABLE IF NOT EXISTS market_candles (
+    market TEXT NOT NULL, symbol TEXT NOT NULL, timeframe TEXT NOT NULL,
+    open_time INTEGER NOT NULL, close_time INTEGER NOT NULL,
+    open REAL NOT NULL, high REAL NOT NULL, low REAL NOT NULL,
+    close REAL NOT NULL, volume REAL NOT NULL,
+    PRIMARY KEY(market,symbol,timeframe,open_time)
+  );
+  CREATE INDEX IF NOT EXISTS market_candles_close
+    ON market_candles(symbol,timeframe,close_time);`);
   const metaRow = db.prepare("SELECT value FROM meta WHERE key='server_id'");
   let serverId = metaRow.get()?.value;
   if (!serverId) {
@@ -52,6 +61,13 @@ export function openExperienceStore(path, legacy = {}) {
   const counts = db.prepare('SELECT (SELECT COUNT(*) FROM signals) AS signals, (SELECT COUNT(*) FROM outcomes) AS outcomes');
   const allSignals = db.prepare('SELECT payload FROM signals');
   const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes WHERE strategy_version IN (3,4) ORDER BY resolved_at');
+  const insertCandle = db.prepare(`INSERT OR IGNORE INTO market_candles
+    (market,symbol,timeframe,open_time,close_time,open,high,low,close,volume)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  const candleCoverage = db.prepare(`SELECT symbol,timeframe,COUNT(*) AS candles,
+    MIN(open_time) AS firstOpen,MAX(close_time) AS lastClose
+    FROM market_candles WHERE market='futures'
+    GROUP BY symbol,timeframe ORDER BY symbol,timeframe`);
   let statisticsCache = null;
   const versionOf = signal => signal.strategyVersion || (signal.imbalance ? 2 : 1);
   const rowOf = signal => [signal.id, versionOf(signal), signal.detectedAt, signal.updatedAt || signal.events?.at(-1)?.at || signal.detectedAt,
@@ -122,6 +138,28 @@ export function openExperienceStore(path, legacy = {}) {
     model,
     ruleModels,
     summary() { const row = counts.get(); return { signals: row.signals, outcomes: row.outcomes }; },
+    researchSignals() { return allSignals.all().map(row => JSON.parse(row.payload)); },
+    candleCoverage() { return candleCoverage.all().map(row => ({ ...row })); },
+    recordCandles(market, symbol, timeframe, candles) {
+      if (market !== 'futures' || !/^[A-Z0-9]{2,16}USDT$/.test(symbol) ||
+          !['1m','5m','15m','30m','1h','4h','1d'].includes(timeframe) ||
+          !Array.isArray(candles)) return 0;
+      const minutes = { '1m':1,'5m':5,'15m':15,'30m':30,'1h':60,'4h':240,'1d':1440 }[timeframe];
+      let added = 0;
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        for (const candle of candles) {
+          if (![candle.time,candle.end,candle.open,candle.high,candle.low,candle.close,candle.volume]
+              .every(Number.isFinite) || candle.end !== candle.time + minutes * 60000 - 1 ||
+              candle.end >= Date.now() || candle.high < Math.max(candle.open,candle.close,candle.low) ||
+              candle.low > Math.min(candle.open,candle.close,candle.high) || candle.volume < 0) continue;
+          added += insertCandle.run(market,symbol,timeframe,candle.time,candle.end,
+            candle.open,candle.high,candle.low,candle.close,candle.volume).changes;
+        }
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      return added;
+    },
     statistics() {
       if (!statisticsCache) statisticsCache = buildStatistics(allSignals.all().map(row => JSON.parse(row.payload)), allOutcomes.all());
       return statisticsCache;

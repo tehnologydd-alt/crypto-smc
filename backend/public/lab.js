@@ -1,0 +1,144 @@
+const $ = selector => document.querySelector(selector);
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g,
+  char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+const date = value => value ? new Date(value).toLocaleString('ru-RU',
+  { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+const percent = value => value == null ? '—' : `${(100 * value).toFixed(1)}%`;
+const number = value => value == null ? '—' : Number(value).toLocaleString('en-US',
+  { maximumFractionDigits: Number(value) < 1 ? 6 : 2 });
+const strategyName = { smc:'SMC · OB/FVG', breakout:'Импульс и пробой' };
+const stateName = { WAITING:'Ожидает вход', OPEN:'В работе', COMPLETED:'TP3',
+  STOPPED:'Стоп', EXPIRED:'Истёк', CANCELLED:'Отменён', UNCERTAIN:'Пробел данных' };
+const verdictName = { PASS:'Прошёл', REJECT:'Отклонён', COLLECT:'Сбор данных' };
+let report = null;
+let lastReplay = null;
+
+function funnel(key, metrics) {
+  const stages = [['Кандидаты', metrics.candidates], ['Входы', metrics.entered],
+    ['Исходы', metrics.resolved], ['TP1 до стопа', metrics.tp1First]];
+  const max = Math.max(1, metrics.candidates);
+  return `<div class="funnel"><div class="funnel-title"><h3>${escapeHtml(strategyName[key])}</h3><span>${metrics.candidates} кандидатов</span></div>
+    ${stages.map(([label, value], index) => `<div class="funnel-line"><span>${label}</span><div class="track"><i class="step-${index}" style="width:${100 * value / max}%"></i></div><b>${value}</b></div>`).join('')}
+    <small>Вход: ${percent(metrics.entryRate)} · TP1 после входа: ${metrics.resolved >= 20 ? percent(metrics.tp1Rate) : 'мало исходов для оценки'} · истекли без входа: ${metrics.expiredWithoutEntry}</small></div>`;
+}
+
+function shadowCard(key, row) {
+  const badge = key === 'PASS' ? 'good' : key === 'REJECT' ? 'bad' : 'waiting';
+  return `<div class="shadow-card"><div><span class="verdict ${badge}">${verdictName[key]}</span><b>${row.candidates}</b></div>
+    <p>Входы ${row.entered} · исходы ${row.resolved} · TP1 до стопа ${row.tp1First}</p>
+    <small>${row.resolved >= 20 ? `Наблюдаемая доля TP1: ${percent(row.tp1Rate)}` : `Для предварительного сравнения нужно ещё ${20 - row.resolved} исходов`}</small></div>`;
+}
+
+function candidateRow(row) {
+  const shadow = row.shadow;
+  const label = shadow ? verdictName[shadow.verdict] || shadow.verdict : 'До запуска v5';
+  const reason = shadow?.reason || 'Решение на момент создания не записывалось';
+  const href = `/asset.html?symbol=${encodeURIComponent(row.symbol)}&market=futures&interval=${encodeURIComponent(row.timeframe)}&signal=${encodeURIComponent(row.id)}`;
+  return `<tr><td>${date(row.detectedAt)}</td><td><a href="${href}">${escapeHtml(row.symbol)}</a><small>${escapeHtml(row.timeframe?.toUpperCase())}</small></td>
+    <td>${escapeHtml(strategyName[row.strategy])}</td><td class="${row.side === 'LONG' ? 'long' : 'short'}">${escapeHtml(row.side)}</td>
+    <td><b>${number(row.entry)}</b><small>TP1 ${number(row.tp1)} · SL ${number(row.stop)}</small></td>
+    <td>${escapeHtml(stateName[row.state] || row.state)}${row.outcome ? `<small>Первым: ${row.outcome}</small>` : ''}</td>
+    <td><span class="verdict ${shadow?.verdict === 'PASS' ? 'good' : shadow?.verdict === 'REJECT' ? 'bad' : 'waiting'}">${escapeHtml(label)}</span><small title="${escapeHtml(reason)}">${escapeHtml(reason)}</small></td></tr>`;
+}
+
+function render() {
+  if (!report) return;
+  $('#connection').textContent = report.feed === 'live' ? '● Поток онлайн' : '● Проверить поток';
+  $('#connection').classList.toggle('live', report.feed === 'live');
+  $('#updated').textContent = `Обновлено: ${date(report.generatedAt)}`;
+  $('#feed').textContent = `Ошибок потока: ${report.errors}`;
+  $('#monitored').textContent = `Отмечено активов: ${report.monitored}`;
+  $('#policyVersion').textContent = report.policy.version;
+  const symbolField = $('#replaySymbol');
+  const selectedSymbol = symbolField.value;
+  symbolField.innerHTML = (report.symbols || []).map(symbol =>
+    `<option value="${escapeHtml(symbol)}">${escapeHtml(symbol)}</option>`).join('');
+  if (report.symbols?.includes(selectedSymbol)) symbolField.value = selectedSymbol;
+  const t = report.total;
+  $('#kCandidates').textContent = t.candidates;
+  $('#kEntries').textContent = t.entered;
+  $('#kEntryRate').textContent = `Доля входов ${percent(t.entryRate)}`;
+  $('#kResolved').textContent = t.resolved;
+  $('#kTp1').textContent = t.tp1First;
+  $('#kTp1Rate').textContent = t.resolved >= 20 ? `${percent(t.tp1Rate)} из завершённых входов` : `Нужно ещё ${20 - t.resolved} исходов для оценки`;
+  $('#kMissed').textContent = t.expiredWithoutEntry;
+  $('#funnels').innerHTML = ['smc', 'breakout'].map(key => funnel(key, report.byStrategy[key])).join('');
+  $('#assessed').textContent = `${report.assessed} оценено при создании`;
+  $('#shadow').innerHTML = ['PASS', 'REJECT', 'COLLECT'].map(key => shadowCard(key, report.shadow[key])).join('');
+  const filter = $('#strategyFilter').value;
+  const rows = report.latest.filter(row => filter === 'all' || row.strategy === filter);
+  $('#candidates').innerHTML = rows.length ? rows.map(candidateRow).join('') :
+    '<tr><td colspan="7">Кандидатов пока нет.</td></tr>';
+  const coverage = [...report.coverage].sort((a,b) => a.symbol.localeCompare(b.symbol) ||
+    ['1m','5m','15m','30m','1h','4h','1d'].indexOf(a.timeframe) -
+    ['1m','5m','15m','30m','1h','4h','1d'].indexOf(b.timeframe));
+  $('#coverage').innerHTML = coverage.length ? coverage.map(row =>
+    `<div><b>${escapeHtml(row.symbol)}</b><span>${escapeHtml(row.timeframe.toUpperCase())}</span><strong>${number(row.candles)}</strong><small>${date(row.firstOpen)} → ${date(row.lastClose)}</small></div>`).join('') :
+    '<p>Архив начнёт заполняться после перезапуска сервера и получения закрытых свечей.</p>';
+}
+
+async function refresh() {
+  try {
+    const token = localStorage.getItem('orbit-token') || '';
+    const response = await fetch('/api/research/lab', { headers: token ? { Authorization:`Bearer ${token}` } : {} });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    report = body;
+    $('#error').classList.add('hidden');
+    $('#export').disabled = false;
+    render();
+  } catch (error) {
+    $('#error').textContent = `Не удалось загрузить лабораторию: ${error.message}`;
+    $('#error').classList.remove('hidden');
+    $('#connection').textContent = '● Нет связи';
+    $('#connection').classList.remove('live');
+  }
+}
+
+$('#refresh').addEventListener('click', refresh);
+$('#strategyFilter').addEventListener('change', render);
+$('#replayForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('#replayButton');
+  button.disabled = true;
+  $('#replayExport').disabled = true;
+  lastReplay = null;
+  $('#replayStatus').textContent = 'Загружаю закрытые свечи и воспроизвожу стратегии…';
+  try {
+    const token = localStorage.getItem('orbit-token') || '';
+    const response = await fetch('/api/research/replay', { method:'POST',
+      headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+      body: JSON.stringify({ symbol:$('#replaySymbol').value, timeframe:$('#replayTimeframe').value,
+        days:Number($('#replayDays').value) }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    lastReplay = result;
+    $('#replayExport').disabled = false;
+    $('#replayStatus').textContent = `${result.settings.symbol} · ${result.settings.timeframe.toUpperCase()} · ${result.period.days === 3 ? '3 дня' : '7 дней'} · ${result.candles.m1} M1 свечей. Проверочный период не использован для обучения.`;
+    const windows = [['development','Разработка'],['validation','Проверка'],['holdout','Отложенный период']];
+    $('#replayResult').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Стратегия</th><th>Окно</th><th>Кандидаты</th><th>Входы</th><th>Исходы</th><th>TP1 до стопа</th><th>Доля TP1</th></tr></thead><tbody>${result.versions.flatMap(version =>
+      windows.map(([key,label]) => { const row = version.windows[key];
+        return `<tr><td>${escapeHtml(strategyName[version.rule.key])}</td><td>${label}</td><td>${row.created}</td><td>${row.entered}</td><td>${row.resolved}</td><td>${row.successful}</td><td>${row.resolved >= 20 ? percent(row.rate) : 'мало данных'}</td></tr>`;
+      })).join('')}</tbody></table></div><p class="panel-note">Эта таблица показывает касания уровней на закрытых M1. Расходы и фактическое исполнение ордеров пока не моделируются; малое число исходов не подтверждает преимущество.</p>`;
+    void refresh();
+  } catch (error) {
+    $('#replayStatus').textContent = `Исследование не выполнено: ${error.message}`;
+    $('#replayResult').textContent = '';
+  } finally { button.disabled = false; }
+});
+$('#export').addEventListener('click', () => {
+  if (!report) return;
+  downloadJson(report, `orbit-research-v5-${new Date().toISOString().slice(0,10)}.json`);
+});
+$('#replayExport').addEventListener('click', () => {
+  if (!lastReplay) return;
+  downloadJson(lastReplay, `orbit-replay-${lastReplay.settings.symbol}-${lastReplay.settings.timeframe}-${lastReplay.period.days}d.json`);
+});
+function downloadJson(data, filename) {
+  const object = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }));
+  const link = document.createElement('a');
+  link.href = object; link.download = filename;
+  link.click(); setTimeout(() => URL.revokeObjectURL(object), 1000);
+}
+void refresh();
+setInterval(() => void refresh(), 30000);
