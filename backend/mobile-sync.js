@@ -48,9 +48,14 @@ export function validateMobileBatch(rows) {
         typeof signal.id !== 'string' || signal.id.length > 160 ||
         !signal.id.startsWith(`${signal.market}:${signal.symbol}:${signal.timeframe}:`) || ids.has(signal.id) ||
         (signal.ruleVersion != null && (!RULE_KEYS.includes(signal.ruleVersion) ||
-          signal.strategyVersion !== 3 || !signal.id.endsWith(':'+signal.ruleVersion) ||
+          signal.strategyVersion !== (['smc','breakout'].includes(signal.ruleVersion)?4:3) ||
+          !signal.id.endsWith(':'+signal.ruleVersion) ||
           typeof signal.ruleSpec !== 'string' || signal.ruleSpec.length < 10 ||
           signal.ruleSpec.length > 256)) ||
+        (signal.strategyVersion === 4 && (signal.market !== 'futures' ||
+          signal.strategyKey !== signal.ruleVersion ||
+          !['LIMIT','NEXT_M1_OPEN'].includes(signal.entryMode || 'LIMIT') ||
+          (signal.entryMode === 'NEXT_M1_OPEN' && !positive(signal.entryAtr)))) ||
         (signal.volumeRatio != null && (!Number.isFinite(signal.volumeRatio) || signal.volumeRatio < 0)) ||
         !validDepthEvidence(signal) ||
         !states.has(signal.state) || !timestamp(signal.detectedAt) || !timestamp(signal.blockTime) ||

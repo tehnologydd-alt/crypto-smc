@@ -1,5 +1,6 @@
 import { MarketStructureEngine, ZonesDetector, detectV3, detectRuleVariants } from './smc-v3.js';
-export const MARKETS = ['spot', 'futures'];
+import { detectStrategies } from './two-strategies.js';
+export const MARKETS = ['futures'];
 export const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'LTCUSDT'];
 export const TIMEFRAMES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240 });
 
@@ -55,7 +56,7 @@ export function detectSignal(candles,market,symbol,timeframe='1h',parentBars) {
 }
 
 export function detectResearchSignals(candles,market,symbol,timeframe='1h',parentBars,bookSnapshot=null,observedAt=Date.now()) {
-  return detectRuleVariants(candles,market,symbol,timeframe,parentBars,bookSnapshot,observedAt);
+  return detectStrategies(candles,market,symbol,timeframe,parentBars);
 }
 
 function hit(signal, type, price, at) {
@@ -90,6 +91,30 @@ export function advanceSignal(signal, price, at = Date.now()) {
 // count the stop first because their intrabar order is unknowable.
 export function advanceSignalWithCandle(signal, candle) {
   if (signal.state === 'WAITING') {
+    if (signal.entryMode === 'NEXT_M1_OPEN') {
+      if (candle.end > signal.detectedAt + 60000) {
+        signal.state='UNCERTAIN'; hit(signal,'DATA_GAP',candle.open,candle.end); return true;
+      }
+      if (Math.abs(candle.open-signal.entry) > 0.25*signal.entryAtr) {
+        signal.state='CANCELLED'; hit(signal,'INVALIDATED',candle.open,candle.end); return true;
+      }
+      const direction=signal.side==='LONG'?1:-1;
+      signal.entry=candle.open;
+      signal.stop=signal.entry-direction*signal.entryAtr;
+      signal.targets=[1,2,3].map(n=>signal.entry+direction*n*signal.entryAtr);
+      signal.state='OPEN'; hit(signal,'ENTRY',signal.entry,candle.end);
+      // Open is known to precede the minute's high/low. Stop wins an
+      // ambiguous stop/target candle, including the entry minute.
+      if (signal.side==='LONG'?candle.low<=signal.stop:candle.high>=signal.stop) {
+        signal.state='STOPPED';hit(signal,'STOP',signal.stop,candle.end);return true;
+      }
+      while(signal.hitTargets<3 && (signal.side==='LONG'?candle.high>=signal.targets[signal.hitTargets]:candle.low<=signal.targets[signal.hitTargets])) {
+        const target=signal.targets[signal.hitTargets++];
+        hit(signal,`TP${signal.hitTargets}`,target,candle.end);
+        if(signal.hitTargets===3)signal.state='COMPLETED';
+      }
+      return true;
+    }
     if (candle.end >= signal.expiresAt) { signal.state = 'EXPIRED'; hit(signal, 'EXPIRED', candle.close, candle.end); return true; }
     const invalidated = signal.side === 'LONG' ? candle.low <= signal.stop : candle.high >= signal.stop;
     if (invalidated) { signal.state = 'CANCELLED'; hit(signal, 'INVALIDATED', signal.stop, candle.end); return true; }

@@ -153,24 +153,13 @@ object SmcV3 {
     /** Continuously synchronized and history-checked WS L2 depth gates D2 variants; the base is unaffected. */
     fun detectVariants(b:List<Candle>,market:String,symbol:String,tf:String,
         parent:List<Candle>?,book:OrderBookSnapshot?=null,observedAt:Long=System.currentTimeMillis()):List<Signal> {
-        val candidate=detect(b,market,symbol,tf,parent,requireHtf=false) ?: return emptyList()
-        val breaking=MarketStructureEngine.analyze(b).breaks.lastOrNull() ?: return emptyList()
-        val depth=BookDepth.gate(book,market,symbol,candidate.side,candidate.detectedAt,observedAt)
-        val htf=if(depth.allowed) ContextRegimeFilter.evaluate(breaking,b,parent,tf).allowed else false
-        // B5 is a later background experiment; do not create it using the D2 snapshot.
-        return ResearchRules.all.filter { rule ->
-            !rule.key.endsWith("-B5") &&
-            (!rule.useLiquidity || depth.allowed) && (!rule.useHtf || htf)
-        }.map { rule ->
-            val observed=if(rule.useLiquidity) book!!.capturedAt else candidate.detectedAt
-            candidate.copy(id=candidate.id+":"+rule.key,ruleVersion=rule.key,
-                ruleSpec=ResearchRules.signature(rule),
-                bookEvidence=if(rule.useLiquidity) book else null,
-                detectedAt=observed,
-                expiresAt=observed+12L*TIMEFRAMES.getValue(tf)*60000L,
-                // Mutable state MUST be independent between concurrent rule arms.
-                events=mutableListOf(SignalEvent("CREATED",observed,b.last().close)))
+        if(market!="futures")return emptyList()
+        val smc=detect(b,market,symbol,tf,parent,requireHtf=true)?.let { candidate ->
+            candidate.copy(id=candidate.id+":smc",strategyVersion=4,strategyKey="smc",
+                ruleVersion="smc",ruleSpec=ResearchRules.signature(ResearchRules.all.first{it.key=="smc"}),
+                events=mutableListOf(SignalEvent("CREATED",candidate.detectedAt,b.last().close)))
         }
+        return listOfNotNull(smc,BreakoutStrategy.detect(b,market,symbol,tf,parent))
     }
 
 }

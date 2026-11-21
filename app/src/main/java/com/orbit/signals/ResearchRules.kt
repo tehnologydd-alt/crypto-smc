@@ -12,16 +12,16 @@ data class LiquidityEvidence(
 )
 object ResearchRules {
     val all = listOf(
-        ResearchRule("v0.1","Структура + OB/FVG",false,false),
-        ResearchRule("v0.2-D2","Структура + OB/FVG + стакан Binance",true,false),
-        ResearchRule("v0.3-D2","Стакан Binance + старший TF",true,true),
-        ResearchRule("v0.2-B5","После свечи + 5 минут WebSocket-стакана",true,false),
-        ResearchRule("v0.3-B5","5 минут WebSocket + старший TF",true,true)
+        ResearchRule("smc","SMC · структура, OB и FVG",false,true),
+        ResearchRule("breakout","Импульс и пробой",false,true)
     )
     // Previous experimental revisions kept for their durable snapshots and models.
-    val archivedKeys = listOf("v0.2","v0.3","v0.2-L1","v0.3-L1","v0.2-D1","v0.3-D1")
+    val archivedKeys = listOf("v0.1","v0.2-D2","v0.3-D2","v0.2-B5","v0.3-B5",
+        "v0.2","v0.3","v0.2-L1","v0.3-L1","v0.2-D1","v0.3-D1")
     val keys = all.map { it.key } + archivedKeys
     fun signature(rule:ResearchRule):String = when(rule.key) {
+        "smc" -> "BOS_CHOCH|OB_ACTIVE|FVG_ACTIVE|HTF_MATCH|LIMIT_OB_MID|M1"
+        "breakout" -> "CHANNEL20|BODY_ATR1.2|VOLUME1.5|CLOSE_QUARTILE|HTF_MATCH|NEXT_M1_OPEN"
         "v0.1" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
         "v0.2-D2" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|BINANCE_WS_DIFF_SYNC_100L_USDT_SIDE_SHARE_GE_0.55_OBSERVE_10S_4SAMPLES|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"
         "v0.3-D2" -> "BOS_CHoCH_L2R2|OB_ACTIVE|FVG_ACTIVE|BINANCE_WS_DIFF_SYNC_100L_USDT_SIDE_SHARE_GE_0.55_OBSERVE_10S_4SAMPLES|PARENT_CLOSED_TF_REGIME|STOP_OB_ATR0.1|TP_1R_2R_3R|M1"

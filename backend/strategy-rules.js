@@ -1,21 +1,23 @@
-// Immutable research revisions. Older volume and swing-sweep versions remain archived.
+// One frozen rule set per live strategy. Earlier SMC research arms are archived.
 export const RULES=Object.freeze([
-  Object.freeze({key:'v0.1',category:'v0.1',title:'Структура + OB/FVG',liquidity:false,htf:false,
-    description:'BOS/CHoCH + активные OB/FVG'}),
-  Object.freeze({key:'v0.2-D2',category:'v0.2',title:'Структура + OB/FVG + стакан Binance',
-    liquidity:true,htf:false,bookLevels:100,minImbalance:0.55,maxSnapshotLagMs:120000,
-    description:'v0.1 + подтверждённый объём заявок bid/ask из depth Binance'}),
-  Object.freeze({key:'v0.3-D2',category:'v0.3',title:'Стакан Binance + старший TF',
-    liquidity:true,htf:true,bookLevels:100,minImbalance:0.55,maxSnapshotLagMs:120000,
-    description:'v0.2-D2 + согласованность последнего закрытого старшего TF'}),
-  Object.freeze({key:'v0.2-B5',category:'v0.2',title:'5-мин. фоновый WebSocket после свечи',
-    liquidity:true,htf:false,background:true,bookLevels:100,minImbalance:0.55,
-    description:'Отдельная гипотеза: 5 минут после структурного сигнала, без заднего числа'}),
-  Object.freeze({key:'v0.3-B5',category:'v0.3',title:'5-мин. WebSocket + старший TF',
-    liquidity:true,htf:true,background:true,bookLevels:100,minImbalance:0.55,
-    description:'Отдельная гипотеза: 5-мин. подтверждение и закрытый старший TF'})
+  Object.freeze({key:'smc',category:'strategy',title:'SMC · структура, OB и FVG',
+    description:'BOS/CHoCH + активные OB/FVG + согласованный закрытый старший TF'}),
+  Object.freeze({key:'breakout',category:'strategy',title:'Импульс и пробой',
+    description:'20 свечей + импульс 1,2 ATR + объём 1,5× + вход на следующей M1'})
+]);
+export const LEGACY_RULES=Object.freeze([
+  {key:'v0.1',liquidity:false,htf:false},
+  {key:'v0.2-D2',liquidity:true,htf:false},
+  {key:'v0.3-D2',liquidity:true,htf:true},
+  {key:'v0.2-B5',liquidity:true,htf:false,background:true},
+  {key:'v0.3-B5',liquidity:true,htf:true,background:true}
 ]);
 export const ARCHIVED_RULES=Object.freeze([
+  Object.freeze({key:'v0.1',category:'old-smc',title:'Архив: структура + OB/FVG'}),
+  Object.freeze({key:'v0.2-D2',category:'old-smc',title:'Архив: структура + стакан'}),
+  Object.freeze({key:'v0.3-D2',category:'old-smc',title:'Архив: стакан + HTF'}),
+  Object.freeze({key:'v0.2-B5',category:'old-smc',title:'Архив: 5 минут стакана'}),
+  Object.freeze({key:'v0.3-B5',category:'old-smc',title:'Архив: 5 минут стакана + HTF'}),
   Object.freeze({key:'v0.2-D1',category:'v0.2',title:'Архив: одиночный REST-снимок стакана'}),
   Object.freeze({key:'v0.3-D1',category:'v0.3',title:'Архив: REST-снимок + старший TF'}),
   Object.freeze({key:'v0.2',category:'v0.2',title:'Архив: объём свечи'}),

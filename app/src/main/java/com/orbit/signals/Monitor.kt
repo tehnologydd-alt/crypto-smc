@@ -18,7 +18,13 @@ object Monitor {
             val ruleModels = ResearchRules.keys.associateWith { store.ruleModel(it) }
             val errors = mutableListOf<String>()
             var pairs = 0
-            for (market in listOf("spot", "futures")) for (symbol in prefs.symbols) {
+            for (legacy in store.signals(market="spot").filter{it.state in listOf("WAITING","OPEN")}) {
+                val event=if(legacy.state=="WAITING")"EXPIRED" else "DATA_GAP"
+                legacy.state=if(event=="EXPIRED")"EXPIRED" else "UNCERTAIN"
+                val row=SignalEvent(event,System.currentTimeMillis(),store.price("spot",legacy.symbol)?.first?:0.0)
+                legacy.events+=row;store.saveSignal(legacy);notifier.send(legacy,row)
+            }
+            for (market in listOf("futures")) for (symbol in prefs.symbols) {
                 try { processPair(store, notifier, model, ruleModels, market, symbol, errors); pairs++ }
                 catch (error: Exception) { errors += "$market $symbol: ${error.message}" }
             }
@@ -76,25 +82,11 @@ object Monitor {
                 "4h" -> "1d"
                 else -> error("Неизвестный таймфрейм")
             }
-            // A parent-TF outage cannot suppress the baseline v0.1 and v0.2 research arms.
             val parent = parentCache.getOrPut(parentTf) {
                 runCatching { Binance.candles(market, symbol, parentTf, 120) }.getOrDefault(emptyList())
             }.filter { it.end <= candidate.candle.end }
-            // The local monitor may use ONLY previously synchronized live WS depth.
-            // No REST snapshot is accepted as signal evidence; after background
-            // suspension v0.2-D2/v0.3-D2 remain absent rather than guessed.
-            val book=LiveDepthClient.snapshot(market,symbol)
             val candidates = Strategy.detectVariants(candidate.bars,market,symbol,
-                candidate.timeframe,parent,book,System.currentTimeMillis())
-            // Enqueue a separate post-candle study. Never label later WS data
-            // as if it had existed at the time of the structural candle close.
-            val structural=candidates.firstOrNull{it.ruleVersion=="v0.1"}
-            if(structural!=null){
-                val breaking=MarketStructureEngine.analyze(candidate.bars).breaks.lastOrNull()
-                val htfAllowed=breaking!=null &&
-                    ContextRegimeFilter.evaluate(breaking,candidate.bars,parent,candidate.timeframe).allowed
-                store.queueDepth(structural,htfAllowed)
-            }
+                candidate.timeframe,parent,null,System.currentTimeMillis())
             for (signal in candidates) {
                 if (store.signalExists(signal.id) || signals.any {
                     it.timeframe == candidate.timeframe && it.ruleVersion == signal.ruleVersion &&

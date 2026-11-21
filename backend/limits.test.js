@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RateBudget, usagePlan } from './limits.js';
 
-test('ten selected assets exceed a single free Worker cron subrequest peak', () => {
+test('futures-only workload remains above a single free Worker cron peak', () => {
   const plan = usagePlan(10);
-  assert.equal(plan.node.timeframeRestRequestsPerDay, 9240);
-  assert.equal(plan.cloudflareFree.estimatedBinanceSubrequestsPerDay, 38040);
-  assert.equal(plan.cloudflareFree.peakSubrequestsPerCron, 120);
+  assert.equal(plan.node.timeframeRestRequestsPerDay, 4620);
+  assert.equal(plan.cloudflareFree.estimatedBinanceSubrequestsPerDay, 19020);
+  assert.equal(plan.cloudflareFree.peakSubrequestsPerCron, 60);
   assert.equal(plan.cloudflareFree.fitsSingleCron, false);
 });
 

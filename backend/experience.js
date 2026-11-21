@@ -40,6 +40,8 @@ export function openExperienceStore(path, legacy = {}) {
   const upsertSignal = db.prepare(`INSERT INTO signals (id,strategy_version,created_at,updated_at,market,symbol,timeframe,state,payload)
     VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,state=excluded.state,payload=excluded.payload`);
   const insertOutcome = db.prepare('INSERT OR IGNORE INTO outcomes (signal_id,strategy_version,resolved_at,label,market,symbol,timeframe,side,features,prediction,baseline,trained_samples) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+  const repairOutcomeVersion = db.prepare('UPDATE outcomes SET strategy_version=? WHERE signal_id=?');
+  const repairSignalVersion = db.prepare('UPDATE signals SET strategy_version=? WHERE id=?');
   const selectOutcome = db.prepare('SELECT label FROM outcomes WHERE signal_id=?');
   const selectSignal = db.prepare('SELECT payload FROM signals WHERE id=?');
   const saveModel = db.prepare('INSERT INTO model_snapshots(version,updated_at,payload) VALUES(?,?,?) ON CONFLICT(version) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload');
@@ -49,19 +51,19 @@ export function openExperienceStore(path, legacy = {}) {
   const signalRows = db.prepare("SELECT payload FROM signals ORDER BY CASE WHEN state IN ('WAITING','OPEN','UNCERTAIN') THEN 0 ELSE 1 END, created_at DESC LIMIT 500");
   const counts = db.prepare('SELECT (SELECT COUNT(*) FROM signals) AS signals, (SELECT COUNT(*) FROM outcomes) AS outcomes');
   const allSignals = db.prepare('SELECT payload FROM signals');
-  const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes WHERE strategy_version=3 ORDER BY resolved_at');
+  const allOutcomes = db.prepare('SELECT strategy_version,resolved_at,label,prediction,trained_samples FROM outcomes WHERE strategy_version IN (3,4) ORDER BY resolved_at');
   let statisticsCache = null;
   const versionOf = signal => signal.strategyVersion || (signal.imbalance ? 2 : 1);
   const rowOf = signal => [signal.id, versionOf(signal), signal.detectedAt, signal.updatedAt || signal.events?.at(-1)?.at || signal.detectedAt,
     signal.market, signal.symbol, signal.timeframe || '1h', signal.state, JSON.stringify(signal)];
-  const outcomeOf = signal => [signal.id, 3, signal.updatedAt || signal.events?.at(-1)?.at || Date.now(), signal.outcome,
+  const outcomeOf = signal => [signal.id, versionOf(signal), signal.updatedAt || signal.events?.at(-1)?.at || Date.now(), signal.outcome,
     signal.market, signal.symbol, signal.timeframe, signal.side, JSON.stringify(signal.features),
     signal.quality.probability, signal.quality.baseline, signal.quality.trainedSamples];
 
   for (const signal of legacy.signals || []) {
     if (typeof signal.id !== 'string' || !signal.events) continue;
     insertSignal.run(...rowOf(signal));
-    if (versionOf(signal) === 3 && signal.learned && [0, 1].includes(signal.outcome) && signal.quality) insertOutcome.run(...outcomeOf(signal));
+    if ([3,4].includes(versionOf(signal)) && signal.learned && [0, 1].includes(signal.outcome) && signal.quality) insertOutcome.run(...outcomeOf(signal));
   }
   let model;
   try { model = JSON.parse(modelRow.get()?.payload || 'null'); } catch { model = null; }
@@ -80,6 +82,38 @@ export function openExperienceStore(path, legacy = {}) {
       saveRuleModel.run(key, Date.now(), JSON.stringify(candidate));
     }
     ruleModels[key] = candidate;
+  }
+
+  // Older server builds could persist a phone outcome before they knew its
+  // strategy key. Recover the model from the durable journal once, without
+  // claiming imported phone predictions as independent server validation.
+  const journal = db.prepare(`SELECT s.payload,o.strategy_version AS outcome_version,
+    s.strategy_version AS signal_version FROM outcomes o
+    JOIN signals s ON s.id=o.signal_id
+    ORDER BY o.resolved_at,o.signal_id`).all();
+  const byRule = new Map();
+  for (const row of journal) {
+    const signal = JSON.parse(row.payload);
+    const version = versionOf(signal);
+    if (![3,4].includes(version)) continue;
+    if (row.outcome_version !== version) repairOutcomeVersion.run(version,signal.id);
+    if (row.signal_version !== version) repairSignalVersion.run(version,signal.id);
+    if (!RULE_KEYS.includes(signal.ruleVersion)) continue;
+    const records = byRule.get(signal.ruleVersion) || [];
+    records.push(signal);
+    byRule.set(signal.ruleVersion, records);
+  }
+  for (const [key, records] of byRule) {
+    if (ruleModels[key].samples >= records.length) continue;
+    const recovered = newModel();
+    for (const signal of records) {
+      const replay = { ...signal, learned: false,
+        quality: signal.quality ? { ...signal.quality, trainedSamples: 0 } : null };
+      if (!learnFromOutcome(recovered, replay)) break;
+    }
+    if (recovered.samples !== records.length) continue;
+    saveRuleModel.run(key, Date.now(), JSON.stringify(recovered));
+    ruleModels[key] = recovered;
   }
 
   return {
@@ -109,7 +143,7 @@ export function openExperienceStore(path, legacy = {}) {
       return { stored: !existing, learned: Boolean(learned) };
     },
     recordOutcome(signal) {
-      if (versionOf(signal) !== 3 || signal.learned) return false;
+      if (![3,4].includes(versionOf(signal)) || signal.learned) return false;
       const existing = selectOutcome.get(signal.id);
       if (existing) { signal.learned = true; signal.outcome = existing.label; return false; }
       const ruleKey = signal.ruleVersion || null;

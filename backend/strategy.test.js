@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { detectSignal, advanceSignalWithCandle, parseKlines, analyzeStructure } from './strategy.js';
 import { MarketStructureEngine, ZonesDetector, ContextRegimeFilter, previousAtr } from './smc-v3.js';
 import { newModel, validModel, learnFromOutcome, scoreSignal } from './learning.js';
+import { detectBreakout } from './two-strategies.js';
 
 const HOUR=3600000;
 function bullish(period=HOUR, start=0, count=40) {
@@ -95,4 +96,23 @@ test('unfinished Binance candles are excluded',()=>{
   const now=Date.now();const rows=[[now-1000,'1','2','0.5','1.5','1',now+1000],
     [now-120000,'1','2','0.5','1.5','1',now-60000]];
   assert.equal(parseKlines(rows,now).length,1);
+});
+test('breakout enters at next M1 open and accounts for target in that candle',()=>{
+  const bars=bullish();bars.at(-1).volume=2;
+  const signal=detectBreakout(bars,'futures','BTCUSDT','1h',parentFor(bars));
+  assert.ok(signal);
+  const next={open:signal.entry,high:signal.entry+1.2*signal.entryAtr,
+    low:signal.entry-.1*signal.entryAtr,close:signal.entry+signal.entryAtr,
+    end:signal.detectedAt+60000};
+  assert.equal(advanceSignalWithCandle(signal,next),true);
+  assert.deepEqual(signal.events.map(e=>e.type),['CREATED','ENTRY','TP1']);
+  assert.equal(signal.state,'OPEN');
+});
+test('breakout rejects a large next-open gap without inventing an entry',()=>{
+  const bars=bullish();bars.at(-1).volume=2;
+  const signal=detectBreakout(bars,'futures','BTCUSDT','1h',parentFor(bars));
+  const open=signal.entry+signal.entryAtr;
+  advanceSignalWithCandle(signal,{open,high:open+1,low:open-1,close:open,end:signal.detectedAt+60000});
+  assert.equal(signal.state,'CANCELLED');
+  assert.equal(signal.events.some(e=>e.type==='ENTRY'),false);
 });

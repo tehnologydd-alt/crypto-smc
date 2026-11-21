@@ -5,7 +5,7 @@ const $ = selector => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
 const symbol = (params.get('symbol') || '').toUpperCase();
 const preview = params.has('preview');
-let market = params.get('market') === 'futures' ? 'futures' : 'spot';
+let market = params.get('market') === 'spot' ? 'spot' : 'futures';
 let interval = ['1m', '5m', '15m', '30m', '1h', '4h'].includes(params.get('interval')) ? params.get('interval') : '15m';
 let selectedId = params.get('signal') || null;
 let assetScope = 'current', chartAnchorAt = null, chartFocusPinned = false; // null: latest
@@ -238,8 +238,8 @@ function renderSelectedSignal() {
   const percentText = trace.percent == null ? '' :
     `<strong class="path-result ${trace.percent >= 0 ? 'positive' : 'negative'}">${trace.percent >= 0 ? '+' : ''}${trace.percent.toFixed(2)}% по цене от входа до финиша</strong>`;
   panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${signal.ruleVersion ? escapeHtml(signal.ruleVersion) : 'SMC v3'} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
-    <div class="selected-levels"><div><span>ЗОНА OB</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
-    <p>${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || "BOS"} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}</p>
+    <div class="selected-levels"><div><span>${signal.strategyKey === 'breakout' ? 'ДОПУСК ВХОДА' : 'ЗОНА OB'}</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
+    <p>${signal.strategyKey === 'breakout' ? `Пробой ${number(signal.swing)} · вход по следующей M1` : `${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || 'BOS'} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}`}</p>
     <div class="signal-path-summary">
       <div><b>СТАРТ СИГНАЛА</b><span>${date(signal.detectedAt)} ${trace.createdPrice != null ? '· ' + number(trace.createdPrice) : ''}</span></div>
       <div><b>ТОЧКА ВХОДА</b><span>${entryText}</span></div>
@@ -307,8 +307,8 @@ function drawChart() {
   recentGaps.forEach(gap => zone(gap.low, gap.high, gap.time, '#eab87a16', '#d5ac6d', 'FVG ' + (gap.status || 'active'), gap.filledAt || lastTime));
   recentBlocks.forEach(item => zone(item.block.low, item.block.high, item.block.time, item.direction === 'up' ? '#65dfa51f' : '#e77d951f', item.direction === 'up' ? '#67dca9' : '#e18c9e', 'OB ' + (item.block.status || 'active')));
   if (signal) {
-    zone(signal.entryLow, signal.entryHigh, signal.blockTime || firstTime, '#75edba32', '#8ae8c4', 'OB · ВХОД');
-    if (signal.imbalance) zone(signal.imbalance.low, signal.imbalance.high, signal.imbalance.time, '#eab87a2b', '#efc686', 'FVG СИГНАЛА');
+    zone(signal.entryLow, signal.entryHigh, signal.blockTime || firstTime, '#75edba32', '#8ae8c4', signal.strategyKey === 'breakout' ? 'ДОПУСК ВХОДА' : 'OB · ВХОД');
+    if (signal.imbalance && signal.strategyKey !== 'breakout') zone(signal.imbalance.low, signal.imbalance.high, signal.imbalance.time, '#eab87a2b', '#efc686', 'FVG СИГНАЛА');
   }
   for (let i = 0; i <= 4; i++) {
     const yy = top + i * (priceBottom - top) / 4;

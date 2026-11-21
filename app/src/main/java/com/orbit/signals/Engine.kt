@@ -32,7 +32,7 @@ data class Quality(val probability: Double, val baseline: Double, val trainedSam
 data class Signal(
     val id: String, val market: String, val symbol: String, val timeframe: String, val side: String,
     val detectedAt: Long, val blockTime: Long, val entryLow: Double, val entryHigh: Double,
-    val entry: Double, val stop: Double, val targets: List<Double>, val swing: Double,
+    var entry: Double, var stop: Double, var targets: List<Double>, val swing: Double,
     val imbalance: Zone, val features: List<Double>, val expiresAt: Long,
     var state: String = "WAITING", var hitTargets: Int = 0, var learned: Boolean = false,
     var outcome: Int? = null, var quality: Quality? = null,
@@ -40,7 +40,8 @@ data class Signal(
     val strategyVersion: Int = 2, val breakType: String = "BOS",
     val ruleVersion: String = "", val volumeRatio: Double? = null,
     val ruleSpec: String = "", val bookEvidence: OrderBookSnapshot? = null,
-    val originClosedAt: Long? = null
+    val originClosedAt: Long? = null,
+    val strategyKey: String = "", val entryMode: String = "LIMIT", val entryAtr: Double? = null
 ) {
     fun json(): JSONObject = JSONObject().apply {
         put("id", id); put("market", market); put("symbol", symbol); put("timeframe", timeframe); put("side", side)
@@ -49,6 +50,9 @@ data class Signal(
         put("imbalance", imbalance.json()); put("features", JSONArray(features)); put("expiresAt", expiresAt)
         put("state", state); put("hitTargets", hitTargets); put("learned", learned)
         put("strategyVersion", strategyVersion); put("breakType", breakType)
+        if (strategyKey.isNotBlank()) put("strategyKey", strategyKey)
+        if (entryMode != "LIMIT") put("entryMode", entryMode)
+        if (entryAtr != null) put("entryAtr", entryAtr)
         if (ruleVersion.isNotBlank()) { put("ruleVersion", ruleVersion); put("ruleSpec", ruleSpec) }
         if (volumeRatio != null && volumeRatio.isFinite()) put("volumeRatio", volumeRatio)
         if (bookEvidence != null) put("bookEvidence", bookEvidence.json())
@@ -75,7 +79,9 @@ data class Signal(
             j.optString("ruleSpec", ""),
             OrderBookSnapshot.fromJson(j.optJSONObject("bookEvidence") ?:
                 j.optJSONObject("ruleSnapshot")?.optJSONObject("book")),
-            if(j.has("originClosedAt"))j.getLong("originClosedAt") else null
+            if(j.has("originClosedAt"))j.getLong("originClosedAt") else null,
+            j.optString("strategyKey", ""), j.optString("entryMode", "LIMIT"),
+            if(j.has("entryAtr")) j.getDouble("entryAtr") else null
         )
     }
 }
@@ -117,6 +123,28 @@ object Strategy {
         val before = signal.events.size
         fun event(type: String, price: Double) { signal.events += SignalEvent(type, candle.end, price) }
         if (signal.state == "WAITING") {
+            if (signal.entryMode == "NEXT_M1_OPEN") {
+                if (candle.end > signal.detectedAt + 60_000L) {
+                    signal.state = "UNCERTAIN"; event("DATA_GAP", candle.open)
+                } else if (abs(candle.open-signal.entry) > .25*(signal.entryAtr ?: 0.0)) {
+                    signal.state = "CANCELLED"; event("INVALIDATED", candle.open)
+                } else {
+                    val atr = signal.entryAtr ?: return emptyList()
+                    val sign = if (signal.side == "LONG") 1.0 else -1.0
+                    signal.entry = candle.open
+                    signal.stop = signal.entry-sign*atr
+                    signal.targets = (1..3).map { signal.entry+sign*it*atr }
+                    signal.state = "OPEN"; event("ENTRY", signal.entry)
+                    if (if (signal.side == "LONG") candle.low <= signal.stop else candle.high >= signal.stop) {
+                        signal.state = "STOPPED"; event("STOP", signal.stop)
+                    } else while (signal.hitTargets < 3 &&
+                        (if (signal.side == "LONG") candle.high >= signal.targets[signal.hitTargets] else candle.low <= signal.targets[signal.hitTargets])) {
+                        event("TP${signal.hitTargets+1}", signal.targets[signal.hitTargets]);signal.hitTargets++
+                        if (signal.hitTargets == 3) signal.state = "COMPLETED"
+                    }
+                }
+                return signal.events.drop(before)
+            }
             if (candle.end >= signal.expiresAt) { signal.state = "EXPIRED"; event("EXPIRED", candle.close) }
             else if (if (signal.side == "LONG") candle.low <= signal.stop else candle.high >= signal.stop) { signal.state = "CANCELLED"; event("INVALIDATED", signal.stop) }
             else if (candle.low <= signal.entry && candle.high >= signal.entry) { signal.state = "OPEN"; event("ENTRY", signal.entry) }
@@ -150,7 +178,7 @@ class Model(
         return Quality(probability, base, samples, trusted, !trusted || probability >= 0.55)
     }
     fun learn(signal: Signal): Boolean {
-        if (signal.learned || signal.strategyVersion != 3 || signal.features.size != 8) return false
+        if (signal.learned || signal.strategyVersion !in 3..4 || signal.features.size != 8) return false
         val label = if (signal.hitTargets > 0) 1 else if (signal.state == "STOPPED") 0 else return false
         val quality = signal.quality ?: return false
         if (quality.trainedSamples >= 30) {

@@ -16,8 +16,6 @@ class MonitorJob : JobService() {
         worker=thread(name="orbit-monitor-and-bounded-depth") {
             try {
                 Monitor.run(applicationContext)
-                if(!interrupted.get())
-                    BackgroundDepthRunner.run(applicationContext,interrupted)
             }catch(_:Exception){
                 // Never claim a finished depth study when the OS stops the job.
             }finally{

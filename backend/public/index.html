@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
-  <meta name="description" content="Мониторинг сигналов Binance Spot и USDT-M Futures">
+  <meta name="description" content="Мониторинг двух стратегий на Binance USDT-M Futures">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css?v=17">
@@ -27,10 +27,10 @@
     <div id="notice" class="notice hidden"></div>
     <section id="marketScreen" class="screen">
       <section class="learning-home" aria-label="Прогресс обучения модели"><div class="learning-home-head"><div><div class="eyebrow">АДАПТИВНАЯ ОЦЕНКА</div><h1>Прогресс обучения</h1></div><div class="learning-badges"><b id="learningLevel">УРОВЕНЬ 0/3</b><b id="learningStage">СБОР ОПЫТА</b></div></div>
-        <div class="learning-step"><div><span>1 · Обучающие исходы</span><strong id="trainingProgress">0/30</strong></div><div class="learning-track"><i id="trainingBar"></i></div></div>
-        <div class="learning-step"><div><span>2 · Проверочные исходы</span><strong id="validationProgress">0/30</strong></div><div class="learning-track"><i id="validationBar"></i></div></div>
-        <p id="learningHomeHelp">Учитываются только сигналы новой FVG-стратегии после входа и достижения TP1 или стопа.</p>
-        <div class="feed-row"><span id="spotFeed" class="feed">● Спот: подключение</span><span id="futuresFeed" class="feed">● Фьючерсы: подключение</span></div>
+        <div class="learning-step"><div><span>SMC</span><strong id="trainingProgress">0 исходов</strong></div><div class="learning-track"><i id="trainingBar"></i></div></div>
+        <div class="learning-step"><div><span>Импульс и пробой</span><strong id="validationProgress">0 исходов</strong></div><div class="learning-track"><i id="validationBar"></i></div></div>
+        <p id="learningHomeHelp">Две модели собирают и проверяют исходы отдельно.</p>
+        <div class="feed-row"><span id="futuresFeed" class="feed">● Фьючерсы: подключение</span></div>
       </section>
       <section class="metrics" aria-label="Статистика"><div><b id="assetsCount">10</b><span>Отмечено</span></div><div><b id="waitingCount">0</b><span>Ожидают вход</span></div><div><b id="openCount">0</b><span>В работе</span></div></section>
       <div class="asset-list-actions"><button id="assetsButton" class="text-button">Изменить список <span>↗</span></button></div>
@@ -40,7 +40,7 @@
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-signals"/></svg></span><h1>Сигналы</h1></div><p>M5–H4 · вход, TP и стоп по M1</p></div>
       <div class="signal-screen-summary"><span>АКТУАЛЬНЫХ СИГНАЛОВ</span><strong id="signalsCount">0</strong></div>
       <div class="tabs signal-scope-tabs" role="tablist" aria-label="Состояние сигналов"><button class="tab active" data-scope="all" role="tab" aria-selected="true">Актуальные</button><button class="tab" data-scope="marked" role="tab" aria-selected="false">Отмеченные</button><button class="tab" data-scope="finished" role="tab" aria-selected="false">Завершённые</button></div>
-      <div class="tabs market-tabs" role="tablist" aria-label="Рынок"><button class="market-tab active" data-filter="all">Оба рынка</button><button class="market-tab" data-filter="spot">Спот</button><button class="market-tab" data-filter="futures">Фьючерсы</button></div>
+      <div class="tabs market-tabs" role="tablist" aria-label="Рынок"><button class="market-tab active" data-filter="all">Все</button><button class="market-tab" data-filter="futures">Фьючерсы</button><button class="market-tab" data-filter="spot">Архив спота</button></div>
       <div class="tabs timeframe-tabs" role="tablist" aria-label="Таймфрейм"><button class="tf-tab active" data-timeframe="all">Все TF</button><button class="tf-tab" data-timeframe="5m">M5</button><button class="tf-tab" data-timeframe="15m">M15</button><button class="tf-tab" data-timeframe="30m">M30</button><button class="tf-tab" data-timeframe="1h">H1</button><button class="tf-tab" data-timeframe="4h">H4</button></div>
       <div id="signals" class="signals"></div>
       <section class="info"><span class="info-icon">ⓘ</span><p>«Вход» и TP означают касание цены на Binance, а не исполнение вашего ордера. Сигналы не гарантируют результат.</p></section>
@@ -49,13 +49,13 @@
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-stats"/></svg></span><h1>Статистика</h1></div><p>История сигналов и достигнутые уровни</p></div>
       <div class="stats-overview"><div><span>СИГНАЛОВ</span><strong id="statSignals">0</strong></div><div><span>ВХОДОВ</span><strong id="statEntries">0</strong></div><div><span>СТОПОВ</span><strong id="statStops">0</strong></div></div>
       <section class="stats-card">
-        <h2>Сравнение версий правил</h2>
-        <p>Три параллельные исследовательские стратегии: v0.1 — структура + OB/FVG, v0.2-D2 — постоянно синхронизируемый стакан Binance Spot/Futures, v0.3-D2 — также старший TF.</p>
+        <h2>Сравнение двух стратегий</h2>
+        <p>SMC: структура, OB и FVG с ожиданием отката. Импульс и пробой: вход на следующей M1 после выхода из диапазона.</p>
         <div id="ruleComparison" class="rule-comparison"><p class="muted">Ожидание первых наблюдений…</p></div>
       </section>
       <div class="preference-title">ОБЩАЯ ИСТОРИЯ, ВКЛЮЧАЯ ПРЕЖНЮЮ SMC V3</div>
       <section class="stats-card"><h2>Достигнутые точки</h2><p>Количество сигналов, дошедших до каждой точки. Один сигнал считается один раз на каждом уровне.</p><div id="levelStats" class="level-stats"></div></section>
-      <section class="stats-card"><h2>Успешность новой стратегии</h2><p>Успех — TP1 раньше стопа после входа. В расчёт входят только исходы сигналов с FVG.</p><div id="strategyStats"></div><div id="strategySeries" class="strategy-series"></div></section>
+      <section class="stats-card"><h2>Динамика новых стратегий</h2><p>Успех — TP1 раньше стопа после входа. По каждой стратегии показатели показаны выше.</p><div id="strategyStats"></div><div id="strategySeries" class="strategy-series"></div></section>
       <section class="stats-card"><h2>Качество прогноза модели</h2><p>Ошибка прогноза Brier: чем меньше, тем лучше. Сравнение только на результатах, которых модель ещё не видела при создании сигнала.</p><div id="forecastStats"></div></section>
       <section class="stats-card"><h2>По активам</h2><p>История включает все пары, даже если их позже убрать из отмеченных.</p><div id="assetStats" class="asset-stats"></div></section>
       <section class="info"><span class="info-icon">ⓘ</span><p>Статистика основана на касаниях цены Binance, а не на исполнении ваших ордеров. Небольшая выборка не доказывает рост точности.</p></section>

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openExperienceStore } from './experience.js';
-import { scoreSignal } from './learning.js';
+import { newModel, scoreSignal } from './learning.js';
 import { buildStatistics } from './statistics.js';
 
 function make(ruleVersion, idAt, state='STOPPED', hitTargets=0) {
@@ -38,15 +39,14 @@ test('models and recorded statistics survive restart and never cross-learn',()=>
     c.quality=scoreSignal(store.ruleModels['v0.3-D2'],c.features);
     assert.equal(store.recordOutcome(c),true);
     let versions=store.statistics().ruleComparisons.versions;
-    assert.deepEqual(versions.map(v=>v.resolved),[1,1,1,0,0]);
-    assert.deepEqual(versions.map(v=>v.successful),[0,1,1,0,0]);
-    assert.deepEqual(versions.map(v=>v.tp3),[0,0,1,0,0]);
+    assert.deepEqual(versions.map(v=>v.resolved),[0,0]);
+    assert.equal(store.statistics().ruleComparisons.archivedVersions.find(v=>v.key==='v0.1').resolved,1);
     store.close();
     store=openExperienceStore(path);
     assert.deepEqual(['v0.1','v0.2-D2','v0.3-D2'].map(key=>store.ruleModels[key].samples),[1,1,1]);
     assert.equal(store.model.samples,0);
     versions=store.statistics().ruleComparisons.versions;
-    assert.deepEqual(versions.map(v=>v.resolved),[1,1,1,0,0]);
+    assert.deepEqual(versions.map(v=>v.resolved),[0,0]);
     store.close();
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
@@ -55,7 +55,8 @@ test('old candle-volume and REST-D1 results are never mixed with live WS-D2',()=
   const rest=make('v0.2-D1',5500000);
   const next=make('v0.2-D2',6000000);
   const stats=buildStatistics([old,rest,next],[]);
-  assert.deepEqual(stats.ruleComparisons.versions.map(x=>x.signals),[0,1,0,0,0]);
+  assert.deepEqual(stats.ruleComparisons.versions.map(x=>x.signals),[0,0]);
+  assert.ok(stats.ruleComparisons.archivedVersions.some(v=>v.key==='v0.2-D2'&&v.signals===1));
   assert.ok(stats.ruleComparisons.archivedVersions.some(v=>v.key==='v0.2-D1' && v.signals===1));
 });
 test('legacy SMC3 signal never gets assigned a research rule',()=>{
@@ -65,5 +66,53 @@ test('legacy SMC3 signal never gets assigned a research rule',()=>{
   const current=make('v0.1',2000000);
   const result=buildStatistics([old,current],[]);
   assert.equal(result.totals.signals,2);
-  assert.deepEqual(result.ruleComparisons.versions.map(x=>x.signals),[1,0,0,0,0]);
+  assert.deepEqual(result.ruleComparisons.versions.map(x=>x.signals),[0,0]);
+  assert.ok(result.ruleComparisons.archivedVersions.some(v=>v.key==='v0.1'&&v.signals===1));
+});
+test('new SMC and breakout outcomes train separate models',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'orbit-strategies-'));
+  const path=join(dir,'exp.db');
+  try {
+    const store=openExperienceStore(path);
+    for(const [key,at,label] of [['smc',7000000,0],['breakout',8000000,1]]) {
+      const signal=make(key,at,'STOPPED',label);
+      signal.market='futures';signal.id=`futures:BTCUSDT:1h:${at}:LONG:${key}`;
+      signal.strategyVersion=4;signal.strategyKey=key;
+      signal.quality=scoreSignal(store.ruleModels[key],signal.features);
+      assert.equal(store.recordOutcome(signal),true);
+    }
+    assert.equal(store.ruleModels.smc.samples,1);
+    assert.equal(store.ruleModels.breakout.samples,1);
+    assert.deepEqual(store.statistics().ruleComparisons.versions.map(v=>v.resolved),[1,1]);
+    store.close();
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('migrated phone outcome restores its strategy model without duplicate learning',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'orbit-recover-'));
+  const path=join(dir,'exp.db');
+  try {
+    const signal=make('breakout',9000000,'STOPPED',1);
+    signal.market='futures';
+    signal.id='futures:BTCUSDT:1h:9000000:LONG:breakout';
+    signal.strategyVersion=4;
+    signal.strategyKey='breakout';
+    signal.quality=scoreSignal(newModel(),signal.features);
+    signal.learned=true;
+    signal.outcome=1;
+    let store=openExperienceStore(path,{signals:[signal]});
+    assert.equal(store.ruleModels.breakout.samples,1);
+    assert.equal(store.ruleModels.smc.samples,0);
+    store.close();
+    const oldDb=new DatabaseSync(path);
+    oldDb.prepare('UPDATE outcomes SET strategy_version=2 WHERE signal_id=?').run(signal.id);
+    oldDb.prepare('UPDATE signals SET strategy_version=2 WHERE id=?').run(signal.id);
+    oldDb.prepare('UPDATE rule_model_snapshots SET payload=? WHERE rule_key=?')
+      .run(JSON.stringify(newModel()),'breakout');
+    oldDb.close();
+    store=openExperienceStore(path,{signals:[signal]});
+    assert.equal(store.ruleModels.breakout.samples,1);
+    assert.equal(store.summary().outcomes,1);
+    assert.equal(store.statistics().newStrategy.resolved,1);
+    store.close();
+  } finally {rmSync(dir,{recursive:true,force:true});}
 });
