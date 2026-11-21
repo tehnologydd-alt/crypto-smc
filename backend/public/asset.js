@@ -17,6 +17,7 @@ const compact = value => value != null && value !== '' && Number.isFinite(Number
 const date = value => new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const tfName = { '1m': 'M1', '5m': 'M5', '15m': 'M15', '30m': 'M30', '1h': 'H1', '4h': 'H4' };
 const stateName = { WAITING: 'Ожидает вход', OPEN: 'В работе', STOPPED: 'Стоп', COMPLETED: 'TP3 достигнут', CANCELLED: 'Отменён', EXPIRED: 'Истёк', UNCERTAIN: 'Проверить вручную' };
+const strategyName = signal => signal.strategyKey === 'breakout' ? 'Импульс и пробой' : signal.strategyKey === 'smc' ? 'SMC · OB/FVG' : signal.ruleVersion || 'Архив SMC';
 initWakeLock();
 
 if (!/^[A-Z0-9]{2,16}USDT$/.test(symbol)) {
@@ -49,7 +50,7 @@ function renderBook(marketType,book) {
       book?.error?'Ошибка: '+String(book.error).slice(0,70):'Синхронизация…';
     status.classList.remove('active');
     totals.textContent='Нет актуального синхронизированного стакана';
-    change.textContent='Сигналы D2 не подтверждаются без непрерывных данных';
+    change.textContent='Стакан показан для справки и не входит в правила новых сигналов';
     bids.textContent='—';asks.textContent='—';
     $('#'+prefix+'BidBar').style.width='0%';
     $('#'+prefix+'AskBar').style.width='0%';return;
@@ -215,7 +216,7 @@ function signalCard(s) {
     : 'Вход ещё не зафиксирован';
   return `<button type="button" class="asset-signal ${selectedId === s.id ? 'selected' : ''}"
     data-signal="${escapeHtml(s.id)}">
-    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)} · ${s.ruleVersion ? escapeHtml(s.ruleVersion) : 'SMC v3'}</strong>
+    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)} · ${escapeHtml(strategyName(s))}</strong>
     <small>${escapeHtml(stateName[s.state] || s.state)}</small></div>
     <p>Сигнал ${date(s.detectedAt)} · ${timeline} · ${result}</p>
     <div class="asset-signal-levels"><span>Вход ${number(s.entry)}</span><span>SL ${number(s.stop)}</span>
@@ -237,7 +238,7 @@ function renderSelectedSignal() {
     : trace.finished ? trace.result : 'движение не завершено';
   const percentText = trace.percent == null ? '' :
     `<strong class="path-result ${trace.percent >= 0 ? 'positive' : 'negative'}">${trace.percent >= 0 ? '+' : ''}${trace.percent.toFixed(2)}% по цене от входа до финиша</strong>`;
-  panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${signal.ruleVersion ? escapeHtml(signal.ruleVersion) : 'SMC v3'} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
+  panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${escapeHtml(strategyName(signal))} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
     <div class="selected-levels"><div><span>${signal.strategyKey === 'breakout' ? 'ДОПУСК ВХОДА' : 'ЗОНА OB'}</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
     <p>${signal.strategyKey === 'breakout' ? `Пробой ${number(signal.swing)} · вход по следующей M1` : `${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || 'BOS'} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}`}</p>
     <div class="signal-path-summary">

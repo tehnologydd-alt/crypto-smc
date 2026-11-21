@@ -14,6 +14,7 @@ import { openExperienceStore } from './experience.js';
 import { LargeTradeTracker } from './whales.js';
 import { RateBudget, usagePlan } from './limits.js';
 import { validateMobileBatch } from './mobile-sync.js';
+import { ownMachineRequest } from './local-browser-auth.js';
 
 const base = resolve(import.meta.dirname);
 const dataDir = resolve(process.env.DATA_DIR || join(base, 'data'));
@@ -345,7 +346,10 @@ async function requestBody(req, maxBytes = 32000) {
   }
   return JSON.parse(raw || '{}');
 }
-function authorized(req) { return !token || req.headers.authorization === `Bearer ${token}`; }
+function authorized(req) {
+  return !token || req.headers.authorization === `Bearer ${token}` ||
+    (lanOnly && ownMachineRequest(req, { secure: Boolean(tlsPfxPath) }));
+}
 function lanPeer(address) {
   const value = (address || '').replace(/^::ffff:/, '');
   const parts = value.split('.').map(Number);

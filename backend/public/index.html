@@ -63,8 +63,8 @@
     <section id="settingsScreen" class="screen hidden">
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-settings"/></svg></span><h1>Настройки</h1></div><p>Отмеченные активы и уведомления</p></div>
       <div id="settingsNotice" class="notice hidden"></div>
-      <section class="settings-card"><h2>Список пар</h2><p class="muted">До 10 пар к USDT через запятую. Мониторятся только отмеченные пары на споте и фьючерсах. Если убрать пару, её прежние сигналы останутся в истории, но события по ним перестанут обновляться.</p><label>Торговые пары<textarea id="symbolsInput" rows="5" spellcheck="false"></textarea></label><button id="saveSymbols" class="primary-button">Сохранить список</button><p id="symbolsHelp" class="muted"></p></section>
-      <section class="settings-card"><h2>Доступ к приложению</h2><p class="muted">Ключ APP_TOKEN защищает ваш сервер, если приложение будет доступно через интернет. Это не ключ Binance: для получения рыночных данных он не нужен. В локальном просмотре оставьте поле пустым.</p><label>Ключ приложения (APP_TOKEN)<input id="apiToken" type="password" placeholder="Локально оставьте пустым" autocomplete="off"></label><button id="saveToken" class="primary-button outline">Сохранить ключ</button></section>
+      <section class="settings-card"><h2>Список пар</h2><p class="muted">До 10 пар к USDT через запятую. Новые сигналы создаются только на USDT-M фьючерсах. Прежние сигналы спота остаются в архиве. Если убрать пару, её история сохранится, но новые события по ней перестанут обновляться.</p><label>Торговые пары<textarea id="symbolsInput" rows="5" spellcheck="false"></textarea></label><button id="saveSymbols" class="primary-button">Сохранить список</button><p id="symbolsHelp" class="muted"></p></section>
+      <section class="settings-card"><h2>Доступ к приложению</h2><p class="muted">На этом ПК браузер подключается без ключа. Для телефона и других устройств нужен APP_TOKEN. Это не ключ Binance.</p><label>Ключ приложения (APP_TOKEN)<input id="apiToken" type="password" placeholder="На этом ПК оставьте пустым" autocomplete="off"></label><button id="saveToken" class="primary-button outline">Сохранить ключ</button></section>
       <section class="settings-card"><h2>Экран</h2><label class="preference-choice"><input id="keepScreenOn" type="checkbox"> Не гасить экран во время просмотра</label><p id="wakeHelp" class="muted">Работает, пока приложение открыто и видно на экране.</p></section>
       <section class="settings-card"><h2>Уведомления</h2><p class="muted">Каждое событие отправляется отдельно после закрытия M1. Выберите события и сигналы, за которыми хотите следить.</p>
         <div class="preference-title">События</div><div id="eventPreferences" class="preference-list"></div>
@@ -77,7 +77,7 @@
   </main>
   <nav class="bottom-nav" aria-label="Разделы приложения"><button class="bottom-item active" data-page="market" aria-current="page"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-market"/></svg><span>Рынок</span></button><button class="bottom-item" data-page="signals"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-signals"/></svg><span>Сигналы</span></button><button class="bottom-item" data-page="stats"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-stats"/></svg><span>Статистика</span></button></nav>
   <dialog id="detailDialog" class="detail-dialog"><form method="dialog"><button class="icon-button close-detail" aria-label="Закрыть">✕</button></form><div id="detailContent"></div></dialog>
-  <script type="module" src="/app.js?v=17"></script>
+  <script type="module" src="/app.js?v=18"></script>
 </body>
 </html>
 

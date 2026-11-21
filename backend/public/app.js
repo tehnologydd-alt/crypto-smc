@@ -14,6 +14,7 @@ const compact = value => Number.isFinite(Number(value)) ? Intl.NumberFormat('en-
 const time = value => new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const statusName = { WAITING: 'Ожидает вход', OPEN: 'В работе', STOPPED: 'Стоп', COMPLETED: 'TP3 достигнут', CANCELLED: 'Отменён', EXPIRED: 'Истёк', UNCERTAIN: 'Проверьте вручную' };
 const tfName = { '5m': 'M5', '15m': 'M15', '30m': 'M30', '1h': 'H1', '4h': 'H4' };
+const strategyName = signal => signal.strategyKey === 'breakout' ? 'Импульс и пробой' : signal.strategyKey === 'smc' ? 'SMC · OB/FVG' : signal.ruleVersion ? `Архив ${signal.ruleVersion}` : 'Прежние правила';
 const eventName = { CREATED: 'Сигнал создан', ENTRY: 'Цена в зоне входа', TP1: 'TP1 достигнут', TP2: 'TP2 достигнут', TP3: 'TP3 достигнут', STOP: 'Стоп достигнут', INVALIDATED: 'Сигнал отменён', EXPIRED: 'Сигнал истёк', DATA_GAP: 'Пробел в данных', ACKNOWLEDGED: 'Архивирован вручную' };
 const notificationNames = { CREATED: 'Новый сигнал', ENTRY: 'Вход', TP1: 'TP1', TP2: 'TP2', TP3: 'TP3', STOP: 'Стоп-лосс', INVALIDATED: 'Отмена сигнала', EXPIRED: 'Истечение', DATA_GAP: 'Пробел в данных' };
 
@@ -89,7 +90,7 @@ function card(signal) {
   const current = priceFor(signal);
   const positive = signal.state === 'COMPLETED' || signal.hitTargets > 0;
   const step = signal.state === 'WAITING' ? signal.entryMode === 'NEXT_M1_OPEN' ? 'СЛЕДУЮЩАЯ M1' : 'РЕТЕСТ ЗОНЫ' : signal.state === 'OPEN' ? `${signal.hitTargets}/3 ЦЕЛИ` : statusName[signal.state]?.toUpperCase();
-  const version = signal.strategyKey ? `Стратегия ${safe(signal.strategyKey)} · ` : signal.ruleVersion ? `Архив ${safe(signal.ruleVersion)} · ` : 'Прежние правила · ';
+  const version = `${safe(strategyName(signal))} · `;
   const book = signal.ruleSnapshot?.book || signal.bookEvidence;
   const bookNote = book ? `<div class="quality">Стакан bid ${num(book.bidUsdt)} / ask ${num(book.askUsdt)} USDT · bid ${Math.round(book.imbalance*100)}% · ${time(book.capturedAt)}</div>` : '';
   const quality = signal.quality?.trusted ? `<div class="quality ${signal.quality.recommended ? 'good' : 'weak'}">Оценка модели: ${Math.round(signal.quality.probability * 100)}% · ${signal.quality.recommended ? 'приоритетный' : 'низкий приоритет'}</div>` : `<div class="quality">Модель собирает результаты</div>`;
@@ -219,7 +220,7 @@ function showDetail(id, open = true) {
     <div><span>Изменение цены</span><strong>${trace.percent == null ? '—' : (trace.percent>=0 ? '+' : '') + trace.percent.toFixed(2) + '%'}</strong></div>
   </div>`;
   const events = s.events.map(e => `<div class="timeline-row"><div class="timeline-dot"></div><div><strong>${safe(eventName[e.type] || e.type)}</strong><span>${time(e.at)} · ${num(e.price)} USDT</span></div></div>`).reverse().join('');
-  $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT · АРХИВ' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')} · ${s.strategyKey ? 'Стратегия ' + safe(s.strategyKey) : s.ruleVersion ? 'Архив ' + safe(s.ruleVersion) : 'SMC v3 (архив)'}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
+  $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT · АРХИВ' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')} · ${safe(strategyName(s))}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
     <div class="detail-grid"><div><span>Зона входа</span><strong>${num(s.entryLow)} – ${num(s.entryHigh)}</strong></div><div><span>Расчётный вход</span><strong>${num(s.entry)}</strong></div><div><span>Стоп</span><strong>${num(s.stop)}</strong></div><div><span>Риск на единицу</span><strong>${num(Math.abs(s.entry - s.stop))}</strong></div></div>
     <div class="targets">${s.targets.map((tp, i) => `<div class="target ${i < s.hitTargets ? 'reached' : ''}"><span>TP${i + 1} <small>${i + 1}R</small></span><strong>${num(tp)}</strong><b>${i < s.hitTargets ? '✓' : '○'}</b></div>`).join('')}</div>
     <p class="detail-quality">${s.quality?.trusted ? `Оценка модели при создании: ${Math.round(s.quality.probability * 100)}%. ${s.quality.recommended ? 'Приоритетный сигнал.' : 'Низкий приоритет; уведомления приглушены.'}` : 'Оценка модели пока обучается. Сигнал создан базовыми правилами.'}</p>
