@@ -150,7 +150,7 @@ object SmcV3 {
         if(requireHtf && !ContextRegimeFilter.evaluate(e,b,parent,tf).allowed)return null
         return ExecutionRiskManager.create(b,market,symbol,tf,e,ob,fvg)
     }
-    /** A separate, auditable L2 snapshot gates D1 variants; the base is unaffected. */
+    /** Continuously synchronized and history-checked WS L2 depth gates D2 variants; the base is unaffected. */
     fun detectVariants(b:List<Candle>,market:String,symbol:String,tf:String,
         parent:List<Candle>?,book:OrderBookSnapshot?=null,observedAt:Long=System.currentTimeMillis()):List<Signal> {
         val candidate=detect(b,market,symbol,tf,parent,requireHtf=false) ?: return emptyList()
