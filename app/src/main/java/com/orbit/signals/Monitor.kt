@@ -86,6 +86,15 @@ object Monitor {
             val book=LiveDepthClient.snapshot(market,symbol)
             val candidates = Strategy.detectVariants(candidate.bars,market,symbol,
                 candidate.timeframe,parent,book,System.currentTimeMillis())
+            // Enqueue a separate post-candle study. Never label later WS data
+            // as if it had existed at the time of the structural candle close.
+            val structural=candidates.firstOrNull{it.ruleVersion=="v0.1"}
+            if(structural!=null && prefs.mode=="local"){
+                val breaking=MarketStructureEngine.analyze(candidate.bars).breaks.lastOrNull()
+                val htfAllowed=breaking!=null &&
+                    ContextRegimeFilter.evaluate(breaking,candidate.bars,parent,candidate.timeframe).allowed
+                store.queueDepth(structural,htfAllowed)
+            }
             for (signal in candidates) {
                 if (store.signalExists(signal.id) || signals.any {
                     it.timeframe == candidate.timeframe && it.ruleVersion == signal.ruleVersion &&
