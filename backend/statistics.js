@@ -1,4 +1,4 @@
-import { RULES } from './strategy-rules.js';
+import { RULES, ARCHIVED_RULES } from './strategy-rules.js';
 const rate = rows => rows.length ? rows.reduce((sum, row) => sum + row.label, 0) / rows.length : null;
 const brier = rows => rows.length ? rows.reduce((sum, row) => sum + (row.prediction - row.label) ** 2, 0) / rows.length : null;
 
@@ -39,8 +39,16 @@ export function buildStatistics(signals, outcomes) {
   // Each version is an independent research cohort, reconstructed from the durable
   // per-signal event journal. Exclude old strategyVersion=3 records with no rule key.
   // The frozen prediction is evaluated only on resolved outcomes.
+  const archivedVersions=ARCHIVED_RULES.map(rule=>{
+    const cohort=signals.filter(s=>s.ruleVersion===rule.key);
+    const resolved=cohort.filter(s=>s.events?.some(e=>e.type==='ENTRY') &&
+      s.events?.some(e=>e.type==='TP1'||e.type==='STOP'));
+    const successful=resolved.filter(s=>s.events.some(e=>e.type==='TP1')).length;
+    return {...rule,signals:cohort.length,resolved:resolved.length,successful,
+      successRate:resolved.length?successful/resolved.length:null};
+  });
   const ruleComparisons = {
-    definitions: RULES,
+    definitions: RULES, archivedVersions,
     versions: RULES.map(rule=>{
       const cohort=signals.filter(s=>s.strategyVersion===3 && s.ruleVersion===rule.key);
       const hasEvent = (s, type) => (s.events || []).some(e=>e.type===type);
