@@ -1,4 +1,4 @@
-import { MarketStructureEngine, ZonesDetector, detectV3 } from './smc-v3.js';
+import { MarketStructureEngine, ZonesDetector, detectV3, detectRuleVariants } from './smc-v3.js';
 export const MARKETS = ['spot', 'futures'];
 export const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'LTCUSDT'];
 export const TIMEFRAMES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240 });
@@ -52,6 +52,10 @@ export function analyzeStructure(candles) {
 
 export function detectSignal(candles,market,symbol,timeframe='1h',parentBars) {
   return detectV3(candles,market,symbol,timeframe,parentBars);
+}
+
+export function detectResearchSignals(candles,market,symbol,timeframe='1h',parentBars) {
+  return detectRuleVariants(candles,market,symbol,timeframe,parentBars);
 }
 
 function hit(signal, type, price, at) {
