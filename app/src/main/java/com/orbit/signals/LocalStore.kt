@@ -90,6 +90,10 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "orbit_experience
             "UPDATE depth_pending SET status=?,reason=?,updated_at=? WHERE id=? AND status IN ('OBSERVING','PENDING')",
             arrayOf(status,reason.take(180),at,row.id))
     }
+    fun interruptActiveDepth(reason:String,now:Long=System.currentTimeMillis()) {
+        writableDatabase.execSQL("UPDATE depth_pending SET status='INTERRUPTED',reason=?,updated_at=? WHERE status='OBSERVING'",
+            arrayOf(reason.take(180),now))
+    }
     fun recentDepthRuns(limit:Int=3):List<DepthRunStatus> {
         require(limit in 1..20)
         return readableDatabase.rawQuery(
