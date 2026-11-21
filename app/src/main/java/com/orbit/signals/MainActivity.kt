@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var chartVisibleCount = 90
     private var chartOffset = 0
     private var chartAnchorAt: Long? = null // null: latest; timestamp: historical event window
+    private var chartFocusPending = false
     private var assetTicker: org.json.JSONObject? = null
     private var assetTrades: List<LargeTrade> = emptyList()
     private var assetError: String? = null
@@ -125,6 +126,7 @@ class MainActivity : Activity() {
         chartAnchorAt = signalId?.let { id ->
             store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let(::signalAnchor)
         }
+        chartFocusPending = chartAnchorAt != null
         assetSignalTab = signalId?.let { id ->
             store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let { assetBucket(it.state) }
         } ?: "waiting"
@@ -148,6 +150,7 @@ class MainActivity : Activity() {
             }
         }
         assetBars = emptyList()
+        chartFocusPending = chartAnchorAt != null
         show()
         if (assetSymbol != null) loadAsset()
     }
@@ -158,6 +161,7 @@ class MainActivity : Activity() {
             if (assetSymbol != it.symbol || selectedSignalId != it.id) backStack.addLast(currentScreen())
             assetSymbol = it.symbol; market = it.market; timeframe = it.timeframe; selectedSignalId = it.id
             chartAnchorAt = signalAnchor(it)
+            chartFocusPending = true
             assetSignalTab = assetBucket(it.state)
             loadAsset()
         }
@@ -597,7 +601,7 @@ class MainActivity : Activity() {
         title("${symbol.removeSuffix("USDT")} / USDT", "Binance · цены и структура рынка")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((value, label) in listOf("spot" to "Спот", "futures" to "Фьючерсы")) action(tabs, label, value == market) {
-            market = value; selectedSignalId = null; chartAnchorAt = null; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
+            market = value; selectedSignalId = null; chartAnchorAt = null; chartFocusPending = false; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
         }
         body.addView(tabs)
         card(body) {
@@ -611,7 +615,7 @@ class MainActivity : Activity() {
         val selected = signals.firstOrNull { it.id == selectedSignalId }
         body.addView(text("Структура и уровни", 20, primaryText, true))
         val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset() }
+        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; chartFocusPending = chartAnchorAt != null; show(); loadAsset() }
         body.addView(timeTabs)
         if (selected != null) {
             val entry = SignalJourney.trace(selected).entry
@@ -619,10 +623,10 @@ class MainActivity : Activity() {
             val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             val firstRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             val secondRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            action(firstRow, "К старту") { chartAnchorAt = selected.detectedAt; chartOffset = 0; loadAsset() }
-            if (entry != null) action(firstRow, "К входу") { chartAnchorAt = entry.at; chartOffset = 0; loadAsset() }
-            if (exit != null) action(secondRow, "К выходу") { chartAnchorAt = exit.at; chartOffset = 0; loadAsset() }
-            action(secondRow, "Сейчас") { chartAnchorAt = null; chartOffset = 0; loadAsset() }
+            action(firstRow, "К старту") { chartAnchorAt = selected.detectedAt; chartOffset = 0; chartFocusPending = true; loadAsset() }
+            if (entry != null) action(firstRow, "К входу") { chartAnchorAt = entry.at; chartOffset = 0; chartFocusPending = true; loadAsset() }
+            if (exit != null) action(secondRow, "К выходу") { chartAnchorAt = exit.at; chartOffset = 0; chartFocusPending = true; loadAsset() }
+            action(secondRow, "Сейчас") { chartAnchorAt = null; chartOffset = 0; chartFocusPending = false; loadAsset() }
             controls.addView(firstRow)
             controls.addView(secondRow)
             body.addView(controls)
@@ -671,6 +675,7 @@ class MainActivity : Activity() {
                     selectedSignalId = signal.id; timeframe = signal.timeframe
                     assetSignalTab = assetBucket(signal.state)
                     chartAnchorAt = signalAnchor(signal)
+                    chartFocusPending = true
                     chartVisibleCount = 90; chartOffset = 0
                     show(); loadAsset()
                 }
@@ -728,7 +733,19 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (request != assetRequest || symbol != assetSymbol || selectedMarket != market ||
                     selectedFrame != timeframe || signalId != selectedSignalId || anchor != chartAnchorAt || isFinishing) return@runOnUiThread
-                result.onSuccess { assetBars = it; assetTicker = ticker; assetTrades = trades; assetError = null }
+                result.onSuccess { bars ->
+                    assetBars = bars; assetTicker = ticker; assetTrades = trades; assetError = null
+                    if (anchor != null && chartFocusPending) {
+                        val chosenIndex = bars.indexOfFirst { anchor in it.time..it.end }
+                            .let { if (it >= 0) it else bars.indexOfFirst { bar -> bar.end >= anchor } }
+                        if (chosenIndex >= 0) {
+                            val count = minOf(chartVisibleCount, bars.size)
+                            val startIndex = (chosenIndex - count / 3).coerceIn(0, maxOf(0, bars.size - count))
+                            chartOffset = (bars.size - startIndex - count).coerceAtLeast(0)
+                        }
+                        chartFocusPending = false
+                    }
+                }
                     .onFailure { assetError = it.message }
                 show()
             }
