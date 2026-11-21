@@ -11,13 +11,21 @@ import kotlin.math.exp
 
 val DEFAULT_SYMBOLS = listOf("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "LTCUSDT")
 val TIMEFRAMES = linkedMapOf("5m" to 5, "15m" to 15, "30m" to 30, "1h" to 60, "4h" to 240)
-const val STRATEGY_VERSION = 2
+const val STRATEGY_VERSION = 3
 
 data class Candle(val time: Long, val end: Long, val open: Double, val high: Double, val low: Double, val close: Double, val volume: Double)
-data class Zone(val time: Long, val low: Double, val high: Double, val direction: String, val filledAt: Long? = null)
-data class Swing(val time: Long, val price: Double, val kind: String)
-data class Break(val time: Long, val level: Double, val direction: String, val block: Zone?)
-data class Structure(val swings: List<Swing>, val breaks: List<Break>, val imbalances: List<Zone>)
+data class Zone(val time: Long, val low: Double, val high: Double, val direction: String,
+    val filledAt: Long? = null, val status: String = "active", val mitigatedAt: Long? = null,
+    val invalidatedAt: Long? = null, val expiresAt: Long? = null, val expiredAt: Long? = null,
+    val id: String = "", val kind: String = "FVG", val originIndex: Int = -1,
+    val originEventId: String? = null, val atr: Double = 0.0)
+data class Swing(val time: Long, val price: Double, val kind: String,
+    val confirmedAt: Long = 0L, val index: Int = -1, val id: String = "")
+data class Break(val time: Long, val level: Double, val direction: String, val block: Zone?,
+    val type: String = "BOS", val id: String = "", val index: Int = -1,
+    val occurredAt: Long = 0L, val swingTime: Long = 0L,
+    val structureBefore: String = "range", val structureAfter: String = "range")
+data class Structure(val swings: List<Swing>, val breaks: List<Break>, val imbalances: List<Zone>, val regime: String = "range")
 data class SignalEvent(val type: String, val at: Long, val price: Double)
 data class Quality(val probability: Double, val baseline: Double, val trainedSamples: Int, val trusted: Boolean, val recommended: Boolean)
 
@@ -28,7 +36,8 @@ data class Signal(
     val imbalance: Zone, val features: List<Double>, val expiresAt: Long,
     var state: String = "WAITING", var hitTargets: Int = 0, var learned: Boolean = false,
     var outcome: Int? = null, var quality: Quality? = null,
-    val events: MutableList<SignalEvent> = mutableListOf()
+    val events: MutableList<SignalEvent> = mutableListOf(),
+    val strategyVersion: Int = 2, val breakType: String = "BOS"
 ) {
     fun json(): JSONObject = JSONObject().apply {
         put("id", id); put("market", market); put("symbol", symbol); put("timeframe", timeframe); put("side", side)
@@ -36,6 +45,7 @@ data class Signal(
         put("entry", entry); put("stop", stop); put("targets", JSONArray(targets)); put("swing", swing)
         put("imbalance", imbalance.json()); put("features", JSONArray(features)); put("expiresAt", expiresAt)
         put("state", state); put("hitTargets", hitTargets); put("learned", learned)
+        put("strategyVersion", strategyVersion); put("breakType", breakType)
         if (outcome != null) put("outcome", outcome)
         quality?.let { put("quality", it.json()) }
         put("events", JSONArray().apply { events.forEach { put(it.json()) } })
@@ -51,91 +61,42 @@ data class Signal(
             j.optString("state", "WAITING"), j.optInt("hitTargets"), j.optBoolean("learned"),
             if (j.has("outcome")) j.getInt("outcome") else null,
             j.optJSONObject("quality")?.let(::qualityFromJson),
-            j.getJSONArray("events").objects().map { SignalEvent(it.getString("type"), it.getLong("at"), it.getDouble("price")) }.toMutableList()
+            j.getJSONArray("events").objects().map { SignalEvent(it.getString("type"), it.getLong("at"), it.getDouble("price")) }.toMutableList(),
+            j.optInt("strategyVersion", 2), j.optString("breakType", "BOS")
         )
     }
 }
 
 private fun JSONArray.doubles(): List<Double> = (0 until length()).map { getDouble(it) }
 private fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
-private fun Zone.json() = JSONObject().put("time", time).put("low", low).put("high", high).put("direction", direction).apply { if (filledAt != null) put("filledAt", filledAt) }
-private fun zoneFromJson(j: JSONObject): Zone = Zone(j.getLong("time"), j.getDouble("low"), j.getDouble("high"), j.getString("direction"), if (j.has("filledAt") && !j.isNull("filledAt")) j.getLong("filledAt") else null)
+private fun Zone.json() = JSONObject().put("time",time).put("low",low).put("high",high)
+    .put("direction",direction).put("status",status).put("id",id).put("kind",kind)
+    .put("originIndex",originIndex).put("atr",atr).apply {
+        if(filledAt!=null)put("filledAt",filledAt)
+        if(mitigatedAt!=null)put("mitigatedAt",mitigatedAt)
+        if(invalidatedAt!=null)put("invalidatedAt",invalidatedAt)
+        if(expiresAt!=null)put("expiresAt",expiresAt)
+        if(expiredAt!=null)put("expiredAt",expiredAt)
+        if(originEventId!=null)put("originEventId",originEventId)
+    }
+private fun zoneFromJson(j:JSONObject)=Zone(j.getLong("time"),j.getDouble("low"),j.getDouble("high"),
+    j.getString("direction"),if(j.has("filledAt")&&!j.isNull("filledAt"))j.getLong("filledAt") else null,
+    j.optString("status","active"),if(j.has("mitigatedAt"))j.getLong("mitigatedAt") else null,
+    if(j.has("invalidatedAt"))j.getLong("invalidatedAt") else null,
+    if(j.has("expiresAt"))j.getLong("expiresAt") else null,
+    if(j.has("expiredAt"))j.getLong("expiredAt") else null,
+    j.optString("id",""),j.optString("kind","FVG"),j.optInt("originIndex",-1),
+    j.optString("originEventId").takeIf{it.isNotEmpty()},j.optDouble("atr",0.0))
+
 private fun Quality.json() = JSONObject().put("probability", probability).put("baseline", baseline).put("trainedSamples", trainedSamples).put("trusted", trusted).put("recommended", recommended)
 private fun qualityFromJson(j: JSONObject) = Quality(j.getDouble("probability"), j.getDouble("baseline"), j.getInt("trainedSamples"), j.getBoolean("trusted"), j.getBoolean("recommended"))
 private fun SignalEvent.json() = JSONObject().put("type", type).put("at", at).put("price", price)
 
 object Strategy {
-    private fun atr(bars: List<Candle>, end: Int): Double {
-        if (end < 14) return 0.0
-        return (end - 13..end).sumOf { i ->
-            val prev = bars.getOrNull(i - 1)?.close ?: bars[i].open
-            max(bars[i].high - bars[i].low, max(abs(bars[i].high - prev), abs(bars[i].low - prev)))
-        } / 14
-    }
-    private fun pivots(bars: List<Candle>, end: Int): Pair<Swing?, Swing?> {
-        var high: Swing? = null; var low: Swing? = null
-        for (i in 2..end - 2) {
-            if ((i - 2..i + 2).all { it == i || bars[i].high > bars[it].high }) high = Swing(bars[i].time, bars[i].high, "high")
-            if ((i - 2..i + 2).all { it == i || bars[i].low < bars[it].low }) low = Swing(bars[i].time, bars[i].low, "low")
-        }
-        return high to low
-    }
-    fun imbalances(bars: List<Candle>): List<Zone> {
-        val gaps = mutableListOf<Zone>()
-        for (i in 2 until bars.size) {
-            val first = bars[i - 2]; val third = bars[i]
-            if (first.high < third.low) gaps += Zone(third.time, first.high, third.low, "up", bars.drop(i + 1).firstOrNull { it.low <= first.high }?.time)
-            if (first.low > third.high) gaps += Zone(third.time, third.high, first.low, "down", bars.drop(i + 1).firstOrNull { it.high >= first.low }?.time)
-        }
-        return gaps
-    }
-    fun structure(bars: List<Candle>): Structure {
-        val swings = mutableListOf<Swing>(); val breaks = mutableListOf<Break>()
-        var high: Swing? = null; var low: Swing? = null
-        for (i in 5 until bars.size) {
-            val j = i - 3
-            if ((j - 2..j + 2).all { it == j || bars[j].high > bars[it].high }) { high = Swing(bars[j].time, bars[j].high, "high"); swings += high }
-            if ((j - 2..j + 2).all { it == j || bars[j].low < bars[it].low }) { low = Swing(bars[j].time, bars[j].low, "low"); swings += low }
-            val direction = when {
-                high != null && bars[i - 1].close <= high.price && bars[i].close > high.price -> "up"
-                low != null && bars[i - 1].close >= low.price && bars[i].close < low.price -> "down"
-                else -> null
-            } ?: continue
-            val block = (i - 1 downTo max(0, i - 8)).firstOrNull { k -> if (direction == "up") bars[k].close < bars[k].open else bars[k].close > bars[k].open }?.let { bars[it] }
-            breaks += Break(bars[i].time, if (direction == "up") high!!.price else low!!.price, direction, block?.let { Zone(it.time, it.low, it.high, direction) })
-        }
-        return Structure(swings.takeLast(14), breaks.takeLast(8), imbalances(bars).takeLast(12))
-    }
-    fun detect(bars: List<Candle>, market: String, symbol: String, timeframe: String): Signal? {
-        if (bars.size < 35 || market !in listOf("spot", "futures") || timeframe !in TIMEFRAMES) return null
-        val i = bars.lastIndex; val current = bars[i]; val previous = bars[i - 1]
-        val volatility = atr(bars, i)
-        if (volatility <= 0 || abs(current.close - current.open) < 1.2 * volatility) return null
-        val (high, low) = pivots(bars, i - 1)
-        val side = when {
-            high != null && current.close > high.price && previous.close <= high.price && current.close > current.open -> "LONG"
-            market == "futures" && low != null && current.close < low.price && previous.close >= low.price && current.close < current.open -> "SHORT"
-            else -> return null
-        }
-        val block = (i - 1 downTo max(0, i - 8)).firstOrNull { j -> if (side == "LONG") bars[j].close < bars[j].open else bars[j].close > bars[j].open }?.let { bars[it] } ?: return null
-        val gap = imbalances(bars.drop(max(0, i - 6))).lastOrNull {
-            it.filledAt == null && it.direction == (if (side == "LONG") "up" else "down") &&
-                it.high - it.low >= 0.05 * volatility && (if (side == "LONG") current.low > it.low else current.high < it.high)
-        } ?: return null
-        val entry = (block.low + block.high) / 2
-        val stop = if (side == "LONG") block.low - 0.1 * volatility else block.high + 0.1 * volatility
-        val risk = abs(entry - stop)
-        if (risk <= 0 || block.high - block.low > 2 * volatility) return null
-        if (if (side == "LONG") current.close <= block.high else current.close >= block.low) return null
-        val sign = if (side == "LONG") 1 else -1
-        val swing = if (side == "LONG") high!!.price else low!!.price
-        val features = listOf(1.0, min(3.0, abs(current.close - current.open) / volatility), min(3.0, (block.high - block.low) / volatility),
-            min(3.0, abs(current.close - swing) / volatility), min(3.0, abs(current.close - entry) / volatility),
-            if (market == "futures") 1.0 else 0.0, if (side == "SHORT") 1.0 else 0.0, ln(TIMEFRAMES.getValue(timeframe) / 5.0) / ln(48.0))
-        return Signal("$market:$symbol:$timeframe:${current.time}:$side", market, symbol, timeframe, side, current.end,
-            block.time, block.low, block.high, entry, stop, (1..3).map { entry + sign * it * risk }, swing, gap, features,
-            current.end + 12L * TIMEFRAMES.getValue(timeframe) * 60_000, events = mutableListOf(SignalEvent("CREATED", current.end, current.close)))
-    }
+    fun imbalances(bars:List<Candle>)=ZonesDetector.fvg(bars)
+    fun structure(bars:List<Candle>)=SmcV3.structure(bars)
+    fun detect(bars:List<Candle>,market:String,symbol:String,timeframe:String,
+        parentBars:List<Candle>?=null)=SmcV3.detect(bars,market,symbol,timeframe,parentBars)
     fun advance(signal: Signal, candle: Candle): List<SignalEvent> {
         val before = signal.events.size
         fun event(type: String, price: Double) { signal.events += SignalEvent(type, candle.end, price) }
@@ -173,7 +134,7 @@ class Model(
         return Quality(probability, base, samples, trusted, !trusted || probability >= 0.55)
     }
     fun learn(signal: Signal): Boolean {
-        if (signal.learned || signal.features.size != 8) return false
+        if (signal.learned || signal.strategyVersion != 3 || signal.features.size != 8) return false
         val label = if (signal.hitTargets > 0) 1 else if (signal.state == "STOPPED") 0 else return false
         val quality = signal.quality ?: return false
         if (quality.trainedSamples >= 30) {
