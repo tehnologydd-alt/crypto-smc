@@ -10,6 +10,7 @@ let pushEnabled = false;
 let pushChecked = false;
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const num = value => Number(value).toLocaleString('en-US', { maximumFractionDigits: Number(value) < 1 ? 6 : Number(value) < 100 ? 4 : 2 });
+const compact = value => Number.isFinite(Number(value)) ? Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(Number(value)) : '—';
 const time = value => new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const statusName = { WAITING: 'Ожидает вход', OPEN: 'В работе', STOPPED: 'Стоп', COMPLETED: 'TP3 достигнут', CANCELLED: 'Отменён', EXPIRED: 'Истёк', UNCERTAIN: 'Проверьте вручную' };
 const tfName = { '5m': 'M5', '15m': 'M15', '30m': 'M30', '1h': 'H1', '4h': 'H4' };
@@ -64,13 +65,28 @@ function outcome(signal) {
   if (signal.state === 'STOPPED') return 'outcome-red';
   return 'outcome-gray';
 }
+function smallBook(book,label) {
+  const live=book?.status==='live' && (book.ageMs??Infinity)<=10000;
+  if(!live)return `<div class="asset-book-foot offline"><b>${label} · стакан</b><span>${safe(book?.status==='stale'?'устарел':'синхронизация')}</span></div>`;
+  const bid=Math.round(book.imbalance*100),ask=100-bid;
+  return `<div class="asset-book-foot"><b>${label} · WS</b>
+    <span><em>Bid ${compact(book.bidUsdt)} (${bid}%)</em> /
+      <i>Ask ${compact(book.askUsdt)} (${ask}%)</i></span>
+    <small>${Math.round(book.ageMs/1000)}с · ${book.levels} ур.</small></div>`;
+}
 function assetCard(symbol) {
   const spot = data.prices[`spot:${symbol}`]?.price;
   const futures = data.prices[`futures:${symbol}`]?.price;
   const active = data.signals.filter(s => s.symbol === symbol && ['WAITING', 'OPEN'].includes(s.state)).length;
   const href = `/asset.html?symbol=${encodeURIComponent(symbol)}${previewMode ? '&preview=1' : ''}`;
-  return `<a class="asset-card" href="${href}"><div class="asset-card-top"><div class="asset-icon">${safe(symbol[0])}</div><div><strong>${safe(symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${active ? `${active} активн. сигналов` : 'Обзор рынка'}</span></div><b>↗</b></div><div class="asset-prices"><div><span>СПОТ · M1</span><strong>${spot ? num(spot) : '—'}</strong></div><div><span>ФЬЮЧЕРСЫ · M1</span><strong>${futures ? num(futures) : '—'}</strong></div></div></a>`;
+  return `<a class="asset-card" href="${href}"><div class="asset-card-top"><div class="asset-icon">${safe(symbol[0])}</div><div><strong>${safe(symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${active ? `${active} активн. сигналов` : 'Обзор рынка'}</span></div><b>↗</b></div>
+    <div class="asset-prices"><div><span>СПОТ · M1</span><strong>${spot ? num(spot) : '—'}</strong></div><div><span>ФЬЮЧЕРСЫ · M1</span><strong>${futures ? num(futures) : '—'}</strong></div></div>
+    <div class="asset-book-preview" data-symbol="${safe(symbol)}">
+      ${smallBook(data.orderBooks?.[`spot:${symbol}`],'Спот')}
+      ${smallBook(data.orderBooks?.[`futures:${symbol}`],'Фьючерсы')}
+    </div></a>`;
 }
+
 function card(signal) {
   const current = priceFor(signal);
   const positive = signal.state === 'COMPLETED' || signal.hitTargets > 0;
