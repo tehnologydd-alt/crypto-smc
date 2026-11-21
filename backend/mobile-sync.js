@@ -1,4 +1,5 @@
 import { TIMEFRAMES } from './strategy.js';
+import { RULE_KEYS } from './strategy-rules.js';
 
 const states = new Set(['WAITING', 'OPEN', 'STOPPED', 'COMPLETED', 'CANCELLED', 'EXPIRED', 'UNCERTAIN']);
 const eventTypes = new Set(['CREATED', 'ENTRY', 'TP1', 'TP2', 'TP3', 'STOP', 'INVALIDATED', 'EXPIRED', 'DATA_GAP', 'ACKNOWLEDGED']);
@@ -16,6 +17,11 @@ export function validateMobileBatch(rows) {
         !['LONG', 'SHORT'].includes(signal.side) || (signal.market === 'spot' && signal.side !== 'LONG') ||
         typeof signal.id !== 'string' || signal.id.length > 160 ||
         !signal.id.startsWith(`${signal.market}:${signal.symbol}:${signal.timeframe}:`) || ids.has(signal.id) ||
+        (signal.ruleVersion != null && (!RULE_KEYS.includes(signal.ruleVersion) ||
+          signal.strategyVersion !== 3 || !signal.id.endsWith(':'+signal.ruleVersion) ||
+          typeof signal.ruleSpec !== 'string' || signal.ruleSpec.length < 10 ||
+          signal.ruleSpec.length > 256)) ||
+        (signal.volumeRatio != null && (!Number.isFinite(signal.volumeRatio) || signal.volumeRatio < 0)) ||
         !states.has(signal.state) || !timestamp(signal.detectedAt) || !timestamp(signal.blockTime) ||
         !timestamp(signal.expiresAt) || !Number.isInteger(signal.hitTargets) || signal.hitTargets < 0 || signal.hitTargets > 3 ||
         ![signal.entryLow, signal.entryHigh, signal.entry, signal.stop, signal.swing].every(positive) ||
