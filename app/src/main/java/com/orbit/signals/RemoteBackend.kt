@@ -198,6 +198,7 @@ object RemoteBackend {
                 if (marked.isNotEmpty()) prefs.setSymbols(marked)
             }
             prefs.serverModel = data.optJSONObject("model")?.toString()
+            prefs.serverRuleModels = data.optJSONObject("ruleModels")?.toString()
             prefs.serverLimits = data.optJSONObject("limits")?.toString()
             prefs.serverLastSync = System.currentTimeMillis()
             prefs.lastRun = prefs.serverLastSync
