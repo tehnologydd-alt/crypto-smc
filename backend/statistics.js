@@ -19,7 +19,7 @@ export function buildStatistics(signals, outcomes) {
       if (events.has('TP1')) { totals.successful++; bucket.successful++; }
     }
   }
-  const ordered = outcomes.filter(row => row.strategy_version === 2 && [0, 1].includes(row.label))
+  const ordered = outcomes.filter(row => row.strategy_version === 3 && [0, 1].includes(row.label))
     .sort((a, b) => a.resolved_at - b.resolved_at);
   const recent = ordered.slice(-20), previous = ordered.slice(-40, -20);
   const strategyTrend = previous.length === 20 && recent.length === 20
