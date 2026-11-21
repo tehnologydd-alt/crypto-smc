@@ -32,9 +32,58 @@ if (!/^[A-Z0-9]{2,16}USDT$/.test(symbol)) {
     link.href = next.pathname + next.search;
   });
   if (preview) $('#assetPreview').classList.remove('hidden');
-  syncTabs(); loadAsset(); loadLargeTrades(); setInterval(loadAsset, 60000); setInterval(loadLargeTrades, 5000);
+  syncTabs(); loadAsset(); loadLargeTrades(); loadOrderBooks();
+  setInterval(loadAsset, 60000); setInterval(loadLargeTrades, 5000);
+  setInterval(loadOrderBooks, 2500);
 }
 
+function renderBook(marketType,book) {
+  const prefix=marketType==='spot'?'bookSpot':'bookFutures';
+  const status=$('#'+prefix+'Status'), totals=$('#'+prefix+'Totals');
+  const bids=$('#'+prefix+'Bids'),asks=$('#'+prefix+'Asks');
+  const change=$('#'+prefix+'Change');
+  const live=book?.status==='live' && (book.ageMs??Infinity)<=10000;
+  if(!live){
+    status.textContent=book?.status==='stale'?'Устарел':book?.status==='offline'?'Нет связи':'Синхронизация…';
+    status.classList.remove('active');
+    totals.textContent='Нет актуального синхронизированного стакана';
+    change.textContent='Сигналы D2 не подтверждаются без непрерывных данных';
+    bids.textContent='—';asks.textContent='—';
+    $('#'+prefix+'BidBar').style.width='0%';
+    $('#'+prefix+'AskBar').style.width='0%';return;
+  }
+  status.textContent=`● WS · ${Math.round(book.ageMs/1000)}с · №${book.lastUpdateId}`;
+  status.classList.add('active');
+  const pct=Math.round(book.imbalance*100);
+  totals.innerHTML=`<div><small>BID · ${pct}%</small><strong>${compact(book.bidUsdt)} USDT</strong></div>
+    <div><small>ASK · ${100-pct}%</small><strong>${compact(book.askUsdt)} USDT</strong></div>
+    <div><small>СПРЕД</small><strong>${Number(book.spreadPct).toFixed(3)}%</strong></div>`;
+  $('#'+prefix+'BidBar').style.width=pct+'%';
+  $('#'+prefix+'AskBar').style.width=(100-pct)+'%';
+  const ch=n=>n==null?'—':`${n>=0?'+':''}${n.toFixed(1)}%`;
+  change.textContent=`Δ30с: bid ${ch(book.bidChangePct)} · ask ${ch(book.askChangePct)} · ${book.observations} наблюдений · ${book.updates} обновлений`;
+  const levels=(rows,cls)=>(rows||[]).slice(0,6).map(level=>`
+    <div class="book-level ${cls}"><span>${number(level.price)}</span><strong>${compact(level.usdt)}</strong></div>`).join('');
+  bids.innerHTML=levels(book.bids,'bid');
+  asks.innerHTML=levels(book.asks,'ask');
+}
+let bookRequest=0;
+async function loadOrderBooks() {
+  const serial=++bookRequest;
+  try{
+    const response=await fetch('/api/order-book/'+encodeURIComponent(symbol),
+      {headers:token?{Authorization:'Bearer '+token}:{}});
+    const body=await response.json();
+    if(!response.ok)throw Error(body.error||'HTTP '+response.status);
+    if(serial!==bookRequest)return;
+    renderBook('spot',body.spot);renderBook('futures',body.futures);
+    $('#bookUpdateStatus').textContent='WS · обновление каждые ~2,5с';
+  }catch(error){
+    if(serial!==bookRequest)return;
+    renderBook('spot',null);renderBook('futures',null);
+    $('#bookUpdateStatus').textContent='Нет связи';
+  }
+}
 async function loadLargeTrades() {
   const selectedMarket = market;
   try {
