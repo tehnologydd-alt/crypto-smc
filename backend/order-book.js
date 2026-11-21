@@ -46,6 +46,7 @@ export function depthGate(snapshot,{market,symbol,side,closedAt,observedAt,
       snapshot.market!==market||snapshot.symbol!==symbol||
       snapshot.levels!==BOOK_LEVELS||
       !Number.isSafeInteger(snapshot.capturedAt)||!Number.isSafeInteger(closedAt)||
+      !Number.isSafeInteger(snapshot.observedSince)||snapshot.observedSince>closedAt||
       !Number.isSafeInteger(observedAt)||observedAt<closedAt||
       snapshot.capturedAt<closedAt||snapshot.capturedAt>observedAt||
       snapshot.capturedAt-closedAt>maxCloseLagMs||
