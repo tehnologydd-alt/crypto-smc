@@ -24,6 +24,7 @@ function validate(input) {
       input.bookSnapshots.some(book => !book ||
         book.source!=='binance_ws_depth' || book.status!=='live' ||
         book.observationMs<10000 || book.observations<4 || book.updates<5 ||
+        !Number.isSafeInteger(book.observedSince) ||
         !Number.isFinite(book.averageImbalance) || book.market!==input.market ||
         book.symbol!==input.symbol || !Number.isSafeInteger(book.capturedAt) ||
         !Number.isSafeInteger(book.lastUpdateId) || book.lastUpdateId<=0 ||
