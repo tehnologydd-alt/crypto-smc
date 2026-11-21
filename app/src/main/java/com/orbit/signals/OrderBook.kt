@@ -107,7 +107,8 @@ object BookDepth {
              closedAt:Long,observedAt:Long):DepthDecision {
         if(book==null||book.source!="binance_ws_depth"||book.status!="live"||
             book.market!=market||book.symbol!=symbol||book.levels!=LEVELS||
-            book.lastUpdateId<=0||book.capturedAt<closedAt||
+            book.lastUpdateId<=0||book.observedSince<=0||book.observedSince>closedAt||
+            book.capturedAt<closedAt||
             book.capturedAt>observedAt||book.capturedAt-closedAt>120_000L||
             observedAt-book.capturedAt>10_000L)
             return DepthDecision(false,"NO_SYNCHRONIZED_LIVE_DEPTH")
