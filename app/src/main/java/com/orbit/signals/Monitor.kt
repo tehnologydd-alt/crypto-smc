@@ -63,8 +63,17 @@ object Monitor {
         candidates.sortWith(compareBy<Candidate> { it.candle.end }.thenBy { it.timeframe })
         var candidateIndex = 0
         val signals = store.signals(market, symbol).toMutableList()
+        val parentCache = mutableMapOf<String, List<Candle>>()
         fun scan(candidate: Candidate) {
-            val signal = Strategy.detect(candidate.bars, market, symbol, candidate.timeframe)
+            val parentTf = when (candidate.timeframe) {
+                "5m", "15m", "30m" -> "1h"
+                "1h" -> "4h"
+                "4h" -> "1d"
+                else -> error("Неизвестный таймфрейм")
+            }
+            val parent = parentCache.getOrPut(parentTf) { Binance.candles(market, symbol, parentTf, 120) }
+                .filter { it.end <= candidate.candle.end }
+            val signal = Strategy.detect(candidate.bars, market, symbol, candidate.timeframe, parent)
             if (signal != null && !store.signalExists(signal.id) && signals.none {
                     it.timeframe == candidate.timeframe && it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
                 }) {
