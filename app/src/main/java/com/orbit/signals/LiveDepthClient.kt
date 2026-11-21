@@ -27,6 +27,9 @@ object LiveDepthClient {
     private var running=false
     private var generation=0
     private var favorites:List<String> = emptyList()
+    private var foregroundSymbols:List<String> = emptyList()
+    private var backgroundPair:Pair<String,String>? = null
+    private var connectedMarkets:List<String> = emptyList()
     data class View(val book:OrderBookSnapshot?,val status:String,val ageMs:Long?,
         val error:String?=null)
     private data class Delta(
@@ -175,26 +178,50 @@ object LiveDepthClient {
         }
     }
 
+    /** Foreground and bounded background users own independent subscriptions.
+     * Closing Activity must NOT stop an ongoing JobScheduler depth confirmation. */
     fun start(symbols:List<String>) {
-        val normalized=symbols.distinct().take(10).filter{it.matches(Regex("[A-Z0-9]{2,16}USDT"))}
-        if(normalized.isEmpty())return
-        val next:Int
         synchronized(guard) {
-            if(running&&favorites==normalized)return
-            generation++;next=generation;running=true;favorites=normalized
-            sockets.values.forEach{it.close(1000,"resubscribe")};sockets.clear()
-            books.clear()
-            for(market in listOf("spot","futures"))for(symbol in normalized)
-                books["$market:$symbol"]=State(market,symbol)
+            foregroundSymbols=symbols.distinct().take(10)
+                .filter{it.matches(Regex("[A-Z0-9]{2,16}USDT"))}
         }
-        for(market in listOf("spot","futures"))connect(market,next)
+        reconfigure()
     }
     fun stop() {
-        synchronized(guard){
-            running=false;generation++
-            sockets.values.forEach{it.close(1000,"paused")};sockets.clear()
+        synchronized(guard){foregroundSymbols=emptyList()}
+        reconfigure()
+    }
+    fun startBackground(market:String,symbol:String) {
+        require(market in listOf("spot","futures") &&
+            symbol.matches(Regex("[A-Z0-9]{2,16}USDT")))
+        synchronized(guard) {backgroundPair=market to symbol}
+        reconfigure()
+    }
+    fun stopBackground() {
+        synchronized(guard){backgroundPair=null}
+        reconfigure()
+    }
+    private fun reconfigure() {
+        val connections:List<String>
+        val next:Int
+        synchronized(guard) {
+            val combined=(listOfNotNull(backgroundPair?.second)+foregroundSymbols)
+                .distinct().take(10)
+            val markets=if(foregroundSymbols.isNotEmpty())listOf("spot","futures")
+                else listOfNotNull(backgroundPair?.first)
+            if(combined==favorites&&markets==connectedMarkets&&running)return
+            generation++;next=generation
+            sockets.values.forEach{it.close(1000,"subscription update")}
+            sockets.clear()
+            favorites=combined;connectedMarkets=markets
+            running=combined.isNotEmpty()
             books.values.forEach{it.reset("offline")}
+            books.clear()
+            if(running)for(market in markets)for(symbol in combined)
+                books["$market:$symbol"]=State(market,symbol)
+            connections=markets
         }
+        if(running)for(market in connections)connect(market,next)
     }
     fun current(market:String,symbol:String):View = synchronized(guard) {
         books["$market:$symbol"]?.view(System.currentTimeMillis()) ?: View(null,"offline",null)
