@@ -145,8 +145,15 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
     }
     // Use an independently closed HTF snapshot; never use a forming HTF candle.
     const parentTf = { '5m':'1h', '15m':'1h', '30m':'1h', '1h':'4h', '4h':'1d' }[timeframe];
-    const parentBars = (await fetchKlines(market, symbol, parentTf, { limit: 120 }))
-      .filter(bar => bar.end <= expectedEnd);
+    // HTF outages must not block v0.1 and v0.2; only v0.3 requires HTF.
+    let parentBars = [];
+    try {
+      parentBars = (await fetchKlines(market, symbol, parentTf, { limit: 120 }))
+        .filter(bar => bar.end <= expectedEnd);
+      delete state.errors[errorKey+':htf'];
+    } catch (error) {
+      state.errors[errorKey+':htf'] = 'Старший таймфрейм недоступен: '+error.message;
+    }
     const candidates = detectResearchSignals(candles, market, symbol, timeframe, parentBars);
     for (const signal of candidates) {
       const activeVersion = state.signals.some(s => s.market === market &&
