@@ -455,6 +455,9 @@ class MainActivity : Activity() {
                 setColor(outcomeColors.first); cornerRadius = dp(14).toFloat(); setStroke(dp(2), outcomeColors.second)
             }
             addView(text("${signal.symbol}  ·  ${if (signal.market == "spot") "СПОТ" else "ФЬЮЧЕРСЫ"}  ·  ${signal.timeframe}", 14, accent, true))
+            addView(text(if (signal.ruleVersion.isNotBlank())
+                "Правила ${signal.ruleVersion} · ${ResearchRules.all.firstOrNull { it.key == signal.ruleVersion }?.title ?: "версия"}"
+                else "Прежняя версия SMC v3", 10, muted))
             addView(text("${signal.side}  ·  ${stateName(signal.state)}", 16, primaryText, true))
             signalLevelsRow(this, listOf("Вход" to signal.entry, "Стоп" to signal.stop), 16)
             signalLevelsRow(this, listOf("TP1" to signal.targets[0], "TP2" to signal.targets[1], "TP3" to signal.targets[2]), 14)
@@ -471,6 +474,100 @@ class MainActivity : Activity() {
             action(filters, label, statsMarket == value) { statsMarket = value; show() }
         body.addView(filters)
         val signals = store.signals(source = prefs.mode).filter { statsMarket == "all" || it.market == statsMarket }
+        val serverComparison = if (prefs.mode == "server" && statsMarket == "all")
+            prefs.serverRuleStatistics?.let { runCatching { JSONObject(it) }.getOrNull() }
+        else null
+        val serverModels = if (prefs.mode == "server")
+            prefs.serverRuleModels?.let { runCatching { JSONObject(it) }.getOrNull() }
+        else null
+        val serverVersions = serverComparison?.optJSONArray("versions")
+        data class VariantMetrics(
+            val rule: ResearchRule, val detected: Int, val entered: Int, val settled: Int,
+            val successful: Int, val tp2: Int, val tp3: Int, val stops: Int,
+            val modelSamples: Int, val validation: Int,
+            val modelBrier: Double?, val baselineBrier: Double?
+        )
+        val variants = ResearchRules.all.map { rule ->
+            val history = signals.filter { it.strategyVersion == 3 && it.ruleVersion == rule.key }
+            fun touched(signal: Signal, type: String) = signal.events.any { it.type == type }
+            val entered = history.filter { touched(it, "ENTRY") }
+            val settled = entered.filter { touched(it, "TP1") || touched(it, "STOP") }
+            val scored = settled.filter {
+                it.quality != null && it.quality!!.trainedSamples >= 30 &&
+                    it.quality!!.probability.isFinite() && it.quality!!.baseline.isFinite()
+            }
+            val baseline = if (scored.isNotEmpty()) scored.map { signal ->
+                val label = if (touched(signal, "TP1")) 1.0 else 0.0
+                (signal.quality!!.baseline - label) * (signal.quality!!.baseline - label)
+            }.average() else null
+            val brier = if (scored.isNotEmpty()) scored.map { signal ->
+                val label = if (touched(signal, "TP1")) 1.0 else 0.0
+                (signal.quality!!.probability - label) * (signal.quality!!.probability - label)
+            }.average() else null
+            val remote = (0 until (serverVersions?.length() ?: 0)).mapNotNull {
+                serverVersions?.optJSONObject(it)
+            }.firstOrNull { it.optString("key") == rule.key }
+            val model = if (prefs.mode == "local") store.ruleModel(rule.key) else null
+            val remoteModel = serverModels?.optJSONObject(rule.key)
+            VariantMetrics(rule,
+                remote?.optInt("signals") ?: history.size,
+                remote?.optInt("entered") ?: entered.size,
+                remote?.optInt("resolved") ?: settled.size,
+                remote?.optInt("successful") ?: settled.count { touched(it, "TP1") },
+                remote?.optInt("tp2") ?: history.count { touched(it, "TP2") },
+                remote?.optInt("tp3") ?: history.count { touched(it, "TP3") },
+                remote?.optInt("stopped") ?: history.count { touched(it, "STOP") },
+                remoteModel?.optInt("samples") ?: model?.samples ?: 0,
+                remoteModel?.optInt("validationSamples") ?: model?.validation?.size ?: 0,
+                remote?.optDouble("modelBrier", Double.NaN)?.takeIf { it.isFinite() } ?: brier,
+                remote?.optDouble("baselineBrier", Double.NaN)?.takeIf { it.isFinite() } ?: baseline)
+        }
+        card(body) {
+            addView(text("СРАВНЕНИЕ ТРЁХ ВЕРСИЙ", 10, accent, true))
+            addView(text("Какие фильтры улучшают результат?", 18, primaryText, true))
+            addView(text("Все варианты запускаются параллельно. В статистике учитываются только входы с известным TP1 или стопом.", 11, muted))
+            for (item in variants) {
+                val rate = if (item.settled > 0)
+                    "${(item.successful * 100.0 / item.settled).roundToInt()}%" else "—"
+                addView(text("${item.rule.key}  ·  $rate", 14, if (item.settled > 0) accent else muted, true))
+                statsProgress(this, item.rule.title, item.successful, item.settled, accent)
+            }
+            val complete = variants.all { it.settled >= 30 }
+            if (complete) {
+                val leader = variants.maxByOrNull { it.successful.toDouble() / it.settled }
+                addView(text("Наибольшая наблюдаемая доля TP1: ${leader?.rule?.key ?: "—"}. " +
+                    "Разные фильтры отбирают разные сигналы; это не доказательство преимущества.", 11, accent))
+            } else addView(text("Для предварительного сравнения нужно минимум по 30 разрешённых входов каждой версии. " +
+                "До этого лидера не определяем.", 11, muted))
+        }
+        for (item in variants) card(body) {
+            addView(text("${item.rule.key} · ${item.rule.title}", 16, primaryText, true))
+            addView(text(when (item.rule.key) {
+                "v0.1" -> "Базовая структура BOS/CHoCH + активные OB/FVG"
+                "v0.2" -> "v0.1 + объём пробоя ≥ 1,20× среднего за предыдущие 20 свечей"
+                else -> "v0.2 + подтверждение последнего закрытого старшего таймфрейма"
+            }, 11, muted))
+            val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            statsMetric(first, "Сигналы", item.detected.toString(), primaryText)
+            statsMetric(first, "Входы", item.entered.toString(), primaryText)
+            statsMetric(first, "Исходы", item.settled.toString(), primaryText)
+            addView(first)
+            statsProgress(this, "TP1 до стопа", item.successful, item.settled, accent)
+            statsProgress(this, "TP2", item.tp2, item.entered, accent)
+            statsProgress(this, "TP3", item.tp3, item.entered, accent)
+            statsProgress(this, "Стоп", item.stops, item.entered, danger)
+            statsProgress(this, "Обучающие исходы модели", item.modelSamples, 30, accent)
+            statsProgress(this, "Проверочные исходы", item.validation, 30, Color.rgb(125, 173, 234))
+            if (item.modelBrier != null && item.baselineBrier != null)
+                addView(text("Brier: ${String.format(Locale.US, "%.3f", item.modelBrier)} против " +
+                    "${String.format(Locale.US, "%.3f", item.baselineBrier)} (база); меньше — лучше", 11, muted))
+            addView(text(if (item.settled < 30)
+                "Недостаточно исходов для предварительного вывода (${item.settled}/30)."
+                else "Предварительная выборка набрана; проверяйте устойчивость на новых данных.", 11, muted))
+        }
+        body.addView(text("Ликвидность v0.2/v0.3 здесь означает относительный объём закрытых свечей, " +
+            "а не глубину стакана. Сравнение наблюдательное и не учитывает комиссии.", 10, muted))
+        body.addView(text("Общая историческая статистика (включая прежнюю SMC v3)", 17, primaryText, true))
         val events = signals.associateWith { signal -> signal.events.map { it.type }.toSet() }
         fun count(type: String) = events.values.count { type in it }
         val entries = count("ENTRY")
@@ -808,6 +905,7 @@ class MainActivity : Activity() {
             val listContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             for (signal in visibleSignals) card(listContent) {
                 addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
+                if (signal.ruleVersion.isNotBlank()) addView(text("Правила ${signal.ruleVersion}", 10, accent, true))
                 addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
                 addSignalJourney(this, signal, compact = true)
                 setOnClickListener {
@@ -834,6 +932,8 @@ class MainActivity : Activity() {
         }
         if (selected != null) card(body) {
             addView(text("Параметры сигнала", 16, primaryText, true))
+            addView(text(if (selected.ruleVersion.isNotBlank()) "Правила ${selected.ruleVersion}"
+                else "Прежняя версия SMC v3", 11, accent, true))
             addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
             addView(text("Вход ${format(selected.entry)}   Стоп ${format(selected.stop)}", 12))
             addView(text("TP1 ${format(selected.targets[0])}   TP2 ${format(selected.targets[1])}   TP3 ${format(selected.targets[2])}", 12))
