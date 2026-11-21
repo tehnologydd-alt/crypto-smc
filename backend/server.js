@@ -6,7 +6,7 @@ import { join, resolve, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectResearchSignals, advanceSignalWithCandle } from './strategy.js';
 import { scoreSignal, modelSummary } from './learning.js';
-import { LiveDepthRegistry } from './live-depth.js';
+import { LiveDepthRegistry, depthStreamUrl } from './live-depth.js';
 import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
 import { normalizePreferences, shouldNotify } from './notifications.js';
@@ -160,11 +160,7 @@ function connectDepth(market) {
   depthRegistry.reconnect(market);
   depthFeeds[market]='connecting';
   const streams=state.symbols.map(symbol=>symbol.toLowerCase()+'@depth').join('/');
-  // Binance 2026 migration: high-frequency depth belongs to /public,
-  // while ordinary futures candles and aggTrades remain on /market.
-  const depthUrl=market==='futures' ?
-    'wss://fstream.binance.com/public/stream?streams=' : endpoints.spot.ws;
-  const ws=new WebSocket(depthUrl+streams);
+  const ws=new WebSocket(depthStreamUrl(market,streams));
   depthSockets.set(market,ws);
   ws.addEventListener('open',()=>{if(depthSockets.get(market)===ws)
     depthFeeds[market]='live';});
