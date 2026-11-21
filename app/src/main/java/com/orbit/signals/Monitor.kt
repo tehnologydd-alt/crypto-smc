@@ -69,7 +69,6 @@ object Monitor {
         var candidateIndex = 0
         val signals = store.signals(market, symbol).toMutableList()
         val parentCache = mutableMapOf<String, List<Candle>>()
-        var cachedBook: OrderBookSnapshot? = null
         fun scan(candidate: Candidate) {
             val parentTf = when (candidate.timeframe) {
                 "5m", "15m", "30m" -> "1h"
@@ -81,24 +80,10 @@ object Monitor {
             val parent = parentCache.getOrPut(parentTf) {
                 runCatching { Binance.candles(market, symbol, parentTf, 120) }.getOrDefault(emptyList())
             }.filter { it.end <= candidate.candle.end }
-            // Only confirmed base candidates justify a depth request.
-            val baseCandidates = Strategy.detectVariants(candidate.bars,market,symbol,candidate.timeframe,parent)
-            if (baseCandidates.isEmpty()) {
-                store.setCursor(candidate.timeframe,market,symbol,candidate.candle.end)
-                return
-            }
-            var book: OrderBookSnapshot? = null
-            val observedAt=System.currentTimeMillis()
-            if (observedAt-candidate.candle.end in 0..120_000L) {
-                try {
-                    val cached = cachedBook
-                    book = if(cached != null && cached.capturedAt>=candidate.candle.end &&
-                        observedAt-cached.capturedAt<=10_000L) cached
-                    else Binance.orderBook(market,symbol).also { cachedBook = it }
-                } catch(error:Exception) {
-                    errors += "$market $symbol: стакан Binance: ${error.message}"
-                }
-            }
+            // The local monitor may use ONLY previously synchronized live WS depth.
+            // No REST snapshot is accepted as signal evidence; after background
+            // suspension v0.2-D2/v0.3-D2 remain absent rather than guessed.
+            val book=LiveDepthClient.snapshot(market,symbol)
             val candidates = Strategy.detectVariants(candidate.bars,market,symbol,
                 candidate.timeframe,parent,book,System.currentTimeMillis())
             for (signal in candidates) {
