@@ -54,8 +54,8 @@ export function detectSignal(candles,market,symbol,timeframe='1h',parentBars) {
   return detectV3(candles,market,symbol,timeframe,parentBars);
 }
 
-export function detectResearchSignals(candles,market,symbol,timeframe='1h',parentBars) {
-  return detectRuleVariants(candles,market,symbol,timeframe,parentBars);
+export function detectResearchSignals(candles,market,symbol,timeframe='1h',parentBars,bookSnapshot=null,observedAt=Date.now()) {
+  return detectRuleVariants(candles,market,symbol,timeframe,parentBars,bookSnapshot,observedAt);
 }
 
 function hit(signal, type, price, at) {
