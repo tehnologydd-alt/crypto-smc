@@ -39,7 +39,8 @@ data class Signal(
     val events: MutableList<SignalEvent> = mutableListOf(),
     val strategyVersion: Int = 2, val breakType: String = "BOS",
     val ruleVersion: String = "", val volumeRatio: Double? = null,
-    val ruleSpec: String = "", val bookEvidence: OrderBookSnapshot? = null
+    val ruleSpec: String = "", val bookEvidence: OrderBookSnapshot? = null,
+    val originClosedAt: Long? = null
 ) {
     fun json(): JSONObject = JSONObject().apply {
         put("id", id); put("market", market); put("symbol", symbol); put("timeframe", timeframe); put("side", side)
@@ -51,6 +52,7 @@ data class Signal(
         if (ruleVersion.isNotBlank()) { put("ruleVersion", ruleVersion); put("ruleSpec", ruleSpec) }
         if (volumeRatio != null && volumeRatio.isFinite()) put("volumeRatio", volumeRatio)
         if (bookEvidence != null) put("bookEvidence", bookEvidence.json())
+        if (originClosedAt != null) put("originClosedAt", originClosedAt)
         if (outcome != null) put("outcome", outcome)
         quality?.let { put("quality", it.json()) }
         put("events", JSONArray().apply { events.forEach { put(it.json()) } })
@@ -72,7 +74,8 @@ data class Signal(
             if (j.has("volumeRatio") && !j.isNull("volumeRatio")) j.optDouble("volumeRatio").takeIf { it.isFinite() } else null,
             j.optString("ruleSpec", ""),
             OrderBookSnapshot.fromJson(j.optJSONObject("bookEvidence") ?:
-                j.optJSONObject("ruleSnapshot")?.optJSONObject("book"))
+                j.optJSONObject("ruleSnapshot")?.optJSONObject("book")),
+            if(j.has("originClosedAt"))j.getLong("originClosedAt") else null
         )
     }
 }
