@@ -108,7 +108,7 @@ function render() {
   $('#assetSignals').innerHTML = asset.signals.length ? asset.signals.slice(0, 15).map(signalCard).join('') : '<div class="asset-empty">По этому рынку пока нет сигналов. Структура, ордер-блоки и имбалансы ниже отображаются по закрытым свечам даже без торгового сигнала.</div>';
   renderSelectedSignal();
   const structure = asset.structure || { swings: [], breaks: [], imbalances: [] };
-  $('#structureSummary').textContent = `Swing: ${structure.swings.length} · BOS: ${structure.breaks.length} · OB: ${structure.breaks.filter(item => item.block).length} · FVG: ${structure.imbalances.length} за последние ${asset.candles.length} свечей`;
+  $('#structureSummary').textContent = `Swing: ${structure.swings.length} · BOS: ${structure.breaks.length} · CHoCH: ${structure.breaks.filter(item => item.type === 'CHoCH').length} · OB: ${structure.breaks.filter(item => item.block).length} · FVG: ${structure.imbalances.length} за последние ${asset.candles.length} свечей`;
   drawChart();
 }
 function signalCard(s) {
@@ -168,7 +168,7 @@ function drawChart() {
     ctx.fillStyle = stroke; ctx.font = 'bold 9px system-ui'; ctx.fillText(name, Math.min(from + 3, left + plotWidth - 37), Math.max(top + 9, upper - 3));
   }
   ctx.font = '10px system-ui'; ctx.textAlign = 'left';
-  recentGaps.forEach(gap => zone(gap.low, gap.high, gap.time, '#eab87a16', '#d5ac6d', 'FVG', gap.filledAt || lastTime));
+  recentGaps.forEach(gap => zone(gap.low, gap.high, gap.time, '#eab87a16', '#d5ac6d', 'FVG ' + (gap.status || 'active'), gap.filledAt || lastTime));
   recentBlocks.forEach(item => zone(item.block.low, item.block.high, item.block.time, item.direction === 'up' ? '#65dfa51f' : '#e77d951f', item.direction === 'up' ? '#67dca9' : '#e18c9e', 'OB'));
   if (signal) {
     zone(signal.entryLow, signal.entryHigh, signal.blockTime || firstTime, '#75edba32', '#8ae8c4', 'OB · ВХОД');
@@ -200,7 +200,7 @@ function drawChart() {
     if (yy < top || yy > priceBottom || to <= from) continue;
     ctx.strokeStyle = item.direction === 'up' ? '#85c4fa' : '#f19bad'; ctx.lineWidth = 1.4; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(from, yy); ctx.lineTo(to, yy); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 9px system-ui'; ctx.fillText(item.direction === 'up' ? 'BOS ↑' : 'BOS ↓', Math.max(left, to - 28), Math.max(top + 9, yy - 4));
+    ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 9px system-ui'; ctx.fillText((item.type === 'CHoCH' ? 'CHoCH' : 'BOS') + (item.direction === 'up' ? ' ↑' : ' ↓'), Math.max(left, to - 28), Math.max(top + 9, yy - 4));
   }
   if (signal) {
     const lines = [['ENTRY', signal.entry, '#8ae8c4'], ['SL', signal.stop, '#ff9eae'], ...signal.targets.map((v, i) => [`TP${i + 1}`, v, '#c8df86'])];
