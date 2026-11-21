@@ -321,7 +321,14 @@ const handleRequest = async (req, res) => {
         const market = url.searchParams.get('market') || 'spot';
         const interval = url.searchParams.get('interval') || '15m';
         if (!state.symbols.includes(symbol) || !MARKETS.includes(market) || !['1m', ...Object.keys(TIMEFRAMES)].includes(interval)) return json(res, 400, { error: 'Неверная пара, рынок или таймфрейм' });
-        const [candlesResult, tickerResult] = await Promise.allSettled([fetchKlines(market, symbol, interval, { limit: 150 }), fetchTicker(market, symbol)]);
+        const rawStart = url.searchParams.get('startTime');
+        const startTime = rawStart === null ? null : Number(rawStart);
+        if (rawStart !== null && (!/^\d{12,13}$/.test(rawStart) ||
+            !Number.isSafeInteger(startTime) || startTime <= 0 || startTime > Date.now()))
+          return json(res, 400, { error: 'Неверное время начала исторического окна' });
+        const options = { limit: 150 };
+        if (startTime !== null) options.startTime = startTime;
+        const [candlesResult, tickerResult] = await Promise.allSettled([fetchKlines(market, symbol, interval, options), fetchTicker(market, symbol)]);
         if (candlesResult.status === 'rejected') return json(res, 502, { error: candlesResult.reason.message });
         return json(res, 200, { symbol, market, interval, candles: candlesResult.value,
           structure: analyzeStructure(candlesResult.value),
@@ -366,7 +373,7 @@ const handleRequest = async (req, res) => {
     }
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
     const file = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
-    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'style.css', 'asset.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
+    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'signal-journey.js', 'style.css', 'asset.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
     const content = await readFile(join(base, 'public', file));
     res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': file === 'sw.js' ? 'no-cache' : 'max-age=60', 'X-Content-Type-Options': 'nosniff' });
     res.end(content);
