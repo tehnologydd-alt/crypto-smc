@@ -147,7 +147,7 @@ function renderStatistics(stats) {
         <small>${r.resolved < 30 ? `Предварительная выборка: ${r.resolved}/30` : 'Выборка достигла порога предварительной оценки'}</small>
       </article>`;
     }).join('')}</div>
-    <p class="muted">D1 проверяет реальный стакан Binance Spot / USDT-M Futures: объёмы 100 верхних уровней bid и ask, в USDT (цена × количество). Для подтверждения направленная сторона должна содержать ≥55% видимого объёма. Снимок фиксируется после закрытия свечи, до создания сигнала. Версии фильтра объёма свечей хранятся как архив. Метрики наблюдательные, без комиссий.</p>
+    <p class="muted">D2 анализирует синхронизированный WebSocket-стакан Binance Spot / USDT-M: 100 уровней bid/ask в USDT, минимум 10 секунд наблюдения, устойчивость дисбаланса и непрерывные номера обновлений. REST используется только для начальной синхронизации или восстановления. Старые REST/объёмные правила находятся в архиве. Метрики наблюдательные, без комиссий.</p>
     ${archived.length ? `<details class="rule-archive"><summary>Архив прежних правил (${archived.reduce((n,r)=>n+r.signals,0)} сигналов)</summary>
       ${archived.map(r=>`<div class="asset-stat-row"><strong>${safe(r.key)} · ${safe(r.title)}</strong>
        <span>${r.signals} сигналов · ${r.resolved} исходов · TP1 ${percent(r.successRate)}</span></div>`).join('')}
