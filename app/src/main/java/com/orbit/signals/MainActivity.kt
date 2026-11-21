@@ -482,6 +482,11 @@ class MainActivity : Activity() {
         for (symbol in prefs.symbols) card(body) {
             addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
             addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent).also { marketPriceViews[symbol] = it })
+            addView(text("Стаканы · 100 уровней bid/ask · WebSocket", 10, muted))
+            for ((kind,label) in listOf("spot" to "СПОТ","futures" to "ФЬЮЧЕРСЫ"))
+                addView(text("$label · синхронизация", 10, muted).also {
+                    marketDepthViews["$kind:$symbol"]=it
+                })
             setOnClickListener { navigateToAsset(symbol, "spot", "15m") }
         }
         body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted).also { marketLastUpdateView = it })
@@ -928,6 +933,41 @@ class MainActivity : Activity() {
             addView(text(assetTicker?.let { ticker ->
                 "24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}"
             } ?: "Данные 24 ч загружаются", 11, muted).also { assetTickerView = it })
+        }
+        body.addView(text("Стаканы ликвидности", 20, primaryText, true))
+        body.addView(text("Binance · синхронизация WebSocket + REST при разрывах. " +
+            "Объёмы заявок 100 уровней каждой стороны в USDT.", 11, muted))
+        for ((marketType,label) in listOf("spot" to "СПОТ","futures" to "USDT-M ФЬЮЧЕРСЫ")) {
+            card(body) {
+                addView(text(label, 13, primaryText, true))
+                val state=text("Синхронизация…", 10, muted).also { addView(it) }
+                val values=text("Ожидание реального стакана…", 12, primaryText, true)
+                    .also { addView(it) }
+                val changes=text("История изменений собирается после синхронизации", 10, muted)
+                    .also { addView(it) }
+                val head=LinearLayout(this@MainActivity).apply {
+                    orientation=LinearLayout.HORIZONTAL
+                }
+                val buy=LinearLayout(this@MainActivity).apply {
+                    orientation=LinearLayout.VERTICAL
+                    addView(text("BID · ПОКУПКИ", 10, accent, true))
+                }
+                val sell=LinearLayout(this@MainActivity).apply {
+                    orientation=LinearLayout.VERTICAL
+                    addView(text("ASK · ПРОДАЖИ", 10, danger, true))
+                }
+                val bidLevels=text("—", 10, accent).apply {
+                    typeface=Typeface.MONOSPACE;minLines=6
+                }
+                val askLevels=text("—", 10, danger).apply {
+                    typeface=Typeface.MONOSPACE;minLines=6
+                }
+                buy.addView(bidLevels);sell.addView(askLevels)
+                head.addView(buy,LinearLayout.LayoutParams(0,-2,1f))
+                head.addView(sell,LinearLayout.LayoutParams(0,-2,1f))
+                addView(head)
+                assetDepthViews[marketType]=BookViews(state,values,changes,bidLevels,askLevels)
+            }
         }
         val signals = store.signals(market, symbol, prefs.mode)
         val selected = signals.firstOrNull { it.id == selectedSignalId }
