@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { journey, isFinished, bucket } from './public/signal-journey.js';
+import { journey, isFinished, bucket, levelSegments } from './public/signal-journey.js';
 
 const sample = (side='LONG', state='OPEN') => ({
   id:'spot:BTCUSDT:1h:1:LONG', side, state, detectedAt:1000,
@@ -45,4 +45,37 @@ test('unknown data gap stays current and never invents closure',()=>{
   const path=journey(s);
   assert.equal(path.finished,false);assert.equal(path.exit,null);
   assert.equal(path.percent,null);
+});
+
+test('level lines start at creation and stop at each target latest touch',()=>{
+  const s=sample('LONG','STOPPED');
+  s.events.push({type:'TP1',at:3000,price:102},{type:'TP1',at:3500,price:102},
+    {type:'STOP',at:5000,price:98});
+  const segments=levelSegments(s,9000);
+  assert.deepEqual(segments.map(x=>x.name),['ENTRY','SL','TP1','TP2','TP3']);
+  assert.ok(segments.every(x=>x.startAt===1000));
+  assert.equal(segments[0].endAt,2000);
+  assert.equal(segments[0].touched,true);
+  assert.equal(segments[1].endAt,5000);
+  assert.equal(segments[1].touched,true);
+  assert.equal(segments[2].endAt,3500);
+  assert.equal(segments[2].touched,true);
+  assert.equal(segments[3].endAt,5000);
+  assert.equal(segments[3].touched,false);
+  assert.equal(segments[4].endAt,5000);
+});
+test('pending levels extend only to current last closed candle',()=>{
+  const s=sample('LONG','OPEN');
+  const segments=levelSegments(s,9000);
+  assert.equal(segments.find(x=>x.name==='ENTRY').endAt,2000);
+  assert.equal(segments.find(x=>x.name==='TP1').endAt,9000);
+  assert.equal(segments.find(x=>x.name==='SL').endAt,9000);
+  assert.equal(segments.find(x=>x.name==='TP1').touched,false);
+});
+test('no future extension for cancelled, expired and data gap',()=>{
+  for (const [state,type] of [['CANCELLED','INVALIDATED'],['EXPIRED','EXPIRED'],['UNCERTAIN','DATA_GAP']]) {
+    const s=sample('LONG',state);
+    s.events.push({type,at:5000,price:99});
+    assert.ok(levelSegments(s,10000).every(level=>level.endAt<=5000));
+  }
 });
