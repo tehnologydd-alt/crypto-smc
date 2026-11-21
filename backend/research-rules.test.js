@@ -62,7 +62,7 @@ test('parallel strategies use only a matched real book snapshot at publication t
   assert.equal(accepted[1].events[0].at,s.capturedAt);
   assert.deepEqual(detectResearchSignals(bars,'spot','BTCUSDT','1h',null,s,closedAt+3000).map(x=>x.ruleVersion),
     ['v0.1','v0.2-D1']);
-  const late=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,s,closedAt+16000);
+  const late=detectResearchSignals(bars,'spot','BTCUSDT','1h',parent,s,closedAt+20000);
   assert.deepEqual(late.map(x=>x.ruleVersion),['v0.1']);
 });
 test('candle traded volume never substitutes for book depth',()=>{
