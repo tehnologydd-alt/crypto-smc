@@ -128,7 +128,7 @@ class MainActivity : Activity() {
     }
     override fun onResume() {
         super.onResume();resumed=true
-        LiveDepthClient.start(prefs.symbols)
+        LiveDepthClient.start(listOfNotNull(assetSymbol)+prefs.symbols)
         handler.post(tick);handler.post(depthTick)
     }
     override fun onPause() {
@@ -170,6 +170,7 @@ class MainActivity : Activity() {
         } ?: "waiting"
         assetBars = emptyList()
         chartVisibleCount = 90; chartOffset = 0
+        if(resumed)LiveDepthClient.start(listOf(symbol)+prefs.symbols)
         show()
         loadAsset()
     }
@@ -415,7 +416,9 @@ class MainActivity : Activity() {
                 "$title · BID ${compact(book.bidUsdt)} / ASK ${compact(book.askUsdt)} USDT" +
                     " · ${(book.imbalance*100).roundToInt()}% bid · WS ${(data.ageMs?:0)/1000}с"
                 else "$title · стакан: ${when(data.status) {
-                    "stale"->"устарел";"offline"->"нет связи";else->"синхронизация"
+                    "stale"->"устарел";"offline"->"нет связи";
+                    "error"->"ошибка: ${data.error?.take(56) ?: "нет данных"}"
+                    else->"синхронизация"
                 }}"
             if(label.text.toString()!=value)label.text=value
             marketDepthBars[key]?.share=book?.imbalance
