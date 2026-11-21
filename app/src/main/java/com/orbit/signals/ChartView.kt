@@ -3,6 +3,7 @@ package com.orbit.signals
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -52,12 +53,16 @@ class ChartView(context: Context) : View(context) {
         if (bars.isEmpty()) return
         val left = 7f; val right = width - 64f * resources.displayMetrics.density
         val top = 18f; val bottom = height - 35f * resources.displayMetrics.density
-        // Scale to visible candles and recorded event prices, not untriggered TP/SL levels.
+        // Keep both touched pins and the visible portions of all reference price levels.
+        val visibleSegments = signal?.let { SignalJourney.levelSegments(it, bars.last().end) }
+            ?.filter { it.endAt >= bars.first().time && it.startAt <= bars.last().end &&
+                it.price.isFinite() && it.price > 0.0 }.orEmpty()
         val recordedPrices = signal?.events?.filter { event ->
             bars.any { event.at in it.time..it.end } && event.price.isFinite() && event.price > 0.0
         }?.map { it.price }.orEmpty()
-        val low = min(bars.minOf { it.low }, recordedPrices.minOrNull() ?: Double.POSITIVE_INFINITY)
-        val high = max(bars.maxOf { it.high }, recordedPrices.maxOrNull() ?: Double.NEGATIVE_INFINITY)
+        val visiblePrices = recordedPrices + visibleSegments.map { it.price }
+        val low = min(bars.minOf { it.low }, visiblePrices.minOrNull() ?: Double.POSITIVE_INFINITY)
+        val high = max(bars.maxOf { it.high }, visiblePrices.maxOrNull() ?: Double.NEGATIVE_INFINITY)
         val pad = max((high - low) * 0.07, high * 0.0003)
         val minPrice = low - pad; val maxPrice = high + pad
         val y: (Double) -> Float = { top + ((maxPrice - it) / (maxPrice - minPrice) * (bottom - top)).toFloat() }
@@ -87,7 +92,52 @@ class ChartView(context: Context) : View(context) {
         for (swing in structure.swings.takeLast(8)) if (swing.time in first..last) label(canvas, if (swing.kind == "high") "SH" else "SL", x(swing.time), y(swing.price), yellow, 8f)
         for (breakPoint in structure.breaks.takeLast(4)) if (breakPoint.time in first..last) label(canvas, breakPoint.type, x(breakPoint.time), y(breakPoint.level), blue, 8f)
         signal?.let { selected ->
+            drawLevelSegments(canvas, selected, bars, left, right, top, bottom, x, y)
             drawJourney(canvas, selected, bars, left, right, top, bottom, step, y)
+        }
+    }
+    /** Levels start when the signal was created, and finish at each level's latest
+     * registered touch. Unreached levels stop at the final observation, never beyond
+     * a completed signal; event pins and the observed path are drawn above them.
+     */
+    private fun drawLevelSegments(
+        canvas: Canvas, selected: Signal, bars: List<Candle>,
+        left: Float, right: Float, top: Float, bottom: Float,
+        x: (Long) -> Float, y: (Double) -> Float
+    ) {
+        val first = bars.first().time
+        val last = bars.last().end
+        for (segment in SignalJourney.levelSegments(selected, last)) {
+            if (segment.startAt > last || segment.endAt < first || !segment.price.isFinite() || segment.price <= 0) continue
+            val yy = y(segment.price)
+            if (yy < top || yy > bottom) continue
+            val from = if (segment.startAt < first) left else x(segment.startAt).coerceIn(left, right)
+            val to = if (segment.endAt >= last) right else x(segment.endAt).coerceIn(left, right)
+            if (to < from) continue
+            val baseColor = when (segment.name) {
+                "ENTRY" -> green
+                "SL" -> red
+                else -> yellow
+            }
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (if (segment.touched) 1.65f else 1.1f) * resources.displayMetrics.density
+            paint.color = Color.argb(if (segment.touched) 220 else 140,
+                Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor))
+            paint.pathEffect = if (segment.touched) null else
+                DashPathEffect(floatArrayOf(7f, 5f), 0f)
+            canvas.drawLine(from, yy, max(from + 1f, to), yy, paint)
+            paint.pathEffect = null
+            paint.style = Paint.Style.FILL
+            val size = 8.2f * resources.displayMetrics.scaledDensity
+            val labelText = segment.name
+            paint.textSize = size
+            val labelWidth = paint.measureText(labelText) + 7f
+            val labelX = (from + 4f).coerceIn(left, max(left, right - labelWidth))
+            val labelY = (yy - 4f).coerceIn(top + size, bottom - 2f)
+            paint.color = Color.rgb(14, 26, 42)
+            canvas.drawRoundRect(labelX - 2f, labelY - size, labelX + labelWidth, labelY + 3f, 3f, 3f, paint)
+            paint.color = baseColor
+            canvas.drawText(labelText, labelX + 2f, labelY, paint)
         }
     }
     private fun drawJourney(
