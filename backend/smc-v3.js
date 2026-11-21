@@ -1,5 +1,5 @@
 // Orbit Signals SMC v3 — deterministic closed-candle research engines.
-import { RULES, volumeGate } from './strategy-rules.js';
+import { RULES, liquiditySweepGate } from './strategy-rules.js';
 const EPS = 1e-12;
 export const TF_MINUTES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440 });
 export const PARENT_TF = Object.freeze({ '5m': '1h', '15m': '1h', '30m': '1h', '1h': '4h', '4h': '1d' });
@@ -175,14 +175,14 @@ export function detectV3(bars,market,symbol,timeframe,parentBars,options={}) {
 export function detectRuleVariants(bars,market,symbol,timeframe,parentBars) {
   const candidate=detectV3(bars,market,symbol,timeframe,parentBars,{requireHtf:false});
   if(!candidate)return [];
-  const structureEvent=candidate.structureEvent;
-  const breakIndex=bars.findIndex(c=>c.end===structureEvent.occurredAt);
-  const volume=volumeGate(bars,breakIndex);
-  const parent=ContextRegimeFilter.evaluate(structureEvent,bars,parentBars,timeframe);
-  return RULES.filter(rule=>(!rule.liquidity || volume.allowed) && (!rule.htf || parent.allowed))
+  const event=candidate.structureEvent;
+  const breakIndex=bars.findIndex(c=>c.end===event.occurredAt);
+  const liquidity=liquiditySweepGate(bars,breakIndex,event.direction);
+  const htf=ContextRegimeFilter.evaluate(event,bars,parentBars,timeframe);
+  return RULES.filter(rule=>(!rule.liquidity || liquidity.allowed) && (!rule.htf || htf.allowed))
     .map(rule=>({
       ...candidate,id:candidate.id+':'+rule.key,ruleVersion:rule.key,
-      ruleSnapshot:{ ...rule, volumeRatio:volume.ratio, htfRegime:parent.regime || null,
-        evaluatedAt:candidate.detectedAt }
+      ruleSnapshot:{...rule,liquidityEvidence:liquidity.allowed?liquidity:null,
+        htfRegime:htf.regime||null,evaluatedAt:candidate.detectedAt}
     }));
 }
