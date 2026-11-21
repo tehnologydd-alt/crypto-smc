@@ -1,5 +1,6 @@
 import { getPreferences, savePreferences, syncPreferences } from './notification-settings.js';
 import { initWakeLock } from './wake.js';
+import { journey, isFinished } from './signal-journey.js';
 const $ = selector => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
 const symbol = (params.get('symbol') || '').toUpperCase();
@@ -7,6 +8,7 @@ const preview = params.has('preview');
 let market = params.get('market') === 'futures' ? 'futures' : 'spot';
 let interval = ['1m', '5m', '15m', '30m', '1h', '4h'].includes(params.get('interval')) ? params.get('interval') : '15m';
 let selectedId = params.get('signal') || null;
+let assetScope = 'current', chartAnchorAt = null; // null: latest; otherwise historical event
 let asset = null, requestSerial = 0, hovered = -1, chartBars = [], chartLeft = 8, chartBarWidth = 1;
 const token = localStorage.getItem('orbit-token') || '';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -63,13 +65,29 @@ function syncTabs() {
 async function loadAsset() {
   const serial = ++requestSerial;
   try {
-    const url = `/api/asset/${encodeURIComponent(symbol)}?market=${market}&interval=${interval}`;
+    const minutes = { '1m':1, '5m':5, '15m':15, '30m':30, '1h':60, '4h':240 }[interval] || 15;
+    const startTime = chartAnchorAt == null ? '' : `&startTime=${Math.max(1, chartAnchorAt - 40 * minutes * 60000)}`;
+    const url = `/api/asset/${encodeURIComponent(symbol)}?market=${market}&interval=${interval}${startTime}`;
     const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     if (serial !== requestSerial) return;
     asset = body; hovered = -1;
     if (preview) { asset.signals = [sampleSignal(body)]; if (!selectedId) selectedId = 'demo'; }
+    const selected = selectedSignal();
+    if (selectedId && selected) {
+      assetScope = isFinished(selected) ? 'finished' : 'current';
+      if (chartAnchorAt === null) {
+        const anchor = journey(selected).entry?.at || selected.detectedAt;
+        if (Number.isFinite(anchor) && anchor > 0) {
+          chartAnchorAt = anchor;
+          if (anchor < asset.candles[0]?.time || anchor > asset.candles.at(-1)?.end) {
+            loadAsset();
+            return;
+          }
+        }
+      }
+    }
     $('#assetError').classList.add('hidden');
     render();
   } catch (error) {
@@ -105,16 +123,38 @@ function render() {
   $('#dayLow').textContent = number(asset.ticker?.low);
   $('#dayVolume').textContent = `${compact(asset.ticker?.volume)} ${symbol.slice(0, -4)}`;
   $('#dayQuote').textContent = `${compact(asset.ticker?.quoteVolume)} USDT`;
-  $('#assetSignals').innerHTML = asset.signals.length ? asset.signals.slice(0, 15).map(signalCard).join('') : '<div class="asset-empty">По этому рынку пока нет сигналов. Структура, ордер-блоки и имбалансы ниже отображаются по закрытым свечам даже без торгового сигнала.</div>';
+  const displayedSignals = asset.signals.filter(s => assetScope === 'finished' ? isFinished(s) : !isFinished(s));
+  document.querySelectorAll('[data-asset-scope]').forEach(button =>
+    button.classList.toggle('active', button.dataset.assetScope === assetScope));
+  $('#assetSignals').innerHTML = displayedSignals.length
+    ? displayedSignals.slice(0, 35).map(signalCard).join('')
+    : `<div class="asset-empty">${assetScope === 'finished' ? 'Завершённых сигналов нет.' :
+        'Актуальных сигналов нет. Завершённые сценарии находятся в соседней вкладке.'}</div>`;
+  $('#chartWindow').textContent = chartAnchorAt == null ? 'Последние закрытые свечи'
+    : `Историческое окно: ${date(chartAnchorAt)} · ${tfName[interval]}`;
   renderSelectedSignal();
   const structure = asset.structure || { swings: [], breaks: [], imbalances: [] };
   $('#structureSummary').textContent = `Swing: ${structure.swings.length} · BOS: ${structure.breaks.filter(item => item.type !== 'CHoCH').length} · CHoCH: ${structure.breaks.filter(item => item.type === 'CHoCH').length} · OB: ${structure.breaks.filter(item => item.block).length} · FVG: ${structure.imbalances.length} за последние ${asset.candles.length} свечей`;
   drawChart();
 }
 function signalCard(s) {
-  const active = ['WAITING', 'OPEN'].includes(s.state);
-  return `<button type="button" class="asset-signal ${selectedId === s.id ? 'selected' : ''}" data-signal="${escapeHtml(s.id)}"><div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)}</strong><small>${escapeHtml(stateName[s.state] || s.state)}</small></div><p>${active ? 'Активный сигнал' : 'История'} · ${date(s.detectedAt)} · ${s.imbalance ? 'FVG подтверждён' : 'без FVG (старый сигнал)'}${s.quality?.trusted ? ` · оценка модели ${Math.round(s.quality.probability * 100)}%` : ''}</p><div class="asset-signal-levels"><span>Вход ${number(s.entry)}</span><span>SL ${number(s.stop)}</span>${s.targets.map((target, i) => `<span>TP${i + 1} ${number(target)}</span>`).join('')}</div><div class="asset-signal-action">${selectedId === s.id ? 'Показан на графике ✓' : 'Показать на графике →'}</div></button>`;
+  const trace = journey(s);
+  const result = trace.exit
+    ? `Финиш ${date(trace.exit.at)} · ${number(trace.exit.price)}`
+    : trace.finished ? trace.result : trace.entry ? 'В работе' : 'Ожидает вход';
+  const timeline = trace.entry
+    ? `Вход ${date(trace.entry.at)} · ${number(trace.entry.price)}`
+    : 'Вход ещё не зафиксирован';
+  return `<button type="button" class="asset-signal ${selectedId === s.id ? 'selected' : ''}"
+    data-signal="${escapeHtml(s.id)}">
+    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)}</strong>
+    <small>${escapeHtml(stateName[s.state] || s.state)}</small></div>
+    <p>Сигнал ${date(s.detectedAt)} · ${timeline} · ${result}</p>
+    <div class="asset-signal-levels"><span>Вход ${number(s.entry)}</span><span>SL ${number(s.stop)}</span>
+    ${s.targets.map((target, i) => `<span>TP${i + 1} ${number(target)}</span>`).join('')}</div>
+    <div class="asset-signal-action">${selectedId === s.id ? 'Показан на графике ✓' : 'Показать путь на графике →'}</div></button>`;
 }
+
 function selectedSignal() {
   return asset?.signals.find(s => s.id === selectedId) || null;
 }
@@ -123,9 +163,21 @@ function renderSelectedSignal() {
   panel.classList.toggle('hidden', !signal);
   if (!signal) return;
   const followed = getPreferences().selectedIds.includes(signal.id);
+  const trace = journey(signal);
+  const entryText = trace.entry ? `${date(trace.entry.at)} · ${number(trace.entry.price)}` : 'не зафиксирован';
+  const exitText = trace.exit ? `${date(trace.exit.at)} · ${number(trace.exit.price)} · ${trace.result}`
+    : trace.finished ? trace.result : 'движение не завершено';
+  const percentText = trace.percent == null ? '' :
+    `<strong class="path-result ${trace.percent >= 0 ? 'positive' : 'negative'}">${trace.percent >= 0 ? '+' : ''}${trace.percent.toFixed(2)}% по цене от входа до финиша</strong>`;
   panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
     <div class="selected-levels"><div><span>ЗОНА OB</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
     <p>${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || "BOS"} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}</p>
+    <div class="signal-path-summary">
+      <div><b>СТАРТ СИГНАЛА</b><span>${date(signal.detectedAt)} ${trace.createdPrice != null ? '· ' + number(trace.createdPrice) : ''}</span></div>
+      <div><b>ТОЧКА ВХОДА</b><span>${entryText}</span></div>
+      <div><b>ЗАВЕРШЕНИЕ</b><span>${exitText}</span></div>
+      ${percentText}
+    </div>
     <button id="followSignal" class="primary-button ${followed ? 'outline' : ''}" type="button">${followed ? '✓ Уведомления выбраны · отменить' : 'Следить за сигналом'}</button><small id="followHelp">${preview ? 'Демо-сигнал: уведомления по нему не отправляются.' : followed ? 'Режим «только выбранные» включён для этого устройства.' : 'Включит режим «только выбранные» и добавит этот сигнал.'}</small>`;
 }
 function drawChart() {
