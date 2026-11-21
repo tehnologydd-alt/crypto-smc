@@ -45,3 +45,31 @@ test('sync rejects malformed batches before importing any signal', () => {
   } finally { store.close(); }
 });
 
+
+test('B5 sync requires post-close persisted WS history rather than a REST snapshot',()=>{
+  const model=openExperienceStore(':memory:');
+  try {
+    const closedAt=1_700_000_000_000,confirmedAt=closedAt+20*60000;
+    const base=phoneSignal(model.model);
+    const evidence={
+      source:'binance_ws_depth',status:'live',market:'spot',symbol:'BTCUSDT',
+      levels:100,lastUpdateId:10999,capturedAt:confirmedAt-5000,
+      bidUsdt:90000,askUsdt:40000,imbalance:.6923,
+      spreadPct:.01,observedSince:confirmedAt-280000,observationMs:275000,
+      observations:26,updates:800,averageImbalance:.66
+    };
+    const row={...base,id:'spot:BTCUSDT:15m:1000:LONG:v0.2-B5',
+      detectedAt:confirmedAt,originClosedAt:closedAt,
+      expiresAt:confirmedAt+3600000,ruleVersion:'v0.2-B5',
+      ruleSpec:'BOS_CHoCH_L2R2|BINANCE_WS_300S_POST_CLOSE|OBSERVED',
+      bookEvidence:evidence};
+    assert.equal(validateMobileBatch([row]).length,1);
+    for(const fake of [
+      {...row,originClosedAt:undefined},
+      {...row,bookEvidence:{...evidence,source:'binance_rest_depth'}},
+      {...row,bookEvidence:{...evidence,observationMs:60000}},
+      {...row,bookEvidence:{...evidence,observedSince:closedAt-5000}},
+      {...row,bookEvidence:{...evidence,averageImbalance:.42}}
+    ])assert.throws(()=>validateMobileBatch([fake]),/Некорректная запись/);
+  } finally {model.close();}
+});
