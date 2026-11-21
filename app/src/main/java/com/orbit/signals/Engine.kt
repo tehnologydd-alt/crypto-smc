@@ -38,7 +38,8 @@ data class Signal(
     var outcome: Int? = null, var quality: Quality? = null,
     val events: MutableList<SignalEvent> = mutableListOf(),
     val strategyVersion: Int = 2, val breakType: String = "BOS",
-    val ruleVersion: String = "", val volumeRatio: Double? = null
+    val ruleVersion: String = "", val volumeRatio: Double? = null,
+    val ruleSpec: String = ""
 ) {
     fun json(): JSONObject = JSONObject().apply {
         put("id", id); put("market", market); put("symbol", symbol); put("timeframe", timeframe); put("side", side)
@@ -47,7 +48,7 @@ data class Signal(
         put("imbalance", imbalance.json()); put("features", JSONArray(features)); put("expiresAt", expiresAt)
         put("state", state); put("hitTargets", hitTargets); put("learned", learned)
         put("strategyVersion", strategyVersion); put("breakType", breakType)
-        if (ruleVersion.isNotBlank()) put("ruleVersion", ruleVersion)
+        if (ruleVersion.isNotBlank()) { put("ruleVersion", ruleVersion); put("ruleSpec", ruleSpec) }
         if (volumeRatio != null && volumeRatio.isFinite()) put("volumeRatio", volumeRatio)
         if (outcome != null) put("outcome", outcome)
         quality?.let { put("quality", it.json()) }
@@ -67,7 +68,8 @@ data class Signal(
             j.getJSONArray("events").objects().map { SignalEvent(it.getString("type"), it.getLong("at"), it.getDouble("price")) }.toMutableList(),
             j.optInt("strategyVersion", 2), j.optString("breakType", "BOS"),
             j.optString("ruleVersion", ""),
-            if (j.has("volumeRatio") && !j.isNull("volumeRatio")) j.optDouble("volumeRatio").takeIf { it.isFinite() } else null
+            if (j.has("volumeRatio") && !j.isNull("volumeRatio")) j.optDouble("volumeRatio").takeIf { it.isFinite() } else null,
+            j.optString("ruleSpec", "")
         )
     }
 }
