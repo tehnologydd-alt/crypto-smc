@@ -7,13 +7,13 @@ $StorageDirectory = [IO.Path]::GetFullPath($StorageDirectory)
 $pidPath = Join-Path $StorageDirectory 'server.pid'
 $logPath = Join-Path $StorageDirectory 'server-error.log'
 $connectionPath = Join-Path $StorageDirectory 'connection.json'
-$pid = $null
+$orbitPid = $null
 if(Test-Path $pidPath) {
-    try { $pid=[int](Get-Content $pidPath -Raw) } catch {}
+    try { $orbitPid=[int](Get-Content $pidPath -Raw) } catch {}
 }
 $processAlive = $false
-if ($pid) {
-    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$pid" -ErrorAction SilentlyContinue
+if ($orbitPid) {
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$orbitPid" -ErrorAction SilentlyContinue
     $processAlive = [bool]($proc -and $proc.Name -ieq 'node.exe' -and $proc.CommandLine -match 'server\.js')
 }
 $socket = New-Object System.Net.Sockets.TcpClient
