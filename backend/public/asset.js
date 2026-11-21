@@ -8,7 +8,7 @@ const preview = params.has('preview');
 let market = params.get('market') === 'futures' ? 'futures' : 'spot';
 let interval = ['1m', '5m', '15m', '30m', '1h', '4h'].includes(params.get('interval')) ? params.get('interval') : '15m';
 let selectedId = params.get('signal') || null;
-let assetScope = 'current', chartAnchorAt = null; // null: latest; otherwise historical event
+let assetScope = 'current', chartAnchorAt = null, chartFocusPinned = false; // null: latest
 let asset = null, requestSerial = 0, hovered = -1, chartBars = [], chartLeft = 8, chartBarWidth = 1;
 const token = localStorage.getItem('orbit-token') || '';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -77,10 +77,11 @@ async function loadAsset() {
     const selected = selectedSignal();
     if (selectedId && selected) {
       assetScope = isFinished(selected) ? 'finished' : 'current';
-      if (chartAnchorAt === null) {
+      if (chartAnchorAt === null && !chartFocusPinned) {
         const anchor = journey(selected).entry?.at || selected.detectedAt;
         if (Number.isFinite(anchor) && anchor > 0) {
           chartAnchorAt = anchor;
+          chartFocusPinned = true;
           if (anchor < asset.candles[0]?.time || anchor > asset.candles.at(-1)?.end) {
             loadAsset();
             return;
@@ -132,6 +133,16 @@ function render() {
         'Актуальных сигналов нет. Завершённые сценарии находятся в соседней вкладке.'}</div>`;
   $('#chartWindow').textContent = chartAnchorAt == null ? 'Последние закрытые свечи'
     : `Историческое окно: ${date(chartAnchorAt)} · ${tfName[interval]}`;
+  const marked = selectedSignal(), trace = marked ? journey(marked) : null;
+  document.querySelectorAll('[data-focus]').forEach(button => {
+    button.disabled = button.dataset.focus !== 'now' && (!marked ||
+      button.dataset.focus === 'entry' && !trace.entry ||
+      button.dataset.focus === 'exit' && !trace.exit);
+    button.classList.toggle('active', (button.dataset.focus === 'now' && chartAnchorAt == null) ||
+      (button.dataset.focus !== 'now' && Number.isFinite(chartAnchorAt) &&
+        chartAnchorAt === (button.dataset.focus === 'start' ? marked?.detectedAt :
+          button.dataset.focus === 'entry' ? trace?.entry?.at : trace?.exit?.at)));
+  });
   renderSelectedSignal();
   const structure = asset.structure || { swings: [], breaks: [], imbalances: [] };
   $('#structureSummary').textContent = `Swing: ${structure.swings.length} · BOS: ${structure.breaks.filter(item => item.type !== 'CHoCH').length} · CHoCH: ${structure.breaks.filter(item => item.type === 'CHoCH').length} · OB: ${structure.breaks.filter(item => item.block).length} · FVG: ${structure.imbalances.length} за последние ${asset.candles.length} свечей`;
@@ -188,7 +199,15 @@ function drawChart() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
   const left = 8, right = 63, top = 14, priceBottom = 240, volumeTop = 255, volumeBottom = 296;
   const plotWidth = width - left - right;
-  chartBars = (asset?.candles || []).slice(-Math.max(25, Math.floor(plotWidth / 5)));
+  const available = asset?.candles || [], capacity = Math.max(25, Math.floor(plotWidth / 5));
+  if (chartAnchorAt == null) chartBars = available.slice(-capacity);
+  else {
+    const index = available.findIndex(c => chartAnchorAt >= c.time && chartAnchorAt <= c.end);
+    const candidate = index >= 0 ? index : available.findIndex(c => c.end >= chartAnchorAt);
+    const centered = candidate >= 0 ? candidate : available.length - 1;
+    const start = Math.max(0, Math.min(available.length - capacity, centered - Math.floor(capacity * .34)));
+    chartBars = available.slice(start, start + capacity);
+  }
   if (!chartBars.length) { ctx.fillStyle = '#8ca2b5'; ctx.fillText('Свечи пока недоступны', 20, 130); return; }
   chartLeft = left; chartBarWidth = plotWidth / chartBars.length;
   const signal = selectedSignal();
@@ -197,8 +216,9 @@ function drawChart() {
   const recentGaps = structure.imbalances.slice(-2);
   let min = Math.min(...chartBars.map(c => c.low)), max = Math.max(...chartBars.map(c => c.high));
   if (signal) {
-    const levels = [signal.entryLow, signal.entryHigh, signal.stop, ...signal.targets];
-    min = Math.min(min, ...levels); max = Math.max(max, ...levels);
+    const visiblePrices = (signal.events || []).filter(e => Number.isFinite(e.price) && e.price > 0 &&
+      chartBars.some(bar => e.at >= bar.time && e.at <= bar.end)).map(e => e.price);
+    if (visiblePrices.length) { min = Math.min(min, ...visiblePrices); max = Math.max(max, ...visiblePrices); }
   }
   for (const zone of [...recentBlocks.map(item => item.block), ...recentGaps]) {
     if (zone && Math.abs((zone.low + zone.high) / 2 - (min + max) / 2) / ((min + max) / 2) < .08) {
@@ -212,6 +232,8 @@ function drawChart() {
   function zone(low, high, start, fill, stroke, name, end = lastTime) {
     const upper = Math.max(top, y(high)), lower = Math.min(priceBottom, y(low));
     if (lower <= upper) return;
+    const timeframeMs = ({'1m':1,'5m':5,'15m':15,'30m':30,'1h':60,'4h':240}[interval] || 15) * 60000;
+    end = Math.min(end, start + 7 * timeframeMs); // short origin zone, not a full-width position
     if (end < firstTime || start > lastTime) return;
     const from = Math.max(left, Math.min(left + plotWidth - 12, x(start)));
     const to = Math.max(from + 3, Math.min(left + plotWidth, x(end)));
@@ -255,13 +277,48 @@ function drawChart() {
     ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 9px system-ui'; ctx.fillText((item.type === 'CHoCH' ? 'CHoCH' : 'BOS') + (item.direction === 'up' ? ' ↑' : ' ↓'), Math.max(left, to - 28), Math.max(top + 9, yy - 4));
   }
   if (signal) {
-    const lines = [['ENTRY', signal.entry, '#8ae8c4'], ['SL', signal.stop, '#ff9eae'], ...signal.targets.map((v, i) => [`TP${i + 1}`, v, '#c8df86'])];
-    for (const [name, value, color] of lines) {
-      const yy = y(value); if (yy < top || yy > priceBottom) continue;
-      ctx.setLineDash([4, 4]); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(left + plotWidth, yy); ctx.stroke(); ctx.setLineDash([]);
-      const labelY = Math.max(top + 8, Math.min(priceBottom - 2, yy - 3));
-      ctx.fillStyle = '#101a2b'; ctx.fillRect(left + 2, labelY - 9, 34, 12);
-      ctx.fillStyle = color; ctx.font = '9px system-ui'; ctx.fillText(name, left + 5, labelY);
+    const trace = journey(signal);
+    const events = trace.events.filter(e => Number.isFinite(e.at) && Number.isFinite(e.price) && e.price > 0);
+    const indexOf = at => chartBars.findIndex(bar => at >= bar.time && at <= bar.end);
+    const px = index => left + (index + .5) * chartBarWidth;
+    if (trace.entry) {
+      const lastAt = trace.exit?.at || chartBars.at(-1).end;
+      const points = [];
+      const entryIndex = indexOf(trace.entry.at);
+      if (entryIndex >= 0) points.push([px(entryIndex), y(trace.entry.price)]);
+      chartBars.forEach((bar, i) => {
+        if (bar.end > trace.entry.at && bar.end <= lastAt) points.push([px(i), y(bar.close)]);
+      });
+      if (trace.exit) {
+        const exitIndex = indexOf(trace.exit.at);
+        if (exitIndex >= 0) points.push([px(exitIndex), y(trace.exit.price)]);
+      }
+      if (points.length > 1) {
+        ctx.beginPath(); ctx.moveTo(...points[0]);
+        points.slice(1).forEach(p => ctx.lineTo(...p));
+        ctx.strokeStyle = '#86b9f3'; ctx.lineWidth = 2.3; ctx.stroke();
+      }
+    }
+    // Dated pins sit on the closed candle containing each recorded M1 event.
+    const palette = {
+      CREATED:['СТАРТ','#85c4fa'], ENTRY:['ВХОД','#83eac0'],
+      TP1:['TP1','#e9dc91'], TP2:['TP2','#e9dc91'], TP3:['ВЫХОД TP3','#83eac0'],
+      STOP:['СТОП','#ff93a9'], INVALIDATED:['ОТМЕНА','#aeb6c1'], EXPIRED:['ИСТЁК','#aeb6c1']
+    };
+    const initial = events.find(e => e.type === 'CREATED');
+    const plottedEvents = [...(initial ? [initial] : []),
+      ...events.filter(e => ['ENTRY','TP1','TP2','TP3','STOP','INVALIDATED','EXPIRED'].includes(e.type))];
+    for (const e of plottedEvents) {
+      const index = indexOf(e.at);
+      if (index < 0 || !palette[e.type]) continue;
+      const [title, color] = palette[e.type], xx = px(index), yy = y(e.price);
+      ctx.fillStyle = '#0d192c'; ctx.beginPath(); ctx.arc(xx,yy,6.5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle = color;ctx.beginPath();ctx.arc(xx,yy,4,0,Math.PI*2);ctx.fill();
+      ctx.font = 'bold 9px system-ui';const tw = ctx.measureText(title).width + 12;
+      const lx = Math.max(left,Math.min(left+plotWidth-tw,xx-tw/2));
+      const labelY = yy > top+23 ? yy-15 : yy+24;
+      ctx.fillStyle = '#0d192c';ctx.fillRect(lx,labelY-12,tw,15);
+      ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(title,lx+6,labelY-2);
     }
   }
   if (hovered >= 0 && hovered < chartBars.length) {
@@ -288,8 +345,11 @@ $('#assetSignals').addEventListener('click', event => {
   const signal = asset?.signals.find(s => s.id === id);
   if (!signal) return;
   selectedId = id;
-  if (interval !== signal.timeframe) { interval = signal.timeframe; syncTabs(); loadAsset(); }
-  else { syncTabs(); render(); }
+  assetScope = isFinished(signal) ? 'finished' : 'current';
+  interval = signal.timeframe;
+  chartAnchorAt = journey(signal).entry?.at || signal.detectedAt;
+  chartFocusPinned = true;
+  syncTabs(); render(); loadAsset();
   $('#selectedSignalPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 $('#selectedSignalPanel').addEventListener('click', async event => {
@@ -303,6 +363,27 @@ $('#selectedSignalPanel').addEventListener('click', async event => {
   try { const synced = await syncPreferences(preferences); $('#followHelp').textContent = synced ? 'Выбор синхронизирован с сервером.' : 'Выбор сохранён. Включите push в настройках.'; }
   catch (error) { $('#followHelp').textContent = `Сохранено на устройстве. Синхронизация: ${error.message}`; }
 });
-document.querySelectorAll('[data-market]').forEach(button => button.addEventListener('click', () => { market = button.dataset.market; selectedId = null; syncTabs(); loadAsset(); loadLargeTrades(); }));
+document.querySelectorAll('[data-market]').forEach(button => button.addEventListener('click', () => {
+  market = button.dataset.market; selectedId = null; chartAnchorAt = null; chartFocusPinned = false;
+  assetScope = 'current'; syncTabs(); loadAsset(); loadLargeTrades();
+}));
+document.querySelectorAll('[data-asset-scope]').forEach(button => button.addEventListener('click', () => {
+  assetScope = button.dataset.assetScope;
+  const selected = selectedSignal();
+  if (selected && isFinished(selected) !== (assetScope === 'finished')) {
+    selectedId = null; chartAnchorAt = null; chartFocusPinned = false; syncTabs(); loadAsset();
+  } else render();
+}));
+document.querySelectorAll('[data-focus]').forEach(button => button.addEventListener('click', () => {
+  if (button.disabled) return;
+  const trace = selectedSignal() ? journey(selectedSignal()) : null;
+  const selected = selectedSignal();
+  const focused = button.dataset.focus;
+  if (focused !== 'now' && !selected) return;
+  chartAnchorAt = focused === 'now' ? null : focused === 'start' ? selected.detectedAt :
+    focused === 'entry' ? trace.entry?.at : trace.exit?.at;
+  chartFocusPinned = true;
+  loadAsset();
+}));
 document.querySelectorAll('[data-interval]').forEach(button => button.addEventListener('click', () => { interval = button.dataset.interval; syncTabs(); loadAsset(); }));
 
