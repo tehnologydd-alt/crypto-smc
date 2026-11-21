@@ -25,6 +25,17 @@ object Binance {
                 row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble()) }.getOrNull()
         }.filter { it.end < now && listOf(it.open, it.high, it.low, it.close, it.volume).all(Double::isFinite) }
     }
+    /** Bootstrap or recovery ONLY: WS diffs must arrive before any strategy uses depth. */
+    fun depthRaw(market:String,symbol:String,limit:Int=1000):JSONObject {
+        require(market in listOf("spot","futures") &&
+            symbol.matches(Regex("[A-Z0-9]{2,16}USDT")) && limit in listOf(100,500,1000))
+        return JSONObject(get("${base(market)}/depth?symbol=$symbol&limit=$limit"))
+    }
+    @Deprecated("A lone REST snapshot is not synchronized research evidence")
+    fun orderBook(market:String,symbol:String):OrderBookSnapshot {
+        return BookDepth.parseRest(depthRaw(market,symbol,100),market,symbol,System.currentTimeMillis())
+            ?: throw IllegalStateException("Стакан Binance неполный или некорректный")
+    }
     fun ticker(market: String, symbol: String): JSONObject = JSONObject(get("${base(market)}/ticker/24hr?symbol=$symbol"))
     fun largeTrades(market: String, symbol: String): List<LargeTrade> {
         val path = if (market == "spot") "aggTrades" else "aggTrades"

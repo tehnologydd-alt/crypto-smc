@@ -46,10 +46,15 @@ if (Test-Path -LiteralPath $secretPath) {
 
 if (-not (Test-Path -LiteralPath $pfxPath)) { throw 'Сертификат отсутствует. Восстановите orbit-lan.pfx из резервной копии.' }
 if (Test-Path -LiteralPath $pidPath) {
-    $oldPid = [int](Get-Content -LiteralPath $pidPath -Raw)
-    if (Get-Process -Id $oldPid -ErrorAction SilentlyContinue) {
-        Write-Output "Orbit backup already running (PID $oldPid)."
-        return
+    $oldPid = 0
+    try { $oldPid = [int](Get-Content -LiteralPath $pidPath -Raw) } catch {}
+    if ($oldPid -gt 0) {
+        $existing = Get-CimInstance Win32_Process -Filter "ProcessId=$oldPid" -ErrorAction SilentlyContinue
+        if ($existing -and $existing.Name -ieq 'node.exe' -and
+            $existing.CommandLine -match 'server\.js') {
+            Write-Output "Orbit backup already running (PID $oldPid)."
+            return
+        }
     }
 }
 

@@ -3,11 +3,11 @@ const sigmoid = x => 1 / (1 + Math.exp(-Math.max(-20, Math.min(20, x))));
 const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
 
 export function newModel() {
-  return { version: 2, weights: Array(FEATURE_COUNT).fill(0), samples: 0, successes: 0, walkForward: [] };
+  return { version: 3, weights: Array(FEATURE_COUNT).fill(0), samples: 0, successes: 0, walkForward: [] };
 }
 
 export function validModel(model) {
-  return model?.version === 2 && Array.isArray(model.weights) && model.weights.length === FEATURE_COUNT &&
+  return model?.version === 3 && Array.isArray(model.weights) && model.weights.length === FEATURE_COUNT &&
     model.weights.every(Number.isFinite) && Number.isSafeInteger(model.samples) && model.samples >= 0 &&
     Number.isSafeInteger(model.successes) && model.successes >= 0 && model.successes <= model.samples &&
     Array.isArray(model.walkForward);
@@ -39,7 +39,7 @@ export function scoreSignal(model, features) {
 }
 
 export function learnFromOutcome(model, signal) {
-  if (!validModel(model) || signal.learned || !signal.quality || !Array.isArray(signal.features) || signal.features.length !== FEATURE_COUNT) return false;
+  if (!validModel(model) || signal.strategyVersion !== 3 || signal.learned || !signal.quality || !Array.isArray(signal.features) || signal.features.length !== FEATURE_COUNT) return false;
   const label = signal.hitTargets > 0 ? 1 : signal.state === 'STOPPED' ? 0 : null;
   if (label === null || !signal.features.every(Number.isFinite)) return false;
   // The prediction was frozen when the signal was created, before its outcome.

@@ -23,7 +23,7 @@ class LocalNotifier(private val context: Context, private val prefs: Preferences
         val pending = PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = android.app.Notification.Builder(context, "signals")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("$title · ${signal.symbol}")
+            .setContentTitle("$title · ${signal.symbol} · ${signal.ruleVersion.ifBlank { "SMC v3" }}")
             .setContentText("${if (signal.market == "spot") "Спот" else "Фьючерсы"} · ${signal.timeframe} · ${signal.side} · ${"%.4f".format(event.price)} USDT")
             .setContentIntent(pending).setAutoCancel(true).build()
         manager.notify(requestCode, notification)

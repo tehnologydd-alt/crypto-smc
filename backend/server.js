@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, resolve, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectSignal, advanceSignalWithCandle } from './strategy.js';
+import { DEFAULT_SYMBOLS, MARKETS, TIMEFRAMES, parseKlines, detectResearchSignals, advanceSignalWithCandle } from './strategy.js';
 import { scoreSignal, modelSummary } from './learning.js';
+import { LiveDepthRegistry, depthStreamUrl } from './live-depth.js';
 import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
 import { normalizePreferences, shouldNotify } from './notifications.js';
@@ -63,7 +64,7 @@ function persist() {
   }, 250);
 }
 function label(signal, event) {
-  const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side}`;
+  const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.ruleVersion || 'SMC v3'}`;
   const names = { CREATED: 'Новый сигнал', ENTRY: 'Цена вошла в зону входа', TP1: 'Достигнут TP1', TP2: 'Достигнут TP2', TP3: 'Достигнут TP3', STOP: 'Достигнут стоп', INVALIDATED: 'Сигнал отменён', EXPIRED: 'Сигнал истёк', DATA_GAP: 'Пробел в данных' };
   const url = `/asset.html?symbol=${encodeURIComponent(signal.symbol)}&market=${encodeURIComponent(signal.market)}&interval=${encodeURIComponent(signal.timeframe || '1h')}&signal=${encodeURIComponent(signal.id)}`;
   return { title: `${prefix}: ${names[event.type] || event.type}`, body: `Цена: ${formatPrice(event.price)} USDT`, id: signal.id, url };
@@ -135,6 +136,50 @@ async function fetchTicker(market, symbol) {
   const raw = await response.json();
   return { changePercent: Number(raw.priceChangePercent), high: Number(raw.highPrice), low: Number(raw.lowPrice), volume: Number(raw.volume), quoteVolume: Number(raw.quoteVolume) };
 }
+// REST initializes/rebuilds sequence-checked WebSocket books; it does not
+// produce signal evidence directly. Retain enough levels for live top-100 changes.
+async function fetchDepthBootstrap(market,symbol) {
+  const base=market==='spot'?'https://data-api.binance.vision/api/v3/depth':
+    'https://fapi.binance.com/fapi/v1/depth';
+  const url=new URL(base);
+  url.searchParams.set('symbol',symbol);url.searchParams.set('limit','1000');
+  rateBudget.reserve(market,20);
+  const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
+  rateBudget.observe(market,response);
+  if(!response.ok)throw Error('Binance depth bootstrap HTTP '+response.status);
+  return response.json();
+}
+const depthRegistry=new LiveDepthRegistry({fetchSnapshot:fetchDepthBootstrap});
+const depthSockets=new Map(),depthTimers=new Map();
+const depthGenerations={spot:0,futures:0};
+const depthFeeds={spot:'connecting',futures:'connecting'};
+function connectDepth(market) {
+  const generation=++depthGenerations[market];
+  clearTimeout(depthTimers.get(market));
+  depthSockets.get(market)?.close();
+  depthRegistry.reconnect(market);
+  depthFeeds[market]='connecting';
+  const streams=state.symbols.map(symbol=>symbol.toLowerCase()+'@depth').join('/');
+  const ws=new WebSocket(depthStreamUrl(market,streams));
+  depthSockets.set(market,ws);
+  ws.addEventListener('open',()=>{if(depthSockets.get(market)===ws)
+    depthFeeds[market]='live';});
+  ws.addEventListener('message',event=>{
+    if(depthSockets.get(market)!==ws||depthGenerations[market]!==generation)return;
+    try{
+      const update=JSON.parse(event.data).data;
+      if(update?.e==='depthUpdate'&&state.symbols.includes(update.s))
+        depthRegistry.ingest(market,update);
+    }catch(error){state.errors['depth:'+market]='Depth WS: '+error.message;}
+  });
+  ws.addEventListener('error',()=>{if(depthSockets.get(market)===ws)
+    depthFeeds[market]='offline';});
+  ws.addEventListener('close',()=>{
+    if(depthSockets.get(market)!==ws||depthGenerations[market]!==generation)return;
+    depthFeeds[market]='offline';depthRegistry.invalidate(market);
+    depthTimers.set(market,setTimeout(()=>connectDepth(market),5000));
+  });
+}
 async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
   const errorKey = `${key(market, symbol)}:${timeframe}`;
   try {
@@ -143,13 +188,39 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
       if (attempt < 2) { setTimeout(() => void scanSignal(market, symbol, timeframe, expectedEnd, attempt + 1), 3000); return; }
       throw new Error('Закрытая свеча ещё не доступна');
     }
-    const signal = detectSignal(candles, market, symbol, timeframe);
-    if (signal && !state.signals.some(s => s.id === signal.id) && !state.signals.some(s => s.market === market && s.symbol === symbol && (s.timeframe || '1h') === timeframe && ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state))) {
-      signal.quality = scoreSignal(state.model, signal.features);
+    // Use an independently closed HTF snapshot; never use a forming HTF candle.
+    const parentTf = { '5m':'1h', '15m':'1h', '30m':'1h', '1h':'4h', '4h':'1d' }[timeframe];
+    // HTF outages must not block v0.1 and v0.2; only v0.3 requires HTF.
+    let parentBars = [];
+    try {
+      parentBars = (await fetchKlines(market, symbol, parentTf, { limit: 120 }))
+        .filter(bar => bar.end <= expectedEnd);
+      delete state.errors[errorKey+':htf'];
+    } catch (error) {
+      state.errors[errorKey+':htf'] = 'Старший таймфрейм недоступен: '+error.message;
+    }
+    const base = detectResearchSignals(candles,market,symbol,timeframe,parentBars,null,Date.now());
+    // No book requests when the structural strategy has no new candidate.
+    if (!base.length) { delete state.errors[errorKey+':depth']; delete state.errors[errorKey]; return; }
+    // Historic REST cannot substitute for missing live depth updates.
+    const live=depthRegistry.snapshot(market,symbol);
+    const bookSnapshot=live.status==='live' ? live:null;
+    if(!bookSnapshot)state.errors[errorKey+':depth']='WebSocket-стакан: '+live.status;
+    else delete state.errors[errorKey+':depth'];
+    const candidates=detectResearchSignals(candles,market,symbol,timeframe,parentBars,
+      bookSnapshot,Date.now());
+    for (const signal of candidates) {
+      const activeVersion = state.signals.some(s => s.market === market &&
+        s.symbol === symbol && (s.timeframe || '1h') === timeframe &&
+        s.ruleVersion === signal.ruleVersion &&
+        ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
+      if (activeVersion || state.signals.some(s => s.id === signal.id)) continue;
+      signal.quality = scoreSignal(experience.ruleModels[signal.ruleVersion], signal.features);
       experience.saveSignal(signal);
       state.signals.unshift(signal);
       if (state.signals.length > 500) {
-        const oldestClosed = state.signals.findLastIndex(s => !['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
+        const oldestClosed = state.signals.findLastIndex(s =>
+          !['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
         if (oldestClosed >= 0) state.signals.splice(oldestClosed, 1);
       }
       persist(); void notifyEvents(signal, 0);
@@ -271,7 +342,12 @@ function lanPeer(address) {
 function mobileState() { return {
   serverId: experience.id,
   symbols: state.symbols, signals: state.signals, prices: state.prices,
-  model: modelSummary(state.model), updatedAt: state.updatedAt,
+  orderBooks: depthRegistry.list(state.symbols), depthFeeds,
+  model: modelSummary(state.model),
+  ruleModels: Object.fromEntries(Object.entries(experience.ruleModels).map(([key, model]) =>
+    [key, modelSummary(model)])),
+  ruleStatistics: experience.statistics().ruleComparisons,
+  updatedAt: state.updatedAt,
   limits: { binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length) }
 }; }
 const handleRequest = async (req, res) => {
@@ -281,6 +357,14 @@ const handleRequest = async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Неверный ключ доступа' });
       if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, mobileState());
+      if (req.method === 'GET' && url.pathname === '/api/order-books')
+        return json(res,200,{orderBooks:depthRegistry.list(state.symbols),updatedAt:Date.now()});
+      if (req.method === 'GET' && url.pathname.startsWith('/api/order-book/')) {
+        const symbol=decodeURIComponent(url.pathname.slice('/api/order-book/'.length)).toUpperCase();
+        if(!state.symbols.includes(symbol))return json(res,400,{error:'Неизвестный актив'});
+        return json(res,200,{symbol,spot:depthRegistry.snapshot('spot',symbol),
+          futures:depthRegistry.snapshot('futures',symbol),depthFeeds});
+      }
       if (req.method === 'GET' && url.pathname === '/api/limits') return json(res, 200, {
         binance: rateBudget.snapshot(), plan: usagePlan(state.symbols.length)
       });
@@ -305,7 +389,10 @@ const handleRequest = async (req, res) => {
           totalOutcomes: experience.summary().outcomes };
         return json(res, 200, includeState ? { ...mobileState(), sync } : { sync });
       }
-      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model), experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
+      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, { symbols: state.symbols, signals: state.signals, prices: state.prices, feeds: state.feeds, orderBooks:depthRegistry.list(state.symbols), depthFeeds, errors: state.errors, updatedAt: state.updatedAt, model: modelSummary(state.model),
+    ruleModels: Object.fromEntries(Object.entries(experience.ruleModels).map(([key, model]) =>
+      [key, modelSummary(model)])),
+    experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
       if (req.method === 'GET' && url.pathname.startsWith('/api/large-trades/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/large-trades/'.length)).toUpperCase();
         const market = url.searchParams.get('market') || 'spot';
@@ -317,12 +404,20 @@ const handleRequest = async (req, res) => {
         const market = url.searchParams.get('market') || 'spot';
         const interval = url.searchParams.get('interval') || '15m';
         if (!state.symbols.includes(symbol) || !MARKETS.includes(market) || !['1m', ...Object.keys(TIMEFRAMES)].includes(interval)) return json(res, 400, { error: 'Неверная пара, рынок или таймфрейм' });
-        const [candlesResult, tickerResult] = await Promise.allSettled([fetchKlines(market, symbol, interval, { limit: 150 }), fetchTicker(market, symbol)]);
+        const rawStart = url.searchParams.get('startTime');
+        const startTime = rawStart === null ? null : Number(rawStart);
+        if (rawStart !== null && (!/^\d{12,13}$/.test(rawStart) ||
+            !Number.isSafeInteger(startTime) || startTime <= 0 || startTime > Date.now()))
+          return json(res, 400, { error: 'Неверное время начала исторического окна' });
+        const options = { limit: 150 };
+        if (startTime !== null) options.startTime = startTime;
+        const [candlesResult, tickerResult] = await Promise.allSettled([fetchKlines(market, symbol, interval, options), fetchTicker(market, symbol)]);
         if (candlesResult.status === 'rejected') return json(res, 502, { error: candlesResult.reason.message });
         return json(res, 200, { symbol, market, interval, candles: candlesResult.value,
           structure: analyzeStructure(candlesResult.value),
           ticker: tickerResult.status === 'fulfilled' ? tickerResult.value : null,
           lastM1: state.prices[key(market, symbol)] || null,
+          orderBooks: {spot:depthRegistry.snapshot('spot',symbol),futures:depthRegistry.snapshot('futures',symbol)},
           signals: state.signals.filter(s => s.market === market && s.symbol === symbol),
           warning: tickerResult.status === 'rejected' ? tickerResult.reason.message : null });
       }
@@ -331,7 +426,8 @@ const handleRequest = async (req, res) => {
         const symbols = [...new Set((body.symbols || []).map(s => String(s).trim().toUpperCase()))];
         if (!symbols.length || symbols.length > 10 || symbols.some(s => !/^[A-Z0-9]{2,16}USDT$/.test(s))) return json(res, 400, { error: 'Укажите от 1 до 10 разных пар к USDT' });
         state.symbols = symbols; persist();
-        for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); }
+        for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
+        depthRegistry.prune(symbols);
         return json(res, 200, { symbols });
       }
       if (req.method === 'POST' && url.pathname === '/api/subscription') {
@@ -362,7 +458,7 @@ const handleRequest = async (req, res) => {
     }
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
     const file = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
-    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'style.css', 'asset.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
+    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'signal-journey.js', 'style.css', 'asset.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
     const content = await readFile(join(base, 'public', file));
     res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': file === 'sw.js' ? 'no-cache' : 'max-age=60', 'X-Content-Type-Options': 'nosniff' });
     res.end(content);
@@ -371,7 +467,7 @@ const handleRequest = async (req, res) => {
 const server = tlsPfxPath ? https.createServer({ pfx: readFileSync(tlsPfxPath), passphrase: tlsPfxPassword }, handleRequest)
   : http.createServer(handleRequest);
 server.listen(port, host, () => console.log(`Crypto Signals: ${tlsPfxPath ? 'https' : 'http'}://${host}:${port}`));
-for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); }
+for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
 setInterval(persist, 30000);
 setInterval(() => {
   for (const market of MARKETS) {

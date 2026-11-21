@@ -1,5 +1,6 @@
 import { getPreferences, savePreferences, syncPreferences } from './notification-settings.js';
 import { initWakeLock, keepScreenOn, setKeepScreenOn } from './wake.js';
+import { journey, isFinished } from './signal-journey.js';
 const $ = selector => document.querySelector(selector);
 let data = null, filter = 'all', scope = 'all', tfFilter = 'all', activeDetail = null;
 let demoSignalPrices = {};
@@ -9,6 +10,7 @@ let pushEnabled = false;
 let pushChecked = false;
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const num = value => Number(value).toLocaleString('en-US', { maximumFractionDigits: Number(value) < 1 ? 6 : Number(value) < 100 ? 4 : 2 });
+const compact = value => Number.isFinite(Number(value)) ? Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(Number(value)) : '—';
 const time = value => new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const statusName = { WAITING: 'Ожидает вход', OPEN: 'В работе', STOPPED: 'Стоп', COMPLETED: 'TP3 достигнут', CANCELLED: 'Отменён', EXPIRED: 'Истёк', UNCERTAIN: 'Проверьте вручную' };
 const tfName = { '5m': 'M5', '15m': 'M15', '30m': 'M30', '1h': 'H1', '4h': 'H4' };
@@ -63,27 +65,94 @@ function outcome(signal) {
   if (signal.state === 'STOPPED') return 'outcome-red';
   return 'outcome-gray';
 }
+function smallBook(book,label) {
+  const live=book?.status==='live' && (book.ageMs??Infinity)<=10000;
+  if(!live)return `<div class="asset-book-foot offline"><b>${label} · стакан</b><span>${safe(book?.status==='stale'?'устарел':'синхронизация')}</span></div>`;
+  const bid=Math.round(book.imbalance*100),ask=100-bid;
+  return `<div class="asset-book-foot"><b>${label} · WS</b>
+    <span><em>Bid ${compact(book.bidUsdt)} (${bid}%)</em> /
+      <i>Ask ${compact(book.askUsdt)} (${ask}%)</i></span>
+    <small>${Math.round(book.ageMs/1000)}с · ${book.levels} ур.</small></div>`;
+}
 function assetCard(symbol) {
   const spot = data.prices[`spot:${symbol}`]?.price;
   const futures = data.prices[`futures:${symbol}`]?.price;
   const active = data.signals.filter(s => s.symbol === symbol && ['WAITING', 'OPEN'].includes(s.state)).length;
   const href = `/asset.html?symbol=${encodeURIComponent(symbol)}${previewMode ? '&preview=1' : ''}`;
-  return `<a class="asset-card" href="${href}"><div class="asset-card-top"><div class="asset-icon">${safe(symbol[0])}</div><div><strong>${safe(symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${active ? `${active} активн. сигналов` : 'Обзор рынка'}</span></div><b>↗</b></div><div class="asset-prices"><div><span>СПОТ · M1</span><strong>${spot ? num(spot) : '—'}</strong></div><div><span>ФЬЮЧЕРСЫ · M1</span><strong>${futures ? num(futures) : '—'}</strong></div></div></a>`;
+  return `<a class="asset-card" href="${href}"><div class="asset-card-top"><div class="asset-icon">${safe(symbol[0])}</div><div><strong>${safe(symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${active ? `${active} активн. сигналов` : 'Обзор рынка'}</span></div><b>↗</b></div>
+    <div class="asset-prices"><div><span>СПОТ · M1</span><strong>${spot ? num(spot) : '—'}</strong></div><div><span>ФЬЮЧЕРСЫ · M1</span><strong>${futures ? num(futures) : '—'}</strong></div></div>
+    <div class="asset-book-preview" data-symbol="${safe(symbol)}">
+      ${smallBook(data.orderBooks?.[`spot:${symbol}`],'Спот')}
+      ${smallBook(data.orderBooks?.[`futures:${symbol}`],'Фьючерсы')}
+    </div></a>`;
 }
+
 function card(signal) {
   const current = priceFor(signal);
   const positive = signal.state === 'COMPLETED' || signal.hitTargets > 0;
   const step = signal.state === 'WAITING' ? 'РЕТЕСТ ЗОНЫ' : signal.state === 'OPEN' ? `${signal.hitTargets}/3 ЦЕЛИ` : statusName[signal.state]?.toUpperCase();
+  const version = signal.ruleVersion ? `Правила ${safe(signal.ruleVersion)} · ` : 'Прежние правила · ';
+  const book = signal.ruleSnapshot?.book || signal.bookEvidence;
+  const bookNote = book ? `<div class="quality">Стакан bid ${num(book.bidUsdt)} / ask ${num(book.askUsdt)} USDT · bid ${Math.round(book.imbalance*100)}% · ${time(book.capturedAt)}</div>` : '';
   const quality = signal.quality?.trusted ? `<div class="quality ${signal.quality.recommended ? 'good' : 'weak'}">Оценка модели: ${Math.round(signal.quality.probability * 100)}% · ${signal.quality.recommended ? 'приоритетный' : 'низкий приоритет'}</div>` : `<div class="quality">Модель собирает результаты</div>`;
   return `<button class="signal-card ${safe(signal.state.toLowerCase())} ${outcome(signal)}" data-id="${safe(signal.id)}">
-    <div class="card-top"><div class="pair-icon">${safe(signal.symbol.slice(0, 1))}</div><div class="pair"><strong>${safe(signal.symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${signal.market === 'spot' ? 'Спот' : 'USDT-M фьючерсы'} · ${safe(tfName[signal.timeframe] || 'H1')} · ${time(signal.detectedAt)}</span></div><span class="side ${signal.side.toLowerCase()}">${signal.side === 'LONG' ? '↗ LONG' : '↘ SHORT'}</span></div>
+    <div class="card-top"><div class="pair-icon">${safe(signal.symbol.slice(0, 1))}</div><div class="pair"><strong>${safe(signal.symbol.replace('USDT', ''))}<small>/USDT</small></strong><span>${signal.market === 'spot' ? 'Спот' : 'USDT-M фьючерсы'} · ${safe(tfName[signal.timeframe] || 'H1')} · ${time(signal.detectedAt)}</span><span>${version}${safe(statusName[signal.state] || signal.state)}</span></div><span class="side ${signal.side.toLowerCase()}">${signal.side === 'LONG' ? '↗ LONG' : '↘ SHORT'}</span></div>
     <div class="card-values"><div><span>Вход</span><strong>${num(signal.entry)}</strong></div><div><span>M1 close</span><strong>${current ? num(current.price) : '—'}</strong></div><div><span>Стоп</span><strong>${num(signal.stop)}</strong></div></div>
-    <div class="card-bottom"><span class="status ${positive ? 'positive' : ''}"><i></i>${safe(statusName[signal.state] || signal.state)}</span><span>${safe(step)} →</span></div>${quality}
+    <div class="card-bottom"><span class="status ${positive ? 'positive' : ''}"><i></i>${safe(statusName[signal.state] || signal.state)}</span><span>${safe(step)} →</span></div>${quality}${bookNote}
   </button>`;
 }
 function renderStatistics(stats) {
   if (!stats) return;
   const { totals, newStrategy } = stats;
+  const variants = stats.ruleComparisons?.versions || [];
+  const archived = (stats.ruleComparisons?.archivedVersions || []).filter(r=>r.signals>0);
+  const allComparable = variants.length === 3 && variants.every(row => row.resolved >= 30);
+  const maxObserved = allComparable ? variants.reduce((best,row)=>
+    row.successRate > best.successRate ? row : best,variants[0]) : null;
+  const percent = value => value == null ? '—' : (100 * value).toFixed(1) + '%';
+  const fraction = (n,d) => d > 0 ? Math.round(n / d * 100) : 0;
+  $('#ruleComparison').innerHTML = variants.length ? `
+    <div class="rule-comparison-chart">
+      ${variants.map(r=>`<div class="rule-compare-row">
+        <strong>${safe(r.key)}</strong>
+        <div class="rule-track"><i style="width:${fraction(r.successful,r.resolved)}%"></i></div>
+        <b>${percent(r.successRate)}</b><small>${r.successful}/${r.resolved}</small>
+      </div>`).join('')}
+    </div>
+    <p class="muted">${allComparable
+      ? `Наибольшая наблюдаемая доля TP1: ${safe(maxObserved.key)}. Фильтры выбирают разные сигналы: это ещё не доказательство преимущества.`
+      : 'До предварительного сравнения нужно не менее 30 разрешённых входов каждой версии. Лидера пока не определяем.'}</p>
+    <div class="rule-grid">${variants.map(r=>{
+      const model = data?.ruleModels?.[r.key] || {};
+      const brier = r.modelBrier == null ? '—' : Number(r.modelBrier).toFixed(3);
+      const base = r.baselineBrier == null ? '—' : Number(r.baselineBrier).toFixed(3);
+      const val = model.validationSamples || 0, samples = model.samples || 0;
+      return `<article class="rule-stat">
+        <div class="rule-name"><b>${safe(r.key)}</b><strong>${safe(r.title)}</strong></div>
+        <div class="rule-facts">
+          <div><span>Сигналов</span><strong>${r.signals}</strong></div>
+          <div><span>Входов</span><strong>${r.entered}</strong></div>
+          <div><span>Исходов</span><strong>${r.resolved}</strong></div>
+          <div><span>TP1</span><strong>${r.tp1}</strong></div>
+          <div><span>TP2</span><strong>${r.tp2}</strong></div>
+          <div><span>TP3</span><strong>${r.tp3}</strong></div>
+          <div><span>Стопов</span><strong>${r.stopped}</strong></div>
+          <div><span>Успех TP1</span><strong>${percent(r.successRate)}</strong></div>
+        </div>
+        <div class="rule-model">
+          <div><span>Обучение</span><b>${samples} исходов</b></div>
+          <div><span>Проверка</span><b>${val} исходов</b></div>
+          <div><span>Brier модели / база</span><b>${brier} / ${base}</b></div>
+        </div>
+        <small>${r.resolved < 30 ? `Предварительная выборка: ${r.resolved}/30` : 'Выборка достигла порога предварительной оценки'}</small>
+      </article>`;
+    }).join('')}</div>
+    <p class="muted">D2 анализирует синхронизированный WebSocket-стакан Binance Spot / USDT-M: 100 уровней bid/ask в USDT, минимум 10 секунд наблюдения, устойчивость дисбаланса и непрерывные номера обновлений. REST используется только для начальной синхронизации или восстановления. Старые REST/объёмные правила находятся в архиве. Метрики наблюдательные, без комиссий.</p>
+    ${archived.length ? `<details class="rule-archive"><summary>Архив прежних правил (${archived.reduce((n,r)=>n+r.signals,0)} сигналов)</summary>
+      ${archived.map(r=>`<div class="asset-stat-row"><strong>${safe(r.key)} · ${safe(r.title)}</strong>
+       <span>${r.signals} сигналов · ${r.resolved} исходов · TP1 ${percent(r.successRate)}</span></div>`).join('')}
+      </details>` : ''}
+  ` : '<p class="muted">Сравнение появится после начала накопления сигналов новых версий.</p>';
   const pct = value => value == null ? '—' : `${Math.round(value * 100)}%`;
   $('#statSignals').textContent = totals.signals;
   $('#statEntries').textContent = totals.entered;
@@ -125,9 +194,9 @@ function render() {
   $('#experienceText').textContent = `Реальная база опыта: ${data.experience?.signals || 0} сигналов, ${data.experience?.outcomes || 0} исходов для модели. Записи сохраняются после перезапуска.`;
   $('#assetsGrid').innerHTML = data.symbols.map(assetCard).join('');
   const selectedIds = new Set(getPreferences().selectedIds);
-  const signals = data.signals.filter(s => (filter === 'all' || s.market === filter) && (tfFilter === 'all' || (s.timeframe || '1h') === tfFilter) && (scope === 'all' || (scope === 'marked' ? selectedIds.has(s.id) : finishedStates.has(s.state))));
-  $('#signalsCount').textContent = data.signals.length;
-  const emptyText = scope === 'marked' ? 'Выберите сигнал в его карточке или обзоре актива, чтобы он появился здесь.' : scope === 'finished' ? 'Завершённые сигналы появятся после TP3, стопа, отмены или истечения.' : `Сервер проверяет закрытые свечи M5–H4 для ${data.symbols.length} активов. Выполнение отслеживается по M1.`;
+  const signals = data.signals.filter(s => (filter === 'all' || s.market === filter) && (tfFilter === 'all' || (s.timeframe || '1h') === tfFilter) && (scope === 'all' ? !isFinished(s) : scope === 'marked' ? selectedIds.has(s.id) : isFinished(s)));
+  $('#signalsCount').textContent = data.signals.filter(s => !isFinished(s)).length;
+  const emptyText = scope === 'marked' ? 'Выберите сигнал в его карточке или обзоре актива, чтобы он появился здесь.' : scope === 'finished' ? 'Завершённые сигналы появятся после TP3, стопа, отмены или истечения.' : `Актуальных сигналов нет. Завершённые сценарии находятся во вкладке «Завершённые».`;
   $('#signals').innerHTML = signals.length ? signals.map(card).join('') : `<div class="empty"><div class="empty-orbit">◌</div><strong>Пока нет сигналов</strong><p>${emptyText}</p></div>`;
   renderStatistics(data.statistics);
   if (document.activeElement !== $('#symbolsInput')) $('#symbolsInput').value = data.symbols.join(', ');
@@ -145,14 +214,21 @@ function showDetail(id, open = true) {
   const s = data?.signals.find(x => x.id === id);
   if (!s) return;
   activeDetail = id;
+  const trace = journey(s);
+  const pathSummary = `<div class="detail-grid">
+    <div><span>Начало сигнала</span><strong>${time(s.detectedAt)}</strong></div>
+    <div><span>Точка входа</span><strong>${trace.entry ? time(trace.entry.at) + ' · ' + num(trace.entry.price) : 'не было'}</strong></div>
+    <div><span>Завершение</span><strong>${trace.exit ? time(trace.exit.at) + ' · ' + num(trace.exit.price) : trace.result}</strong></div>
+    <div><span>Изменение цены</span><strong>${trace.percent == null ? '—' : (trace.percent>=0 ? '+' : '') + trace.percent.toFixed(2) + '%'}</strong></div>
+  </div>`;
   const events = s.events.map(e => `<div class="timeline-row"><div class="timeline-dot"></div><div><strong>${safe(eventName[e.type] || e.type)}</strong><span>${time(e.at)} · ${num(e.price)} USDT</span></div></div>`).reverse().join('');
-  $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
+  $('#detailContent').innerHTML = `<div class="detail-eyebrow">${s.market === 'spot' ? 'BINANCE SPOT' : 'BINANCE USDT-M'} · ${safe(tfName[s.timeframe] || 'H1')} · ${s.ruleVersion ? 'Правила ' + safe(s.ruleVersion) : 'SMC v3 (архив)'}</div><h2>${safe(s.symbol)} <span class="side ${s.side.toLowerCase()}">${safe(s.side)}</span></h2><p class="detail-status">${safe(statusName[s.state])} · контроль по M1</p>
     <div class="detail-grid"><div><span>Зона входа</span><strong>${num(s.entryLow)} – ${num(s.entryHigh)}</strong></div><div><span>Расчётный вход</span><strong>${num(s.entry)}</strong></div><div><span>Стоп</span><strong>${num(s.stop)}</strong></div><div><span>Риск на единицу</span><strong>${num(Math.abs(s.entry - s.stop))}</strong></div></div>
     <div class="targets">${s.targets.map((tp, i) => `<div class="target ${i < s.hitTargets ? 'reached' : ''}"><span>TP${i + 1} <small>${i + 1}R</small></span><strong>${num(tp)}</strong><b>${i < s.hitTargets ? '✓' : '○'}</b></div>`).join('')}</div>
     <p class="detail-quality">${s.quality?.trusted ? `Оценка модели при создании: ${Math.round(s.quality.probability * 100)}%. ${s.quality.recommended ? 'Приоритетный сигнал.' : 'Низкий приоритет; уведомления приглушены.'}` : 'Оценка модели пока обучается. Сигнал создан базовыми правилами.'}</p>
     <button class="primary-button outline follow-detail" type="button" data-follow="${safe(s.id)}">${getPreferences().selectedIds.includes(s.id) ? '✓ Отмечен · убрать' : '☆ Отметить сигнал'}</button>
     <a class="primary-button detail-chart-link" href="/asset.html?symbol=${encodeURIComponent(s.symbol)}&market=${encodeURIComponent(s.market)}&interval=${encodeURIComponent(s.timeframe)}&signal=${encodeURIComponent(s.id)}${previewMode ? '&preview=1' : ''}">Показать на графике актива</a>
-    <div class="timeline"><h3>История сигнала</h3>${events}</div>${s.state === 'UNCERTAIN' ? `<button class="primary-button archive-button" data-archive="${safe(s.id)}">Архивировать после проверки</button>` : ''}<p class="detail-note">Уровни рассчитаны по свече ордер-блока и ATR. Касание цены не подтверждает исполнение биржевого ордера.</p>`;
+    ${pathSummary}<div class="timeline"><h3>История сигнала</h3>${events}</div>${s.state === 'UNCERTAIN' ? `<button class="primary-button archive-button" data-archive="${safe(s.id)}">Архивировать после проверки</button>` : ''}<p class="detail-note">Уровни рассчитаны по свече ордер-блока и ATR. Касание цены не подтверждает исполнение биржевого ордера.</p>`;
   if (open) $('#detailDialog').showModal();
 }
 async function refresh() {

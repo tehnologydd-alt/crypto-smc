@@ -1,0 +1,44 @@
+name: Cloudflare depth collector smoke check
+
+on:
+  pull_request:
+    branches: ['review/android-apk']
+  workflow_dispatch:
+  push:
+    branches: ['feature/market-structure-v3']
+    paths:
+      - 'cloudflare/**'
+      - '.github/workflows/cloud-depth-health.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  depth-health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Check public Worker health and real Binance depth
+        env:
+          URL: https://orbit-signals-depth.apex9-research-lab.workers.dev
+        run: |
+          set -euo pipefail
+          echo 'Binance REST and WebSocket handshake diagnostics:'
+          curl -fsS --connect-timeout 8 --max-time 35 "$URL/health?probe=1" | jq -c '.probe // {error:"probe unavailable"}'
+          ok=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if curl -fLsS --connect-timeout 8 --max-time 20 "$URL/health" -o /tmp/orbit-health.json; then
+              jq -c '{service,streams,quota}' /tmp/orbit-health.json
+              if jq -e '(.streams.spot.live // 0) > 0 and (.streams.futures.live // 0) > 0' /tmp/orbit-health.json >/dev/null; then
+                ok=1
+                break
+              fi
+            fi
+            sleep 15
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "Cloudflare Worker deployed but real Spot + Futures feeds not both verified"
+            exit 1
+          fi
+          curl -fLsS --connect-timeout 8 --max-time 20 "$URL/api/order-books" -o /tmp/orbit-books.json
+          jq -e '.orderBooks["spot:XRPUSDT"].status == "live" and .orderBooks["futures:XRPUSDT"].status == "live"' /tmp/orbit-books.json

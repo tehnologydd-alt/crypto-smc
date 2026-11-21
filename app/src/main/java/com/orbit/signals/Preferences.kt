@@ -38,6 +38,12 @@ class Preferences(context: Context) {
     var serverModel: String?
         get() = prefs.getString("serverModel", null)
         set(value) { prefs.edit().putString("serverModel", value).apply() }
+    var serverRuleStatistics: String?
+        get() = prefs.getString("serverRuleStatistics", null)
+        set(value) { prefs.edit().putString("serverRuleStatistics", value).apply() }
+    var serverRuleModels: String?
+        get() = prefs.getString("serverRuleModels", null)
+        set(value) { prefs.edit().putString("serverRuleModels", value).apply() }
     var serverLimits: String?
         get() = prefs.getString("serverLimits", null)
         set(value) { prefs.edit().putString("serverLimits", value).apply() }

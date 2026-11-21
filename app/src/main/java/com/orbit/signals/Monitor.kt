@@ -14,13 +14,16 @@ object Monitor {
                 "Сервер: ${mode.lastError}"
             }
             val store = LocalStore(context); val prefs = Preferences(context); val notifier = LocalNotifier(context, prefs)
-            val model = store.model(); val errors = mutableListOf<String>()
+            val model = store.model()
+            val ruleModels = ResearchRules.keys.associateWith { store.ruleModel(it) }
+            val errors = mutableListOf<String>()
             var pairs = 0
             for (market in listOf("spot", "futures")) for (symbol in prefs.symbols) {
-                try { processPair(store, notifier, model, market, symbol); pairs++ }
+                try { processPair(store, notifier, model, ruleModels, market, symbol, errors); pairs++ }
                 catch (error: Exception) { errors += "$market $symbol: ${error.message}" }
             }
             store.saveModel(model)
+            for ((key, versionModel) in ruleModels) store.saveRuleModel(key, versionModel)
             prefs.lastRun = System.currentTimeMillis()
             store.close()
             val backup = if (RemoteBackend.configured(prefs)) runCatching { RemoteBackend.backup(context) } else null
@@ -31,7 +34,9 @@ object Monitor {
                 (backup?.getOrNull()?.let { "; передано на сервер $it" } ?: "")
         } finally { lock.unlock() }
     }
-    private fun processPair(store: LocalStore, notifier: LocalNotifier, model: Model, market: String, symbol: String) {
+    private fun processPair(store: LocalStore, notifier: LocalNotifier, model: Model,
+        ruleModels: Map<String, Model>, market: String, symbol: String,
+        errors: MutableList<String>) {
         val lastM1 = store.cursor("1m", market, symbol)
         val now = System.currentTimeMillis()
         val gap = lastM1 > 0 && now - lastM1 > 990 * 60_000L
@@ -63,13 +68,42 @@ object Monitor {
         candidates.sortWith(compareBy<Candidate> { it.candle.end }.thenBy { it.timeframe })
         var candidateIndex = 0
         val signals = store.signals(market, symbol).toMutableList()
+        val parentCache = mutableMapOf<String, List<Candle>>()
         fun scan(candidate: Candidate) {
-            val signal = Strategy.detect(candidate.bars, market, symbol, candidate.timeframe)
-            if (signal != null && !store.signalExists(signal.id) && signals.none {
-                    it.timeframe == candidate.timeframe && it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
-                }) {
-                signal.quality = model.score(signal.features)
-                store.saveSignal(signal); signals += signal; signal.events.forEach { notifier.send(signal, it) }
+            val parentTf = when (candidate.timeframe) {
+                "5m", "15m", "30m" -> "1h"
+                "1h" -> "4h"
+                "4h" -> "1d"
+                else -> error("Неизвестный таймфрейм")
+            }
+            // A parent-TF outage cannot suppress the baseline v0.1 and v0.2 research arms.
+            val parent = parentCache.getOrPut(parentTf) {
+                runCatching { Binance.candles(market, symbol, parentTf, 120) }.getOrDefault(emptyList())
+            }.filter { it.end <= candidate.candle.end }
+            // The local monitor may use ONLY previously synchronized live WS depth.
+            // No REST snapshot is accepted as signal evidence; after background
+            // suspension v0.2-D2/v0.3-D2 remain absent rather than guessed.
+            val book=LiveDepthClient.snapshot(market,symbol)
+            val candidates = Strategy.detectVariants(candidate.bars,market,symbol,
+                candidate.timeframe,parent,book,System.currentTimeMillis())
+            // Enqueue a separate post-candle study. Never label later WS data
+            // as if it had existed at the time of the structural candle close.
+            val structural=candidates.firstOrNull{it.ruleVersion=="v0.1"}
+            if(structural!=null){
+                val breaking=MarketStructureEngine.analyze(candidate.bars).breaks.lastOrNull()
+                val htfAllowed=breaking!=null &&
+                    ContextRegimeFilter.evaluate(breaking,candidate.bars,parent,candidate.timeframe).allowed
+                store.queueDepth(structural,htfAllowed)
+            }
+            for (signal in candidates) {
+                if (store.signalExists(signal.id) || signals.any {
+                    it.timeframe == candidate.timeframe && it.ruleVersion == signal.ruleVersion &&
+                        it.state in listOf("WAITING", "OPEN", "UNCERTAIN")
+                }) continue
+                val versionModel = ruleModels[signal.ruleVersion] ?: continue
+                signal.quality = versionModel.score(signal.features)
+                store.saveSignal(signal); signals += signal
+                signal.events.forEach { notifier.send(signal, it) }
             }
             store.setCursor(candidate.timeframe, market, symbol, candidate.candle.end)
         }
@@ -78,7 +112,8 @@ object Monitor {
                 if (bar.end <= signal.detectedAt || bar.end <= (signal.events.lastOrNull()?.at ?: 0)) continue
                 val events = Strategy.advance(signal, bar)
                 if (events.isNotEmpty()) {
-                    model.learn(signal)
+                    if (signal.ruleVersion.isNotBlank()) ruleModels[signal.ruleVersion]?.learn(signal)
+                    else model.learn(signal)
                     store.saveSignal(signal)
                     events.forEach { notifier.send(signal, it) }
                 }

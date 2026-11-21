@@ -14,7 +14,7 @@ test('SQLite retains signals and learns each resolved outcome once across restar
     store = openExperienceStore(path);
     const features = [1, 2, .8, .5, 1.1, 0, 0, .4];
     const signal = { id: 'spot:BTCUSDT:15m:one:LONG', market: 'spot', symbol: 'BTCUSDT', timeframe: '15m', side: 'LONG',
-      detectedAt: 1000, updatedAt: 2000, state: 'OPEN', hitTargets: 1, features,
+      strategyVersion: 3, detectedAt: 1000, updatedAt: 2000, state: 'OPEN', hitTargets: 1, features,
       quality: scoreSignal(store.model, features), imbalance: { low: 100, high: 101 }, events: [{ type: 'TP1', at: 2000, price: 105 }] };
     store.saveSignal(signal);
     assert.equal(store.recordOutcome(signal), true);

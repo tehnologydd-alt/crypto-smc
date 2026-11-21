@@ -55,12 +55,37 @@ class MainActivity : Activity() {
     private var assetBars: List<Candle> = emptyList()
     private var chartVisibleCount = 90
     private var chartOffset = 0
+    private var chartAnchorAt: Long? = null // null: latest; timestamp: historical event window
+    private var chartFocusPending = false
     private var assetTicker: org.json.JSONObject? = null
     private var assetTrades: List<LargeTrade> = emptyList()
     private var assetError: String? = null
     private var assetRequest = 0
     private var contentScroll: ScrollView? = null
     private var renderedScreenKey: String? = null
+    // Keep visible controls alive across background polls. Recreate the page only
+    // for user navigation or a real change in signal lifecycle, never for each M1 tick.
+    private var displayedSignalStamp: String? = null
+    private val marketPriceViews = mutableMapOf<String, TextView>()
+    private val marketDepthViews = mutableMapOf<String,TextView>()
+    private val marketDepthBars=mutableMapOf<String,DepthBalanceView>()
+    private data class BookViews(val state:TextView,val values:TextView,
+        val change:TextView,val ladder:DepthLadderView,val balance:DepthBalanceView)
+    private val assetDepthViews=mutableMapOf<String,BookViews>()
+    private var marketLastUpdateView: TextView? = null
+    private var marketLearningLevelView: TextView? = null
+    private var marketTrainingView: TextView? = null
+    private var marketValidationView: TextView? = null
+    private var settingsLastCheckView: TextView? = null
+    private var assetLastPriceView: TextView? = null
+    private var assetTickerView: TextView? = null
+    private var assetWindowView: TextView? = null
+    private var assetStructureView: TextView? = null
+    private var assetErrorView: TextView? = null
+    private var assetChartView: ChartView? = null
+    private var assetBuyView: TextView? = null
+    private var assetSellView: TextView? = null
+    private var assetRecentTradesView: LinearLayout? = null
     private var resumed = false
     private data class Screen(
         val page: String,
@@ -94,8 +119,23 @@ class MainActivity : Activity() {
         show()
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); openIntent(intent); show() }
-    override fun onResume() { super.onResume(); resumed = true; handler.post(tick) }
-    override fun onPause() { resumed = false; handler.removeCallbacks(tick); super.onPause() }
+    private val depthTick = object:Runnable {
+        override fun run() {
+            if(!resumed)return
+            refreshDepthViews()
+            handler.postDelayed(this,2500)
+        }
+    }
+    override fun onResume() {
+        super.onResume();resumed=true
+        LiveDepthClient.start(listOfNotNull(assetSymbol)+prefs.symbols)
+        handler.post(tick);handler.post(depthTick)
+    }
+    override fun onPause() {
+        resumed=false;handler.removeCallbacks(tick);handler.removeCallbacks(depthTick)
+        LiveDepthClient.stop()
+        super.onPause()
+    }
     override fun onDestroy() {
         if (Build.VERSION.SDK_INT >= 33) systemBackCallback?.let { BackApi33.unregister(this, it) }
         store.close(); super.onDestroy()
@@ -110,6 +150,7 @@ class MainActivity : Activity() {
         backStack.addLast(currentScreen())
         assetSymbol = null
         selectedSignalId = null
+        chartAnchorAt = null
         page = destination
         show()
     }
@@ -120,11 +161,16 @@ class MainActivity : Activity() {
         market = selectedMarket
         timeframe = selectedFrame
         selectedSignalId = signalId
+        chartAnchorAt = signalId?.let { id ->
+            store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let(::signalAnchor)
+        }
+        chartFocusPending = chartAnchorAt != null
         assetSignalTab = signalId?.let { id ->
             store.signals(selectedMarket, symbol, prefs.mode).firstOrNull { it.id == id }?.let { assetBucket(it.state) }
         } ?: "waiting"
         assetBars = emptyList()
         chartVisibleCount = 90; chartOffset = 0
+        if(resumed)LiveDepthClient.start(listOf(symbol)+prefs.symbols)
         show()
         loadAsset()
     }
@@ -137,7 +183,13 @@ class MainActivity : Activity() {
         market = previous.market
         timeframe = previous.timeframe
         selectedSignalId = previous.selectedSignalId
+        chartAnchorAt = previous.selectedSignalId?.let { id ->
+            previous.assetSymbol?.let { symbol ->
+                store.signals(previous.market, symbol, prefs.mode).firstOrNull { it.id == id }?.let(::signalAnchor)
+            }
+        }
         assetBars = emptyList()
+        chartFocusPending = chartAnchorAt != null
         show()
         if (assetSymbol != null) loadAsset()
     }
@@ -147,6 +199,8 @@ class MainActivity : Activity() {
         store.signals(source = prefs.mode).firstOrNull { it.id == id }?.let {
             if (assetSymbol != it.symbol || selectedSignalId != it.id) backStack.addLast(currentScreen())
             assetSymbol = it.symbol; market = it.market; timeframe = it.timeframe; selectedSignalId = it.id
+            chartAnchorAt = signalAnchor(it)
+            chartFocusPending = true
             assetSignalTab = assetBucket(it.state)
             loadAsset()
         }
@@ -157,11 +211,16 @@ class MainActivity : Activity() {
     }
     private fun updateMarket() = thread(name = "orbit-market") {
         val result = runCatching { Monitor.run(applicationContext) }.getOrElse { it.message ?: "Ошибка мониторинга" }
-        runOnUiThread { if (!isFinishing && !isDestroyed) { if (assetSymbol == null || page == "settings") show(); if (result.contains("ошибок")) android.util.Log.w("Orbit", result) } }
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            refreshVisibleData()
+            if (result.contains("ошибок")) android.util.Log.w("Orbit", result)
+        }
     }
     private fun show() {
         val screenKey = "$page:${assetSymbol ?: ""}:$market"
         val restoreY = if (screenKey == renderedScreenKey) contentScroll?.scrollY ?: 0 else 0
+        resetLiveViews()
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
         root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
@@ -228,8 +287,172 @@ class MainActivity : Activity() {
             "signals" -> renderSignals(); "stats" -> renderStats(); "settings" -> renderSettings(); else -> renderMarket()
         }
         renderedScreenKey = screenKey
+        displayedSignalStamp = signalsStamp()
         if (restoreY > 0) scroll.post { scroll.scrollTo(0, restoreY) }
     }
+    private fun resetLiveViews() {
+        marketPriceViews.clear();marketDepthViews.clear();marketDepthBars.clear();assetDepthViews.clear()
+        marketLastUpdateView = null; marketLearningLevelView = null
+        marketTrainingView = null; marketValidationView = null
+        settingsLastCheckView = null
+        assetLastPriceView = null; assetTickerView = null
+        assetWindowView = null; assetStructureView = null
+        assetErrorView = null; assetChartView = null
+        assetBuyView = null; assetSellView = null; assetRecentTradesView = null
+    }
+
+    private fun signalsStamp(): String {
+        val source = prefs.mode
+        val signals = if (assetSymbol != null) store.signals(market, assetSymbol, source)
+            else if (page == "signals" || page == "stats") store.signals(source = source)
+            else return ""
+        return signals.joinToString("|") { signal ->
+            "${signal.id}:${signal.state}:${signal.hitTargets}:${signal.events.size}"
+        }
+    }
+
+    private fun refreshVisibleData() {
+        val stamp = signalsStamp()
+        // Finished/created/updated signals are uncommon; these are the only
+        // background events that can change the set or content of signal cards.
+        if (stamp != displayedSignalStamp && (assetSymbol != null ||
+                    page == "signals" || page == "stats")) {
+            assetSymbol?.let { symbol ->
+                selectedSignalId?.let { id ->
+                    store.signals(market, symbol, prefs.mode).firstOrNull { it.id == id }?.let {
+                        assetSignalTab = assetBucket(it.state)
+                    }
+                }
+            }
+            show()
+            return
+        }
+        if (assetSymbol != null) refreshAssetLiveViews()
+        else when (page) {
+            "market" -> refreshMarketLiveViews()
+            "settings" -> settingsLastCheckView?.text =
+                "Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}"
+        }
+    }
+
+    private fun refreshMarketLiveViews() {
+        for ((symbol, label) in marketPriceViews) {
+            label.text = "СПОТ  ${format(store.price("spot", symbol)?.first)}      " +
+                "ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}"
+        }
+        marketLastUpdateView?.text =
+            "Обновлено: ${if (prefs.lastRun == 0L) "ожидание" else date(prefs.lastRun)}"
+        if (marketLearningLevelView != null) {
+            val localModel = store.model()
+            val remoteModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
+            val samples = if (prefs.mode == "server") remoteModel?.optInt("samples") ?: 0 else localModel.samples
+            val validation = if (prefs.mode == "server") remoteModel?.optInt("validationSamples") ?: 0 else localModel.validation.size
+            val level = if (prefs.mode == "server") {
+                if (remoteModel?.optBoolean("trusted") == true) 3
+                else if (samples >= 50 && validation >= 30) 2
+                else if (samples >= 30) 1 else 0
+            } else localModel.level
+            marketLearningLevelView?.text = "УРОВЕНЬ $level/3  ·  " +
+                listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level.coerceIn(0, 3)]
+            marketTrainingView?.text = "Обучающие исходы: ${samples.coerceAtMost(30)}/30"
+            marketValidationView?.text = "Проверочные исходы: ${validation.coerceAtMost(30)}/30"
+        }
+    }
+
+    private fun refreshAssetLiveViews() {
+        val symbol = assetSymbol ?: return
+        assetLastPriceView?.text = format(store.price(market, symbol)?.first)
+        assetTickerView?.text = assetTicker?.let {
+            "24 ч: ${it.optString("priceChangePercent", "—")}%  ·  H " +
+                "${it.optString("highPrice", "—")}  L ${it.optString("lowPrice", "—")}"
+        } ?: "Данные 24 ч загружаются"
+        assetWindowView?.text = if (chartAnchorAt == null) "Текущие свечи" else
+            "История сигнала: окно вокруг ${date(chartAnchorAt!!)}"
+        assetErrorView?.apply {
+            val error = assetError
+            visibility = if (error == null) View.GONE else View.VISIBLE
+            text = error?.let { "Данные Binance: $it" } ?: ""
+        }
+        val structure = Strategy.structure(assetBars)
+        assetStructureView?.text = "SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · " +
+            "OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}"
+        assetChartView?.apply {
+            candles = assetBars
+            this.structure = structure
+            signal = store.signals(market, symbol, prefs.mode).firstOrNull { it.id == selectedSignalId }
+            visibleCount = chartVisibleCount
+            offset = chartOffset
+        }
+        val buys = assetTrades.filter { it.side == "buy" }
+        val sells = assetTrades.filter { it.side == "sell" }
+        assetBuyView?.text = "Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT"
+        assetSellView?.text = "Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT"
+        assetRecentTradesView?.let { list ->
+            val rows = assetTrades.take(4).map { trade ->
+                "${if (trade.side == "buy") "Покупка" else "Продажа"} " +
+                    "${compact(trade.usd)} · ${date(trade.at)}"
+            }
+            // Reuse TextViews; never replace the ScrollView or the chart.
+            while (list.childCount > rows.size) list.removeViewAt(list.childCount - 1)
+            rows.forEachIndexed { index, value ->
+                val row = if (index < list.childCount) list.getChildAt(index) as TextView
+                    else text("", 11, muted).also { list.addView(it) }
+                if (row.text.toString() != value) row.text = value
+            }
+        }
+    }
+
+    /** Update just the five TextViews per book; keep chart, scroll and tabs intact. */
+    private fun refreshDepthViews() {
+        fun change(value:Double?):String = if(value==null||!value.isFinite())"—"
+            else String.format(Locale.US,"%+.1f%%",value)
+        for ((key,label) in marketDepthViews) {
+            val pair=key.split(":")
+            if(pair.size!=2)continue
+            val data=LiveDepthClient.current(pair[0],pair[1])
+            val book=data.book
+            val title=if(pair[0]=="spot")"СПОТ" else "ФЬЮЧЕРСЫ"
+            val value=if(book!=null)
+                "$title · BID ${compact(book.bidUsdt)} / ASK ${compact(book.askUsdt)} USDT" +
+                    " · ${(book.imbalance*100).roundToInt()}% bid · WS ${(data.ageMs?:0)/1000}с"
+                else "$title · стакан: ${when(data.status) {
+                    "stale"->"устарел";"offline"->"нет связи";
+                    "error"->"ошибка: ${data.error?.take(56) ?: "нет данных"}"
+                    else->"синхронизация"
+                }}"
+            if(label.text.toString()!=value)label.text=value
+            marketDepthBars[key]?.share=book?.imbalance
+        }
+        for ((marketType,views) in assetDepthViews) {
+            val symbol=assetSymbol?:continue
+            val data=LiveDepthClient.current(marketType,symbol)
+            val book=data.book
+            val current=if(book!=null)
+                "● WS · ${(data.ageMs?:0)/1000}с · обновление №${book.lastUpdateId}" else
+                when(data.status){
+                    "stale"->"Нет свежих обновлений"
+                    "offline"->"Нет связи WS"
+                    "error"->"Ошибка: ${data.error ?: "нет ответа Binance"}"
+                    else->"Синхронизация…"
+                }
+            if(views.state.text.toString()!=current)views.state.text=current
+            views.state.setTextColor(if(book!=null)accent else danger)
+            val totals=if(book!=null)
+                "BID ${compact(book.bidUsdt)} USDT (${(book.imbalance*100).roundToInt()}%)" +
+                    "     ASK ${compact(book.askUsdt)} USDT (${((1-book.imbalance)*100).roundToInt()}%)" +
+                    "\nСпред ${String.format(Locale.US,"%.3f",book.spreadPct)}%" else
+                "Актуальных синхронизированных данных нет"
+            if(views.values.text.toString()!=totals)views.values.text=totals
+            val changes=if(book!=null)
+                "Δ30с: bid ${change(book.bidChangePct)} · ask ${change(book.askChangePct)}" +
+                    " · ${book.observations} наблюдений · ${book.updates} обновлений" else
+                "При разрыве WS значения исключаются из фильтра D2"
+            if(views.change.text.toString()!=changes)views.change.text=changes
+            views.ladder.snapshot=book
+            views.balance.share=book?.imbalance
+        }
+    }
+
     private fun renderMarket() {
         card(body) {
             val configured = RemoteBackend.configured(prefs)
@@ -255,38 +478,66 @@ class MainActivity : Activity() {
         card(body) {
             addView(text("АДАПТИВНАЯ ОЦЕНКА", 10, accent, true))
             addView(text("Прогресс обучения", 23, primaryText, true))
-            addView(text("УРОВЕНЬ $level/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level]}", 12, accent, true))
-            addView(text("Обучающие исходы: ${samples.coerceAtMost(30)}/30", 12))
-            addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12))
+            addView(text("УРОВЕНЬ $level/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level]}", 12, accent, true).also { marketLearningLevelView = it })
+            addView(text("Обучающие исходы: ${samples.coerceAtMost(30)}/30", 12).also { marketTrainingView = it })
+            addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12).also { marketValidationView = it })
             addView(text("Уровень зависит от завершённых сигналов новой стратегии и качества прогноза.", 11, muted))
+        }
+        if(prefs.mode=="local") {
+            card(body) {
+                addView(text("ФОНОВОЕ ПОДТВЕРЖДЕНИЕ · B5", 10, accent, true))
+                addView(text("WebSocket до 5 минут после кандидата · отдельная статистика", 12, primaryText, true))
+                val recent=store.recentDepthRuns(3)
+                if(recent.isEmpty())addView(text("Ожидаются структурные кандидаты", 11, muted))
+                else for(item in recent) {
+                    val tone=when(item.status){"CONFIRMED"->accent
+                        "OBSERVING"->accent;"PENDING"->muted;else->danger}
+                    addView(text("${item.market.uppercase()} ${item.symbol} ${item.timeframe} · ${item.status} · ${item.samples} замеров",11,tone))
+                    item.reason?.let { addView(text(it,10,muted)) }
+                }
+            }
         }
         if (prefs.mode == "server") body.addView(text("Источник: сервер · синхронизация ${if (prefs.serverLastSync == 0L) "ожидается" else date(prefs.serverLastSync)}", 11, accent))
         body.addView(text("Отмечено ${prefs.symbols.size} активов", 20, primaryText, true))
         body.addView(text("Спот и USDT-M фьючерсы · последние закрытые M1", 11, muted))
         for (symbol in prefs.symbols) card(body) {
             addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
-            addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent))
+            addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent).also { marketPriceViews[symbol] = it })
+            addView(text("Стаканы · 100 уровней bid/ask · WebSocket", 10, muted))
+            for ((kind,label) in listOf("spot" to "СПОТ","futures" to "ФЬЮЧЕРСЫ")) {
+                addView(text("$label · синхронизация", 10, muted).also {
+                    marketDepthViews["$kind:$symbol"]=it
+                })
+                val strip=DepthBalanceView(this@MainActivity)
+                addView(strip,LinearLayout.LayoutParams(-1,dp(8)).apply {
+                    bottomMargin=dp(5)
+                })
+                marketDepthBars["$kind:$symbol"]=strip
+            }
             setOnClickListener { navigateToAsset(symbol, "spot", "15m") }
         }
-        body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted))
+        body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted).also { marketLastUpdateView = it })
     }
     private fun renderSignals() {
         title("Сигналы", "M5–H4 · вход, TP и стоп по M1")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for ((scope, label) in listOf("all" to "Все", "marked" to "Отмеченные", "finished" to "Завершённые"))
+        for ((scope, label) in listOf("all" to "Актуальные", "marked" to "Отмеченные", "finished" to "Завершённые"))
             action(tabs, label, signalScope == scope) { signalScope = scope; show() }
         body.addView(tabs)
-        val signals = store.signals(source = prefs.mode).filter { signal -> when (signalScope) {
+        val allSignals = store.signals(source = prefs.mode)
+        val finishedCount = allSignals.count { SignalJourney.isFinished(it.state) }
+        body.addView(text("Актуальные: ${allSignals.size - finishedCount}  ·  Завершённые: $finishedCount", 12, muted))
+        val signals = allSignals.filter { signal -> when (signalScope) {
             "marked" -> signal.id in prefs.selectedIds
-            "finished" -> signal.state in listOf("STOPPED", "COMPLETED", "CANCELLED", "EXPIRED")
-            else -> true
+            "finished" -> SignalJourney.isFinished(signal.state)
+            else -> !SignalJourney.isFinished(signal.state)
         } }
         if (signals.isEmpty()) { card(body) {
             addView(text("Пока нет сигналов", 15, primaryText, true))
             addView(text(when (signalScope) {
                 "marked" -> "Выберите сигнал в карточке или обзоре актива."
                 "finished" -> "Ожидаем TP3, стоп, отмену или истечение."
-                else -> "Базовые правила ждут совпадения BOS, OB и FVG."
+                else -> "Актуальных сигналов нет. Отработавшие сценарии находятся во вкладке «Завершённые»."
             }, 12, muted))
         }; return }
         for (signal in signals.take(100)) card(body) {
@@ -301,10 +552,18 @@ class MainActivity : Activity() {
                 setColor(outcomeColors.first); cornerRadius = dp(14).toFloat(); setStroke(dp(2), outcomeColors.second)
             }
             addView(text("${signal.symbol}  ·  ${if (signal.market == "spot") "СПОТ" else "ФЬЮЧЕРСЫ"}  ·  ${signal.timeframe}", 14, accent, true))
+            addView(text(if (signal.ruleVersion.isNotBlank())
+                "Правила ${signal.ruleVersion} · ${ResearchRules.all.firstOrNull { it.key == signal.ruleVersion }?.title ?: "версия"}"
+                else "Прежняя версия SMC v3", 10, muted))
+            signal.bookEvidence?.let { book ->
+                addView(text("Стакан: bid ${compact(book.bidUsdt)} / ask ${compact(book.askUsdt)} USDT · " +
+                    "bid ${(book.imbalance * 100).roundToInt()}% · ${date(book.capturedAt)}", 11, muted))
+            }
             addView(text("${signal.side}  ·  ${stateName(signal.state)}", 16, primaryText, true))
             signalLevelsRow(this, listOf("Вход" to signal.entry, "Стоп" to signal.stop), 16)
             signalLevelsRow(this, listOf("TP1" to signal.targets[0], "TP2" to signal.targets[1], "TP3" to signal.targets[2]), 14)
             addView(text("${date(signal.detectedAt)}  ·  ${signal.hitTargets}/3 целей", 12, muted))
+            addSignalJourney(this, signal, compact = true)
             action(this, if (signal.id in prefs.selectedIds) "✓ Отмечен · убрать" else "☆ Отметить сигнал") { prefs.toggleSelected(signal.id); show() }
             setOnClickListener { navigateToAsset(signal.symbol, signal.market, signal.timeframe, signal.id) }
         }
@@ -316,6 +575,118 @@ class MainActivity : Activity() {
             action(filters, label, statsMarket == value) { statsMarket = value; show() }
         body.addView(filters)
         val signals = store.signals(source = prefs.mode).filter { statsMarket == "all" || it.market == statsMarket }
+        val serverComparison = if (prefs.mode == "server" && statsMarket == "all")
+            prefs.serverRuleStatistics?.let { runCatching { JSONObject(it) }.getOrNull() }
+        else null
+        val serverModels = if (prefs.mode == "server")
+            prefs.serverRuleModels?.let { runCatching { JSONObject(it) }.getOrNull() }
+        else null
+        val serverVersions = serverComparison?.optJSONArray("versions")
+        data class VariantMetrics(
+            val rule: ResearchRule, val detected: Int, val entered: Int, val settled: Int,
+            val successful: Int, val tp2: Int, val tp3: Int, val stops: Int,
+            val modelSamples: Int, val validation: Int,
+            val modelBrier: Double?, val baselineBrier: Double?
+        )
+        val variants = ResearchRules.all.map { rule ->
+            val history = signals.filter { it.strategyVersion == 3 && it.ruleVersion == rule.key }
+            fun touched(signal: Signal, type: String) = signal.events.any { it.type == type }
+            val entered = history.filter { touched(it, "ENTRY") }
+            val settled = entered.filter { touched(it, "TP1") || touched(it, "STOP") }
+            val scored = settled.filter {
+                it.quality != null && it.quality!!.trainedSamples >= 30 &&
+                    it.quality!!.probability.isFinite() && it.quality!!.baseline.isFinite()
+            }
+            val baseline = if (scored.isNotEmpty()) scored.map { signal ->
+                val label = if (touched(signal, "TP1")) 1.0 else 0.0
+                (signal.quality!!.baseline - label) * (signal.quality!!.baseline - label)
+            }.average() else null
+            val brier = if (scored.isNotEmpty()) scored.map { signal ->
+                val label = if (touched(signal, "TP1")) 1.0 else 0.0
+                (signal.quality!!.probability - label) * (signal.quality!!.probability - label)
+            }.average() else null
+            val remote = (0 until (serverVersions?.length() ?: 0)).mapNotNull {
+                serverVersions?.optJSONObject(it)
+            }.firstOrNull { it.optString("key") == rule.key }
+            val model = if (prefs.mode == "local") store.ruleModel(rule.key) else null
+            val remoteModel = serverModels?.optJSONObject(rule.key)
+            VariantMetrics(rule,
+                remote?.optInt("signals") ?: history.size,
+                remote?.optInt("entered") ?: entered.size,
+                remote?.optInt("resolved") ?: settled.size,
+                remote?.optInt("successful") ?: settled.count { touched(it, "TP1") },
+                remote?.optInt("tp2") ?: history.count { touched(it, "TP2") },
+                remote?.optInt("tp3") ?: history.count { touched(it, "TP3") },
+                remote?.optInt("stopped") ?: history.count { touched(it, "STOP") },
+                remoteModel?.optInt("samples") ?: model?.samples ?: 0,
+                remoteModel?.optInt("validationSamples") ?: model?.validation?.size ?: 0,
+                remote?.optDouble("modelBrier", Double.NaN)?.takeIf { it.isFinite() } ?: brier,
+                remote?.optDouble("baselineBrier", Double.NaN)?.takeIf { it.isFinite() } ?: baseline)
+        }
+        card(body) {
+            addView(text("СРАВНЕНИЕ ПЯТИ ВЕРСИЙ", 10, accent, true))
+            addView(text("Какие фильтры улучшают результат?", 18, primaryText, true))
+            addView(text("D2 проверяет стакан при закрытии свечи; B5 — отдельное пятиминутное исследование после закрытия. В статистике только входы с известным TP1 или стопом.", 11, muted))
+            for (item in variants) {
+                val rate = if (item.settled > 0)
+                    "${(item.successful * 100.0 / item.settled).roundToInt()}%" else "—"
+                addView(text("${item.rule.key}  ·  $rate", 14, if (item.settled > 0) accent else muted, true))
+                statsProgress(this, item.rule.title, item.successful, item.settled, accent)
+            }
+            val complete = variants.all { it.settled >= 30 }
+            if (complete) {
+                val leader = variants.maxByOrNull { it.successful.toDouble() / it.settled }
+                addView(text("Наибольшая наблюдаемая доля TP1: ${leader?.rule?.key ?: "—"}. " +
+                    "Разные фильтры отбирают разные сигналы; это не доказательство преимущества.", 11, accent))
+            } else addView(text("Для предварительного сравнения нужно минимум по 30 разрешённых входов каждой версии. " +
+                "До этого лидера не определяем.", 11, muted))
+        }
+        for (item in variants) card(body) {
+            addView(text("${item.rule.key} · ${item.rule.title}", 16, primaryText, true))
+            addView(text(when (item.rule.key) {
+                "v0.1" -> "Базовая структура BOS/CHoCH + активные OB/FVG"
+                "v0.2-D2" -> "v0.1 + 100 синхронизированных уровней bid/ask (USDT), доля стороны ≥55% и ≥10с наблюдения"
+                "v0.3-D2" -> "v0.2-D2 + закрытый старший таймфрейм"
+                "v0.2-B5" -> "5-мин. наблюдение после свечи; не вход задним числом"
+                "v0.3-B5" -> "5-мин. наблюдение после свечи + закрытый старший таймфрейм"
+                else -> "Новая исследовательская ревизия"
+            }, 11, muted))
+            val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            statsMetric(first, "Сигналы", item.detected.toString(), primaryText)
+            statsMetric(first, "Входы", item.entered.toString(), primaryText)
+            statsMetric(first, "Исходы", item.settled.toString(), primaryText)
+            addView(first)
+            statsProgress(this, "TP1 до стопа", item.successful, item.settled, accent)
+            statsProgress(this, "TP2", item.tp2, item.entered, accent)
+            statsProgress(this, "TP3", item.tp3, item.entered, accent)
+            statsProgress(this, "Стоп", item.stops, item.entered, danger)
+            statsProgress(this, "Обучающие исходы модели", item.modelSamples, 30, accent)
+            statsProgress(this, "Проверочные исходы", item.validation, 30, Color.rgb(125, 173, 234))
+            if (item.modelBrier != null && item.baselineBrier != null)
+                addView(text("Brier: ${String.format(Locale.US, "%.3f", item.modelBrier)} против " +
+                    "${String.format(Locale.US, "%.3f", item.baselineBrier)} (база); меньше — лучше", 11, muted))
+            addView(text(if (item.settled < 30)
+                "Недостаточно исходов для предварительного вывода (${item.settled}/30)."
+                else "Предварительная выборка набрана; проверяйте устойчивость на новых данных.", 11, muted))
+        }
+        body.addView(text("D2: синхронизированный стакан при закрытии свечи. B5: до 5 минут фонового WebSocket после кандидата, отдельная выборка, прерванные проверки не считаются сигналами. " +
+            "Объёмы по 100 уровням в USDT; REST только для синхронизации. Прежние ревизии сохранены. " +
+            "Результат исследовательский и не учитывает комиссии.", 10, muted))
+        val archived = signals.filter { it.ruleVersion in ResearchRules.archivedKeys }
+        if (archived.isNotEmpty()) card(body) {
+            addView(text("АРХИВ ПРЕЖНИХ ПРАВИЛ", 10, muted, true))
+            addView(text("Старые исходы не смешиваются с вариантами стакана D1.", 11, muted))
+            for ((key, rows) in archived.groupBy { it.ruleVersion }.toSortedMap()) {
+                val settledRows = rows.filter { row -> row.events.any { it.type == "ENTRY" } &&
+                    row.events.any { it.type == "TP1" || it.type == "STOP" } }
+                val success=settledRows.count { row -> row.events.any { it.type == "TP1" } }
+                val rate=if(settledRows.isNotEmpty())
+                    "${(success * 100.0 / settledRows.size).roundToInt()}%" else "—"
+                addView(text("$key · ${rows.size} сигналов · ${settledRows.size} исходов · TP1 $rate",
+                    11, muted))
+            }
+        }
+        body.addView(text("Общая историческая статистика (включая прежнюю SMC v3)", 17, primaryText, true))
         val events = signals.associateWith { signal -> signal.events.map { it.type }.toSet() }
         fun count(type: String) = events.values.count { type in it }
         val entries = count("ENTRY")
@@ -562,9 +933,26 @@ class MainActivity : Activity() {
             addView(text(if (prefs.mode == "server")
                 "Сервер отслеживает M1, телефон получает его результаты при синхронизации. В APK без FCM уведомления приходят при следующей проверке: примерно раз в минуту при открытом приложении и с задержкой от 15 минут в фоне."
                 else "При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
-            addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent))
+            addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent).also { settingsLastCheckView = it })
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
+            if(prefs.mode=="local"){
+                addView(text("Фоновый B5: после структурного кандидата JobScheduler наблюдает стакан до пяти минут. Android может прервать или задержать задание.", 11, muted))
+                for(check in store.recentDepthRuns(3)) {
+                    addView(text("${check.market} ${check.symbol} · ${check.status} · ${check.samples} замеров" +
+                        (check.reason?.let{" · $it"}?:""), 10, if(check.status=="CONFIRMED")accent else muted))
+                }
+            }
             action(this, "Проверить сейчас") { updateMarket() }
+        }
+        card(body) {
+            addView(text("О программе", 16, primaryText, true))
+            addView(text("Orbit Signals", 14, accent, true))
+            addView(text("Исследование криптовалютного рынка: поиск сигналов по структуре BOS/CHoCH, зонам OB/FVG и подтверждению старших таймфреймов. Отслеживание сценариев, статистика и адаптивная оценка результатов без автоматической торговли.", 11, muted))
+            val installedVersion = runCatching {
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }.getOrNull().orEmpty().ifBlank { "не определена" }
+            addView(text("Версия приложения: $installedVersion", 12, primaryText))
+            addView(text("Алгоритм: SMC v3", 11, muted))
         }
     }
     private fun renderAsset() {
@@ -572,32 +960,74 @@ class MainActivity : Activity() {
         title("${symbol.removeSuffix("USDT")} / USDT", "Binance · цены и структура рынка")
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((value, label) in listOf("spot" to "Спот", "futures" to "Фьючерсы")) action(tabs, label, value == market) {
-            market = value; selectedSignalId = null; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
+            market = value; selectedSignalId = null; chartAnchorAt = null; chartFocusPending = false; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
         }
         body.addView(tabs)
         card(body) {
             addView(text("ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1", 10, muted, true))
-            addView(text(format(store.price(market, symbol)?.first), 30, primaryText, true))
-            assetTicker?.let { ticker ->
-                addView(text("24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}", 11, muted))
+            addView(text(format(store.price(market, symbol)?.first), 30, primaryText, true).also { assetLastPriceView = it })
+            addView(text(assetTicker?.let { ticker ->
+                "24 ч: ${ticker.optString("priceChangePercent", "—")}%  ·  H ${ticker.optString("highPrice", "—")}  L ${ticker.optString("lowPrice", "—")}"
+            } ?: "Данные 24 ч загружаются", 11, muted).also { assetTickerView = it })
+        }
+        body.addView(text("Стаканы ликвидности", 20, primaryText, true))
+        body.addView(text("Binance · синхронизация WebSocket + REST при разрывах. " +
+            "Объёмы заявок 100 уровней каждой стороны в USDT.", 11, muted))
+        for ((marketType,label) in listOf("spot" to "СПОТ","futures" to "USDT-M ФЬЮЧЕРСЫ")) {
+            card(body) {
+                addView(text(label, 13, primaryText, true))
+                val state=text("Синхронизация…", 10, muted).also { addView(it) }
+                val values=text("Ожидание реального стакана…", 12, primaryText, true)
+                    .also { addView(it) }
+                val changes=text("История изменений собирается после синхронизации", 10, muted)
+                    .also { addView(it) }
+                val balance=DepthBalanceView(this@MainActivity)
+                addView(balance,LinearLayout.LayoutParams(-1,dp(9)).apply {
+                    topMargin=dp(10);bottomMargin=dp(8)
+                })
+                addView(text("Ближайшие 6 уровней · зелёная/красная полоса = объём USDT на уровне", 10, muted))
+                val ladder=DepthLadderView(this@MainActivity)
+                addView(ladder,LinearLayout.LayoutParams(-1,dp(243)))
+                addView(text("Длина полос сравнивается по единому масштабу BID и ASK; " +
+                    "суммы выше — по 100 уровням каждой стороны.", 10, muted))
+                assetDepthViews[marketType]=BookViews(state,values,changes,ladder,balance)
             }
         }
         val signals = store.signals(market, symbol, prefs.mode)
         val selected = signals.firstOrNull { it.id == selectedSignalId }
         body.addView(text("Структура и уровни", 20, primaryText, true))
         val timeTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset() }
+        for (value in listOf("1m", "5m", "15m", "30m", "1h", "4h")) action(timeTabs, value.uppercase(), value == timeframe) { timeframe = value; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; chartFocusPending = chartAnchorAt != null; show(); loadAsset() }
         body.addView(timeTabs)
+        if (selected != null) {
+            val entry = SignalJourney.trace(selected).entry
+            val exit = SignalJourney.trace(selected).exit
+            val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val firstRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val secondRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            action(firstRow, "К старту") { chartAnchorAt = selected.detectedAt; chartOffset = 0; chartFocusPending = true; loadAsset() }
+            if (entry != null) action(firstRow, "К входу") { chartAnchorAt = entry.at; chartOffset = 0; chartFocusPending = true; loadAsset() }
+            if (exit != null) action(secondRow, "К выходу") { chartAnchorAt = exit.at; chartOffset = 0; chartFocusPending = true; loadAsset() }
+            action(secondRow, "Сейчас") { chartAnchorAt = null; chartOffset = 0; chartFocusPending = false; loadAsset() }
+            controls.addView(firstRow)
+            controls.addView(secondRow)
+            body.addView(controls)
+            body.addView(text(if (chartAnchorAt == null) "Текущие свечи"
+                else "История сигнала: окно вокруг ${date(chartAnchorAt!!)}", 11, accent).also { assetWindowView = it })
+        }
         val structure = Strategy.structure(assetBars)
-        body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted))
+        body.addView(text("SH/SL ${structure.swings.size} · BOS ${structure.breaks.size} · OB ${structure.breaks.count { it.block != null }} · FVG ${structure.imbalances.size}", 11, muted).also { assetStructureView = it })
         card(body) { addView(ChartView(this@MainActivity).apply {
             candles = assetBars; this.structure = structure; signal = selected
             visibleCount = chartVisibleCount; offset = chartOffset
             onViewportChanged = { count, shift -> chartVisibleCount = count; chartOffset = shift }
             contentDescription = "График свечей. Разведите пальцы для увеличения, проведите в сторону для просмотра истории."
-        }) }
-        body.addView(text("Разведите пальцы, чтобы увеличить график. Проведите влево или вправо для просмотра свечей.", 11, muted))
-        assetError?.let { body.addView(text("Данные Binance: $it", 11, danger)) }
+        }.also { assetChartView = it }) }
+        body.addView(text("Точки: старт, вход, TP1–TP3 и выход. Уровни начинаются от старта сигнала: сплошные — до последнего касания, пунктирные — ещё не достигнутые. Линия отражает движение по закрытиям свечей.", 11, muted))
+        body.addView(text(assetError?.let { "Данные Binance: $it" } ?: "", 11, danger).apply {
+            visibility = if (assetError == null) View.GONE else View.VISIBLE
+            assetErrorView = this
+        })
         body.addView(text("Выберите сигнал", 20, primaryText, true))
         val statusTabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((bucket, label) in listOf("waiting" to "Ожидающие", "active" to "Активные", "finished" to "Завершённые"))
@@ -624,8 +1054,17 @@ class MainActivity : Activity() {
             val listContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             for (signal in visibleSignals) card(listContent) {
                 addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
+                if (signal.ruleVersion.isNotBlank()) addView(text("Правила ${signal.ruleVersion}", 10, accent, true))
                 addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
-                setOnClickListener { selectedSignalId = signal.id; timeframe = signal.timeframe; show(); loadAsset() }
+                addSignalJourney(this, signal, compact = true)
+                setOnClickListener {
+                    selectedSignalId = signal.id; timeframe = signal.timeframe
+                    assetSignalTab = assetBucket(signal.state)
+                    chartAnchorAt = signalAnchor(signal)
+                    chartFocusPending = true
+                    chartVisibleCount = 90; chartOffset = 0
+                    show(); loadAsset()
+                }
             }
             signalList.addView(listContent)
             body.addView(signalList, LinearLayout.LayoutParams(-1, dp(minOf(visibleSignals.size, 5) * 88)).apply { topMargin = dp(5) })
@@ -642,35 +1081,70 @@ class MainActivity : Activity() {
         }
         if (selected != null) card(body) {
             addView(text("Параметры сигнала", 16, primaryText, true))
+            addView(text(if (selected.ruleVersion.isNotBlank()) "Правила ${selected.ruleVersion}"
+                else "Прежняя версия SMC v3", 11, accent, true))
+            selected.bookEvidence?.let { book ->
+                addView(text("Стакан Binance · 100 уровней · снимок ${date(book.capturedAt)}", 11, accent, true))
+                addView(text("Bid ${compact(book.bidUsdt)} USDT · Ask ${compact(book.askUsdt)} USDT · " +
+                    "Bid ${(book.imbalance * 100).roundToInt()}%", 11, muted))
+            }
             addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
             addView(text("Вход ${format(selected.entry)}   Стоп ${format(selected.stop)}", 12))
             addView(text("TP1 ${format(selected.targets[0])}   TP2 ${format(selected.targets[1])}   TP3 ${format(selected.targets[2])}", 12))
-            addView(text("FVG ${format(selected.imbalance.low)}–${format(selected.imbalance.high)} · BOS ${format(selected.swing)}", 11, accent))
+            addView(text("FVG ${format(selected.imbalance.low)}–${format(selected.imbalance.high)} · ${selected.breakType} ${format(selected.swing)}", 11, accent))
+            addView(text("История движения", 15, primaryText, true))
+            addSignalJourney(this, selected, compact = false)
             action(this, if (selected.id in prefs.selectedIds) "✓ Убрать из уведомлений" else "Следить за сигналом") { prefs.toggleSelected(selected.id); show() }
-            for (event in selected.events.reversed()) addView(text("${event.type} · ${date(event.at)} · ${format(event.price)}", 11, muted))
+            for (event in selected.events.sortedBy { it.at })
+                addView(text("${eventName(event.type)} · ${date(event.at)} · ${format(event.price)}", 11, muted))
         }
         card(body) {
             addView(text("Крупные сделки", 16, primaryText, true))
             addView(text("От 250 000 USDT среди последних 1000 публичных aggTrade. Это частичная выборка и не влияет на сигналы.", 11, muted))
             val buys = assetTrades.filter { it.side == "buy" }; val sells = assetTrades.filter { it.side == "sell" }
-            addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent))
-            addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger))
-            for (trade in assetTrades.take(4)) addView(text("${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
+            addView(text("Покупки ${buys.size} · ${compact(buys.sumOf { it.usd })} USDT", 12, accent).also { assetBuyView = it })
+            addView(text("Продажи ${sells.size} · ${compact(sells.sumOf { it.usd })} USDT", 12, danger).also { assetSellView = it })
+            val recent = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+            for (trade in assetTrades.take(4)) recent.addView(text(
+                "${if (trade.side == "buy") "Покупка" else "Продажа"} ${compact(trade.usd)} · ${date(trade.at)}", 11, muted))
+            addView(recent)
+            assetRecentTradesView = recent
         }
         body.addView(text("Касание уровней ценой не подтверждает исполнение ордера на счёте.", 11, muted))
     }
     private fun loadAsset() {
         val symbol = assetSymbol ?: return
         val selectedMarket = market; val selectedFrame = timeframe; val request = ++assetRequest
+        val anchor = chartAnchorAt; val signalId = selectedSignalId
+        val minutes = when (selectedFrame) {
+            "1m" -> 1L; "5m" -> 5L; "15m" -> 15L
+            "30m" -> 30L; "1h" -> 60L; "4h" -> 240L
+            else -> 15L
+        }
+        // Fetch closed historical candles around the recorded event, not only the latest 150.
+        val historicalStart = anchor?.let { (it - minutes * 60000L * 40L).coerceAtLeast(1L) }
         thread(name = "orbit-asset") {
-            val result = runCatching { Binance.candles(selectedMarket, symbol, selectedFrame, 150) }
+            val result = runCatching { Binance.candles(selectedMarket, symbol, selectedFrame, 150, historicalStart) }
             val ticker = runCatching { Binance.ticker(selectedMarket, symbol) }.getOrNull()
             val trades = runCatching { Binance.largeTrades(selectedMarket, symbol) }.getOrDefault(emptyList())
             runOnUiThread {
-                if (request != assetRequest || symbol != assetSymbol || selectedMarket != market || selectedFrame != timeframe || isFinishing) return@runOnUiThread
-                result.onSuccess { assetBars = it; assetTicker = ticker; assetTrades = trades; assetError = null }
+                if (request != assetRequest || symbol != assetSymbol || selectedMarket != market ||
+                    selectedFrame != timeframe || signalId != selectedSignalId || anchor != chartAnchorAt || isFinishing) return@runOnUiThread
+                result.onSuccess { bars ->
+                    assetBars = bars; assetTicker = ticker; assetTrades = trades; assetError = null
+                    if (anchor != null && chartFocusPending) {
+                        val chosenIndex = bars.indexOfFirst { anchor in it.time..it.end }
+                            .let { if (it >= 0) it else bars.indexOfFirst { bar -> bar.end >= anchor } }
+                        if (chosenIndex >= 0) {
+                            val count = minOf(chartVisibleCount, bars.size)
+                            val startIndex = (chosenIndex - count / 3).coerceIn(0, maxOf(0, bars.size - count))
+                            chartOffset = (bars.size - startIndex - count).coerceAtLeast(0)
+                        }
+                        chartFocusPending = false
+                    }
+                }
                     .onFailure { assetError = it.message }
-                show()
+                refreshVisibleData()
             }
         }
     }
@@ -731,7 +1205,53 @@ class MainActivity : Activity() {
     private fun compact(value: Double): String = when { value >= 1_000_000 -> String.format(Locale.US, "%.2fM", value / 1_000_000); value >= 1_000 -> String.format(Locale.US, "%.1fK", value / 1_000); else -> String.format(Locale.US, "%.0f", value) }
     private fun date(value: Long): String = SimpleDateFormat("dd MMM HH:mm", Locale.forLanguageTag("ru")).format(Date(value))
     private fun rate(signals: List<Signal>) = if (signals.isEmpty()) 0 else (100.0 * signals.count { it.outcome == 1 } / signals.size).roundToInt()
-    private fun assetBucket(state: String) = when (state) { "WAITING" -> "waiting"; "OPEN" -> "active"; else -> "finished" }
+    private fun signalAnchor(signal: Signal): Long =
+        SignalJourney.trace(signal).entry?.at ?: signal.detectedAt
+    private fun eventName(type: String) = when(type) {
+        "CREATED" -> "Начало сигнала"
+        "ENTRY" -> "Вход в позицию"
+        "TP1", "TP2", "TP3" -> "Достигнут $type"
+        "STOP" -> "Завершение: стоп"
+        "INVALIDATED" -> "Отменён до входа"
+        "EXPIRED" -> "Истёк до входа"
+        "DATA_GAP" -> "Пробел в данных"
+        "ACKNOWLEDGED" -> "Отмечен после проверки"
+        else -> type
+    }
+    private fun addSignalJourney(parent: LinearLayout, signal: Signal, compact: Boolean) {
+        val trace = SignalJourney.trace(signal)
+        val font = if (compact) 10 else 12
+        val started = "Начало: ${date(trace.createdAt)}" +
+            (trace.createdPrice?.let { " · ${format(it)}" } ?: "")
+        parent.addView(text(started, font, muted))
+        val entry = trace.entry
+        parent.addView(text(if (entry != null) "Вход: ${date(entry.at)} · ${format(entry.price)}"
+            else "Вход: ${if (trace.finished) "не состоялся" else "ожидается"}", font, if (entry != null) accent else muted))
+        val exit = trace.exit
+        if (exit != null) {
+            parent.addView(text("Финиш: ${eventName(exit.type)} · ${date(exit.at)} · ${format(exit.price)}", font, muted))
+        } else if (trace.finished) {
+            parent.addView(text("Финиш: ${trace.result} · подробности события отсутствуют в журнале", font, muted))
+        } else if (signal.state == "OPEN") {
+            parent.addView(text("Финиш: движение продолжается · достигнуто TP ${trace.lastTarget}/3", font, muted))
+        } else if (signal.state == "UNCERTAIN") {
+            parent.addView(text("Исход требует проверки данных", font, danger))
+        }
+        val change = trace.priceMovePercent
+        if (trace.finished && change != null) {
+            val sign = if (change >= 0) "+" else ""
+            val result = String.format(Locale.US, "%.2f", change)
+            parent.addView(text("${trace.result} · $sign$result% по цене" +
+                (if (trace.lastTarget in 1..2) " · ранее TP${trace.lastTarget}" else ""),
+                font, if (change >= 0) accent else danger, true))
+        } else if (trace.finished) {
+            parent.addView(text(trace.result, font, muted))
+        }
+        if (!compact) parent.addView(text(
+            "Отметки соответствуют касаниям уровней по данным M1, а не исполненным биржевым сделкам.",
+            10, muted))
+    }
+    private fun assetBucket(state: String) = SignalJourney.bucket(state)
     private fun stateName(value: String) = mapOf("WAITING" to "Ожидает вход", "OPEN" to "В работе", "STOPPED" to "Стоп", "COMPLETED" to "TP3 достигнут", "CANCELLED" to "Отменён", "EXPIRED" to "Истёк", "UNCERTAIN" to "Проверьте вручную")[value] ?: value
 }
 
