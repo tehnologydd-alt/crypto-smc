@@ -51,3 +51,20 @@ test('closed futures candles are stored once and survive research queries', () =
       candles: 1, firstOpen: 0, lastClose: 59999 }]);
   } finally { store.close(); }
 });
+
+test('AI comparison excludes a response arriving after the possible entry minute began', () => {
+  const entries = [{ type: 'CREATED', at: 1000 },
+    { type: 'ENTRY', at: 121000 }, { type: 'TP1', at: 180000 }];
+  const early = signal('early', null, entries);
+  early.localAi = { status: 'DONE', provider: 'ollama', model: 'qwen3:4b',
+    verdict: 'PASS', completedAt: 60000 };
+  const late = signal('late', null, entries);
+  late.localAi = { status: 'DONE', provider: 'ollama', model: 'qwen3:4b',
+    verdict: 'REJECT', completedAt: 70000 };
+  const report = buildResearchLab([early, late]);
+  assert.equal(report.ai.reviewed, 2);
+  assert.equal(report.ai.timely, 1);
+  assert.equal(report.ai.late, 1);
+  assert.equal(report.ai.models[0].byVerdict.PASS.tp1First, 1);
+  assert.equal(report.ai.models[0].byVerdict.REJECT.candidates, 0);
+});

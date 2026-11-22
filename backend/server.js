@@ -17,6 +17,8 @@ import { validateMobileBatch } from './mobile-sync.js';
 import { ownMachineRequest } from './local-browser-auth.js';
 import { assessCandidate, buildResearchLab } from './research-lab.js';
 import { runHistoricalResearch } from './historical-research.js';
+import { LOCAL_AI_POLICY, validLocalAiConfig, listLocalModels,
+  freezeLocalAiInput, reviewLocalCandidate } from './local-ai.js';
 
 const base = resolve(import.meta.dirname);
 const dataDir = resolve(process.env.DATA_DIR || join(base, 'data'));
@@ -41,6 +43,8 @@ const state = {
   subscriptions: Array.isArray(stored.subscriptions) ? stored.subscriptions : [],
   lastCandle: stored.lastCandle || {},
   model: experience.model,
+  localAiConfig: validLocalAiConfig(stored.localAiConfig) ? stored.localAiConfig :
+    { enabled: false, provider: 'ollama', model: '' },
   prices: {}, feeds: { spot: 'connecting', futures: 'connecting' },
   errors: {}, updatedAt: Date.now()
 };
@@ -59,6 +63,13 @@ function archiveSpotSignals() {
   return changed;
 }
 archiveSpotSignals();
+for (const signal of state.signals) {
+  if (signal.localAi?.status === 'PENDING') {
+    signal.localAi = { ...signal.localAi, status: 'INTERRUPTED',
+      reason: 'Сервер перезапущен до ответа модели' };
+    experience.saveSignal(signal);
+  }
+}
 const vapid = loadVapidKeys(join(dataDir, 'vapid.json'));
 const sockets = new Map();
 const reconnectTimers = new Map();
@@ -76,10 +87,61 @@ function persist() {
   saveTimer = setTimeout(async () => {
     try {
       const path = `${dataPath}.${randomUUID()}.tmp`;
-      await writeFile(path, JSON.stringify({ symbols: state.symbols, signals: state.signals, subscriptions: state.subscriptions, lastCandle: state.lastCandle, model: state.model, rateBudget: rateBudget.exportState() }));
+      await writeFile(path, JSON.stringify({ symbols: state.symbols, signals: state.signals,
+        subscriptions: state.subscriptions, lastCandle: state.lastCandle, model: state.model,
+        localAiConfig: state.localAiConfig, rateBudget: rateBudget.exportState() }));
       await rename(path, dataPath);
     } catch (error) { console.error('Save failed:', error); }
   }, 250);
+}
+const aiQueue = [];
+let aiRunning = false;
+function recordAiReview(id, hash, update) {
+  const signal = state.signals.find(row => row.id === id) ||
+    experience.researchSignals().find(row => row.id === id);
+  if (!signal || signal.localAi?.status !== 'PENDING' || signal.localAi.inputHash !== hash) return;
+  signal.localAi = { ...signal.localAi, ...update, completedAt: Date.now() };
+  experience.saveSignal(signal);
+  persist();
+}
+async function drainAiQueue() {
+  if (aiRunning) return;
+  aiRunning = true;
+  try {
+    while (aiQueue.length) {
+      const item = aiQueue.shift();
+      if (!state.localAiConfig.enabled) {
+        recordAiReview(item.id, item.frozen.hash,
+          { status: 'INTERRUPTED', reason: 'Локальный ИИ отключён' });
+        continue;
+      }
+      try {
+        const review = await reviewLocalCandidate(item.config, item.frozen);
+        recordAiReview(item.id, item.frozen.hash,
+          { status: 'DONE', verdict: review.verdict, reason: review.reason });
+      } catch (error) {
+        recordAiReview(item.id, item.frozen.hash,
+          { status: 'ERROR', reason: String(error.message).slice(0, 180) });
+      }
+    }
+  } finally { aiRunning = false; }
+}
+function queueAiReview(signal, bars, parentBars) {
+  if (!state.localAiConfig.enabled) return;
+  const config = { ...state.localAiConfig };
+  try {
+    if (aiQueue.length >= 16) throw new Error('Очередь локального ИИ заполнена');
+    const frozen = freezeLocalAiInput(signal, bars, parentBars);
+    signal.localAi = { policy: LOCAL_AI_POLICY, status: 'PENDING',
+      provider: config.provider, model: config.model, requestedAt: Date.now(),
+      inputHash: frozen.hash };
+    aiQueue.push({ id: signal.id, config, frozen });
+    queueMicrotask(() => void drainAiQueue());
+  } catch (error) {
+    signal.localAi = { policy: LOCAL_AI_POLICY, status: 'ERROR',
+      provider: config.provider, model: config.model, requestedAt: Date.now(),
+      completedAt: Date.now(), reason: String(error.message).slice(0, 180) };
+  }
 }
 function label(signal, event) {
     const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.strategyKey || signal.ruleVersion || 'SMC'}`;
@@ -255,6 +317,7 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
       if (activeVersion || state.signals.some(s => s.id === signal.id)) continue;
       signal.quality = scoreSignal(experience.ruleModels[signal.ruleVersion], signal.features);
       signal.researchV5 = assessCandidate(signal);
+      queueAiReview(signal, candles, parentBars);
       experience.saveSignal(signal);
       state.signals.unshift(signal);
       if (state.signals.length > 500) {
@@ -403,6 +466,32 @@ const handleRequest = async (req, res) => {
         return json(res, 200, { ...buildResearchLab(experience.researchSignals(), experience.candleCoverage()),
           feed: state.feeds.futures, monitored: state.symbols.length, symbols: state.symbols,
           errors: Object.keys(state.errors).length });
+      if (req.method === 'GET' && url.pathname === '/api/research/ai') {
+        const providers = Object.fromEntries(await Promise.all(['ollama', 'lmstudio'].map(async name => {
+          try { return [name, { online: true, models: await listLocalModels(name) }]; }
+          catch (error) { return [name, { online: false, models: [], error: error.message }]; }
+        })));
+        return json(res, 200, { config: state.localAiConfig, providers,
+          queue: aiQueue.length + Number(aiRunning), policy: LOCAL_AI_POLICY });
+      }
+      if (req.method === 'PUT' && url.pathname === '/api/research/ai') {
+        let config;
+        try { config = await requestBody(req, 1024); }
+        catch { return json(res, 400, { error: 'Неверная настройка локального ИИ' }); }
+        if (!validLocalAiConfig(config))
+          return json(res, 400, { error: 'Выберите Ollama или LM Studio и корректную модель' });
+        if (config.enabled) {
+          let models;
+          try { models = await listLocalModels(config.provider); }
+          catch (error) { return json(res, 422, { error: 'Локальный API недоступен: ' + error.message }); }
+          if (!models.includes(config.model))
+            return json(res, 422, { error: 'Выбранная модель не загружена или недоступна локально' });
+        }
+        state.localAiConfig = { enabled: config.enabled, provider: config.provider,
+          model: config.model };
+        persist();
+        return json(res, 200, { config: state.localAiConfig, policy: LOCAL_AI_POLICY });
+      }
       if (req.method === 'POST' && url.pathname === '/api/research/replay') {
         let input;
         try { input = await requestBody(req, 2048); }

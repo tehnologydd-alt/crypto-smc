@@ -10,8 +10,10 @@ const strategyName = { smc:'SMC · OB/FVG', breakout:'Импульс и проб
 const stateName = { WAITING:'Ожидает вход', OPEN:'В работе', COMPLETED:'TP3',
   STOPPED:'Стоп', EXPIRED:'Истёк', CANCELLED:'Отменён', UNCERTAIN:'Пробел данных' };
 const verdictName = { PASS:'Прошёл', REJECT:'Отклонён', COLLECT:'Сбор данных' };
+const aiVerdictName = { PASS:'Поддерживает', REJECT:'Отклоняет', UNSURE:'Не уверен' };
 let report = null;
 let lastReplay = null;
+let aiProviders = null;
 
 function funnel(key, metrics) {
   const stages = [['Кандидаты', metrics.candidates], ['Входы', metrics.entered],
@@ -31,6 +33,7 @@ function shadowCard(key, row) {
 
 function candidateRow(row) {
   const shadow = row.shadow;
+  const ai = row.ai;
   const label = shadow ? verdictName[shadow.verdict] || shadow.verdict : 'До запуска v5';
   const reason = shadow?.reason || 'Решение на момент создания не записывалось';
   const href = `/asset.html?symbol=${encodeURIComponent(row.symbol)}&market=futures&interval=${encodeURIComponent(row.timeframe)}&signal=${encodeURIComponent(row.id)}`;
@@ -38,7 +41,8 @@ function candidateRow(row) {
     <td>${escapeHtml(strategyName[row.strategy])}</td><td class="${row.side === 'LONG' ? 'long' : 'short'}">${escapeHtml(row.side)}</td>
     <td><b>${number(row.entry)}</b><small>TP1 ${number(row.tp1)} · SL ${number(row.stop)}</small></td>
     <td>${escapeHtml(stateName[row.state] || row.state)}${row.outcome ? `<small>Первым: ${row.outcome}</small>` : ''}</td>
-    <td><span class="verdict ${shadow?.verdict === 'PASS' ? 'good' : shadow?.verdict === 'REJECT' ? 'bad' : 'waiting'}">${escapeHtml(label)}</span><small title="${escapeHtml(reason)}">${escapeHtml(reason)}</small></td></tr>`;
+    <td><span class="verdict ${shadow?.verdict === 'PASS' ? 'good' : shadow?.verdict === 'REJECT' ? 'bad' : 'waiting'}">${escapeHtml(label)}</span><small title="${escapeHtml(reason)}">${escapeHtml(reason)}</small></td>
+    <td>${ai ? `<span class="verdict ${ai.status === 'DONE' && ai.verdict === 'PASS' ? 'good' : ai.status === 'DONE' && ai.verdict === 'REJECT' ? 'bad' : 'waiting'}">${escapeHtml(ai.status === 'DONE' ? aiVerdictName[ai.verdict] : ai.status)}</span><small>${escapeHtml(ai.model)} · ${row.aiBeforeEntry ? 'до входа' : row.entered ? 'после входа' : 'входа не было'}</small><small>${escapeHtml(ai.reason || '')}</small>` : '—'}</td></tr>`;
 }
 
 function render() {
@@ -65,16 +69,58 @@ function render() {
   $('#funnels').innerHTML = ['smc', 'breakout'].map(key => funnel(key, report.byStrategy[key])).join('');
   $('#assessed').textContent = `${report.assessed} оценено при создании`;
   $('#shadow').innerHTML = ['PASS', 'REJECT', 'COLLECT'].map(key => shadowCard(key, report.shadow[key])).join('');
+  $('#aiSummary').innerHTML = report.ai.models.length ? report.ai.models.map(model =>
+    `<div class="ai-model"><h3>${escapeHtml(model.provider)} · ${escapeHtml(model.model)} <small>Оценок ${model.reviewed} · до входа ${model.timely}</small></h3><div class="shadow">${['PASS', 'REJECT', 'UNSURE'].map(key => {
+      const row = model.byVerdict[key];
+      return `<div class="shadow-card"><div><span class="verdict ${key === 'PASS' ? 'good' : key === 'REJECT' ? 'bad' : 'waiting'}">${aiVerdictName[key]}</span><b>${row.candidates}</b></div><p>Исходов ${row.resolved} · TP1 до стопа ${row.tp1First}</p><small>${row.resolved >= 20 ? `Доля TP1: ${percent(row.tp1Rate)}` : 'Нужно минимум 20 независимых исходов'}</small></div>`;
+    }).join('')}</div></div>`).join('') : '<p class="panel-note">Оценок локальной модели пока нет.</p>';
+  $('#aiStatus').dataset.summary = `Оценок: ${report.ai.reviewed} · до входа: ${report.ai.timely} · после входа: ${report.ai.late} · без входа: ${report.ai.withoutEntry} · в очереди: ${report.ai.pending} · ошибок: ${report.ai.errors}`;
+  if (aiProviders) showAiStatus();
   const filter = $('#strategyFilter').value;
   const rows = report.latest.filter(row => filter === 'all' || row.strategy === filter);
   $('#candidates').innerHTML = rows.length ? rows.map(candidateRow).join('') :
-    '<tr><td colspan="7">Кандидатов пока нет.</td></tr>';
+    '<tr><td colspan="8">Кандидатов пока нет.</td></tr>';
   const coverage = [...report.coverage].sort((a,b) => a.symbol.localeCompare(b.symbol) ||
     ['1m','5m','15m','30m','1h','4h','1d'].indexOf(a.timeframe) -
     ['1m','5m','15m','30m','1h','4h','1d'].indexOf(b.timeframe));
   $('#coverage').innerHTML = coverage.length ? coverage.map(row =>
     `<div><b>${escapeHtml(row.symbol)}</b><span>${escapeHtml(row.timeframe.toUpperCase())}</span><strong>${number(row.candles)}</strong><small>${date(row.firstOpen)} → ${date(row.lastClose)}</small></div>`).join('') :
     '<p>Архив начнёт заполняться после перезапуска сервера и получения закрытых свечей.</p>';
+}
+
+function showAiStatus(message = '') {
+  if (message) { $('#aiStatus').textContent = message; return; }
+  const provider = $('#aiProvider').value;
+  const found = aiProviders?.[provider];
+  const status = found?.online ? `API работает · моделей: ${found.models.length}` :
+    `API недоступен${found?.error ? ': ' + found.error : ''}`;
+  $('#aiStatus').textContent = `${status}. ${$('#aiStatus').dataset.summary || ''}`;
+}
+
+function renderAiModels(preferred = '') {
+  const provider = $('#aiProvider').value;
+  const models = aiProviders?.[provider]?.models || [];
+  const field = $('#aiModel');
+  field.innerHTML = models.length ? models.map(model =>
+    `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('') :
+    '<option value="">Нет доступных моделей</option>';
+  field.disabled = models.length === 0;
+  if (models.includes(preferred)) field.value = preferred;
+  showAiStatus();
+}
+
+async function refreshAi() {
+  try {
+    const token = localStorage.getItem('orbit-token') || '';
+    const response = await fetch('/api/research/ai', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    aiProviders = body.providers;
+    $('#aiProvider').value = body.config.provider;
+    $('#aiEnabled').checked = body.config.enabled;
+    renderAiModels(body.config.model);
+  } catch (error) { showAiStatus(`Не удалось проверить локальный ИИ: ${error.message}`); }
 }
 
 async function refresh() {
@@ -97,6 +143,26 @@ async function refresh() {
 
 $('#refresh').addEventListener('click', refresh);
 $('#strategyFilter').addEventListener('change', render);
+$('#aiProvider').addEventListener('change', () => renderAiModels());
+$('#aiRefresh').addEventListener('click', refreshAi);
+$('#aiForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('#aiSave');
+  button.disabled = true;
+  try {
+    const token = localStorage.getItem('orbit-token') || '';
+    const response = await fetch('/api/research/ai', { method: 'PUT',
+      headers: { 'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ enabled: $('#aiEnabled').checked,
+        provider: $('#aiProvider').value, model: $('#aiModel').value }) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    await refreshAi();
+    showAiStatus(`Настройка сохранена. ${$('#aiEnabled').checked ? 'Новые кандидаты будут оцениваться локально.' : 'Оценка новых кандидатов выключена.'}`);
+  } catch (error) { showAiStatus(`Не удалось сохранить: ${error.message}`); }
+  finally { button.disabled = false; }
+});
 $('#replayForm').addEventListener('submit', async event => {
   event.preventDefault();
   const button = $('#replayButton');
@@ -152,4 +218,5 @@ function downloadJson(data, filename) {
   link.click(); setTimeout(() => URL.revokeObjectURL(object), 1000);
 }
 void refresh();
+void refreshAi();
 setInterval(() => void refresh(), 30000);

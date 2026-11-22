@@ -41,6 +41,14 @@ function cohort(signals) {
     tp1Rate: resolved.length ? won.length / resolved.length : null };
 }
 
+function aiBeforeEntry(signal) {
+  const entry = signal.events?.find(event => event.type === 'ENTRY');
+  // ENTRY is recorded at M1 close. The actual touch may have occurred at the
+  // first instant of that minute, so use its start as the conservative gate.
+  return Boolean(entry && signal.localAi?.status === 'DONE' &&
+    signal.localAi.completedAt < entry.at - 59999);
+}
+
 export function buildResearchLab(signals, candleCoverage = [], now = Date.now()) {
   const current = signals.filter(signal => signal.market === 'futures' &&
     signal.strategyVersion === 4 && ['smc', 'breakout'].includes(signal.strategyKey));
@@ -49,14 +57,34 @@ export function buildResearchLab(signals, candleCoverage = [], now = Date.now())
   const assessed = current.filter(signal => signal.researchV5?.policy === SHADOW_POLICY.version);
   const shadow = Object.fromEntries(['PASS', 'REJECT', 'COLLECT'].map(verdict =>
     [verdict, cohort(assessed.filter(signal => signal.researchV5.verdict === verdict))]));
+  const reviewed = current.filter(signal => signal.localAi?.status === 'DONE');
+  const enteredAi = reviewed.filter(signal => signal.events?.some(e => e.type === 'ENTRY'));
+  const timely = enteredAi.filter(aiBeforeEntry);
+  const modelKeys = [...new Set(reviewed.map(signal =>
+    `${signal.localAi.provider}:${signal.localAi.model}`))];
+  const ai = { reviewed: reviewed.length, timely: timely.length,
+    late: enteredAi.length - timely.length,
+    withoutEntry: reviewed.length - enteredAi.length,
+    pending: current.filter(signal => signal.localAi?.status === 'PENDING').length,
+    errors: current.filter(signal => signal.localAi?.status === 'ERROR').length,
+    models: modelKeys.map(key => {
+      const own = reviewed.filter(signal =>
+        `${signal.localAi.provider}:${signal.localAi.model}` === key);
+      const ownTimely = own.filter(aiBeforeEntry);
+      return { provider: own[0].localAi.provider, model: own[0].localAi.model,
+        reviewed: own.length, timely: ownTimely.length,
+        byVerdict: Object.fromEntries(['PASS', 'REJECT', 'UNSURE'].map(verdict =>
+          [verdict, cohort(ownTimely.filter(signal => signal.localAi.verdict === verdict))])) };
+    }) };
   const latest = [...current].sort((a, b) => b.detectedAt - a.detectedAt).slice(0, 80)
     .map(signal => ({ id: signal.id, symbol: signal.symbol, timeframe: signal.timeframe,
       strategy: signal.strategyKey, side: signal.side, state: signal.state,
       detectedAt: signal.detectedAt, entry: signal.entry, stop: signal.stop,
       tp1: signal.targets?.[0] ?? null, entered: Boolean(signal.events?.some(e => e.type === 'ENTRY')),
-      outcome: firstOutcome(signal), shadow: signal.researchV5 || null }));
+      outcome: firstOutcome(signal), shadow: signal.researchV5 || null,
+      ai: signal.localAi || null, aiBeforeEntry: aiBeforeEntry(signal) }));
   return { version: 5, mode: 'shadow', generatedAt: now, policy: SHADOW_POLICY,
-    total: cohort(current), byStrategy, shadow, assessed: assessed.length,
+    total: cohort(current), byStrategy, shadow, assessed: assessed.length, ai,
     legacy: signals.length - current.length, coverage: candleCoverage, latest,
     note: 'Теневой фильтр пока не меняет опубликованные сигналы. TP1 и стоп означают касание цены, а не исполнение ордера.' };
 }

@@ -174,10 +174,14 @@ export function openExperienceStore(path, legacy = {}) {
         return { stored: false, learned: false };
       // Historical phone outcomes train the weights, but are never counted as
       // independent walk-forward validation of the server's predictions.
-      const replay = { ...signal, learned: false,
+      // These reviews belong to this server. A later phone sync may carry new
+      // price events, but must not erase or forge its frozen research decisions.
+      const merged = { ...signal, researchV5: existing?.researchV5,
+        localAi: existing?.localAi };
+      const replay = { ...merged, learned: false,
         quality: signal.quality ? { ...signal.quality, trainedSamples: 0 } : null };
       const learned = !selectOutcome.get(signal.id) && this.recordOutcome(replay);
-      this.saveSignal(learned ? { ...signal, learned: true, outcome: replay.outcome } : signal);
+      this.saveSignal(learned ? { ...merged, learned: true, outcome: replay.outcome } : merged);
       return { stored: !existing, learned: Boolean(learned) };
     },
     recordOutcome(signal) {
