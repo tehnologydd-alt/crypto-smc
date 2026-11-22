@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { detectResearchSignals, advanceSignalWithCandle, TIMEFRAMES } from './strategy.js';
 import { RULES } from './strategy-rules.js';
 import { newModel, scoreSignal, learnFromOutcome } from './learning.js';
+import { PAPER_ASSUMPTIONS, simulatePaperTrade, summarizePaperTrades } from './paper-sim.js';
 
 const validBar = c => c && [c.time,c.end,c.open,c.high,c.low,c.close,c.volume]
   .every(Number.isFinite) && c.end >= c.time && c.high >= Math.max(c.open,c.close,c.low) &&
@@ -33,7 +34,7 @@ function validate(input) {
 const groupFor=(index,total)=>index<Math.floor(total*0.6)?'development':
   index<Math.floor(total*0.8)?'validation':'holdout';
 
-export function compareStrategies(input) {
+export function compareStrategies(input, paperOptions = {}) {
   const {market,symbol,timeframe,bars,parentBars,m1}=validate(input);
   const models=Object.fromEntries(RULES.map(rule=>[rule.key,newModel()]));
   const signals=[];
@@ -89,11 +90,29 @@ export function compareStrategies(input) {
     }));
     return {rule,modelSamples:models[rule.key].samples,windows:cohorts};
   });
+  const assumptions = { ...PAPER_ASSUMPTIONS,
+    feeBps: paperOptions.feeBps ?? PAPER_ASSUMPTIONS.feeBps,
+    slippageBps: paperOptions.slippageBps ?? PAPER_ASSUMPTIONS.slippageBps };
+  const fundingRates = paperOptions.fundingRates || [];
+  const paperTrades = signals.map(row => ({
+    ...simulatePaperTrade(row.signal, m1, fundingRates, assumptions), window: row.group
+  }));
+  const paper = {
+    assumptions: { version: assumptions.version, feeBps: assumptions.feeBps,
+      slippageBps: assumptions.slippageBps, takeProfitFractions: assumptions.takeProfitFractions,
+      moveStopAfterTp1: assumptions.moveStopAfterTp1,
+      fundingKnown: paperOptions.fundingKnown === true,
+      fillModel: 'Касание M1 считается условным исполнением; стоп раньше цели при неизвестном порядке внутри M1.' },
+    byStrategy: Object.fromEntries(RULES.map(rule => [rule.key,
+      Object.fromEntries(windows.map(window => [window, summarizePaperTrades(
+        paperTrades.filter(t => t.strategy === rule.key && t.window === window))]))])),
+    trades: paperTrades
+  };
   return {method:'chronological two-strategy research; frozen training after 60%; never includes future candles',
     provenance:'User-supplied OHLCV; origin and authenticity not independently verified',
     settings:{market,symbol,timeframe,development:60,validation:20,holdout:20,
-      note:'M1 inputs must be continuous. Fees, funding and slippage are not included.'},
-    versions,signals:signals.map(row=>({id:row.signal.id,ruleVersion:row.signal.ruleVersion,
+      note:'M1 inputs must be continuous. Signal-touch counters exclude costs; paper results below include configured fees, slippage and funding when available.'},
+    versions,paper,signals:signals.map(row=>({id:row.signal.id,ruleVersion:row.signal.ruleVersion,
       window:row.group,state:row.signal.state,detectedAt:row.signal.detectedAt,
       entryAt:row.signal.events.find(e=>e.type==='ENTRY')?.at||null,
       closeAt:row.signal.events.findLast(e=>['STOP','TP3','EXPIRED','INVALIDATED'].includes(e.type))?.at||null}))};

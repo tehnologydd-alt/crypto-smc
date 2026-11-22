@@ -36,7 +36,7 @@
       </div>
 
       <section class="panel"><div class="panel-head"><div><div class="eyebrow">03 / ИСТОРИЧЕСКИЙ ЭКСПЕРИМЕНТ</div><h2>Воспроизвести обе стратегии</h2></div><span>60% разработка · 20% проверка · 20% отложенный период</span></div>
-        <form id="replayForm" class="replay-form"><label>Актив<select id="replaySymbol" required></select></label><label>Таймфрейм<select id="replayTimeframe"><option value="5m">M5</option><option value="15m" selected>M15</option><option value="30m">M30</option></select></label><label>История<select id="replayDays"><option value="3">3 дня</option><option value="7">7 дней</option></select></label><button id="replayButton" type="submit">Запустить сравнение</button></form>
+        <form id="replayForm" class="replay-form"><label>Актив<select id="replaySymbol" required></select></label><label>Таймфрейм<select id="replayTimeframe"><option value="5m">M5</option><option value="15m" selected>M15</option><option value="30m">M30</option></select></label><label>История<select id="replayDays"><option value="3">3 дня</option><option value="7">7 дней</option></select></label><label>Комиссия, б.п. за сторону<input id="replayFee" type="number" min="0" max="100" step="0.1" value="5" required></label><label>Проскальзывание, б.п.<input id="replaySlippage" type="number" min="0" max="100" step="0.1" value="2" required></label><button id="replayButton" type="submit">Запустить сравнение</button></form>
         <p id="replayStatus" class="panel-note">Binance загрузит только закрытые свечи выбранного актива. Результат не меняет живую модель.</p>
         <button id="replayExport" class="replay-export" type="button" disabled>Скачать исследование JSON</button>
         <div id="replayResult" class="replay-result"></div>
@@ -45,7 +45,7 @@
       <section class="panel"><div class="panel-head"><div><div class="eyebrow">04 / ЖУРНАЛ РЕШЕНИЙ</div><h2>Последние кандидаты</h2></div><label class="filter-label">Стратегия <select id="strategyFilter"><option value="all">Обе</option><option value="smc">SMC</option><option value="breakout">Импульс и пробой</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Время</th><th>Актив</th><th>Стратегия</th><th>Направление</th><th>Вход / TP1 / стоп</th><th>Состояние</th><th>Теневое решение</th></tr></thead><tbody id="candidates"><tr><td colspan="7">Загрузка…</td></tr></tbody></table></div></section>
 
       <section class="panel"><div class="panel-head"><div><div class="eyebrow">05 / ЗАПИСЬ РЫНКА</div><h2>Накопленные свечи</h2></div><span>Только закрытые свечи Binance</span></div><div id="coverage" class="coverage"></div><p class="panel-note">Архив наполняется из уже используемых WebSocket и REST запросов. Количество свечей не означает полноту истории; пропуски проверяются перед воспроизведением.</p></section>
-      <p class="lab-disclaimer">Исследовательские сигналы не являются исполненными сделками. Отчёт не учитывает комиссии, funding и проскальзывание; доходность здесь не рассчитывается.</p>
+      <p class="lab-disclaimer">Исследовательские сигналы не являются исполненными сделками. В историческом эксперименте указаны условные результаты после расходов; касание свечи M1 не подтверждает фактическое исполнение биржи.</p>
     </main>
   </div>
   <script type="module" src="/lab.js?v=1"></script>

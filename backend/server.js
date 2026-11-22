@@ -147,6 +147,23 @@ async function fetchKlines(market, symbol, interval, options = {}) {
   if (market === 'futures') experience.recordCandles(market, symbol, interval, candles);
   return candles;
 }
+async function fetchFundingRates(symbol, start, end) {
+  const url = new URL('https://fapi.binance.com/fapi/v1/fundingRate');
+  url.searchParams.set('symbol', symbol);
+  url.searchParams.set('startTime', String(start));
+  url.searchParams.set('endTime', String(end));
+  url.searchParams.set('limit', '1000');
+  rateBudget.reserve('futures', 1);
+  const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  rateBudget.observe('futures', response);
+  if (!response.ok) throw new Error(`Funding Binance HTTP ${response.status}`);
+  const rows = await response.json();
+  if (!Array.isArray(rows)) throw new Error('Неверный ответ funding Binance');
+  return rows.map(row => ({ fundingTime: Number(row.fundingTime),
+    fundingRate: Number(row.fundingRate), markPrice: Number(row.markPrice) }))
+    .filter(row => Number.isFinite(row.fundingTime) && Number.isFinite(row.fundingRate) &&
+      row.fundingTime >= start && row.fundingTime <= end);
+}
 async function fetchTicker(market, symbol) {
   const u = new URL(endpoints[market].ticker);
   u.searchParams.set('symbol', symbol);
@@ -391,12 +408,14 @@ const handleRequest = async (req, res) => {
         try { input = await requestBody(req, 2048); }
         catch { return json(res, 400, { error: 'Неверные параметры исследования' }); }
         if (!state.symbols.includes(input.symbol) || !['5m','15m','30m'].includes(input.timeframe) ||
-            ![3,7].includes(input.days))
-          return json(res, 400, { error: 'Выберите отмеченный актив, M5/M15/M30 и окно 3 или 7 дней' });
-        const cacheKey = `${input.symbol}:${input.timeframe}:${input.days}`;
+            ![3,7].includes(input.days) ||
+            ![input.feeBps ?? 5, input.slippageBps ?? 2].every(n =>
+              typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100))
+          return json(res, 400, { error: 'Выберите отмеченный актив, M5/M15/M30, окно 3 или 7 дней и допустимые расходы' });
+        const cacheKey = `${input.symbol}:${input.timeframe}:${input.days}:${input.feeBps ?? 5}:${input.slippageBps ?? 2}`;
         let cached = replayRuns.get(cacheKey);
         if (!cached || cached.expiresAt < Date.now()) {
-          const promise = runHistoricalResearch(input, fetchKlines);
+          const promise = runHistoricalResearch(input, fetchKlines, Date.now(), fetchFundingRates);
           cached = { promise, expiresAt: Date.now() + 30 * 60000 };
           replayRuns.set(cacheKey, cached);
           promise.catch(() => { if (replayRuns.get(cacheKey) === cached) replayRuns.delete(cacheKey); });

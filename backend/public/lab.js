@@ -109,17 +109,28 @@ $('#replayForm').addEventListener('submit', async event => {
     const response = await fetch('/api/research/replay', { method:'POST',
       headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
       body: JSON.stringify({ symbol:$('#replaySymbol').value, timeframe:$('#replayTimeframe').value,
-        days:Number($('#replayDays').value) }) });
+        days:Number($('#replayDays').value), feeBps:Number($('#replayFee').value),
+        slippageBps:Number($('#replaySlippage').value) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
     lastReplay = result;
     $('#replayExport').disabled = false;
     $('#replayStatus').textContent = `${result.settings.symbol} · ${result.settings.timeframe.toUpperCase()} · ${result.period.days === 3 ? '3 дня' : '7 дней'} · ${result.candles.m1} M1 свечей. Проверочный период не использован для обучения.`;
     const windows = [['development','Разработка'],['validation','Проверка'],['holdout','Отложенный период']];
-    $('#replayResult').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Стратегия</th><th>Окно</th><th>Кандидаты</th><th>Входы</th><th>Исходы</th><th>TP1 до стопа</th><th>Доля TP1</th></tr></thead><tbody>${result.versions.flatMap(version =>
+    const paperRows = Object.entries(result.paper.byStrategy).flatMap(([strategy, groups]) =>
+      windows.map(([window, label]) => { const row = groups[window];
+        return `<tr><td>${escapeHtml(strategyName[strategy])}</td><td>${label}</td><td>${row.candidates}</td><td>${row.entries}</td><td>${row.closed}</td><td>${row.open}</td><td>${row.unfilled}</td><td>${row.closed ? `${number(row.netR)}R` : '—'}</td><td>${row.closed >= 20 ? `${number(row.averageR)}R` : 'мало данных'}</td></tr>`;
+      })).join('');
+    const tradeRows = result.paper.trades.map(trade =>
+      `<tr><td>${date(trade.detectedAt)}</td><td>${escapeHtml(strategyName[trade.strategy])}</td><td>${escapeHtml(trade.side)}</td><td>${trade.entryFill == null ? '—' : number(trade.entryFill)}</td><td>${escapeHtml(trade.status)}</td><td>${trade.netR == null ? '—' : `${number(trade.netR)}R`}</td><td>${trade.events.map(e => escapeHtml(e.type)).join(' → ') || '—'}</td></tr>`).join('');
+    $('#replayResult').innerHTML = `<h3>Касания исходных сигналов</h3><div class="table-wrap"><table><thead><tr><th>Стратегия</th><th>Окно</th><th>Кандидаты</th><th>Входы</th><th>Исходы</th><th>TP1 до стопа</th><th>Доля TP1</th></tr></thead><tbody>${result.versions.flatMap(version =>
       windows.map(([key,label]) => { const row = version.windows[key];
         return `<tr><td>${escapeHtml(strategyName[version.rule.key])}</td><td>${label}</td><td>${row.created}</td><td>${row.entered}</td><td>${row.resolved}</td><td>${row.successful}</td><td>${row.resolved >= 20 ? percent(row.rate) : 'мало данных'}</td></tr>`;
-      })).join('')}</tbody></table></div><p class="panel-note">Эта таблица показывает касания уровней на закрытых M1. Расходы и фактическое исполнение ордеров пока не моделируются; малое число исходов не подтверждает преимущество.</p>`;
+      })).join('')}</tbody></table></div><h3>Бумажное исполнение и результат после расходов</h3>
+      <p class="panel-note">Условный вход по касанию M1, частичные TP по ⅓, перенос стопа после TP1. Комиссия ${result.paper.assumptions.feeBps} б.п. и проскальзывание ${result.paper.assumptions.slippageBps} б.п. за исполнение. Funding: ${result.funding.known ? `${result.funding.events} реальных ставок Binance` : 'недоступен, результат без funding'}.</p>
+      <div class="table-wrap"><table><thead><tr><th>Стратегия</th><th>Окно</th><th>Кандидаты</th><th>Условные входы</th><th>Закрыто</th><th>Открыто</th><th>Без входа</th><th>Сумма R</th><th>Средний R</th></tr></thead><tbody>${paperRows}</tbody></table></div>
+      <h3>Журнал бумажных сделок</h3><div class="table-wrap"><table><thead><tr><th>Время сигнала</th><th>Стратегия</th><th>Сторона</th><th>Условный вход</th><th>Состояние</th><th>Итог</th><th>События</th></tr></thead><tbody>${tradeRows || '<tr><td colspan="7">Сделок пока нет.</td></tr>'}</tbody></table></div>
+      <p class="panel-note">Это моделирование, а не подтверждённые исполнения биржи. История M1 не показывает очередь лимитных заявок и порядок событий внутри свечи. Малое число исходов не подтверждает преимущество.</p>`;
     void refresh();
   } catch (error) {
     $('#replayStatus').textContent = `Исследование не выполнено: ${error.message}`;

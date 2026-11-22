@@ -73,7 +73,8 @@ h1 span { color: #7aeec0; }
 .filter-label { color: #8eaab7; font-size: 10px; white-space: nowrap; }
 .replay-form { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
 .replay-form label { display: grid; gap: 6px; color: #9db4bd; font-size: 11px; }
-.replay-form select { min-width: 130px; color: #e4f3ed; background: #102636; border: 1px solid #3c5660; padding: 11px; border-radius: 9px; }
+.replay-form select, .replay-form input { min-width: 130px; color: #e4f3ed; background: #102636; border: 1px solid #3c5660; padding: 11px; border-radius: 9px; }
+.replay-form input { width: 150px; }
 .replay-form button { border: 0; color: #09261e; background: #7deabe; border-radius: 9px; padding: 12px 16px; font-weight: 700; font-size: 12px; }
 .replay-form button:disabled { opacity: .55; cursor: wait; }
 .replay-result { margin-top: 13px; }

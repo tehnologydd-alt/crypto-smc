@@ -28,9 +28,11 @@ export async function collectClosedWindow(fetchCandles, symbol, timeframe, start
   return rows;
 }
 
-export async function runHistoricalResearch({ symbol, timeframe, days }, fetchCandles, now = Date.now()) {
+export async function runHistoricalResearch({ symbol, timeframe, days, feeBps = 5, slippageBps = 2 }, fetchCandles,
+  now = Date.now(), fetchFundingRates = null) {
   if (!/^[A-Z0-9]{2,16}USDT$/.test(symbol || '') || !REPLAY_TIMEFRAMES.includes(timeframe) ||
-      ![3, 7].includes(days)) throw new Error('Выберите отмеченный актив, M5/M15/M30 и окно 3 или 7 дней');
+      ![3, 7].includes(days) || ![feeBps, slippageBps].every(n => Number.isFinite(n) && n >= 0 && n <= 100))
+    throw new Error('Выберите отмеченный актив, M5/M15/M30, окно 3 или 7 дней и допустимые расходы');
   const end = Math.floor(now / 60000) * 60000 - 1;
   const start = end + 1 - days * DAY;
   const [m1, bars, parentBars] = await Promise.all([
@@ -38,8 +40,15 @@ export async function runHistoricalResearch({ symbol, timeframe, days }, fetchCa
     collectClosedWindow(fetchCandles, symbol, timeframe, start, end),
     collectClosedWindow(fetchCandles, symbol, '1h', start, end)
   ]);
-  const comparison = compareStrategies({ market: 'futures', symbol, timeframe, bars, parentBars, m1 });
+  let fundingRates = [], fundingKnown = false, fundingError = null;
+  if (fetchFundingRates) {
+    try { fundingRates = await fetchFundingRates(symbol, start, end); fundingKnown = true; }
+    catch (error) { fundingError = error.message; }
+  }
+  const comparison = compareStrategies({ market: 'futures', symbol, timeframe, bars, parentBars, m1 },
+    { fundingRates, fundingKnown, feeBps, slippageBps });
   return { ...comparison, collectedAt: Date.now(), period: { from: start, to: end, days },
     candles: { m1: m1.length, working: bars.length, parent: parentBars.length },
+    funding: { known: fundingKnown, events: fundingRates.length, error: fundingError },
     scope: 'Историческое исследование. Никаких живых сигналов и обновлений модели не создаёт.' };
 }
