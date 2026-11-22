@@ -40,6 +40,34 @@ export async function listLocalModels(provider, fetchImpl = fetch) {
     !name.startsWith('/')))];
 }
 
+export async function listLoadedOllamaModels(fetchImpl = fetch) {
+  const response = await fetchImpl(PROVIDERS.ollama.base + '/api/ps',
+    { signal: AbortSignal.timeout(3000) });
+  if (!response.ok) throw new Error(`Ollama: HTTP ${response.status}`);
+  const payload = await response.json();
+  return Array.isArray(payload.models) ? payload.models.map(row => row.name)
+    .filter(name => typeof name === 'string') : [];
+}
+
+export async function preloadLocalModel(config, fetchImpl = fetch) {
+  if (!validLocalAiConfig(config) || !config.enabled)
+    throw new Error('Некорректная настройка локальной модели');
+  const settings = PROVIDERS[config.provider];
+  const body = config.provider === 'ollama' ? {
+    model: config.model, prompt: '', stream: false, keep_alive: -1,
+    options: { num_ctx: 4096 }
+  } : {
+    model: config.model, messages: [{ role: 'user', content: 'OK' }],
+    stream: false, temperature: 0, max_tokens: 1, ttl: 86400
+  };
+  const response = await fetchImpl(settings.base + settings.generate, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body), signal: AbortSignal.timeout(90000)
+  });
+  if (!response.ok) throw new Error(`Не удалось загрузить модель: HTTP ${response.status}`);
+  return { provider: config.provider, model: config.model, warmedAt: Date.now() };
+}
+
 const closedBar = bar => [bar.time, bar.open, bar.high, bar.low, bar.close,
   bar.volume].every(Number.isFinite) && Number.isFinite(bar.end) &&
   bar.high >= Math.max(bar.open, bar.close, bar.low) &&
@@ -80,11 +108,11 @@ export async function reviewLocalCandidate(config, frozen, fetchImpl = fetch) {
   const body = config.provider === 'ollama' ? {
     model: config.model, system: SYSTEM, prompt: frozen.prompt,
     stream: false, think: false, format: RESPONSE_SCHEMA,
-    options: { temperature: 0, num_predict: 256, num_ctx: 4096 }, keep_alive: '5m'
+    options: { temperature: 0, num_predict: 256, num_ctx: 4096 }, keep_alive: -1
   } : {
     model: config.model, messages: [{ role: 'system', content: SYSTEM },
       { role: 'user', content: frozen.prompt }], stream: false,
-    temperature: 0, max_tokens: 256,
+    temperature: 0, max_tokens: 256, ttl: 86400,
     response_format: { type: 'json_schema', json_schema: {
       name: 'orbit_signal_review', strict: true, schema: RESPONSE_SCHEMA } }
   };

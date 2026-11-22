@@ -14,6 +14,7 @@ const aiVerdictName = { PASS:'Поддерживает', REJECT:'Отклоня�
 let report = null;
 let lastReplay = null;
 let aiProviders = null;
+let aiWarm = null;
 
 function funnel(key, metrics) {
   const stages = [['Кандидаты', metrics.candidates], ['Входы', metrics.entered],
@@ -94,7 +95,13 @@ function showAiStatus(message = '') {
   const found = aiProviders?.[provider];
   const status = found?.online ? `API работает · моделей: ${found.models.length}` :
     `API недоступен${found?.error ? ': ' + found.error : ''}`;
-  $('#aiStatus').textContent = `${status}. ${$('#aiStatus').dataset.summary || ''}`;
+  const loaded = provider === 'ollama' && found?.loaded?.includes($('#aiModel').value);
+  const warm = loaded ? 'Выбранная модель загружена в память.' :
+    provider === 'lmstudio' && aiWarm?.state === 'ready' &&
+      aiWarm.model === $('#aiModel').value ? 'Модель подготовлена.' :
+    aiWarm?.state === 'loading' ? 'Модель загружается…' :
+    aiWarm?.state === 'error' ? `Загрузка не удалась: ${aiWarm.reason}` : '';
+  $('#aiStatus').textContent = `${status}. ${warm} ${$('#aiStatus').dataset.summary || ''}`;
 }
 
 function renderAiModels(preferred = '') {
@@ -117,6 +124,7 @@ async function refreshAi() {
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     aiProviders = body.providers;
+    aiWarm = body.warm;
     $('#aiProvider').value = body.config.provider;
     $('#aiEnabled').checked = body.config.enabled;
     renderAiModels(body.config.model);

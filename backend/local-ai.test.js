@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { freezeLocalAiInput, listLocalModels, reviewLocalCandidate,
+import { freezeLocalAiInput, listLocalModels, preloadLocalModel,
+  reviewLocalCandidate,
   validLocalAiConfig } from './local-ai.js';
 
 const bars = Array.from({ length: 20 }, (_, index) => ({
@@ -52,4 +53,22 @@ test('local model lists and malformed answers fail closed', async () => {
   /неверную оценку/);
   assert.equal(validLocalAiConfig({ enabled: true, provider: 'ollama',
     model: 'https://foreign.example' }), false);
+});
+
+test('selected Ollama model is preloaded and retained for later candidates', async () => {
+  const calls = [];
+  const config = { enabled: true, provider: 'ollama', model: 'qwen3:4b' };
+  await preloadLocalModel(config, async (_url, options) => {
+    calls.push(JSON.parse(options.body));
+    return { ok: true };
+  });
+  assert.equal(calls[0].prompt, '');
+  assert.equal(calls[0].keep_alive, -1);
+  const frozen = freezeLocalAiInput(signal, bars, bars.slice(0, 12));
+  await reviewLocalCandidate(config, frozen, async (_url, options) => {
+    calls.push(JSON.parse(options.body));
+    return { ok: true, json: async () => ({
+      response: JSON.stringify({ verdict: 'UNSURE', reason: 'Мало подтверждений' }) }) };
+  });
+  assert.equal(calls[1].keep_alive, -1);
 });

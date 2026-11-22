@@ -18,7 +18,8 @@ import { ownMachineRequest } from './local-browser-auth.js';
 import { assessCandidate, buildResearchLab } from './research-lab.js';
 import { runHistoricalResearch } from './historical-research.js';
 import { LOCAL_AI_POLICY, validLocalAiConfig, listLocalModels,
-  freezeLocalAiInput, reviewLocalCandidate } from './local-ai.js';
+  listLoadedOllamaModels, preloadLocalModel, freezeLocalAiInput,
+  reviewLocalCandidate } from './local-ai.js';
 
 const base = resolve(import.meta.dirname);
 const dataDir = resolve(process.env.DATA_DIR || join(base, 'data'));
@@ -141,6 +142,22 @@ function queueAiReview(signal, bars, parentBars) {
     signal.localAi = { policy: LOCAL_AI_POLICY, status: 'ERROR',
       provider: config.provider, model: config.model, requestedAt: Date.now(),
       completedAt: Date.now(), reason: String(error.message).slice(0, 180) };
+  }
+}
+let aiWarm = { state: 'disabled' };
+let aiWarmGeneration = 0;
+async function warmLocalAi() {
+  const generation = ++aiWarmGeneration;
+  const config = { ...state.localAiConfig };
+  if (!config.enabled) { aiWarm = { state: 'disabled' }; return; }
+  aiWarm = { state: 'loading', provider: config.provider, model: config.model };
+  try {
+    const loaded = await preloadLocalModel(config);
+    if (generation === aiWarmGeneration) aiWarm = { state: 'ready', ...loaded };
+  } catch (error) {
+    if (generation === aiWarmGeneration) aiWarm = { state: 'error',
+      provider: config.provider, model: config.model,
+      reason: String(error.message).slice(0, 180) };
   }
 }
 function label(signal, event) {
@@ -468,11 +485,13 @@ const handleRequest = async (req, res) => {
           errors: Object.keys(state.errors).length });
       if (req.method === 'GET' && url.pathname === '/api/research/ai') {
         const providers = Object.fromEntries(await Promise.all(['ollama', 'lmstudio'].map(async name => {
-          try { return [name, { online: true, models: await listLocalModels(name) }]; }
+          try { return [name, { online: true, models: await listLocalModels(name),
+            loaded: name === 'ollama' ? await listLoadedOllamaModels() : null }]; }
           catch (error) { return [name, { online: false, models: [], error: error.message }]; }
         })));
         return json(res, 200, { config: state.localAiConfig, providers,
-          queue: aiQueue.length + Number(aiRunning), policy: LOCAL_AI_POLICY });
+          queue: aiQueue.length + Number(aiRunning), warm: aiWarm,
+          policy: LOCAL_AI_POLICY });
       }
       if (req.method === 'PUT' && url.pathname === '/api/research/ai') {
         let config;
@@ -490,6 +509,7 @@ const handleRequest = async (req, res) => {
         state.localAiConfig = { enabled: config.enabled, provider: config.provider,
           model: config.model };
         persist();
+        void warmLocalAi();
         return json(res, 200, { config: state.localAiConfig, policy: LOCAL_AI_POLICY });
       }
       if (req.method === 'POST' && url.pathname === '/api/research/replay') {
@@ -623,6 +643,7 @@ const handleRequest = async (req, res) => {
 const server = tlsPfxPath ? https.createServer({ pfx: readFileSync(tlsPfxPath), passphrase: tlsPfxPassword }, handleRequest)
   : http.createServer(handleRequest);
 server.listen(port, host, () => console.log(`Crypto Signals: ${tlsPfxPath ? 'https' : 'http'}://${host}:${port}`));
+void warmLocalAi();
 for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
 setInterval(persist, 30000);
 setInterval(() => {
