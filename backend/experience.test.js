@@ -42,3 +42,34 @@ test('existing signal history migrates without treating old strategy as experien
   } finally { store.close(); }
 });
 
+test('phone event sync preserves server-owned AI and shadow decisions', () => {
+  const store = openExperienceStore(':memory:');
+  try {
+    const base = { id: 'futures:BTCUSDT:15m:one:LONG', market: 'futures',
+      symbol: 'BTCUSDT', timeframe: '15m', side: 'LONG', strategyVersion: 4,
+      strategyKey: 'smc', detectedAt: 1000, state: 'WAITING',
+      events: [{ type: 'CREATED', at: 1000, price: 100 }] };
+    store.saveSignal({ ...base, researchV5: { verdict: 'PASS' },
+      localAi: { status: 'DONE', verdict: 'REJECT', inputHash: 'abc' } });
+    store.importSignal({ ...base, state: 'OPEN',
+      events: [...base.events, { type: 'ENTRY', at: 2000, price: 100 }],
+      localAi: { status: 'DONE', verdict: 'PASS' } });
+    const saved = store.loadSignals()[0];
+    assert.equal(saved.state, 'OPEN');
+    assert.equal(saved.localAi.verdict, 'REJECT');
+    assert.equal(saved.researchV5.verdict, 'PASS');
+  } finally { store.close(); }
+});
+
+test('M1 journal finds an interior gap even after recent candles arrive', () => {
+  const store = openExperienceStore(':memory:');
+  try {
+    const now = Date.now(), start = Math.floor((now - 5 * 60000) / 60000) * 60000;
+    assert.equal(store.recordCandles('futures', 'BTCUSDT', '1m', [0, 1, 3].map(i => ({
+      time: start + i * 60000, end: start + (i + 1) * 60000 - 1,
+      open: 100, high: 101, low: 99, close: 100.5, volume: 10 }))), 3);
+    assert.equal(store.missingM1Start('BTCUSDT', start, now), start + 2 * 60000);
+    assert.equal(store.missingM1Start('ETHUSDT', start, now), start);
+  } finally { store.close(); }
+});
+

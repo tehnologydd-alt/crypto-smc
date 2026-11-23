@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09111b">
+  <title>Лаборатория v5 · Orbit Signals</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/lab.css?v=1">
+</head>
+<body>
+  <div class="lab-shell">
+    <header class="lab-header">
+      <a class="lab-brand" href="/"><span class="lab-mark">◎</span><span><b>ORBIT</b><small>SIGNALS</small></span></a>
+      <nav aria-label="Разделы"><a href="/">Рынок</a><a href="/?page=signals">Сигналы</a><a href="/?page=stats">Статистика</a><span class="current">Лаборатория</span></nav>
+      <span class="lab-chip" id="connection">Подключение…</span>
+    </header>
+
+    <main>
+      <section class="lab-hero">
+        <div><div class="eyebrow">PC RESEARCH / V5 SHADOW</div>
+          <h1>Лаборатория прогнозов<span>.</span></h1>
+          <p>Две действующие стратегии создают кандидатов. Теневой фильтр записывает решение в момент появления сигнала и проверяет его позже — без влияния на уведомления телефона.</p>
+          <div class="hero-actions"><button id="refresh" type="button">Обновить данные</button><button id="export" type="button" class="secondary" disabled>Скачать отчёт JSON</button></div>
+        </div>
+        <aside class="policy-card"><div class="eyebrow">ПРАВИЛО ИССЛЕДОВАНИЯ</div><strong id="policyVersion">v5-shadow-1</strong><p>Сначала проверка модели на независимых исходах. Затем сравнение оценки с базовой частотой. Пока доказательств нет, кандидат остаётся в группе «Сбор данных».</p><span>Сигналы и уровни v4 не изменяются</span></aside>
+      </section>
+
+      <div id="error" class="error hidden" role="alert"></div>
+      <div class="lab-meta"><span id="updated">Ожидание данных</span><span id="feed">Поток: —</span><span id="monitored">Активов: —</span></div>
+      <section class="kpis" aria-label="Сводка"><article><small>КАНДИДАТЫ V4</small><strong id="kCandidates">—</strong><span>Обе стратегии</span></article><article><small>ВХОДЫ</small><strong id="kEntries">—</strong><span id="kEntryRate">—</span></article><article><small>ИСХОДЫ</small><strong id="kResolved">—</strong><span>TP1 или стоп после входа</span></article><article><small>TP1 ДО СТОПА</small><strong id="kTp1">—</strong><span id="kTp1Rate">—</span></article><article><small>ИСТЕКЛИ БЕЗ ВХОДА</small><strong id="kMissed">—</strong><span>Проблема достижимости входа</span></article></section>
+
+      <div class="lab-grid">
+        <section class="panel"><div class="panel-head"><div><div class="eyebrow">01 / БАЗОВЫЕ ПРАВИЛА</div><h2>Воронка двух стратегий</h2></div><span>Вся история v4</span></div><div id="funnels" class="funnels"></div><p class="panel-note">TP1 считается успехом только если наступил после входа и раньше стопа. Незаполненные сценарии показаны отдельно.</p></section>
+        <section class="panel"><div class="panel-head"><div><div class="eyebrow">02 / ТЕНЕВОЙ ОТБОР</div><h2>Проверка фильтра</h2></div><span id="assessed">0 оценено</span></div><div id="shadow" class="shadow"></div><p class="panel-note">Сравнение групп появится после достаточного числа независимых завершённых сценариев. Решение каждого кандидата сохраняется до исхода.</p></section>
+      </div>
+
+      <section class="panel"><div class="panel-head"><div><div class="eyebrow">03 / ЛОКАЛЬНЫЙ ИИ</div><h2>Теневой фильтр модели</h2></div><span>ПК · без влияния на сигналы</span></div>
+        <p class="panel-note">Модель получает только закрытые свечи и уровни кандидата. Её решение сохраняется до исхода. Для сравнения учитываются лишь ответы, пришедшие до возможного входа.</p>
+        <form id="aiForm" class="ai-form"><label>Программа<select id="aiProvider"><option value="ollama">Ollama</option><option value="lmstudio">LM Studio</option></select></label><label>Локальная модель<select id="aiModel"></select></label><label class="ai-toggle"><input id="aiEnabled" type="checkbox">Оценивать новые сигналы</label><button id="aiSave" type="submit">Сохранить</button><button id="aiRefresh" type="button" class="secondary">Проверить модели</button></form>
+        <p id="aiStatus" class="panel-note">Проверяю локальные модели…</p><div id="aiSummary" class="shadow ai-summary"></div>
+        <p class="panel-note">Для стратегии «Импульс и пробой» вход намечен на открытие следующей M1. Ответ ИИ после этого момента считается поздним и не показывает, что фильтр мог бы повлиять на сделку.</p>
+      </section>
+
+      <section class="panel"><div class="panel-head"><div><div class="eyebrow">04 / ИСТОРИЧЕСКИЙ ЭКСПЕРИМЕНТ</div><h2>Воспроизвести обе стратегии</h2></div><span>60% разработка · 20% проверка · 20% отложенный период</span></div>
+        <form id="replayForm" class="replay-form"><label>Актив<select id="replaySymbol" required></select></label><label>Таймфрейм<select id="replayTimeframe"><option value="5m">M5</option><option value="15m" selected>M15</option><option value="30m">M30</option></select></label><label>История<select id="replayDays"><option value="3">3 дня</option><option value="7">7 дней</option></select></label><label>Комиссия, б.п. за сторону<input id="replayFee" type="number" min="0" max="100" step="0.1" value="5" required></label><label>Проскальзывание, б.п.<input id="replaySlippage" type="number" min="0" max="100" step="0.1" value="2" required></label><button id="replayButton" type="submit">Запустить сравнение</button></form>
+        <p id="replayStatus" class="panel-note">Binance загрузит только закрытые свечи выбранного актива. Результат не меняет живую модель.</p>
+        <button id="replayExport" class="replay-export" type="button" disabled>Скачать исследование JSON</button>
+        <div id="replayResult" class="replay-result"></div>
+      </section>
+
+      <section class="panel"><div class="panel-head"><div><div class="eyebrow">05 / ЖУРНАЛ РЕШЕНИЙ</div><h2>Последние кандидаты</h2></div><label class="filter-label">Стратегия <select id="strategyFilter"><option value="all">Обе</option><option value="smc">SMC</option><option value="breakout">Импульс и пробой</option></select></label></div><div class="table-wrap"><table><thead><tr><th>Время</th><th>Актив</th><th>Стратегия</th><th>Направление</th><th>Вход / TP1 / стоп</th><th>Состояние</th><th>Теневое решение</th><th>Локальный ИИ</th></tr></thead><tbody id="candidates"><tr><td colspan="8">Загрузка…</td></tr></tbody></table></div></section>
+
+      <section class="panel"><div class="panel-head"><div><div class="eyebrow">06 / ЗАПИСЬ РЫНКА</div><h2>Накопленные свечи</h2></div><span>Только закрытые свечи Binance</span></div><div id="coverage" class="coverage"></div><p class="panel-note">Архив наполняется из уже используемых WebSocket и REST запросов. Количество свечей не означает полноту истории; пропуски проверяются перед воспроизведением.</p></section>
+      <p class="lab-disclaimer">Исследовательские сигналы не являются исполненными сделками. В историческом эксперименте указаны условные результаты после расходов; касание свечи M1 не подтверждает фактическое исполнение биржи.</p>
+    </main>
+  </div>
+  <script type="module" src="/lab.js?v=1"></script>
+</body>
+</html>

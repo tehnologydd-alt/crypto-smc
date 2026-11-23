@@ -48,7 +48,7 @@ class MainActivity : Activity() {
     private var signalScope = "all"
     private var statsMarket = "all"
     private var assetSymbol: String? = null
-    private var market = "spot"
+    private var market = "futures"
     private var timeframe = "15m"
     private var selectedSignalId: String? = null
     private var assetSignalTab = "waiting"
@@ -337,26 +337,24 @@ class MainActivity : Activity() {
 
     private fun refreshMarketLiveViews() {
         for ((symbol, label) in marketPriceViews) {
-            label.text = "СПОТ  ${format(store.price("spot", symbol)?.first)}      " +
-                "ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}"
+            label.text = "ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}"
         }
         marketLastUpdateView?.text =
             "Обновлено: ${if (prefs.lastRun == 0L) "ожидание" else date(prefs.lastRun)}"
         if (marketLearningLevelView != null) {
-            val localModel = store.model()
-            val remoteModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
-            val samples = if (prefs.mode == "server") remoteModel?.optInt("samples") ?: 0 else localModel.samples
-            val validation = if (prefs.mode == "server") remoteModel?.optInt("validationSamples") ?: 0 else localModel.validation.size
-            val level = if (prefs.mode == "server") {
-                if (remoteModel?.optBoolean("trusted") == true) 3
-                else if (samples >= 50 && validation >= 30) 2
-                else if (samples >= 30) 1 else 0
-            } else localModel.level
-            marketLearningLevelView?.text = "УРОВЕНЬ $level/3  ·  " +
-                listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level.coerceIn(0, 3)]
-            marketTrainingView?.text = "Обучающие исходы: ${samples.coerceAtMost(30)}/30"
-            marketValidationView?.text = "Проверочные исходы: ${validation.coerceAtMost(30)}/30"
+            marketLearningLevelView?.text = strategyProgress("smc")
+            marketTrainingView?.text = strategyProgress("breakout")
         }
+    }
+    private fun strategyProgress(key:String):String {
+        val rule=ResearchRules.all.first{it.key==key}
+        val remote=prefs.serverRuleModels?.let { runCatching{JSONObject(it).optJSONObject(key)}.getOrNull() }
+        val local=if(prefs.mode=="local")store.ruleModel(key) else null
+        val samples=remote?.optInt("samples")?:local?.samples?:0
+        val validation=remote?.optInt("validationSamples")?:local?.validation?.size?:0
+        val trusted=remote?.optBoolean("trusted")?:local?.trusted?:false
+        val level=if(trusted)3 else if(samples>=50&&validation>=30)2 else if(samples>=30)1 else 0
+        return "${rule.title}: уровень $level/3 · исходы $samples · проверка $validation"
     }
 
     private fun refreshAssetLiveViews() {
@@ -446,7 +444,7 @@ class MainActivity : Activity() {
             val changes=if(book!=null)
                 "Δ30с: bid ${change(book.bidChangePct)} · ask ${change(book.askChangePct)}" +
                     " · ${book.observations} наблюдений · ${book.updates} обновлений" else
-                "При разрыве WS значения исключаются из фильтра D2"
+                "Нет непрерывных данных стакана"
             if(views.change.text.toString()!=changes)views.change.text=changes
             views.ladder.snapshot=book
             views.balance.share=book?.imbalance
@@ -468,43 +466,21 @@ class MainActivity : Activity() {
             prefs.backupError?.let { addView(text(it, 11, danger)) }
             setOnClickListener { navigateToPage("settings") }
         }
-        val model = store.model()
-        val remoteModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
-        val samples = if (prefs.mode == "server") remoteModel?.optInt("samples") ?: 0 else model.samples
-        val validation = if (prefs.mode == "server") remoteModel?.optInt("validationSamples") ?: 0 else model.validation.size
-        val level = if (prefs.mode == "server") {
-            if (remoteModel?.optBoolean("trusted") == true) 3 else if (samples >= 50 && validation >= 30) 2 else if (samples >= 30) 1 else 0
-        } else model.level
         card(body) {
             addView(text("АДАПТИВНАЯ ОЦЕНКА", 10, accent, true))
-            addView(text("Прогресс обучения", 23, primaryText, true))
-            addView(text("УРОВЕНЬ $level/3  ·  ${listOf("СБОР ОПЫТА", "БАЗОВАЯ МОДЕЛЬ", "ПРОВЕРКА", "КАЧЕСТВО ПОДТВЕРЖДЕНО")[level]}", 12, accent, true).also { marketLearningLevelView = it })
-            addView(text("Обучающие исходы: ${samples.coerceAtMost(30)}/30", 12).also { marketTrainingView = it })
-            addView(text("Проверочные исходы: ${validation.coerceAtMost(30)}/30", 12).also { marketValidationView = it })
-            addView(text("Уровень зависит от завершённых сигналов новой стратегии и качества прогноза.", 11, muted))
-        }
-        if(prefs.mode=="local") {
-            card(body) {
-                addView(text("ФОНОВОЕ ПОДТВЕРЖДЕНИЕ · B5", 10, accent, true))
-                addView(text("WebSocket до 5 минут после кандидата · отдельная статистика", 12, primaryText, true))
-                val recent=store.recentDepthRuns(3)
-                if(recent.isEmpty())addView(text("Ожидаются структурные кандидаты", 11, muted))
-                else for(item in recent) {
-                    val tone=when(item.status){"CONFIRMED"->accent
-                        "OBSERVING"->accent;"PENDING"->muted;else->danger}
-                    addView(text("${item.market.uppercase()} ${item.symbol} ${item.timeframe} · ${item.status} · ${item.samples} замеров",11,tone))
-                    item.reason?.let { addView(text(it,10,muted)) }
-                }
-            }
+            addView(text("Две стратегии · два прогноза", 21, primaryText, true))
+            addView(text(strategyProgress("smc"), 12, accent, true).also{marketLearningLevelView=it})
+            addView(text(strategyProgress("breakout"), 12, accent, true).also{marketTrainingView=it})
+            addView(text("Уровни основаны на отдельных завершённых исходах и проверке качества.", 11, muted))
         }
         if (prefs.mode == "server") body.addView(text("Источник: сервер · синхронизация ${if (prefs.serverLastSync == 0L) "ожидается" else date(prefs.serverLastSync)}", 11, accent))
         body.addView(text("Отмечено ${prefs.symbols.size} активов", 20, primaryText, true))
-        body.addView(text("Спот и USDT-M фьючерсы · последние закрытые M1", 11, muted))
+        body.addView(text("USDT-M фьючерсы · последние закрытые M1", 11, muted))
         for (symbol in prefs.symbols) card(body) {
             addView(text("${symbol.removeSuffix("USDT")} / USDT   ↗", 17, primaryText, true))
-            addView(text("СПОТ  ${format(store.price("spot", symbol)?.first)}      ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent).also { marketPriceViews[symbol] = it })
+            addView(text("ФЬЮЧЕРСЫ  ${format(store.price("futures", symbol)?.first)}", 12, accent).also { marketPriceViews[symbol] = it })
             addView(text("Стаканы · 100 уровней bid/ask · WebSocket", 10, muted))
-            for ((kind,label) in listOf("spot" to "СПОТ","futures" to "ФЬЮЧЕРСЫ")) {
+            for ((kind,label) in listOf("futures" to "ФЬЮЧЕРСЫ")) {
                 addView(text("$label · синхронизация", 10, muted).also {
                     marketDepthViews["$kind:$symbol"]=it
                 })
@@ -514,7 +490,7 @@ class MainActivity : Activity() {
                 })
                 marketDepthBars["$kind:$symbol"]=strip
             }
-            setOnClickListener { navigateToAsset(symbol, "spot", "15m") }
+            setOnClickListener { navigateToAsset(symbol, "futures", "15m") }
         }
         body.addView(text("Обновлено: ${when (prefs.lastRun) { 0L -> "ожидание"; else -> date(prefs.lastRun) }}", 11, muted).also { marketLastUpdateView = it })
     }
@@ -552,9 +528,9 @@ class MainActivity : Activity() {
                 setColor(outcomeColors.first); cornerRadius = dp(14).toFloat(); setStroke(dp(2), outcomeColors.second)
             }
             addView(text("${signal.symbol}  ·  ${if (signal.market == "spot") "СПОТ" else "ФЬЮЧЕРСЫ"}  ·  ${signal.timeframe}", 14, accent, true))
-            addView(text(if (signal.ruleVersion.isNotBlank())
-                "Правила ${signal.ruleVersion} · ${ResearchRules.all.firstOrNull { it.key == signal.ruleVersion }?.title ?: "версия"}"
-                else "Прежняя версия SMC v3", 10, muted))
+            addView(text(if (signal.strategyKey.isNotBlank())
+                "Стратегия · ${ResearchRules.all.firstOrNull { it.key == signal.strategyKey }?.title ?: signal.strategyKey}"
+                else "Архив · ${signal.ruleVersion.ifBlank { "SMC v3" }}", 10, muted))
             signal.bookEvidence?.let { book ->
                 addView(text("Стакан: bid ${compact(book.bidUsdt)} / ask ${compact(book.askUsdt)} USDT · " +
                     "bid ${(book.imbalance * 100).roundToInt()}% · ${date(book.capturedAt)}", 11, muted))
@@ -589,7 +565,7 @@ class MainActivity : Activity() {
             val modelBrier: Double?, val baselineBrier: Double?
         )
         val variants = ResearchRules.all.map { rule ->
-            val history = signals.filter { it.strategyVersion == 3 && it.ruleVersion == rule.key }
+            val history = signals.filter { it.strategyVersion == 4 && it.strategyKey == rule.key }
             fun touched(signal: Signal, type: String) = signal.events.any { it.type == type }
             val entered = history.filter { touched(it, "ENTRY") }
             val settled = entered.filter { touched(it, "TP1") || touched(it, "STOP") }
@@ -624,9 +600,9 @@ class MainActivity : Activity() {
                 remote?.optDouble("baselineBrier", Double.NaN)?.takeIf { it.isFinite() } ?: baseline)
         }
         card(body) {
-            addView(text("СРАВНЕНИЕ ПЯТИ ВЕРСИЙ", 10, accent, true))
-            addView(text("Какие фильтры улучшают результат?", 18, primaryText, true))
-            addView(text("D2 проверяет стакан при закрытии свечи; B5 — отдельное пятиминутное исследование после закрытия. В статистике только входы с известным TP1 или стопом.", 11, muted))
+            addView(text("СРАВНЕНИЕ ДВУХ СТРАТЕГИЙ", 10, accent, true))
+            addView(text("Какая гипотеза работает лучше?", 18, primaryText, true))
+            addView(text("SMC ждёт отката к OB. Импульс и пробой проверяет продолжение движения. Исходом считается TP1 или стоп после входа.", 11, muted))
             for (item in variants) {
                 val rate = if (item.settled > 0)
                     "${(item.successful * 100.0 / item.settled).roundToInt()}%" else "—"
@@ -644,11 +620,8 @@ class MainActivity : Activity() {
         for (item in variants) card(body) {
             addView(text("${item.rule.key} · ${item.rule.title}", 16, primaryText, true))
             addView(text(when (item.rule.key) {
-                "v0.1" -> "Базовая структура BOS/CHoCH + активные OB/FVG"
-                "v0.2-D2" -> "v0.1 + 100 синхронизированных уровней bid/ask (USDT), доля стороны ≥55% и ≥10с наблюдения"
-                "v0.3-D2" -> "v0.2-D2 + закрытый старший таймфрейм"
-                "v0.2-B5" -> "5-мин. наблюдение после свечи; не вход задним числом"
-                "v0.3-B5" -> "5-мин. наблюдение после свечи + закрытый старший таймфрейм"
+                "smc" -> "BOS/CHoCH + активные OB/FVG + закрытый старший таймфрейм; вход по откату"
+                "breakout" -> "Пробой диапазона 20 свечей + импульс и объём; вход по следующей M1"
                 else -> "Новая исследовательская ревизия"
             }, 11, muted))
             val first = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
@@ -669,9 +642,8 @@ class MainActivity : Activity() {
                 "Недостаточно исходов для предварительного вывода (${item.settled}/30)."
                 else "Предварительная выборка набрана; проверяйте устойчивость на новых данных.", 11, muted))
         }
-        body.addView(text("D2: синхронизированный стакан при закрытии свечи. B5: до 5 минут фонового WebSocket после кандидата, отдельная выборка, прерванные проверки не считаются сигналами. " +
-            "Объёмы по 100 уровням в USDT; REST только для синхронизации. Прежние ревизии сохранены. " +
-            "Результат исследовательский и не учитывает комиссии.", 10, muted))
+        body.addView(text("Прежние D2/B5 сохранены в архиве. Новые стратегии имеют отдельные модели. " +
+            "Результат исследовательский и не учитывает комиссии и funding.", 10, muted))
         val archived = signals.filter { it.ruleVersion in ResearchRules.archivedKeys }
         if (archived.isNotEmpty()) card(body) {
             addView(text("АРХИВ ПРЕЖНИХ ПРАВИЛ", 10, muted, true))
@@ -719,7 +691,7 @@ class MainActivity : Activity() {
             statsProgress(this, "Стоп", count("STOP"), entries, danger)
             addView(text("TP и стоп считаются отдельно: сигнал мог взять TP1, а затем остановиться по стопу.", 10, muted))
         }
-        val outcomes = signals.filter { it.learned && it.outcome != null }.sortedBy { it.detectedAt }
+        val outcomes = signals.filter { it.strategyVersion==4 && it.learned && it.outcome != null }.sortedBy { it.detectedAt }
         val recent = outcomes.takeLast(20)
         val previous = outcomes.dropLast(20).takeLast(20)
         card(body) {
@@ -735,25 +707,10 @@ class MainActivity : Activity() {
             }
             if (outcomes.size < 40) addView(text("Выборка пока мала: процент может сильно меняться.", 10, muted))
         }
-        val model = store.model()
-        val serverModel = prefs.serverModel?.let { runCatching { JSONObject(it) }.getOrNull() }
-        val samples = if (prefs.mode == "server") serverModel?.optInt("samples") ?: 0 else model.samples
-        val validationCount = if (prefs.mode == "server") serverModel?.optInt("validationSamples") ?: 0 else model.validation.size
-        val modelLevel = if (prefs.mode == "server") {
-            if (serverModel?.optBoolean("trusted") == true) 3 else if (samples >= 50 && validationCount >= 30) 2 else if (samples >= 30) 1 else 0
-        } else model.level
         card(body) {
-            addView(text("Обучение модели", 17, primaryText, true))
-            addView(text("Уровень $modelLevel из 3", 14, accent, true))
-            statsProgress(this, "Обучающие исходы", samples, 30, accent)
-            statsProgress(this, "Проверочные исходы", validationCount, 30, Color.rgb(125, 173, 234))
-            addView(text("Модель общая для спота и фьючерсов. Уровень растёт после проверки качества прогноза.", 10, muted))
-            if (prefs.mode == "local" && model.validation.size >= 40) {
-                fun error(rows: List<Triple<Double, Double, Int>>) = rows.map { (it.first - it.third) * (it.first - it.third) }.average()
-                val old = error(model.validation.dropLast(20).takeLast(20))
-                val fresh = error(model.validation.takeLast(20))
-                addView(text("Ошибка прогноза: ${String.format(Locale.US, "%.3f", old)} → ${String.format(Locale.US, "%.3f", fresh)}", 11, muted))
-            }
+            addView(text("Обучение двух моделей", 17, primaryText, true))
+            for(key in listOf("smc","breakout"))addView(text(strategyProgress(key),12,accent,true))
+            addView(text("Сравнение качества появится после независимых исходов каждой стратегии.", 10, muted))
         }
         card(body) {
             addView(text("По активам", 17, primaryText, true))
@@ -891,11 +848,11 @@ class MainActivity : Activity() {
         card(body) {
             addView(text("Контроль лимитов", 16, primaryText, true))
             val count = prefs.symbols.size
-            addView(text("Отмечено: $count/10 · спот и фьючерсы", 12, accent))
-            addView(text("Оценка Node-сервера: ${924 * count} запросов свечей M5–H4 в сутки; M1 идёт по WebSocket.", 11, muted))
-            addView(text("Оценка Cloudflare Worker с REST M1: ${3804 * count} запросов Binance в сутки, пик ${12 * count}/50 внешних запросов за запуск. Нынешний Node-сервер требует отдельной адаптации для Workers.", 11, muted))
+            addView(text("Отмечено: $count/10 · USDT-M фьючерсы", 12, accent))
+            addView(text("Оценка Node-сервера: ${462 * count} запросов свечей M5–H4 в сутки; M1 идёт по WebSocket.", 11, muted))
+            addView(text("Cloudflare pilot собирает стакан отдельно и не является источником сигналов.", 11, muted))
             val limits = prefs.serverLimits?.let { runCatching { JSONObject(it).optJSONObject("binance") }.getOrNull() }
-            for (source in listOf("spot" to "Спот", "futures" to "Фьючерсы")) {
+            for (source in listOf("futures" to "Фьючерсы")) {
                 limits?.optJSONObject(source.first)?.let { row ->
                     addView(text("${source.second}: ${row.optInt("minuteWeight")}/${row.optInt("minuteLimit")} вес/мин · ${row.optInt("dayWeight")}/${row.optInt("dayLimit")} вес/сутки", 11, muted))
                 }
@@ -935,34 +892,23 @@ class MainActivity : Activity() {
                 else "При открытом приложении M1 проверяется примерно раз в минуту. После закрытия Android запускает периодическую проверку не чаще чем раз в 15 минут; время запуска может сдвигаться. После принудительной остановки мониторинг возобновится при открытии приложения.", 11, muted))
             addView(text("Последняя проверка: ${if (prefs.lastRun == 0L) "—" else date(prefs.lastRun)}", 11, accent).also { settingsLastCheckView = it })
             prefs.lastError?.let { addView(text("Ошибка: $it", 11, danger)) }
-            if(prefs.mode=="local"){
-                addView(text("Фоновый B5: после структурного кандидата JobScheduler наблюдает стакан до пяти минут. Android может прервать или задержать задание.", 11, muted))
-                for(check in store.recentDepthRuns(3)) {
-                    addView(text("${check.market} ${check.symbol} · ${check.status} · ${check.samples} замеров" +
-                        (check.reason?.let{" · $it"}?:""), 10, if(check.status=="CONFIRMED")accent else muted))
-                }
-            }
             action(this, "Проверить сейчас") { updateMarket() }
         }
         card(body) {
             addView(text("О программе", 16, primaryText, true))
             addView(text("Orbit Signals", 14, accent, true))
-            addView(text("Исследование криптовалютного рынка: поиск сигналов по структуре BOS/CHoCH, зонам OB/FVG и подтверждению старших таймфреймов. Отслеживание сценариев, статистика и адаптивная оценка результатов без автоматической торговли.", 11, muted))
+            addView(text("Исследование USDT-M фьючерсов: отдельные стратегии SMC и «Импульс и пробой», отслеживание сценариев и обучение двух моделей без автоматической торговли.", 11, muted))
             val installedVersion = runCatching {
                 packageManager.getPackageInfo(packageName, 0).versionName
             }.getOrNull().orEmpty().ifBlank { "не определена" }
             addView(text("Версия приложения: $installedVersion", 12, primaryText))
-            addView(text("Алгоритм: SMC v3", 11, muted))
+            addView(text("Алгоритмы: SMC + импульс/пробой v4", 11, muted))
         }
     }
     private fun renderAsset() {
         val symbol = assetSymbol ?: return
         title("${symbol.removeSuffix("USDT")} / USDT", "Binance · цены и структура рынка")
-        val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for ((value, label) in listOf("spot" to "Спот", "futures" to "Фьючерсы")) action(tabs, label, value == market) {
-            market = value; selectedSignalId = null; chartAnchorAt = null; chartFocusPending = false; assetSignalTab = "waiting"; assetBars = emptyList(); chartVisibleCount = 90; chartOffset = 0; show(); loadAsset()
-        }
-        body.addView(tabs)
+        body.addView(text(if(market=="spot")"Архив спота" else "USDT-M фьючерсы",12,accent,true))
         card(body) {
             addView(text("ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1", 10, muted, true))
             addView(text(format(store.price(market, symbol)?.first), 30, primaryText, true).also { assetLastPriceView = it })
@@ -973,7 +919,7 @@ class MainActivity : Activity() {
         body.addView(text("Стаканы ликвидности", 20, primaryText, true))
         body.addView(text("Binance · синхронизация WebSocket + REST при разрывах. " +
             "Объёмы заявок 100 уровней каждой стороны в USDT.", 11, muted))
-        for ((marketType,label) in listOf("spot" to "СПОТ","futures" to "USDT-M ФЬЮЧЕРСЫ")) {
+        for ((marketType,label) in listOf(market to if(market=="spot")"АРХИВ СПОТА" else "USDT-M ФЬЮЧЕРСЫ")) {
             card(body) {
                 addView(text(label, 13, primaryText, true))
                 val state=text("Синхронизация…", 10, muted).also { addView(it) }
@@ -1054,7 +1000,8 @@ class MainActivity : Activity() {
             val listContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             for (signal in visibleSignals) card(listContent) {
                 addView(text("${signal.timeframe} · ${signal.side} · ${stateName(signal.state)}", 13, if (selectedSignalId == signal.id) accent else primaryText, true))
-                if (signal.ruleVersion.isNotBlank()) addView(text("Правила ${signal.ruleVersion}", 10, accent, true))
+                if (signal.strategyKey.isNotBlank()) addView(text("Стратегия ${signal.strategyKey}", 10, accent, true))
+                else if (signal.ruleVersion.isNotBlank()) addView(text("Архив ${signal.ruleVersion}", 10, muted, true))
                 addView(text("Вход ${format(signal.entry)} · SL ${format(signal.stop)} · TP1 ${format(signal.targets[0])}", 11, muted))
                 addSignalJourney(this, signal, compact = true)
                 setOnClickListener {
@@ -1081,17 +1028,19 @@ class MainActivity : Activity() {
         }
         if (selected != null) card(body) {
             addView(text("Параметры сигнала", 16, primaryText, true))
-            addView(text(if (selected.ruleVersion.isNotBlank()) "Правила ${selected.ruleVersion}"
-                else "Прежняя версия SMC v3", 11, accent, true))
+            addView(text(if (selected.strategyKey.isNotBlank()) "Стратегия ${selected.strategyKey}"
+                else "Архив ${selected.ruleVersion.ifBlank{"SMC v3"}}", 11, accent, true))
             selected.bookEvidence?.let { book ->
                 addView(text("Стакан Binance · 100 уровней · снимок ${date(book.capturedAt)}", 11, accent, true))
                 addView(text("Bid ${compact(book.bidUsdt)} USDT · Ask ${compact(book.askUsdt)} USDT · " +
                     "Bid ${(book.imbalance * 100).roundToInt()}%", 11, muted))
             }
-            addView(text("Зона OB ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
+            addView(text("${if(selected.strategyKey=="breakout")"Допуск входа" else "Зона OB"} ${format(selected.entryLow)}–${format(selected.entryHigh)}", 12))
             addView(text("Вход ${format(selected.entry)}   Стоп ${format(selected.stop)}", 12))
             addView(text("TP1 ${format(selected.targets[0])}   TP2 ${format(selected.targets[1])}   TP3 ${format(selected.targets[2])}", 12))
-            addView(text("FVG ${format(selected.imbalance.low)}–${format(selected.imbalance.high)} · ${selected.breakType} ${format(selected.swing)}", 11, accent))
+            addView(text(if(selected.strategyKey=="breakout")
+                "Пробой уровня ${format(selected.swing)} · вход по следующей M1"
+                else "FVG ${format(selected.imbalance.low)}–${format(selected.imbalance.high)} · ${selected.breakType} ${format(selected.swing)}", 11, accent))
             addView(text("История движения", 15, primaryText, true))
             addSignalJourney(this, selected, compact = false)
             action(this, if (selected.id in prefs.selectedIds) "✓ Убрать из уведомлений" else "Следить за сигналом") { prefs.toggleSelected(selected.id); show() }

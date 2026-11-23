@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
-  <meta name="description" content="Мониторинг сигналов Binance Spot и USDT-M Futures">
+  <meta name="description" content="Мониторинг двух стратегий на Binance USDT-M Futures">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=17">
+  <link rel="stylesheet" href="/style.css?v=20">
   <title>Orbit Signals</title>
 </head>
 <body>
@@ -21,26 +21,30 @@
   <main class="app">
     <header class="topbar">
       <div class="brand"><div class="brand-mark"><svg class="ui-icon brand-icon" aria-hidden="true"><use href="#icon-orbit"/></svg></div><div><strong>ORBIT</strong><span>SIGNALS</span></div></div>
-      <button id="settingsButton" class="icon-button" aria-label="Настройки"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"/></svg></button>
+      <div class="desktop-topbar-title"><span>ORBIT · РАБОЧЕЕ МЕСТО</span><strong id="desktopPageTitle">Обзор рынка</strong></div>
+      <div class="topbar-actions"><a class="lab-link" href="/lab.html">Лаборатория v5 <span aria-hidden="true">↗</span></a><button id="settingsButton" class="icon-button" aria-label="Настройки"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"/></svg></button></div>
     </header>
     <div id="previewBanner" class="preview-banner hidden">ПРЕДПРОСМОТР · примеры сигналов, их уровни и оценки вымышлены. Цены Binance, статистика и прогресс обучения реальные.</div>
     <div id="notice" class="notice hidden"></div>
     <section id="marketScreen" class="screen">
-      <section class="learning-home" aria-label="Прогресс обучения модели"><div class="learning-home-head"><div><div class="eyebrow">АДАПТИВНАЯ ОЦЕНКА</div><h1>Прогресс обучения</h1></div><div class="learning-badges"><b id="learningLevel">УРОВЕНЬ 0/3</b><b id="learningStage">СБОР ОПЫТА</b></div></div>
-        <div class="learning-step"><div><span>1 · Обучающие исходы</span><strong id="trainingProgress">0/30</strong></div><div class="learning-track"><i id="trainingBar"></i></div></div>
-        <div class="learning-step"><div><span>2 · Проверочные исходы</span><strong id="validationProgress">0/30</strong></div><div class="learning-track"><i id="validationBar"></i></div></div>
-        <p id="learningHomeHelp">Учитываются только сигналы новой FVG-стратегии после входа и достижения TP1 или стопа.</p>
-        <div class="feed-row"><span id="spotFeed" class="feed">● Спот: подключение</span><span id="futuresFeed" class="feed">● Фьючерсы: подключение</span></div>
+      <div class="desktop-market-heading"><div><span class="eyebrow">BINANCE · USDT-M FUTURES</span><h1>Панель рынка</h1><p>Котировки M1, сигналы и состояние двух стратегий</p></div><span class="desktop-market-tag">10 пар максимум</span></div>
+      <div class="market-overview"><section class="learning-home" aria-label="Прогресс обучения модели"><div class="learning-home-head"><div><div class="eyebrow">АДАПТИВНАЯ ОЦЕНКА</div><h1>Прогресс обучения</h1></div><div class="learning-badges"><b id="learningLevel">УРОВЕНЬ 0/3</b><b id="learningStage">СБОР ОПЫТА</b></div></div>
+        <div class="learning-step"><div><span>SMC</span><strong id="trainingProgress">0 исходов</strong></div><div class="learning-track"><i id="trainingBar"></i></div></div>
+        <div class="learning-step"><div><span>Импульс и пробой</span><strong id="validationProgress">0 исходов</strong></div><div class="learning-track"><i id="validationBar"></i></div></div>
+        <p id="learningHomeHelp">Две модели собирают и проверяют исходы отдельно.</p>
+        <div class="feed-row"><span id="futuresFeed" class="feed">● Фьючерсы: подключение</span></div>
       </section>
-      <section class="metrics" aria-label="Статистика"><div><b id="assetsCount">10</b><span>Отмечено</span></div><div><b id="waitingCount">0</b><span>Ожидают вход</span></div><div><b id="openCount">0</b><span>В работе</span></div></section>
-      <div class="asset-list-actions"><button id="assetsButton" class="text-button">Изменить список <span>↗</span></button></div>
-      <div id="assetsGrid" class="assets-grid"></div>
+      <section class="metrics" aria-label="Статистика"><div><b id="assetsCount">10</b><span>Отмечено</span></div><div><b id="waitingCount">0</b><span>Ожидают вход</span></div><div><b id="openCount">0</b><span>В работе</span></div></section></div>
+      <div class="market-workspace">
+        <section class="watchlist-panel"><div class="workspace-section-head"><div><span class="eyebrow">МОНИТОРИНГ</span><h2>Обзор активов</h2><p>Цена последней закрытой M1 и снимок стакана</p></div><button id="assetsButton" class="text-button">Изменить список <span>↗</span></button></div><div id="assetsGrid" class="assets-grid"></div></section>
+        <aside class="market-signals-panel"><div class="workspace-section-head"><div><span class="eyebrow">СЦЕНАРИИ</span><h2>Сигналы сейчас</h2><p>Ожидают входа и находятся в работе</p></div></div><div id="marketSignalPreview" class="market-signal-preview"></div><button id="marketAllSignals" class="workspace-link" type="button">Все сигналы <span aria-hidden="true">→</span></button></aside>
+      </div>
     </section>
     <section id="signalsScreen" class="screen hidden">
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-signals"/></svg></span><h1>Сигналы</h1></div><p>M5–H4 · вход, TP и стоп по M1</p></div>
       <div class="signal-screen-summary"><span>АКТУАЛЬНЫХ СИГНАЛОВ</span><strong id="signalsCount">0</strong></div>
       <div class="tabs signal-scope-tabs" role="tablist" aria-label="Состояние сигналов"><button class="tab active" data-scope="all" role="tab" aria-selected="true">Актуальные</button><button class="tab" data-scope="marked" role="tab" aria-selected="false">Отмеченные</button><button class="tab" data-scope="finished" role="tab" aria-selected="false">Завершённые</button></div>
-      <div class="tabs market-tabs" role="tablist" aria-label="Рынок"><button class="market-tab active" data-filter="all">Оба рынка</button><button class="market-tab" data-filter="spot">Спот</button><button class="market-tab" data-filter="futures">Фьючерсы</button></div>
+      <div class="tabs market-tabs" role="tablist" aria-label="Рынок"><button class="market-tab active" data-filter="all">Все</button><button class="market-tab" data-filter="futures">Фьючерсы</button><button class="market-tab" data-filter="spot">Архив спота</button></div>
       <div class="tabs timeframe-tabs" role="tablist" aria-label="Таймфрейм"><button class="tf-tab active" data-timeframe="all">Все TF</button><button class="tf-tab" data-timeframe="5m">M5</button><button class="tf-tab" data-timeframe="15m">M15</button><button class="tf-tab" data-timeframe="30m">M30</button><button class="tf-tab" data-timeframe="1h">H1</button><button class="tf-tab" data-timeframe="4h">H4</button></div>
       <div id="signals" class="signals"></div>
       <section class="info"><span class="info-icon">ⓘ</span><p>«Вход» и TP означают касание цены на Binance, а не исполнение вашего ордера. Сигналы не гарантируют результат.</p></section>
@@ -48,14 +52,14 @@
     <section id="statsScreen" class="screen hidden">
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-stats"/></svg></span><h1>Статистика</h1></div><p>История сигналов и достигнутые уровни</p></div>
       <div class="stats-overview"><div><span>СИГНАЛОВ</span><strong id="statSignals">0</strong></div><div><span>ВХОДОВ</span><strong id="statEntries">0</strong></div><div><span>СТОПОВ</span><strong id="statStops">0</strong></div></div>
-      <section class="stats-card">
-        <h2>Сравнение версий правил</h2>
-        <p>Три параллельные исследовательские стратегии: v0.1 — структура + OB/FVG, v0.2-D2 — постоянно синхронизируемый стакан Binance Spot/Futures, v0.3-D2 — также старший TF.</p>
+      <section class="stats-card strategy-comparison-card">
+        <h2>Сравнение двух стратегий</h2>
+        <p>SMC: структура, OB и FVG с ожиданием отката. Импульс и пробой: вход на следующей M1 после выхода из диапазона.</p>
         <div id="ruleComparison" class="rule-comparison"><p class="muted">Ожидание первых наблюдений…</p></div>
       </section>
       <div class="preference-title">ОБЩАЯ ИСТОРИЯ, ВКЛЮЧАЯ ПРЕЖНЮЮ SMC V3</div>
       <section class="stats-card"><h2>Достигнутые точки</h2><p>Количество сигналов, дошедших до каждой точки. Один сигнал считается один раз на каждом уровне.</p><div id="levelStats" class="level-stats"></div></section>
-      <section class="stats-card"><h2>Успешность новой стратегии</h2><p>Успех — TP1 раньше стопа после входа. В расчёт входят только исходы сигналов с FVG.</p><div id="strategyStats"></div><div id="strategySeries" class="strategy-series"></div></section>
+      <section class="stats-card"><h2>Динамика новых стратегий</h2><p>Успех — TP1 раньше стопа после входа. По каждой стратегии показатели показаны выше.</p><div id="strategyStats"></div><div id="strategySeries" class="strategy-series"></div></section>
       <section class="stats-card"><h2>Качество прогноза модели</h2><p>Ошибка прогноза Brier: чем меньше, тем лучше. Сравнение только на результатах, которых модель ещё не видела при создании сигнала.</p><div id="forecastStats"></div></section>
       <section class="stats-card"><h2>По активам</h2><p>История включает все пары, даже если их позже убрать из отмеченных.</p><div id="assetStats" class="asset-stats"></div></section>
       <section class="info"><span class="info-icon">ⓘ</span><p>Статистика основана на касаниях цены Binance, а не на исполнении ваших ордеров. Небольшая выборка не доказывает рост точности.</p></section>
@@ -63,8 +67,8 @@
     <section id="settingsScreen" class="screen hidden">
       <div class="page-intro"><div class="page-title"><span class="page-icon" aria-hidden="true"><svg class="ui-icon"><use href="#icon-settings"/></svg></span><h1>Настройки</h1></div><p>Отмеченные активы и уведомления</p></div>
       <div id="settingsNotice" class="notice hidden"></div>
-      <section class="settings-card"><h2>Список пар</h2><p class="muted">До 10 пар к USDT через запятую. Мониторятся только отмеченные пары на споте и фьючерсах. Если убрать пару, её прежние сигналы останутся в истории, но события по ним перестанут обновляться.</p><label>Торговые пары<textarea id="symbolsInput" rows="5" spellcheck="false"></textarea></label><button id="saveSymbols" class="primary-button">Сохранить список</button><p id="symbolsHelp" class="muted"></p></section>
-      <section class="settings-card"><h2>Доступ к приложению</h2><p class="muted">Ключ APP_TOKEN защищает ваш сервер, если приложение будет доступно через интернет. Это не ключ Binance: для получения рыночных данных он не нужен. В локальном просмотре оставьте поле пустым.</p><label>Ключ приложения (APP_TOKEN)<input id="apiToken" type="password" placeholder="Локально оставьте пустым" autocomplete="off"></label><button id="saveToken" class="primary-button outline">Сохранить ключ</button></section>
+      <section class="settings-card"><h2>Список пар</h2><p class="muted">До 10 пар к USDT через запятую. Новые сигналы создаются только на USDT-M фьючерсах. Прежние сигналы спота остаются в архиве. Если убрать пару, её история сохранится, но новые события по ней перестанут обновляться.</p><label>Торговые пары<textarea id="symbolsInput" rows="5" spellcheck="false"></textarea></label><button id="saveSymbols" class="primary-button">Сохранить список</button><p id="symbolsHelp" class="muted"></p></section>
+      <section class="settings-card"><h2>Доступ к приложению</h2><p class="muted">На этом ПК браузер подключается без ключа. Для телефона и других устройств нужен APP_TOKEN. Это не ключ Binance.</p><label>Ключ приложения (APP_TOKEN)<input id="apiToken" type="password" placeholder="На этом ПК оставьте пустым" autocomplete="off"></label><button id="saveToken" class="primary-button outline">Сохранить ключ</button></section>
       <section class="settings-card"><h2>Экран</h2><label class="preference-choice"><input id="keepScreenOn" type="checkbox"> Не гасить экран во время просмотра</label><p id="wakeHelp" class="muted">Работает, пока приложение открыто и видно на экране.</p></section>
       <section class="settings-card"><h2>Уведомления</h2><p class="muted">Каждое событие отправляется отдельно после закрытия M1. Выберите события и сигналы, за которыми хотите следить.</p>
         <div class="preference-title">События</div><div id="eventPreferences" class="preference-list"></div>
@@ -75,9 +79,9 @@
       <section class="model-panel"><div class="model-title"><span>◈</span><strong>Адаптивная оценка</strong><b id="modelTag">ОБУЧАЕТСЯ</b></div><p id="modelText">Модель собирает результаты сигналов.</p><p id="experienceText">База опыта загружается…</p></section>
     </section>
   </main>
-  <nav class="bottom-nav" aria-label="Разделы приложения"><button class="bottom-item active" data-page="market" aria-current="page"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-market"/></svg><span>Рынок</span></button><button class="bottom-item" data-page="signals"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-signals"/></svg><span>Сигналы</span></button><button class="bottom-item" data-page="stats"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-stats"/></svg><span>Статистика</span></button></nav>
+  <nav class="bottom-nav" aria-label="Разделы приложения"><div class="desktop-nav-brand"><div class="brand-mark"><svg class="ui-icon brand-icon" aria-hidden="true"><use href="#icon-orbit"/></svg></div><div><strong>ORBIT</strong><span>SIGNALS</span></div></div><div class="desktop-nav-label">РАЗДЕЛЫ</div><button class="bottom-item active" data-page="market" aria-current="page"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-market"/></svg><span>Рынок</span></button><button class="bottom-item" data-page="signals"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-signals"/></svg><span>Сигналы</span></button><button class="bottom-item" data-page="stats"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-stats"/></svg><span>Статистика</span></button><button class="bottom-item desktop-settings-link" data-page="settings"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-settings"/></svg><span>Настройки</span></button><a class="desktop-nav-lab" href="/lab.html">Лаборатория v5 <span aria-hidden="true">↗</span></a><div class="desktop-nav-foot">ORBIT SIGNALS · ПК</div></nav>
   <dialog id="detailDialog" class="detail-dialog"><form method="dialog"><button class="icon-button close-detail" aria-label="Закрыть">✕</button></form><div id="detailContent"></div></dialog>
-  <script type="module" src="/app.js?v=17"></script>
+  <script type="module" src="/app.js?v=19"></script>
 </body>
 </html>
 

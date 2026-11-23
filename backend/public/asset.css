@@ -52,7 +52,7 @@
 .order-books-heading h2{font-size:18px;margin:5px 0 0}
 .order-books-heading>span{color:#91b8be;font-size:9px;white-space:nowrap}
 .order-books-panel>p{font-size:10px;line-height:1.55;color:#90a8b8;margin:9px 0 13px}
-.order-books-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.order-books-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
 .order-book-card{min-width:0;border:1px solid #344858;background:#121e2b;border-radius:11px;padding:10px 8px}
 .book-market-label{display:flex;justify-content:space-between;gap:5px;align-items:flex-start;flex-wrap:wrap;margin-bottom:9px}
 .book-market-label strong{font-size:10px;color:#dfefea}
@@ -85,3 +85,60 @@
 .book-level.bid::before{right:0;left:auto;background:linear-gradient(90deg,#1a463e,#24624c)}
 .book-level.ask::before{left:0;right:auto;background:linear-gradient(90deg,#653447,#3a2637)}
 .book-level>span,.book-level>strong{position:relative;z-index:1}
+
+.chart-mouse-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; color:#8eabb9; font-size:10px; margin:9px 0 8px; }
+.chart-mouse-toolbar > div { display:flex; gap:5px; }
+.chart-mouse-toolbar button { width:28px; height:25px; border:1px solid #355167; border-radius:6px; background:#1b2b3d; color:#b8e4d2; font-size:16px; line-height:1; }
+.chart-mouse-toolbar button:hover { color:#102b25; border-color:#80edbf; background:#80edbf; }
+@media (max-width:759px) { .chart-mouse-toolbar > span { display:none; } .chart-mouse-toolbar { justify-content:flex-end; } }
+
+.back-button span { display:none; }
+@media (min-width:760px) {
+  .asset-page { display:flex; flex-direction:column; padding-bottom:64px; }
+  .asset-topbar { order:0; min-height:68px; padding-bottom:19px; margin-bottom:24px; border-bottom:1px solid #223447; }
+  .asset-topbar .brand { display:none; }
+  .back-button { width:auto; min-width:108px; height:40px; display:flex; align-items:center; gap:9px; padding:0 13px; font-size:20px; }
+  .back-button span { display:inline; font-size:12px; }
+  .header-caption { margin-left:auto; font-size:11px; }
+  .asset-preview,.asset-page > .preview-banner { order:1; }
+  .asset-page > .notice { order:2; }
+  .asset-hero { order:3; }
+  .asset-hero h1 { font-size:clamp(38px,4vw,60px); margin-bottom:13px; }
+  .asset-main-price strong { font-size:clamp(43px,5vw,65px); }
+  .asset-market-tabs { margin-bottom:18px; }
+  .overview-stats { order:4; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:20px; }
+  .overview-stats div { padding:16px; }.overview-stats strong { font-size:19px; }
+  .chart-panel { order:5; padding:22px; margin-bottom:18px; }
+  .chart-head h2 { font-size:24px; }
+  #priceChart { height:460px; }
+  #priceChart { cursor:grab; touch-action:none; }
+  #priceChart.dragging { cursor:grabbing; }
+  .chart-tabs button { font-size:12px; padding:9px 12px; }
+  .chart-event-actions button { font-size:11px; }
+  .asset-signal-workspace { order:6; border:1px solid #2d4153; border-radius:16px; background:linear-gradient(135deg,#142436,#101b2b); padding:20px; margin-bottom:18px; min-width:0; }
+  .asset-signals-title { margin:0 0 14px; }
+  .asset-signals-title h2 { font-size:22px; }
+  .asset-signals { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:450px; overflow-y:auto; padding-right:4px; }
+  .asset-signal { min-width:0; }
+  .selected-signal-panel { margin:15px 0 0; }
+  .order-books-panel { order:7; padding:20px; margin-bottom:18px; }
+  .order-books-heading h2,.large-trades h2 { font-size:22px; }
+  .order-books-grid { gap:12px; }.order-book-card { padding:15px; }
+  .large-trades { order:8; padding:20px; margin-bottom:18px; }
+  .asset-page > .info { order:9; }
+}
+@media (min-width:1180px) {
+  .asset-page { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(330px,.8fr); grid-template-areas:"header header" "hero stats" "chart signals" "books trades" "info info"; align-items:start; column-gap:18px; row-gap:17px; }
+  .asset-topbar { grid-area:header; margin-bottom:0; }
+  .asset-hero { grid-area:hero; min-height:240px; }
+  .asset-hero .muted { margin-bottom:0; }
+  .overview-stats { grid-area:stats; grid-template-columns:repeat(2,minmax(0,1fr)); margin:0; }
+  .chart-panel { grid-area:chart; margin:0; }
+  #priceChart { height:520px; }
+  .asset-signal-workspace { grid-area:signals; margin:0; max-height:100%; }
+  .asset-signals { grid-template-columns:1fr; max-height:390px; }
+  .order-books-panel { grid-area:books; margin:0; }
+  .large-trades { grid-area:trades; margin:0; }
+  .asset-page > .info { grid-area:info; margin-top:0; }
+  .asset-page > .preview-banner,.asset-page > .notice { grid-column:1/-1; }
+}

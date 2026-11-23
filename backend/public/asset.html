@@ -6,29 +6,28 @@
   <meta name="theme-color" content="#0b1020">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=13">
-  <link rel="stylesheet" href="/asset.css?v=18">
+  <link rel="stylesheet" href="/style.css?v=20">
+  <link rel="stylesheet" href="/asset.css?v=20">
   <title>Обзор актива · Orbit Signals</title>
 </head>
 <body>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-orbit" viewBox="0 0 48 48"><circle cx="24" cy="24" r="13"/><path d="M9 33C12 24 21 13 31 10c6-2 10-1 12 2 3 5-2 15-12 22-8 6-18 7-23 3"/><circle cx="24" cy="24" r="3" fill="currentColor" stroke="none"/><circle cx="39" cy="8" r="2.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="icon-market" viewBox="0 0 24 24"><path d="M6 2v3m0 6v11M4 5h4v6H4zM12 2v8m0 6v6m-2-12h4v6h-4zM18 2v5m0 6v9m-2-15h4v6h-4z"/></symbol>
+    <symbol id="icon-signals" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3"/></symbol>
+    <symbol id="icon-stats" viewBox="0 0 24 24"><path d="M3 21h18M5 18v-6h4v6H5zm5 0V5h4v13h-4zm5 0V9h4v9h-4z"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M3 6h6m4 0h8M3 12h10m4 0h4M3 18h3m4 0h11"/><circle cx="11" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></symbol>
+  </svg>
   <main class="app asset-page">
-    <header class="asset-topbar"><a id="backLink" class="back-button" href="/">←</a><div class="brand"><div class="brand-mark">◈</div><div><strong>ORBIT</strong><span>SIGNALS</span></div></div><span class="header-caption">ОБЗОР АКТИВА</span></header>
+    <header class="asset-topbar"><a id="backLink" class="back-button" href="/">←<span>К рынку</span></a><div class="brand"><div class="brand-mark"><svg class="ui-icon brand-icon" aria-hidden="true"><use href="#icon-orbit"/></svg></div><div><strong>ORBIT</strong><span>SIGNALS</span></div></div><span class="header-caption">ОБЗОР АКТИВА</span></header>
     <div id="assetPreview" class="preview-banner hidden">ПРЕДПРОСМОТР · график и цены Binance реальные; пример сигнала и его уровни вымышлены.</div>
     <div id="assetError" class="notice hidden"></div>
-    <section class="asset-hero"><div class="eyebrow">BINANCE · USDT</div><h1 id="assetTitle">Загрузка…</h1><div class="asset-market-tabs"><button data-market="spot" class="active">Спот</button><button data-market="futures">USDT-M фьючерсы</button></div><div class="asset-main-price"><div><span>ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1</span><strong id="assetPrice">—</strong></div><b id="assetChange">—</b></div><p id="assetUpdated" class="muted">Ожидание данных</p></section>
+    <section class="asset-hero"><div class="eyebrow">BINANCE · USDT</div><h1 id="assetTitle">Загрузка…</h1><div class="asset-market-tabs"><button data-market="futures" class="active">USDT-M фьючерсы</button><button data-market="spot">Архив спота</button></div><div class="asset-main-price"><div><span>ПОСЛЕДНЯЯ ЗАКРЫТАЯ M1</span><strong id="assetPrice">—</strong></div><b id="assetChange">—</b></div><p id="assetUpdated" class="muted">Ожидание данных</p></section>
     <section class="overview-stats"><div><span>МАКСИМУМ 24 Ч</span><strong id="dayHigh">—</strong></div><div><span>МИНИМУМ 24 Ч</span><strong id="dayLow">—</strong></div><div><span>ОБЪЁМ 24 Ч</span><strong id="dayVolume">—</strong></div><div><span>ОБОРОТ 24 Ч</span><strong id="dayQuote">—</strong></div></section>
-    <section class="order-books-panel" aria-label="Биржевые стаканы Spot и Futures">
-      <div class="order-books-heading"><div><div class="eyebrow">BINANCE · СИНХРОНИЗИРОВАННЫЙ WEBSOCKET</div><h2>Стаканы ликвидности</h2></div><span id="bookUpdateStatus">Подключение…</span></div>
-      <p>Реальные лимитные заявки 100 верхних уровней каждой стороны. Значения указаны в USDT (цена × количество). REST используется только для первичной синхронизации и восстановления.</p>
+    <section class="order-books-panel" aria-label="Биржевой стакан USDT-M Futures">
+      <div class="order-books-heading"><div><div class="eyebrow">BINANCE · СИНХРОНИЗИРОВАННЫЙ WEBSOCKET</div><h2>Стакан ликвидности</h2></div><span id="bookUpdateStatus">Подключение…</span></div>
+      <p>Стакан USDT-M фьючерсов: 100 верхних уровней каждой стороны. Значения указаны в USDT (цена × количество). REST используется только для первичной синхронизации и восстановления.</p>
       <div class="order-books-grid">
-        <article class="order-book-card" data-book-market="spot">
-          <div class="book-market-label"><strong>СПОТ</strong><small id="bookSpotStatus">Синхронизация…</small></div>
-          <div class="book-totals" id="bookSpotTotals">Ожидание стакана…</div>
-          <div class="book-imbalance"><i id="bookSpotBidBar"></i><b id="bookSpotAskBar"></b></div>
-          <div class="book-change" id="bookSpotChange">История изменений набирается…</div>
-          <div class="book-level-head"><span>BID · ПОКУПАТЕЛИ</span><span>ASK · ПРОДАВЦЫ</span></div>
-          <div class="book-level-columns"><div id="bookSpotBids"></div><div id="bookSpotAsks"></div></div>
-        </article>
         <article class="order-book-card" data-book-market="futures">
           <div class="book-market-label"><strong>USDT-M ФЬЮЧЕРСЫ</strong><small id="bookFuturesStatus">Синхронизация…</small></div>
           <div class="book-totals" id="bookFuturesTotals">Ожидание стакана…</div>
@@ -41,17 +40,18 @@
       <p class="book-note">Цветные полосы показывают видимые объёмы заявок; они могут измениться или быть отменены. «Нет связи» и «Устарел» исключают эти данные из новых фильтров D2.</p>
     </section>
     <section class="large-trades" aria-label="Крупные сделки"><div class="large-trades-head"><div><div class="eyebrow">ПОТОК СДЕЛОК BINANCE</div><h2>Крупные сделки</h2></div><span id="largeTradesStatus">Подключение…</span></div><p>Сделки от 250 000 USDT за последние ~15 минут. Отдельная рыночная информация: не влияет на сигналы, уровни и обучение.</p><div id="largeTradesTotals" class="large-trades-totals">Ожидание сделок…</div><div id="largeTradesList" class="large-trades-list"></div></section>
-    <section class="section-heading asset-signals-title"><div><div class="eyebrow">АНАЛИЗ</div><h2>Выберите сигнал</h2></div></section>
+    <aside class="asset-signal-workspace"><section class="section-heading asset-signals-title"><div><div class="eyebrow">АНАЛИЗ</div><h2>Выберите сигнал</h2></div></section>
     <div class="tabs asset-signal-scopes"><button class="tab active" data-asset-scope="current">Актуальные</button><button class="tab" data-asset-scope="finished">Завершённые</button></div>
     <div id="assetSignals" class="asset-signals"></div>
-    <section id="selectedSignalPanel" class="selected-signal-panel hidden"></section>
+    <section id="selectedSignalPanel" class="selected-signal-panel hidden"></section></aside>
     <section class="chart-panel"><div class="chart-head"><div><div class="eyebrow">ГРАФИК BINANCE</div><h2>Структура и уровни</h2></div><span class="chart-legend"><i></i> ордер-блок</span></div><div class="chart-tabs"><button data-interval="1m">M1</button><button data-interval="5m">M5</button><button data-interval="15m" class="active">M15</button><button data-interval="30m">M30</button><button data-interval="1h">H1</button><button data-interval="4h">H4</button></div><div id="structureSummary" class="structure-summary">Загрузка структуры…</div>
+    <div class="chart-mouse-toolbar"><span>Колесо — масштаб · удерживайте и тяните — история · двойной щелчок — сейчас</span><div><button type="button" data-chart-zoom="in" aria-label="Увеличить график">＋</button><button type="button" data-chart-zoom="out" aria-label="Уменьшить график">－</button><button type="button" data-chart-zoom="reset" aria-label="Вернуться к последним свечам">↺</button></div></div>
     <div class="chart-event-actions" aria-label="Перейти к событию"><button data-focus="start">К старту</button><button data-focus="entry">К входу</button><button data-focus="exit">К выходу</button><button data-focus="now">Сейчас</button></div>
     <div id="chartWindow" class="chart-window-note">Последние свечи</div><canvas id="priceChart" aria-label="Свечной график с точками старта, входа, целей и выхода из исследовательского сценария"></canvas><div id="candleInfo" class="candle-info">Наведите на свечу, чтобы увидеть OHLC и объём</div><p class="chart-footnote">SH/SL — подтверждённые локальные максимумы и минимумы. BOS — закрытие за уровнем структуры. Зона OB — последняя свеча противоположного цвета перед пробоем. Это разметка закрытых свечей, а не отдельный торговый сигнал. Цветные точки показывают события M1: старт, вход, TP и выход. Уровни ENTRY, SL и TP1–TP3 начинаются от старта сигнала: сплошные линии завершаются на последнем касании, пунктирные показывают ещё не достигнутые уровни. Линия движения связывает закрытия свечей между входом и выходом.</p></section>
     <section class="info"><span class="info-icon">ⓘ</span><p>Касание уровня ценой не подтверждает исполнение ордера на вашем счёте. Сигналы не гарантируют результат.</p></section>
   </main>
-  <nav class="bottom-nav" aria-label="Разделы приложения"><a class="bottom-item active" data-page="market" aria-current="page" href="/"><span class="nav-icon">▦</span><span>Рынок</span></a><a class="bottom-item" data-page="signals" href="/?page=signals"><span class="nav-icon">◈</span><span>Сигналы</span></a><a class="bottom-item" data-page="stats" href="/?page=stats"><span class="nav-icon">▥</span><span>Статистика</span></a><a class="bottom-item" data-page="settings" href="/?page=settings"><span class="nav-icon">⚙</span><span>Настройки</span></a></nav>
-  <script type="module" src="/asset.js?v=19"></script>
+  <nav class="bottom-nav" aria-label="Разделы приложения"><div class="desktop-nav-brand"><div class="brand-mark"><svg class="ui-icon brand-icon" aria-hidden="true"><use href="#icon-orbit"/></svg></div><div><strong>ORBIT</strong><span>SIGNALS</span></div></div><div class="desktop-nav-label">РАЗДЕЛЫ</div><a class="bottom-item active" data-page="market" aria-current="page" href="/"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-market"/></svg><span>Рынок</span></a><a class="bottom-item" data-page="signals" href="/?page=signals"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-signals"/></svg><span>Сигналы</span></a><a class="bottom-item" data-page="stats" href="/?page=stats"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-stats"/></svg><span>Статистика</span></a><a class="bottom-item desktop-settings-link" data-page="settings" href="/?page=settings"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-settings"/></svg><span>Настройки</span></a><a class="desktop-nav-lab" href="/lab.html">Лаборатория v5 <span aria-hidden="true">↗</span></a><div class="desktop-nav-foot">ORBIT SIGNALS · ПК</div></nav>
+  <script type="module" src="/asset.js?v=22"></script>
 </body>
 </html>
 

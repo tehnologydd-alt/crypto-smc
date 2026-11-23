@@ -20,7 +20,7 @@ export function buildStatistics(signals, outcomes) {
       if (events.has('TP1')) { totals.successful++; bucket.successful++; }
     }
   }
-  const ordered = outcomes.filter(row => row.strategy_version === 3 && [0, 1].includes(row.label))
+  const ordered = outcomes.filter(row => row.strategy_version === 4 && [0, 1].includes(row.label))
     .sort((a, b) => a.resolved_at - b.resolved_at);
   const recent = ordered.slice(-20), previous = ordered.slice(-40, -20);
   const strategyTrend = previous.length === 20 && recent.length === 20
@@ -36,8 +36,7 @@ export function buildStatistics(signals, outcomes) {
     const group = last.slice(i, i + 10);
     series.push({ from: group[0].resolved_at, to: group.at(-1).resolved_at, rate: rate(group), count: 10 });
   }
-  // Each version is an independent research cohort, reconstructed from the durable
-  // per-signal event journal. Exclude old strategyVersion=3 records with no rule key.
+  // Each live strategy is an independent cohort. Old rule arms remain archived.
   // The frozen prediction is evaluated only on resolved outcomes.
   const archivedVersions=ARCHIVED_RULES.map(rule=>{
     const cohort=signals.filter(s=>s.ruleVersion===rule.key);
@@ -50,7 +49,7 @@ export function buildStatistics(signals, outcomes) {
   const ruleComparisons = {
     definitions: RULES, archivedVersions,
     versions: RULES.map(rule=>{
-      const cohort=signals.filter(s=>s.strategyVersion===3 && s.ruleVersion===rule.key);
+      const cohort=signals.filter(s=>s.strategyVersion===4 && s.strategyKey===rule.key);
       const hasEvent = (s, type) => (s.events || []).some(e=>e.type===type);
       const entered=cohort.filter(s=>hasEvent(s,'ENTRY'));
       const resolved=entered.filter(s=>hasEvent(s,'TP1') || hasEvent(s,'STOP'));

@@ -11,15 +11,16 @@ class ResearchRulesTest {
         observations=9,updates=22,averageImbalance=0.664
     )
     @Test fun frozenRulesKeepOldVersionsAsArchive() {
-        assertEquals(listOf("v0.1","v0.2-D2","v0.3-D2","v0.2-B5","v0.3-B5"),ResearchRules.all.map{it.key})
+        assertEquals(listOf("smc","breakout"),ResearchRules.all.map{it.key})
+        assertTrue("v0.1" in ResearchRules.archivedKeys)
+        assertTrue("v0.2-B5" in ResearchRules.archivedKeys)
         assertTrue("v0.2" in ResearchRules.keys)
         assertTrue("v0.3-L1" in ResearchRules.keys)
         assertTrue("v0.2-D1" in ResearchRules.keys)
-        assertEquals(5,ResearchRules.all.map { ResearchRules.signature(it) }.toSet().size)
+        assertEquals(2,ResearchRules.all.map { ResearchRules.signature(it) }.toSet().size)
         assertFalse(ResearchRules.all[0].useLiquidity)
-        assertTrue(ResearchRules.all[1].useLiquidity)
-        assertFalse(ResearchRules.all[1].useHtf)
-        assertTrue(ResearchRules.all[2].useHtf)
+        assertFalse(ResearchRules.all[1].useLiquidity)
+        assertTrue(ResearchRules.all.all{it.useHtf})
     }
     @Test fun recordedDepthUsesUsdtNotionalAndKeepsOriginalMetadata() {
         val result=book()

@@ -1,5 +1,5 @@
 // Orbit Signals SMC v3 — deterministic closed-candle research engines.
-import { RULES } from './strategy-rules.js';
+import { LEGACY_RULES } from './strategy-rules.js';
 import { depthGate } from './order-book.js';
 const EPS = 1e-12;
 export const TF_MINUTES = Object.freeze({ '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440 });
@@ -180,7 +180,7 @@ export function detectRuleVariants(bars,market,symbol,timeframe,parentBars,bookS
   const depth=depthGate(bookSnapshot,{market,symbol,side:candidate.side,
     closedAt:candidate.detectedAt,observedAt});
   const htf=ContextRegimeFilter.evaluate(event,bars,parentBars,timeframe);
-  return RULES.filter(rule=>!rule.background && (!rule.liquidity || depth.allowed) && (!rule.htf || htf.allowed))
+  return LEGACY_RULES.filter(rule=>!rule.background && (!rule.liquidity || depth.allowed) && (!rule.htf || htf.allowed))
     .map(rule=>{
       const observed=rule.liquidity ? bookSnapshot.capturedAt : candidate.detectedAt;
       return {...candidate,id:candidate.id+':'+rule.key,ruleVersion:rule.key,

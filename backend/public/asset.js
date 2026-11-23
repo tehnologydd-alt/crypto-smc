@@ -5,11 +5,13 @@ const $ = selector => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
 const symbol = (params.get('symbol') || '').toUpperCase();
 const preview = params.has('preview');
-let market = params.get('market') === 'futures' ? 'futures' : 'spot';
+let market = params.get('market') === 'spot' ? 'spot' : 'futures';
 let interval = ['1m', '5m', '15m', '30m', '1h', '4h'].includes(params.get('interval')) ? params.get('interval') : '15m';
 let selectedId = params.get('signal') || null;
 let assetScope = 'current', chartAnchorAt = null, chartFocusPinned = false; // null: latest
 let asset = null, requestSerial = 0, hovered = -1, chartBars = [], chartLeft = 8, chartBarWidth = 1;
+let chartViewEndAt = null, chartVisibleBars = null, chartDrag = null;
+const intervalMs = () => ({ '1m':1, '5m':5, '15m':15, '30m':30, '1h':60, '4h':240 }[interval] || 15) * 60000;
 const token = localStorage.getItem('orbit-token') || '';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const number = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US', { maximumFractionDigits: Number(value) < 1 ? 6 : Number(value) < 100 ? 4 : 2 }) : '—';
@@ -17,6 +19,7 @@ const compact = value => value != null && value !== '' && Number.isFinite(Number
 const date = value => new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const tfName = { '1m': 'M1', '5m': 'M5', '15m': 'M15', '30m': 'M30', '1h': 'H1', '4h': 'H4' };
 const stateName = { WAITING: 'Ожидает вход', OPEN: 'В работе', STOPPED: 'Стоп', COMPLETED: 'TP3 достигнут', CANCELLED: 'Отменён', EXPIRED: 'Истёк', UNCERTAIN: 'Проверить вручную' };
+const strategyName = signal => signal.strategyKey === 'breakout' ? 'Импульс и пробой' : signal.strategyKey === 'smc' ? 'SMC · OB/FVG' : signal.ruleVersion || 'Архив SMC';
 initWakeLock();
 
 if (!/^[A-Z0-9]{2,16}USDT$/.test(symbol)) {
@@ -49,7 +52,7 @@ function renderBook(marketType,book) {
       book?.error?'Ошибка: '+String(book.error).slice(0,70):'Синхронизация…';
     status.classList.remove('active');
     totals.textContent='Нет актуального синхронизированного стакана';
-    change.textContent='Сигналы D2 не подтверждаются без непрерывных данных';
+    change.textContent='Стакан показан для справки и не входит в правила новых сигналов';
     bids.textContent='—';asks.textContent='—';
     $('#'+prefix+'BidBar').style.width='0%';
     $('#'+prefix+'AskBar').style.width='0%';return;
@@ -84,11 +87,11 @@ async function loadOrderBooks() {
     const body=await response.json();
     if(!response.ok)throw Error(body.error||'HTTP '+response.status);
     if(serial!==bookRequest)return;
-    renderBook('spot',body.spot);renderBook('futures',body.futures);
+    renderBook('futures',body.futures);
     $('#bookUpdateStatus').textContent='WS · обновление каждые ~2,5с';
   }catch(error){
     if(serial!==bookRequest)return;
-    renderBook('spot',null);renderBook('futures',null);
+    renderBook('futures',null);
     $('#bookUpdateStatus').textContent='Нет связи';
   }
 }
@@ -122,8 +125,9 @@ function syncTabs() {
 async function loadAsset() {
   const serial = ++requestSerial;
   try {
-    const minutes = { '1m':1, '5m':5, '15m':15, '30m':30, '1h':60, '4h':240 }[interval] || 15;
-    const startTime = chartAnchorAt == null ? '' : `&startTime=${Math.max(1, chartAnchorAt - 40 * minutes * 60000)}`;
+    const focusAt = chartViewEndAt ?? chartAnchorAt;
+    const beforeBars = chartViewEndAt == null ? 40 : Math.min(140, (chartVisibleBars || 80) + 15);
+    const startTime = focusAt == null ? '' : `&startTime=${Math.max(1, focusAt - beforeBars * intervalMs())}`;
     const url = `/api/asset/${encodeURIComponent(symbol)}?market=${market}&interval=${interval}${startTime}`;
     const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     const body = await response.json();
@@ -188,7 +192,8 @@ function render() {
     ? displayedSignals.slice(0, 35).map(signalCard).join('')
     : `<div class="asset-empty">${assetScope === 'finished' ? 'Завершённых сигналов нет.' :
         'Актуальных сигналов нет. Завершённые сценарии находятся в соседней вкладке.'}</div>`;
-  $('#chartWindow').textContent = chartAnchorAt == null ? 'Последние закрытые свечи'
+  $('#chartWindow').textContent = chartViewEndAt != null ? `История до ${date(chartViewEndAt)} · ${tfName[interval]}`
+    : chartAnchorAt == null ? 'Последние закрытые свечи'
     : `Историческое окно: ${date(chartAnchorAt)} · ${tfName[interval]}`;
   const marked = selectedSignal(), trace = marked ? journey(marked) : null;
   document.querySelectorAll('[data-focus]').forEach(button => {
@@ -215,7 +220,7 @@ function signalCard(s) {
     : 'Вход ещё не зафиксирован';
   return `<button type="button" class="asset-signal ${selectedId === s.id ? 'selected' : ''}"
     data-signal="${escapeHtml(s.id)}">
-    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)} · ${s.ruleVersion ? escapeHtml(s.ruleVersion) : 'SMC v3'}</strong>
+    <div class="asset-signal-head"><strong>${escapeHtml(tfName[s.timeframe] || 'H1')} · ${escapeHtml(s.side)} · ${escapeHtml(strategyName(s))}</strong>
     <small>${escapeHtml(stateName[s.state] || s.state)}</small></div>
     <p>Сигнал ${date(s.detectedAt)} · ${timeline} · ${result}</p>
     <div class="asset-signal-levels"><span>Вход ${number(s.entry)}</span><span>SL ${number(s.stop)}</span>
@@ -237,9 +242,9 @@ function renderSelectedSignal() {
     : trace.finished ? trace.result : 'движение не завершено';
   const percentText = trace.percent == null ? '' :
     `<strong class="path-result ${trace.percent >= 0 ? 'positive' : 'negative'}">${trace.percent >= 0 ? '+' : ''}${trace.percent.toFixed(2)}% по цене от входа до финиша</strong>`;
-  panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${signal.ruleVersion ? escapeHtml(signal.ruleVersion) : 'SMC v3'} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
-    <div class="selected-levels"><div><span>ЗОНА OB</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
-    <p>${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || "BOS"} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}</p>
+  panel.innerHTML = `<div class="selected-signal-heading"><strong>${escapeHtml(tfName[signal.timeframe])} · ${escapeHtml(signal.side)} · ${escapeHtml(strategyName(signal))} · ${escapeHtml(stateName[signal.state])}</strong><span>${date(signal.detectedAt)}</span></div>
+    <div class="selected-levels"><div><span>${signal.strategyKey === 'breakout' ? 'ДОПУСК ВХОДА' : 'ЗОНА OB'}</span><b>${number(signal.entryLow)}–${number(signal.entryHigh)}</b></div><div><span>ВХОД</span><b>${number(signal.entry)}</b></div><div><span>СТОП</span><b>${number(signal.stop)}</b></div>${signal.targets.map((value, i) => `<div><span>TP${i + 1}</span><b>${number(value)} ${i < signal.hitTargets ? '✓' : ''}</b></div>`).join('')}</div>
+    <p>${signal.strategyKey === 'breakout' ? `Пробой ${number(signal.swing)} · вход по следующей M1` : `${signal.imbalance ? `FVG ${number(signal.imbalance.low)}–${number(signal.imbalance.high)} · ` : ''}${signal.structureEvent?.type || 'BOS'} ${number(signal.swing)} · ордер-блок ${signal.blockTime ? date(signal.blockTime) : '—'}`}</p>
     <div class="signal-path-summary">
       <div><b>СТАРТ СИГНАЛА</b><span>${date(signal.detectedAt)} ${trace.createdPrice != null ? '· ' + number(trace.createdPrice) : ''}</span></div>
       <div><b>ТОЧКА ВХОДА</b><span>${entryText}</span></div>
@@ -250,14 +255,18 @@ function renderSelectedSignal() {
 }
 function drawChart() {
   const canvas = $('#priceChart'), ctx = canvas.getContext('2d');
-  const rect = canvas.getBoundingClientRect(), width = Math.max(100, rect.width), height = 320;
+  const rect = canvas.getBoundingClientRect(), width = Math.max(100, rect.width), height = Math.max(320, Math.round(rect.height));
   const dpr = devicePixelRatio || 1;
   canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
-  const left = 8, right = 63, top = 14, priceBottom = 240, volumeTop = 255, volumeBottom = 296;
+  const left = 8, right = 63, top = 14, priceBottom = height - 80, volumeTop = height - 65, volumeBottom = height - 24;
   const plotWidth = width - left - right;
-  const available = asset?.candles || [], capacity = Math.max(25, Math.floor(plotWidth / 5));
-  if (chartAnchorAt == null) chartBars = available.slice(-capacity);
+  const available = asset?.candles || [], capacity = Math.max(20, Math.min(120, chartVisibleBars || Math.floor(plotWidth / 5)));
+  if (chartViewEndAt != null) {
+    const after = available.findIndex(c => c.time > chartViewEndAt);
+    const end = after < 0 ? available.length : Math.max(1, after);
+    chartBars = available.slice(Math.max(0, end - capacity), end);
+  } else if (chartAnchorAt == null) chartBars = available.slice(-capacity);
   else {
     const index = available.findIndex(c => chartAnchorAt >= c.time && chartAnchorAt <= c.end);
     const candidate = index >= 0 ? index : available.findIndex(c => c.end >= chartAnchorAt);
@@ -307,8 +316,8 @@ function drawChart() {
   recentGaps.forEach(gap => zone(gap.low, gap.high, gap.time, '#eab87a16', '#d5ac6d', 'FVG ' + (gap.status || 'active'), gap.filledAt || lastTime));
   recentBlocks.forEach(item => zone(item.block.low, item.block.high, item.block.time, item.direction === 'up' ? '#65dfa51f' : '#e77d951f', item.direction === 'up' ? '#67dca9' : '#e18c9e', 'OB ' + (item.block.status || 'active')));
   if (signal) {
-    zone(signal.entryLow, signal.entryHigh, signal.blockTime || firstTime, '#75edba32', '#8ae8c4', 'OB · ВХОД');
-    if (signal.imbalance) zone(signal.imbalance.low, signal.imbalance.high, signal.imbalance.time, '#eab87a2b', '#efc686', 'FVG СИГНАЛА');
+    zone(signal.entryLow, signal.entryHigh, signal.blockTime || firstTime, '#75edba32', '#8ae8c4', signal.strategyKey === 'breakout' ? 'ДОПУСК ВХОДА' : 'OB · ВХОД');
+    if (signal.imbalance && signal.strategyKey !== 'breakout') zone(signal.imbalance.low, signal.imbalance.high, signal.imbalance.time, '#eab87a2b', '#efc686', 'FVG СИГНАЛА');
   }
   for (let i = 0; i <= 4; i++) {
     const yy = top + i * (priceBottom - top) / 4;
@@ -425,13 +434,82 @@ function drawChart() {
   ctx.textAlign = 'right'; ctx.fillText(new Date(chartBars.at(-1).time).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), left + plotWidth, height - 7);
   const info = chartBars[hovered >= 0 ? hovered : chartBars.length - 1];
   $('#candleInfo').textContent = `${date(info.time)} · O ${number(info.open)}  H ${number(info.high)}  L ${number(info.low)}  C ${number(info.close)} · Vol ${compact(info.volume)}`;
+  $('#chartWindow').textContent = chartViewEndAt != null ? `История до ${date(chartBars.at(-1).time)} · ${tfName[interval]} · ${chartBars.length} свечей`
+    : chartAnchorAt == null ? `Последние ${chartBars.length} закрытых свечей`
+    : `Историческое окно: ${date(chartAnchorAt)} · ${tfName[interval]} · ${chartBars.length} свечей`;
 }
+function zoomChart(direction, clientX = null) {
+  if (!asset || !chartBars.length) return;
+  const current = chartVisibleBars || chartBars.length;
+  const next = Math.max(20, Math.min(120, Math.round(current * (direction === 'in' ? .8 : 1.25))));
+  if (next === current) return;
+  const canvas = $('#priceChart'), rect = canvas.getBoundingClientRect();
+  const ratio = clientX == null ? .5 : Math.max(0, Math.min(1, (clientX - rect.left - chartLeft) / Math.max(1, rect.width - chartLeft - 63)));
+  const pivot = chartBars[Math.min(chartBars.length - 1, Math.floor(ratio * chartBars.length))];
+  const pivotIndex = asset.candles.findIndex(c => c.time === pivot.time);
+  const endIndex = Math.max(0, Math.min(asset.candles.length - 1, pivotIndex + next - 1 - Math.floor(ratio * next)));
+  const wasLive = chartViewEndAt == null && chartAnchorAt == null;
+  chartVisibleBars = next;
+  if (!wasLive || endIndex < asset.candles.length - 1) {
+    chartViewEndAt = asset.candles[endIndex].time;
+    chartAnchorAt = chartViewEndAt;
+    chartFocusPinned = true;
+  }
+  hovered = -1;
+  drawChart();
+}
+function resetChart() {
+  chartViewEndAt = null; chartVisibleBars = null; chartAnchorAt = null; chartFocusPinned = true; hovered = -1;
+  loadAsset();
+}
+$('#priceChart').addEventListener('wheel', event => {
+  if (!asset) return;
+  event.preventDefault();
+  zoomChart(event.deltaY < 0 ? 'in' : 'out', event.clientX);
+}, { passive: false });
+$('#priceChart').addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'mouse' || event.button !== 0 || !asset || !chartBars.length) return;
+  const endTime = chartBars.at(-1).time;
+  chartDrag = { pointerId: event.pointerId, startX: event.clientX, startEndTime: endTime,
+    startEndIndex: asset.candles.findIndex(c => c.time === endTime), width: chartBarWidth };
+  event.currentTarget.setPointerCapture(event.pointerId);
+  event.currentTarget.classList.add('dragging');
+});
 $('#priceChart').addEventListener('pointermove', event => {
   if (!asset || !chartBars.length) return;
+  if (chartDrag?.pointerId === event.pointerId) {
+    const shift = Math.round((event.clientX - chartDrag.startX) / Math.max(1, chartDrag.width));
+    const endIndex = Math.max(Math.min(chartVisibleBars || chartBars.length, asset.candles.length) - 1,
+      Math.min(asset.candles.length - 1, chartDrag.startEndIndex - shift));
+    chartViewEndAt = asset.candles[endIndex].time;
+    chartAnchorAt = chartViewEndAt; chartFocusPinned = true; hovered = -1;
+    drawChart(); return;
+  }
   const x = event.clientX - $('#priceChart').getBoundingClientRect().left;
   hovered = Math.max(0, Math.min(chartBars.length - 1, Math.floor((x - chartLeft) / chartBarWidth)));
   drawChart();
 });
+function endChartDrag(event) {
+  if (!chartDrag || event.pointerId !== chartDrag.pointerId) return;
+  const drag = chartDrag; chartDrag = null;
+  const canvas = $('#priceChart'); canvas.classList.remove('dragging');
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  const shift = Math.round((event.clientX - drag.startX) / Math.max(1, drag.width));
+  const target = drag.startEndTime - shift * intervalMs();
+  const firstFull = asset.candles[Math.min(asset.candles.length - 1, (chartVisibleBars || chartBars.length) - 1)].time;
+  const last = asset.candles.at(-1).time;
+  if (target < firstFull || target > last) {
+    chartViewEndAt = target > Date.now() - intervalMs() ? null : target;
+    chartAnchorAt = chartViewEndAt; chartFocusPinned = true;
+    loadAsset();
+  }
+}
+$('#priceChart').addEventListener('pointerup', endChartDrag);
+$('#priceChart').addEventListener('pointercancel', endChartDrag);
+$('#priceChart').addEventListener('dblclick', resetChart);
+document.querySelectorAll('[data-chart-zoom]').forEach(button => button.addEventListener('click', () => {
+  if (button.dataset.chartZoom === 'reset') resetChart(); else zoomChart(button.dataset.chartZoom);
+}));
 $('#priceChart').addEventListener('pointerleave', () => { hovered = -1; if (asset) drawChart(); });
 window.addEventListener('resize', () => { if (asset) drawChart(); });
 $('#assetSignals').addEventListener('click', event => {
@@ -442,6 +520,7 @@ $('#assetSignals').addEventListener('click', event => {
   selectedId = id;
   assetScope = isFinished(signal) ? 'finished' : 'current';
   interval = signal.timeframe;
+  chartViewEndAt = null; chartVisibleBars = null;
   chartAnchorAt = journey(signal).entry?.at || signal.detectedAt;
   chartFocusPinned = true;
   syncTabs(); render(); loadAsset();
@@ -459,14 +538,14 @@ $('#selectedSignalPanel').addEventListener('click', async event => {
   catch (error) { $('#followHelp').textContent = `Сохранено на устройстве. Синхронизация: ${error.message}`; }
 });
 document.querySelectorAll('[data-market]').forEach(button => button.addEventListener('click', () => {
-  market = button.dataset.market; selectedId = null; chartAnchorAt = null; chartFocusPinned = false;
+  market = button.dataset.market; selectedId = null; chartAnchorAt = null; chartViewEndAt = null; chartVisibleBars = null; chartFocusPinned = false;
   assetScope = 'current'; syncTabs(); loadAsset(); loadLargeTrades();
 }));
 document.querySelectorAll('[data-asset-scope]').forEach(button => button.addEventListener('click', () => {
   assetScope = button.dataset.assetScope;
   const selected = selectedSignal();
   if (selected && isFinished(selected) !== (assetScope === 'finished')) {
-    selectedId = null; chartAnchorAt = null; chartFocusPinned = false; syncTabs(); loadAsset();
+    selectedId = null; chartAnchorAt = null; chartViewEndAt = null; chartVisibleBars = null; chartFocusPinned = false; syncTabs(); loadAsset();
   } else render();
 }));
 document.querySelectorAll('[data-focus]').forEach(button => button.addEventListener('click', () => {
@@ -477,8 +556,9 @@ document.querySelectorAll('[data-focus]').forEach(button => button.addEventListe
   if (focused !== 'now' && !selected) return;
   chartAnchorAt = focused === 'now' ? null : focused === 'start' ? selected.detectedAt :
     focused === 'entry' ? trace.entry?.at : trace.exit?.at;
+  chartViewEndAt = null;
   chartFocusPinned = true;
   loadAsset();
 }));
-document.querySelectorAll('[data-interval]').forEach(button => button.addEventListener('click', () => { interval = button.dataset.interval; syncTabs(); loadAsset(); }));
+document.querySelectorAll('[data-interval]').forEach(button => button.addEventListener('click', () => { interval = button.dataset.interval; chartViewEndAt = null; chartVisibleBars = null; syncTabs(); loadAsset(); }));
 

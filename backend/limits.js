@@ -4,7 +4,7 @@ import { TIMEFRAMES } from './strategy.js';
 // another for large trades. REST is used for closed M5-H4 bars and recovery.
 export function usagePlan(symbolCount) {
   const symbols = Math.max(0, Math.min(10, Math.trunc(symbolCount)));
-  const markets = 2;
+  const markets = 1;
   const timeframeRequestsPerDay = symbols * markets * Object.values(TIMEFRAMES)
     .reduce((sum, minutes) => sum + 1440 / minutes, 0);
   const depthBootstrapMinRequests = symbols * markets;
@@ -12,7 +12,7 @@ export function usagePlan(symbolCount) {
   const peakRequestsPerCron = symbols * markets * (1 + Object.keys(TIMEFRAMES).length);
   return {
     symbols, markets,
-    node: { websocketConnections: 6, timeframeRestRequestsPerDay: timeframeRequestsPerDay,
+    node: { websocketConnections: 3, timeframeRestRequestsPerDay: timeframeRequestsPerDay,
       depthBootstrapRequestsOnStart: depthBootstrapMinRequests, depthBootstrapPerReconnect: depthBootstrapMinRequests },
     cloudflareFree: {
       cronInvocationsPerDay: 1440,

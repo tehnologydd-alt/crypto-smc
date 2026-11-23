@@ -11,7 +11,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = ciBuild?.coerceAtLeast(2) ?: 2
-        versionName = "0.2-review.${ciBuild ?: "local"}"
+        versionName = "0.4-review.${ciBuild ?: "local"}"
     }
     if (!signingPassword.isNullOrEmpty() && !signingAlias.isNullOrEmpty()) signingConfigs {
         create("review") {

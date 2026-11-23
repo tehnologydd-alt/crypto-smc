@@ -11,9 +11,16 @@ import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
 import { normalizePreferences, shouldNotify } from './notifications.js';
 import { openExperienceStore } from './experience.js';
+import { backfillM1 } from './candle-backfill.js';
 import { LargeTradeTracker } from './whales.js';
 import { RateBudget, usagePlan } from './limits.js';
 import { validateMobileBatch } from './mobile-sync.js';
+import { ownMachineRequest } from './local-browser-auth.js';
+import { assessCandidate, buildResearchLab } from './research-lab.js';
+import { runHistoricalResearch } from './historical-research.js';
+import { LOCAL_AI_POLICY, validLocalAiConfig, listLocalModels,
+  listLoadedOllamaModels, preloadLocalModel, freezeLocalAiInput,
+  reviewLocalCandidate } from './local-ai.js';
 
 const base = resolve(import.meta.dirname);
 const dataDir = resolve(process.env.DATA_DIR || join(base, 'data'));
@@ -38,9 +45,33 @@ const state = {
   subscriptions: Array.isArray(stored.subscriptions) ? stored.subscriptions : [],
   lastCandle: stored.lastCandle || {},
   model: experience.model,
+  localAiConfig: validLocalAiConfig(stored.localAiConfig) ? stored.localAiConfig :
+    { enabled: false, provider: 'ollama', model: '' },
   prices: {}, feeds: { spot: 'connecting', futures: 'connecting' },
   errors: {}, updatedAt: Date.now()
 };
+const replayRuns = new Map();
+function archiveSpotSignals() {
+  let changed = false;
+  for (const signal of state.signals) {
+    if (signal.market !== 'spot' || !['WAITING', 'OPEN'].includes(signal.state)) continue;
+    const waiting = signal.state === 'WAITING';
+    signal.state = waiting ? 'EXPIRED' : 'UNCERTAIN';
+    signal.events ||= [];
+    signal.events.push({ type: waiting ? 'EXPIRED' : 'DATA_GAP', at: Date.now(), price: 0 });
+    experience.saveSignal(signal);
+    changed = true;
+  }
+  return changed;
+}
+archiveSpotSignals();
+for (const signal of state.signals) {
+  if (signal.localAi?.status === 'PENDING') {
+    signal.localAi = { ...signal.localAi, status: 'INTERRUPTED',
+      reason: 'Сервер перезапущен до ответа модели' };
+    experience.saveSignal(signal);
+  }
+}
 const vapid = loadVapidKeys(join(dataDir, 'vapid.json'));
 const sockets = new Map();
 const reconnectTimers = new Map();
@@ -58,13 +89,80 @@ function persist() {
   saveTimer = setTimeout(async () => {
     try {
       const path = `${dataPath}.${randomUUID()}.tmp`;
-      await writeFile(path, JSON.stringify({ symbols: state.symbols, signals: state.signals, subscriptions: state.subscriptions, lastCandle: state.lastCandle, model: state.model, rateBudget: rateBudget.exportState() }));
+      await writeFile(path, JSON.stringify({ symbols: state.symbols, signals: state.signals,
+        subscriptions: state.subscriptions, lastCandle: state.lastCandle, model: state.model,
+        localAiConfig: state.localAiConfig, rateBudget: rateBudget.exportState() }));
       await rename(path, dataPath);
     } catch (error) { console.error('Save failed:', error); }
   }, 250);
 }
+const aiQueue = [];
+let aiRunning = false;
+function recordAiReview(id, hash, update) {
+  const signal = state.signals.find(row => row.id === id) ||
+    experience.researchSignals().find(row => row.id === id);
+  if (!signal || signal.localAi?.status !== 'PENDING' || signal.localAi.inputHash !== hash) return;
+  signal.localAi = { ...signal.localAi, ...update, completedAt: Date.now() };
+  experience.saveSignal(signal);
+  persist();
+}
+async function drainAiQueue() {
+  if (aiRunning) return;
+  aiRunning = true;
+  try {
+    while (aiQueue.length) {
+      const item = aiQueue.shift();
+      if (!state.localAiConfig.enabled) {
+        recordAiReview(item.id, item.frozen.hash,
+          { status: 'INTERRUPTED', reason: 'Локальный ИИ отключён' });
+        continue;
+      }
+      try {
+        const review = await reviewLocalCandidate(item.config, item.frozen);
+        recordAiReview(item.id, item.frozen.hash,
+          { status: 'DONE', verdict: review.verdict, reason: review.reason });
+      } catch (error) {
+        recordAiReview(item.id, item.frozen.hash,
+          { status: 'ERROR', reason: String(error.message).slice(0, 180) });
+      }
+    }
+  } finally { aiRunning = false; }
+}
+function queueAiReview(signal, bars, parentBars) {
+  if (!state.localAiConfig.enabled) return;
+  const config = { ...state.localAiConfig };
+  try {
+    if (aiQueue.length >= 16) throw new Error('Очередь локального ИИ заполнена');
+    const frozen = freezeLocalAiInput(signal, bars, parentBars);
+    signal.localAi = { policy: LOCAL_AI_POLICY, status: 'PENDING',
+      provider: config.provider, model: config.model, requestedAt: Date.now(),
+      inputHash: frozen.hash };
+    aiQueue.push({ id: signal.id, config, frozen });
+    queueMicrotask(() => void drainAiQueue());
+  } catch (error) {
+    signal.localAi = { policy: LOCAL_AI_POLICY, status: 'ERROR',
+      provider: config.provider, model: config.model, requestedAt: Date.now(),
+      completedAt: Date.now(), reason: String(error.message).slice(0, 180) };
+  }
+}
+let aiWarm = { state: 'disabled' };
+let aiWarmGeneration = 0;
+async function warmLocalAi() {
+  const generation = ++aiWarmGeneration;
+  const config = { ...state.localAiConfig };
+  if (!config.enabled) { aiWarm = { state: 'disabled' }; return; }
+  aiWarm = { state: 'loading', provider: config.provider, model: config.model };
+  try {
+    const loaded = await preloadLocalModel(config);
+    if (generation === aiWarmGeneration) aiWarm = { state: 'ready', ...loaded };
+  } catch (error) {
+    if (generation === aiWarmGeneration) aiWarm = { state: 'error',
+      provider: config.provider, model: config.model,
+      reason: String(error.message).slice(0, 180) };
+  }
+}
 function label(signal, event) {
-  const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.ruleVersion || 'SMC v3'}`;
+    const prefix = `${signal.market === 'spot' ? 'Спот' : 'Фьючерсы'} · ${signal.symbol} · ${signal.timeframe || '1h'} · ${signal.side} · ${signal.strategyKey || signal.ruleVersion || 'SMC'}`;
   const names = { CREATED: 'Новый сигнал', ENTRY: 'Цена вошла в зону входа', TP1: 'Достигнут TP1', TP2: 'Достигнут TP2', TP3: 'Достигнут TP3', STOP: 'Достигнут стоп', INVALIDATED: 'Сигнал отменён', EXPIRED: 'Сигнал истёк', DATA_GAP: 'Пробел в данных' };
   const url = `/asset.html?symbol=${encodeURIComponent(signal.symbol)}&market=${encodeURIComponent(signal.market)}&interval=${encodeURIComponent(signal.timeframe || '1h')}&signal=${encodeURIComponent(signal.id)}`;
   return { title: `${prefix}: ${names[event.type] || event.type}`, body: `Цена: ${formatPrice(event.price)} USDT`, id: signal.id, url };
@@ -90,6 +188,7 @@ function processCandle(market, symbol, candle, shouldScan = true) {
   if (!state.symbols.includes(symbol)) return;
   const pair = key(market, symbol);
   if (candle.end <= (state.lastCandle[pair] || 0) || ![candle.high, candle.low, candle.close].every(Number.isFinite)) return;
+  if (market === 'futures') experience.recordCandles(market, symbol, '1m', [candle]);
   state.prices[pair] = { price: candle.close, at: candle.end };
   state.lastCandle[pair] = candle.end;
   state.updatedAt = Date.now();
@@ -124,7 +223,39 @@ async function fetchKlines(market, symbol, interval, options = {}) {
   const response = await fetch(u, { signal: AbortSignal.timeout(12000) });
   rateBudget.observe(market, response);
   if (!response.ok) throw new Error(`${market} ${symbol}: Binance HTTP ${response.status}`);
-  return parseKlines(await response.json());
+  const candles = parseKlines(await response.json());
+  if (market === 'futures') experience.recordCandles(market, symbol, interval, candles);
+  return candles;
+}
+let m1BackfillRunning = false;
+async function backfillRecentM1() {
+  if (m1BackfillRunning) return;
+  m1BackfillRunning = true;
+  try {
+    const results = await backfillM1(state.symbols,
+      (symbol, since, now) => experience.missingM1Start(symbol, since, now),
+      (symbol, startTime, limit) => fetchKlines('futures', symbol, '1m', { startTime, limit }));
+    for (const result of results) {
+      if (result.error) console.error(`M1 archive ${result.symbol}: ${result.error}`);
+    }
+  } finally { m1BackfillRunning = false; }
+}
+async function fetchFundingRates(symbol, start, end) {
+  const url = new URL('https://fapi.binance.com/fapi/v1/fundingRate');
+  url.searchParams.set('symbol', symbol);
+  url.searchParams.set('startTime', String(start));
+  url.searchParams.set('endTime', String(end));
+  url.searchParams.set('limit', '1000');
+  rateBudget.reserve('futures', 1);
+  const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  rateBudget.observe('futures', response);
+  if (!response.ok) throw new Error(`Funding Binance HTTP ${response.status}`);
+  const rows = await response.json();
+  if (!Array.isArray(rows)) throw new Error('Неверный ответ funding Binance');
+  return rows.map(row => ({ fundingTime: Number(row.fundingTime),
+    fundingRate: Number(row.fundingRate), markPrice: Number(row.markPrice) }))
+    .filter(row => Number.isFinite(row.fundingTime) && Number.isFinite(row.fundingRate) &&
+      row.fundingTime >= start && row.fundingTime <= end);
 }
 async function fetchTicker(market, symbol) {
   const u = new URL(endpoints[market].ticker);
@@ -216,6 +347,8 @@ async function scanSignal(market, symbol, timeframe, expectedEnd, attempt = 0) {
         ['WAITING', 'OPEN', 'UNCERTAIN'].includes(s.state));
       if (activeVersion || state.signals.some(s => s.id === signal.id)) continue;
       signal.quality = scoreSignal(experience.ruleModels[signal.ruleVersion], signal.features);
+      signal.researchV5 = assessCandidate(signal);
+      queueAiReview(signal, candles, parentBars);
       experience.saveSignal(signal);
       state.signals.unshift(signal);
       if (state.signals.length > 500) {
@@ -278,7 +411,7 @@ async function connectMarket(market) {
       const k = JSON.parse(event.data).data?.k;
       if (!k?.x || !k.s) return;
       lastWsCandle[market] = Date.now();
-      const candle = { time: Number(k.t), end: Number(k.T), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c) };
+      const candle = { time: Number(k.t), end: Number(k.T), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
       const previous = queues.get(k.s) || Promise.resolve();
       const next = previous.then(async () => {
         const last = state.lastCandle[key(market, k.s)] || 0;
@@ -331,7 +464,10 @@ async function requestBody(req, maxBytes = 32000) {
   }
   return JSON.parse(raw || '{}');
 }
-function authorized(req) { return !token || req.headers.authorization === `Bearer ${token}`; }
+function authorized(req) {
+  return !token || req.headers.authorization === `Bearer ${token}` ||
+    (lanOnly && ownMachineRequest(req, { secure: Boolean(tlsPfxPath) }));
+}
 function lanPeer(address) {
   const value = (address || '').replace(/^::ffff:/, '');
   const parts = value.split('.').map(Number);
@@ -357,6 +493,59 @@ const handleRequest = async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Неверный ключ доступа' });
       if (req.method === 'GET' && url.pathname === '/api/mobile/state') return json(res, 200, mobileState());
+      if (req.method === 'GET' && url.pathname === '/api/research/lab')
+        return json(res, 200, { ...buildResearchLab(experience.researchSignals(), experience.candleCoverage()),
+          feed: state.feeds.futures, monitored: state.symbols.length, symbols: state.symbols,
+          errors: Object.keys(state.errors).length });
+      if (req.method === 'GET' && url.pathname === '/api/research/ai') {
+        const providers = Object.fromEntries(await Promise.all(['ollama', 'lmstudio'].map(async name => {
+          try { return [name, { online: true, models: await listLocalModels(name),
+            loaded: name === 'ollama' ? await listLoadedOllamaModels() : null }]; }
+          catch (error) { return [name, { online: false, models: [], error: error.message }]; }
+        })));
+        return json(res, 200, { config: state.localAiConfig, providers,
+          queue: aiQueue.length + Number(aiRunning), warm: aiWarm,
+          policy: LOCAL_AI_POLICY });
+      }
+      if (req.method === 'PUT' && url.pathname === '/api/research/ai') {
+        let config;
+        try { config = await requestBody(req, 1024); }
+        catch { return json(res, 400, { error: 'Неверная настройка локального ИИ' }); }
+        if (!validLocalAiConfig(config))
+          return json(res, 400, { error: 'Выберите Ollama или LM Studio и корректную модель' });
+        if (config.enabled) {
+          let models;
+          try { models = await listLocalModels(config.provider); }
+          catch (error) { return json(res, 422, { error: 'Локальный API недоступен: ' + error.message }); }
+          if (!models.includes(config.model))
+            return json(res, 422, { error: 'Выбранная модель не загружена или недоступна локально' });
+        }
+        state.localAiConfig = { enabled: config.enabled, provider: config.provider,
+          model: config.model };
+        persist();
+        void warmLocalAi();
+        return json(res, 200, { config: state.localAiConfig, policy: LOCAL_AI_POLICY });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/research/replay') {
+        let input;
+        try { input = await requestBody(req, 2048); }
+        catch { return json(res, 400, { error: 'Неверные параметры исследования' }); }
+        if (!state.symbols.includes(input.symbol) || !['5m','15m','30m'].includes(input.timeframe) ||
+            ![3,7].includes(input.days) ||
+            ![input.feeBps ?? 5, input.slippageBps ?? 2].every(n =>
+              typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100))
+          return json(res, 400, { error: 'Выберите отмеченный актив, M5/M15/M30, окно 3 или 7 дней и допустимые расходы' });
+        const cacheKey = `${input.symbol}:${input.timeframe}:${input.days}:${input.feeBps ?? 5}:${input.slippageBps ?? 2}`;
+        let cached = replayRuns.get(cacheKey);
+        if (!cached || cached.expiresAt < Date.now()) {
+          const promise = runHistoricalResearch(input, fetchKlines, Date.now(), fetchFundingRates);
+          cached = { promise, expiresAt: Date.now() + 30 * 60000 };
+          replayRuns.set(cacheKey, cached);
+          promise.catch(() => { if (replayRuns.get(cacheKey) === cached) replayRuns.delete(cacheKey); });
+        }
+        try { return json(res, 200, await cached.promise); }
+        catch (error) { return json(res, 422, { error: error.message }); }
+      }
       if (req.method === 'GET' && url.pathname === '/api/order-books')
         return json(res,200,{orderBooks:depthRegistry.list(state.symbols),updatedAt:Date.now()});
       if (req.method === 'GET' && url.pathname.startsWith('/api/order-book/')) {
@@ -383,6 +572,7 @@ const handleRequest = async (req, res) => {
           if (result.learned) learned++;
         }
         state.signals = experience.loadSignals();
+        archiveSpotSignals();
         state.updatedAt = Date.now();
         persist();
         const sync = { serverId: experience.id, accepted: rows.map(signal => signal.id), stored, learned,
@@ -395,15 +585,15 @@ const handleRequest = async (req, res) => {
     experience: experience.summary(), statistics: experience.statistics(), pushAvailable: Boolean(vapidSubject), vapidPublicKey: vapid.publicKey });
       if (req.method === 'GET' && url.pathname.startsWith('/api/large-trades/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/large-trades/'.length)).toUpperCase();
-        const market = url.searchParams.get('market') || 'spot';
+        const market = url.searchParams.get('market') || 'futures';
         if (!state.symbols.includes(symbol) || !MARKETS.includes(market)) return json(res, 400, { error: 'Неверная пара или рынок' });
         return json(res, 200, { status: largeTradeFeeds[market], ...largeTrades.summary(market, symbol) });
       }
       if (req.method === 'GET' && url.pathname.startsWith('/api/asset/')) {
         const symbol = decodeURIComponent(url.pathname.slice('/api/asset/'.length)).toUpperCase();
-        const market = url.searchParams.get('market') || 'spot';
+        const market = url.searchParams.get('market') || 'futures';
         const interval = url.searchParams.get('interval') || '15m';
-        if (!state.symbols.includes(symbol) || !MARKETS.includes(market) || !['1m', ...Object.keys(TIMEFRAMES)].includes(interval)) return json(res, 400, { error: 'Неверная пара, рынок или таймфрейм' });
+        if (!state.symbols.includes(symbol) || !['spot', 'futures'].includes(market) || !['1m', ...Object.keys(TIMEFRAMES)].includes(interval)) return json(res, 400, { error: 'Неверная пара, рынок или таймфрейм' });
         const rawStart = url.searchParams.get('startTime');
         const startTime = rawStart === null ? null : Number(rawStart);
         if (rawStart !== null && (!/^\d{12,13}$/.test(rawStart) ||
@@ -458,7 +648,7 @@ const handleRequest = async (req, res) => {
     }
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
     const file = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
-    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'signal-journey.js', 'style.css', 'asset.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
+    if (!['index.html', 'app.js', 'wake.js', 'notification-settings.js', 'asset.html', 'asset.js', 'signal-journey.js', 'style.css', 'asset.css', 'lab.html', 'lab.js', 'lab.css', 'sw.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png'].includes(file)) return json(res, 404, { error: 'Не найдено' });
     const content = await readFile(join(base, 'public', file));
     res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': file === 'sw.js' ? 'no-cache' : 'max-age=60', 'X-Content-Type-Options': 'nosniff' });
     res.end(content);
@@ -467,7 +657,13 @@ const handleRequest = async (req, res) => {
 const server = tlsPfxPath ? https.createServer({ pfx: readFileSync(tlsPfxPath), passphrase: tlsPfxPassword }, handleRequest)
   : http.createServer(handleRequest);
 server.listen(port, host, () => console.log(`Crypto Signals: ${tlsPfxPath ? 'https' : 'http'}://${host}:${port}`));
+void warmLocalAi();
 for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
+function scheduleM1Backfill() {
+  void backfillRecentM1().catch(error => console.error('M1 archive:', error.message));
+}
+scheduleM1Backfill();
+setInterval(scheduleM1Backfill, 15 * 60000);
 setInterval(persist, 30000);
 setInterval(() => {
   for (const market of MARKETS) {

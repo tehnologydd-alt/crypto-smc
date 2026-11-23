@@ -39,7 +39,7 @@ export function scoreSignal(model, features) {
 }
 
 export function learnFromOutcome(model, signal) {
-  if (!validModel(model) || signal.strategyVersion !== 3 || signal.learned || !signal.quality || !Array.isArray(signal.features) || signal.features.length !== FEATURE_COUNT) return false;
+  if (!validModel(model) || ![3,4].includes(signal.strategyVersion) || signal.learned || !signal.quality || !Array.isArray(signal.features) || signal.features.length !== FEATURE_COUNT) return false;
   const label = signal.hitTargets > 0 ? 1 : signal.state === 'STOPPED' ? 0 : null;
   if (label === null || !signal.features.every(Number.isFinite)) return false;
   // The prediction was frozen when the signal was created, before its outcome.
