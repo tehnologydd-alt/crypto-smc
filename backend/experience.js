@@ -68,6 +68,9 @@ export function openExperienceStore(path, legacy = {}) {
     MIN(open_time) AS firstOpen,MAX(close_time) AS lastClose
     FROM market_candles WHERE market='futures'
     GROUP BY symbol,timeframe ORDER BY symbol,timeframe`);
+  const m1OpenTimes = db.prepare(`SELECT open_time FROM market_candles
+    WHERE market='futures' AND symbol=? AND timeframe='1m' AND close_time>=?
+    ORDER BY open_time`);
   let statisticsCache = null;
   const versionOf = signal => signal.strategyVersion || (signal.imbalance ? 2 : 1);
   const rowOf = signal => [signal.id, versionOf(signal), signal.detectedAt, signal.updatedAt || signal.events?.at(-1)?.at || signal.detectedAt,
@@ -140,6 +143,14 @@ export function openExperienceStore(path, legacy = {}) {
     summary() { const row = counts.get(); return { signals: row.signals, outcomes: row.outcomes }; },
     researchSignals() { return allSignals.all().map(row => JSON.parse(row.payload)); },
     candleCoverage() { return candleCoverage.all().map(row => ({ ...row })); },
+    missingM1Start(symbol, since, now) {
+      let expected = Math.floor(since / 60000) * 60000;
+      for (const row of m1OpenTimes.iterate(symbol, expected)) {
+        if (row.open_time > expected) return expected;
+        expected = row.open_time + 60000;
+      }
+      return expected < now - 120000 ? expected : 0;
+    },
     recordCandles(market, symbol, timeframe, candles) {
       if (market !== 'futures' || !/^[A-Z0-9]{2,16}USDT$/.test(symbol) ||
           !['1m','5m','15m','30m','1h','4h','1d'].includes(timeframe) ||

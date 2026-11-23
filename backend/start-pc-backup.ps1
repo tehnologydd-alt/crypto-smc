@@ -45,6 +45,35 @@ if (Test-Path -LiteralPath $secretPath) {
 }
 
 if (-not (Test-Path -LiteralPath $pfxPath)) { throw 'Сертификат отсутствует. Восстановите orbit-lan.pfx из резервной копии.' }
+
+# The research filter runs on this PC. Start its local API before Orbit when
+# the saved settings select Ollama, including when Orbit itself is already up.
+$statePath = Join-Path $StorageDirectory 'data\state.json'
+$aiConfig = $null
+if (Test-Path -LiteralPath $statePath) {
+    try { $aiConfig = (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).localAiConfig }
+    catch { Write-Warning 'Не удалось прочитать настройку локального ИИ.' }
+}
+if ($aiConfig -and $aiConfig.enabled -and $aiConfig.provider -eq 'ollama') {
+    $ollamaPath = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+    if (Test-Path -LiteralPath $ollamaPath) {
+        function Test-OllamaApi {
+            try {
+                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2
+                return $response.StatusCode -eq 200
+            } catch { return $false }
+        }
+        if (-not (Test-OllamaApi)) {
+            $env:OLLAMA_NO_CLOUD = '1'
+            Start-Process -FilePath $ollamaPath -ArgumentList 'serve' -WindowStyle Hidden | Out-Null
+            for ($attempt = 0; $attempt -lt 20 -and -not (Test-OllamaApi); $attempt++) {
+                Start-Sleep -Seconds 1
+            }
+            if (-not (Test-OllamaApi)) { Write-Warning 'Ollama не ответила; Orbit продолжит работу без оценки ИИ.' }
+        }
+    } else { Write-Warning 'Ollama не найдена; Orbit продолжит работу без оценки ИИ.' }
+}
+
 if (Test-Path -LiteralPath $pidPath) {
     $oldPid = 0
     try { $oldPid = [int](Get-Content -LiteralPath $pidPath -Raw) } catch {}

@@ -11,6 +11,7 @@ import { loadVapidKeys, sendPush } from './push.js';
 import { analyzeStructure } from './strategy.js';
 import { normalizePreferences, shouldNotify } from './notifications.js';
 import { openExperienceStore } from './experience.js';
+import { backfillM1 } from './candle-backfill.js';
 import { LargeTradeTracker } from './whales.js';
 import { RateBudget, usagePlan } from './limits.js';
 import { validateMobileBatch } from './mobile-sync.js';
@@ -225,6 +226,19 @@ async function fetchKlines(market, symbol, interval, options = {}) {
   const candles = parseKlines(await response.json());
   if (market === 'futures') experience.recordCandles(market, symbol, interval, candles);
   return candles;
+}
+let m1BackfillRunning = false;
+async function backfillRecentM1() {
+  if (m1BackfillRunning) return;
+  m1BackfillRunning = true;
+  try {
+    const results = await backfillM1(state.symbols,
+      (symbol, since, now) => experience.missingM1Start(symbol, since, now),
+      (symbol, startTime, limit) => fetchKlines('futures', symbol, '1m', { startTime, limit }));
+    for (const result of results) {
+      if (result.error) console.error(`M1 archive ${result.symbol}: ${result.error}`);
+    }
+  } finally { m1BackfillRunning = false; }
 }
 async function fetchFundingRates(symbol, start, end) {
   const url = new URL('https://fapi.binance.com/fapi/v1/fundingRate');
@@ -645,6 +659,11 @@ const server = tlsPfxPath ? https.createServer({ pfx: readFileSync(tlsPfxPath), 
 server.listen(port, host, () => console.log(`Crypto Signals: ${tlsPfxPath ? 'https' : 'http'}://${host}:${port}`));
 void warmLocalAi();
 for (const market of MARKETS) { void connectMarket(market); connectLargeTrades(market); connectDepth(market); }
+function scheduleM1Backfill() {
+  void backfillRecentM1().catch(error => console.error('M1 archive:', error.message));
+}
+scheduleM1Backfill();
+setInterval(scheduleM1Backfill, 15 * 60000);
 setInterval(persist, 30000);
 setInterval(() => {
   for (const market of MARKETS) {

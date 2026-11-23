@@ -61,3 +61,15 @@ test('phone event sync preserves server-owned AI and shadow decisions', () => {
   } finally { store.close(); }
 });
 
+test('M1 journal finds an interior gap even after recent candles arrive', () => {
+  const store = openExperienceStore(':memory:');
+  try {
+    const now = Date.now(), start = Math.floor((now - 5 * 60000) / 60000) * 60000;
+    assert.equal(store.recordCandles('futures', 'BTCUSDT', '1m', [0, 1, 3].map(i => ({
+      time: start + i * 60000, end: start + (i + 1) * 60000 - 1,
+      open: 100, high: 101, low: 99, close: 100.5, volume: 10 }))), 3);
+    assert.equal(store.missingM1Start('BTCUSDT', start, now), start + 2 * 60000);
+    assert.equal(store.missingM1Start('ETHUSDT', start, now), start);
+  } finally { store.close(); }
+});
+

@@ -8,6 +8,8 @@ For a public installation, use the included Docker Compose and Caddy configurati
 
 For local development, use `node --test` then `node server.js`. The default binding is `127.0.0.1:3000`. On Windows, `./start-pc-backup.ps1` starts a separate LAN HTTPS server on port 3443. It creates a persistent SQLite database, a random access token and a pinned TLS certificate outside the repository. Keep `connection.json` and the PFX private and backed up. The phone needs the PC LAN IP in the home address field, token and certificate SHA-256 from that file. Open TCP 3443 in Windows Firewall for the active network profile and home subnet only. For remote access to the same process, use Tailscale Serve and enter its HTTPS `.ts.net` URL as the app's external address.
 
+Keep the desktop shortcut pointed at this backend after upgrades. The Windows launcher starts Ollama when the saved local AI setting selects it. The server checks the last 48 hours of futures M1 history at startup and every 15 minutes, and fetches missing closed candles through the existing Binance rate budget. Historical recovery only repairs the candle archive; it does not rewrite signal events or claim orders were filled.
+
 ## API used by Android
 
 - `POST /api/mobile/sync`: imports up to 50 changed phone signals, acknowledges their IDs and optionally returns current marked assets, signals and events, prices, model summary and usage counters. A stable database ID lets Android resend its history after server restoration. Imports train once, without counting historical outcomes as independent validation.
