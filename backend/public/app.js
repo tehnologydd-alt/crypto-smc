@@ -31,6 +31,7 @@ function clearNotice() { $('#notice').classList.add('hidden'); }
 function setScreen(page, updateUrl = true) {
   const selected = ['market', 'signals', 'stats', 'settings'].includes(page) ? page : 'market';
   for (const name of ['market', 'signals', 'stats', 'settings']) $(`#${name}Screen`).classList.toggle('hidden', name !== selected);
+  $('#desktopPageTitle').textContent = { market: 'Обзор рынка', signals: 'Сигналы', stats: 'Статистика', settings: 'Настройки' }[selected];
   $('#settingsButton').classList.toggle('active', selected === 'settings');
   if (selected === 'settings') $('#settingsButton').setAttribute('aria-current', 'page'); else $('#settingsButton').removeAttribute('aria-current');
   document.querySelectorAll('.bottom-item').forEach(button => {
@@ -99,6 +100,15 @@ function card(signal) {
     <div class="card-values"><div><span>Вход</span><strong>${num(signal.entry)}</strong></div><div><span>M1 close</span><strong>${current ? num(current.price) : '—'}</strong></div><div><span>Стоп</span><strong>${num(signal.stop)}</strong></div></div>
     <div class="card-bottom"><span class="status ${positive ? 'positive' : ''}"><i></i>${safe(statusName[signal.state] || signal.state)}</span><span>${safe(step)} →</span></div>${quality}${bookNote}
   </button>`;
+}
+function renderMarketSignalPreview() {
+  const current = data.signals.filter(signal => ['WAITING', 'OPEN'].includes(signal.state))
+    .sort((a, b) => b.detectedAt - a.detectedAt).slice(0, 5);
+  $('#marketSignalPreview').innerHTML = current.length ? current.map(signal => `<button type="button" class="market-preview-row" data-preview-id="${safe(signal.id)}">
+    <span class="market-preview-top"><strong>${safe(signal.symbol.replace('USDT', ''))}<small>/USDT</small></strong><span class="side ${signal.side.toLowerCase()}">${safe(signal.side)}</span></span>
+    <span class="market-preview-meta">${safe(strategyName(signal))} · ${safe(tfName[signal.timeframe] || signal.timeframe)} · ${safe(statusName[signal.state])}</span>
+    <span class="market-preview-prices"><span>Вход <b>${num(signal.entry)}</b></span><span>Стоп <b>${num(signal.stop)}</b></span></span>
+  </button>`).join('') : '<div class="market-preview-empty"><strong>Нет текущих сигналов</strong><p>Сценарии появятся здесь после проверки условий стратегии.</p></div>';
 }
 function renderStatistics(stats) {
   if (!stats) return;
@@ -191,6 +201,7 @@ function render() {
   $('#modelText').textContent = models.map(model => `${model.key}: ${model.samples || 0} исходов, ${model.validationSamples || 0} проверочных, уровень ${level(model)}/3`).join(' · ') + '. Достижение уровня не гарантирует прибыльность.';
   $('#experienceText').textContent = `Реальная база опыта: ${data.experience?.signals || 0} сигналов, ${data.experience?.outcomes || 0} исходов для модели. Записи сохраняются после перезапуска.`;
   $('#assetsGrid').innerHTML = data.symbols.map(assetCard).join('');
+  renderMarketSignalPreview();
   const selectedIds = new Set(getPreferences().selectedIds);
   const signals = data.signals.filter(s => (filter === 'all' || s.market === filter) && (tfFilter === 'all' || (s.timeframe || '1h') === tfFilter) && (scope === 'all' ? !isFinished(s) : scope === 'marked' ? selectedIds.has(s.id) : isFinished(s)));
   $('#signalsCount').textContent = data.signals.filter(s => !isFinished(s)).length;
@@ -302,6 +313,8 @@ $('#selectedSignals').addEventListener('click', event => {
   const preferences = getPreferences(); preferences.selectedIds = preferences.selectedIds.filter(value => value !== id); void commitPreferences(preferences);
 });
 $('#signals').addEventListener('click', event => { const card = event.target.closest('[data-id]'); if (card) showDetail(card.dataset.id); });
+$('#marketSignalPreview').addEventListener('click', event => { const row = event.target.closest('[data-preview-id]'); if (row) showDetail(row.dataset.previewId); });
+$('#marketAllSignals').addEventListener('click', () => setScreen('signals'));
 $('#detailDialog').addEventListener('close', () => { activeDetail = null; });
 $('#detailDialog').addEventListener('click', async event => {
   const followId = event.target.closest('[data-follow]')?.dataset.follow;
